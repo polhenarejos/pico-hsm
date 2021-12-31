@@ -15,9 +15,91 @@
 #include "bsp/board.h"
 #include "tusb.h"
 #include "usb_descriptors.h"
+#include "device/usbd_pvt.h"
 
 // Device descriptors
 #include "hsm2040.h"
+
+static uint8_t itf_num;
+
+static void ccid_init(void) {
+}
+
+static void ccid_reset(uint8_t __unused rhport) {
+    itf_num = 0;
+}
+
+static uint16_t ccid_open(uint8_t __unused rhport, tusb_desc_interface_t const *itf_desc, uint16_t max_len) {
+    TU_VERIFY(itf_desc->bInterfaceClass == TUSB_CLASS_SMART_CARD && itf_desc->bInterfaceSubClass == 0 && itf_desc->bInterfaceProtocol == 0, 0);
+
+    uint16_t const drv_len = sizeof(tusb_desc_interface_t) + sizeof(class_desc_ccid_t) + 2*sizeof(tusb_desc_endpoint_t);
+    TU_VERIFY(max_len >= drv_len, 0);
+
+    itf_num = itf_desc->bInterfaceNumber;
+    return drv_len;
+}
+
+// Support for parameterized reset via vendor interface control request
+static bool ccid_control_xfer_cb(uint8_t __unused rhport, uint8_t stage, tusb_control_request_t const * request) {
+    // nothing to do with DATA & ACK stage
+    if (stage != CONTROL_STAGE_SETUP) return true;
+
+    if (request->wIndex == itf_num) 
+    {
+        TU_LOG2("-------- bmRequestType %x, bRequest %x, wValue %x, wLength %x\r\n",request->bmRequestType,request->bRequest, request->wValue, request->wLength);
+/*
+#if PICO_STDIO_USB_RESET_INTERFACE_SUPPORT_RESET_TO_BOOTSEL
+        if (request->bRequest == RESET_REQUEST_BOOTSEL) {
+#ifdef PICO_STDIO_USB_RESET_BOOTSEL_ACTIVITY_LED
+            uint gpio_mask = 1u << PICO_STDIO_USB_RESET_BOOTSEL_ACTIVITY_LED;
+#else
+            uint gpio_mask = 0u;
+#endif
+#if !PICO_STDIO_USB_RESET_BOOTSEL_FIXED_ACTIVITY_LED
+            if (request->wValue & 0x100) {
+                gpio_mask = 1u << (request->wValue >> 9u);
+            }
+#endif
+            reset_usb_boot(gpio_mask, (request->wValue & 0x7f) | PICO_STDIO_USB_RESET_BOOTSEL_INTERFACE_DISABLE_MASK);
+            // does not return, otherwise we'd return true
+        }
+#endif
+
+#if PICO_STDIO_USB_RESET_INTERFACE_SUPPORT_RESET_TO_FLASH_BOOT
+        if (request->bRequest == RESET_REQUEST_FLASH) {
+            watchdog_reboot(0, 0, PICO_STDIO_USB_RESET_RESET_TO_FLASH_DELAY_MS);
+            return true;
+        }
+#endif
+*/
+        return true;
+    }
+    return false;
+}
+
+static bool ccid_xfer_cb(uint8_t __unused rhport, uint8_t __unused ep_addr, xfer_result_t __unused result, uint32_t __unused xferred_bytes) {
+    return true;
+}
+
+
+static usbd_class_driver_t const ccid_driver =
+{
+#if CFG_TUSB_DEBUG >= 2
+    .name = "CCID",
+#endif
+    .init             = ccid_init,
+    .reset            = ccid_reset,
+    .open             = ccid_open,
+    .control_xfer_cb  = ccid_control_xfer_cb,
+    .xfer_cb          = ccid_xfer_cb,
+    .sof              = NULL
+};
+
+// Implement callback to add our custom driver
+usbd_class_driver_t const *usbd_app_driver_get_cb(uint8_t *driver_count) {
+    *driver_count = 1;
+    return &ccid_driver;
+}
 
 enum  {
   BLINK_NOT_MOUNTED = 250,

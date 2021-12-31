@@ -37,8 +37,8 @@
 #define USB_PID           (0x4000 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) | _PID_MAP(HID, 2) | \
                            _PID_MAP(MIDI, 3) | _PID_MAP(VENDOR, 4) )
                            
-#define USB_VID   0xCafe
-#define USB_BCD   0x0200
+#define USB_VID   0x0D46
+#define USB_BCD   0x3010
 
 #define USB_CONFIG_ATT_ONE TU_BIT(7)
 
@@ -65,11 +65,11 @@ tusb_desc_device_t const desc_device =
     .idProduct          = (USB_PID),
     .bcdDevice          = (0x0100),
 
-    .iManufacturer      = 0x01,
-    .iProduct           = 0x02,
-    .iSerialNumber      = 0x03,
+    .iManufacturer      = 1,
+    .iProduct           = 2,
+    .iSerialNumber      = 3,
 
-    .bNumConfigurations = 0x01
+    .bNumConfigurations = 1
 };
 
 // Invoked when received GET DEVICE DESCRIPTOR
@@ -100,9 +100,9 @@ tusb_desc_configuration_t const desc_config  =
 {
     .bLength             = sizeof(tusb_desc_configuration_t),
   	.bDescriptorType     = TUSB_DESC_CONFIGURATION,
-    .wTotalLength        = U16_TO_U8S_LE(sizeof(tusb_desc_configuration_t) + sizeof(tusb_desc_interface_t) + sizeof(class_desc_ccid_t) + 2*sizeof(tusb_desc_endpoint_t)),
+    .wTotalLength        = (sizeof(tusb_desc_configuration_t) + sizeof(tusb_desc_interface_t) + sizeof(class_desc_ccid_t) + 2*sizeof(tusb_desc_endpoint_t)),
   	.bNumInterfaces      = 1,
-  	.bConfigurationValue = 3,
+  	.bConfigurationValue = 1,
   	.iConfiguration      = 4,
   	.bmAttributes        = USB_CONFIG_ATT_ONE | TUSB_DESC_CONFIG_ATT_SELF_POWERED,
   	.bMaxPower           = TUSB_DESC_CONFIG_POWER_MA(MAX_USB_POWER+1),
@@ -112,9 +112,9 @@ tusb_desc_endpoint_t const desc_ep1 =
 {
     .bLength             = sizeof(tusb_desc_endpoint_t),
 	.bDescriptorType     = TUSB_DESC_ENDPOINT,
-	.bEndpointAddress    = TUSB_DIR_IN_MASK | 1,
+	.bEndpointAddress    = TUSB_DIR_IN_MASK | 4,
 	.bmAttributes.xfer   = TUSB_XFER_BULK,
-	.wMaxPacketSize.size = U16_TO_U8S_LE(64),
+	.wMaxPacketSize.size = (64),
 	.bInterval           = 0
 };
 
@@ -122,10 +122,10 @@ tusb_desc_endpoint_t const desc_ep2 =
 {
     .bLength             = sizeof(tusb_desc_endpoint_t),
 	.bDescriptorType     = TUSB_DESC_ENDPOINT,
-	.bEndpointAddress    = 2,
+	.bEndpointAddress    = 5,
 	.bmAttributes.xfer   = TUSB_XFER_BULK,
-	.wMaxPacketSize.size = U16_TO_U8S_LE(64),
-	.bInterval           = 1
+	.wMaxPacketSize.size = (64),
+	.bInterval           = 0
 };
 
 
@@ -163,7 +163,7 @@ char const* string_desc_arr [] =
 {
   (const char[]) { 0x09, 0x04 }, // 0: is supported language is English (0x0409)
   "TinyUSB",                     // 1: Manufacturer
-  "TinyUSB Device",              // 2: Product
+  "TinyUSB CCID",              // 2: Product
   "11223344",                      // 3: Serials, should use chip ID
   "TinyUSB Config",               // 4: Vendor Interface
   "TinyUSB Interface"
