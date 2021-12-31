@@ -23,14 +23,22 @@
 static uint8_t itf_num;
 
 static void ccid_init(void) {
+    TU_LOG2("-------- CCID INIT\r\n");
+    vendord_init();
 }
 
-static void ccid_reset(uint8_t __unused rhport) {
+static void ccid_reset(uint8_t rhport) {
+    TU_LOG2("-------- CCID RESET\r\n");
     itf_num = 0;
+    vendord_reset(rhport);
 }
 
-static uint16_t ccid_open(uint8_t __unused rhport, tusb_desc_interface_t const *itf_desc, uint16_t max_len) {
+static uint16_t ccid_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16_t max_len) {
+    
+    TU_LOG2("-------- CCID OPEN\r\n");
     TU_VERIFY(itf_desc->bInterfaceClass == TUSB_CLASS_SMART_CARD && itf_desc->bInterfaceSubClass == 0 && itf_desc->bInterfaceProtocol == 0, 0);
+    
+    vendord_open(rhport, itf_desc, max_len);
 
     uint16_t const drv_len = sizeof(tusb_desc_interface_t) + sizeof(class_desc_ccid_t) + 2*sizeof(tusb_desc_endpoint_t);
     TU_VERIFY(max_len >= drv_len, 0);
@@ -42,6 +50,7 @@ static uint16_t ccid_open(uint8_t __unused rhport, tusb_desc_interface_t const *
 // Support for parameterized reset via vendor interface control request
 static bool ccid_control_xfer_cb(uint8_t __unused rhport, uint8_t stage, tusb_control_request_t const * request) {
     // nothing to do with DATA & ACK stage
+    TU_LOG2("-------- CCID CTRL XFER\r\n");
     if (stage != CONTROL_STAGE_SETUP) return true;
 
     if (request->wIndex == itf_num) 
@@ -77,8 +86,10 @@ static bool ccid_control_xfer_cb(uint8_t __unused rhport, uint8_t stage, tusb_co
     return false;
 }
 
-static bool ccid_xfer_cb(uint8_t __unused rhport, uint8_t __unused ep_addr, xfer_result_t __unused result, uint32_t __unused xferred_bytes) {
-    return true;
+static bool ccid_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
+    TU_LOG2("------ CALLED XFER_CB\r\n");
+    return vendord_xfer_cb(rhport, ep_addr, result, xferred_bytes);
+    //return true;
 }
 
 
@@ -127,10 +138,11 @@ void vendor_task(void)
     // connected and there are data available
     if ( tud_vendor_available() )
     {
+    TU_LOG2("---- TASK VENDR AVAILABLE\r\n");
       uint8_t buf[64];
 
       uint32_t count = tud_vendor_read(buf, sizeof(buf));
-
+      TU_LOG2("-------- RECEIVED %d, %x %x %x",count,buf[0],buf[1],buf[2]);
       // echo back to both web serial and cdc
       //echo_all(buf, count);
     }
@@ -154,6 +166,7 @@ void tud_vendor_line_state_cb(uint8_t itf, bool dtr, bool rts)
 void tud_vendor_rx_cb(uint8_t itf)
 {
   (void) itf;
+    TU_LOG3("!!!!!!!  RX_CB\r\n");
 }
 
 void tud_mount_cb()
@@ -200,8 +213,8 @@ int main(void)
 
   while (1)
   {
-    tud_task(); // tinyusb device task
     vendor_task();
+    tud_task(); // tinyusb device task
     led_blinking_task();
   }
 
