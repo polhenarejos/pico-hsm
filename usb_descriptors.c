@@ -33,12 +33,11 @@
  * Auto ProductID layout's Bitmap:
  *   [MSB]       MIDI | HID | MSC | CDC          [LSB]
  */
-#define _PID_MAP(itf, n)  ( (CFG_TUD_##itf) << (n) )
-#define USB_PID           (0x4000 | _PID_MAP(CDC, 0) | _PID_MAP(MSC, 1) | _PID_MAP(HID, 2) | \
-                           _PID_MAP(MIDI, 3) | _PID_MAP(VENDOR, 4) )
+ 
+#define USB_PID   0x3010
                            
 #define USB_VID   0x0D46
-#define USB_BCD   0x3010
+#define USB_BCD   0x0200
 
 #define USB_CONFIG_ATT_ONE TU_BIT(7)
 
@@ -112,7 +111,7 @@ tusb_desc_endpoint_t const desc_ep1 =
 {
     .bLength             = sizeof(tusb_desc_endpoint_t),
 	.bDescriptorType     = TUSB_DESC_ENDPOINT,
-	.bEndpointAddress    = TUSB_DIR_IN_MASK | 4,
+	.bEndpointAddress    = TUSB_DIR_IN_MASK | 1,
 	.bmAttributes.xfer   = TUSB_XFER_BULK,
 	.wMaxPacketSize.size = (64),
 	.bInterval           = 0
@@ -122,7 +121,7 @@ tusb_desc_endpoint_t const desc_ep2 =
 {
     .bLength             = sizeof(tusb_desc_endpoint_t),
 	.bDescriptorType     = TUSB_DESC_ENDPOINT,
-	.bEndpointAddress    = 5,
+	.bEndpointAddress    = 1,
 	.bmAttributes.xfer   = TUSB_XFER_BULK,
 	.wMaxPacketSize.size = (64),
 	.bInterval           = 0
@@ -152,6 +151,22 @@ uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
       initd = 1;
   }
   return (const uint8_t *)desc_config_extended;
+}
+
+#define BOS_TOTAL_LEN      (TUD_BOS_DESC_LEN)
+
+#define MS_OS_20_DESC_LEN  0xB2
+
+// BOS Descriptor is required for webUSB
+uint8_t const desc_bos[] =
+{
+  // total length, number of device caps
+  TUD_BOS_DESCRIPTOR(BOS_TOTAL_LEN, 2)
+};
+
+uint8_t const * tud_descriptor_bos_cb(void)
+{
+  return desc_bos;
 }
 
 //--------------------------------------------------------------------+
