@@ -162,6 +162,11 @@ static uint16_t ccid_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc,
     tusb_desc_interface_t itf_vendor;
     TU_LOG2("-------- CCID OPEN\r\n");
     TU_VERIFY(itf_desc->bInterfaceClass == TUSB_CLASS_SMART_CARD && itf_desc->bInterfaceSubClass == 0 && itf_desc->bInterfaceProtocol == 0, 0);
+    
+    //vendord_open expects a CLASS_VENDOR interface class
+    memcpy(&itf_vendor, itf_desc, sizeof(tusb_desc_interface_t));
+    itf_vendor.bInterfaceClass = TUSB_CLASS_VENDOR_SPECIFIC;
+    vendord_open(rhport, &itf_vendor, max_len);
 
     uint16_t const drv_len = sizeof(tusb_desc_interface_t) + sizeof(class_desc_ccid_t) + 2*sizeof(tusb_desc_endpoint_t);
     TU_VERIFY(max_len >= drv_len, 0);
