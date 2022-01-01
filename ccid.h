@@ -20,6 +20,21 @@ struct apdu {
 
 extern struct apdu apdu;
 
+/* CCID thread */
+#define EV_CARD_CHANGE        1
+#define EV_TX_FINISHED        2 /* CCID Tx finished  */
+#define EV_EXEC_ACK_REQUIRED  4 /* OpenPGPcard Execution ACK required */
+#define EV_EXEC_FINISHED      8 /* OpenPGPcard Execution finished */
+#define EV_RX_DATA_READY     16 /* USB Rx data available  */
+
+/* OpenPGPcard thread */
+#define EV_MODIFY_CMD_AVAILABLE   1
+#define EV_VERIFY_CMD_AVAILABLE   2
+#define EV_CMD_AVAILABLE          4
+#define EV_EXIT                   8
+#define EV_PINPAD_INPUT_DONE     16
+
+
 enum ccid_state {
   CCID_STATE_NOCARD,		/* No card available */
   CCID_STATE_START,		/* Initial */
