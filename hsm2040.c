@@ -22,7 +22,111 @@
 
 static uint8_t itf_num;
 
-static void ccid_init(void) {
+#if MAX_RES_APDU_DATA_SIZE > MAX_CMD_APDU_DATA_SIZE
+#define USB_BUF_SIZE (MAX_RES_APDU_DATA_SIZE+5)
+#else
+#define USB_BUF_SIZE (MAX_CMD_APDU_DATA_SIZE+5)
+#endif
+
+struct apdu apdu;
+static struct ccid ccid;
+
+static uint8_t ccid_buffer[USB_BUF_SIZE];
+
+#define CCID_SET_PARAMS		0x61 /* non-ICCD command  */
+#define CCID_POWER_ON		0x62
+#define CCID_POWER_OFF		0x63
+#define CCID_SLOT_STATUS	0x65 /* non-ICCD command */
+#define CCID_SECURE		0x69 /* non-ICCD command */
+#define CCID_GET_PARAMS		0x6C /* non-ICCD command */
+#define CCID_RESET_PARAMS	0x6D /* non-ICCD command */
+#define CCID_XFR_BLOCK		0x6F
+#define CCID_DATA_BLOCK_RET	0x80
+#define CCID_SLOT_STATUS_RET	0x81 /* non-ICCD result */
+#define CCID_PARAMS_RET		0x82 /* non-ICCD result */
+
+#define CCID_MSG_SEQ_OFFSET	6
+#define CCID_MSG_STATUS_OFFSET	7
+#define CCID_MSG_ERROR_OFFSET	8
+#define CCID_MSG_CHAIN_OFFSET	9
+#define CCID_MSG_DATA_OFFSET	10	/* == CCID_MSG_HEADER_SIZE */
+#define CCID_MAX_MSG_DATA_SIZE	USB_BUF_SIZE
+
+#define CCID_STATUS_RUN		0x00
+#define CCID_STATUS_PRESENT	0x01
+#define CCID_STATUS_NOTPRESENT	0x02
+#define CCID_CMD_STATUS_OK	0x00
+#define CCID_CMD_STATUS_ERROR	0x40
+#define CCID_CMD_STATUS_TIMEEXT	0x80
+
+#define CCID_ERROR_XFR_OVERRUN	0xFC
+
+/*
+ * Since command-byte is at offset 0,
+ * error with offset 0 means "command not supported".
+ */
+#define CCID_OFFSET_CMD_NOT_SUPPORTED 0
+#define CCID_OFFSET_DATA_LEN 1
+#define CCID_OFFSET_PARAM 8
+
+
+struct ccid_header {
+  uint8_t msg_type;
+  uint32_t data_len;
+  uint8_t slot;
+  uint8_t seq;
+  uint8_t rsvd;
+  uint16_t param;
+} __attribute__((packed));
+
+
+/* Data structure handled by CCID layer */
+struct ccid {
+  uint32_t ccid_state : 4;
+  uint32_t state      : 4;
+  uint32_t err        : 1;
+  uint32_t tx_busy    : 1;
+  uint32_t timeout_cnt: 3;
+
+  uint8_t *p;
+  size_t len;
+
+  struct ccid_header ccid_header;
+
+  uint8_t sw1sw2[2];
+  uint8_t chained_cls_ins_p1_p2[4];
+
+  struct apdu *a;
+};
+
+static void ccid_init(struct ccid *c, struct apdu *a)
+{
+  c->ccid_state = CCID_STATE_START;
+  c->err = 0;
+  c->tx_busy = 0;
+  c->state = APDU_STATE_WAIT_COMMAND;
+  c->p = a->cmd_apdu_data;
+  c->len = MAX_CMD_APDU_DATA_SIZE;
+  memset (&c->ccid_header, 0, sizeof (struct ccid_header));
+  c->sw1sw2[0] = 0x90;
+  c->sw1sw2[1] = 0x00;
+  c->a = a;
+}
+
+static void apdu_init (struct apdu *a)
+{
+  a->seq = 0;			/* will be set by lower layer */
+  a->cmd_apdu_head = &ccid_buffer[0];
+  a->cmd_apdu_data = &ccid_buffer[5];
+  a->cmd_apdu_data_len = 0;	/* will be set by lower layer */
+  a->expected_res_size = 0;	/* will be set by lower layer */
+
+  a->sw = 0x9000;		     /* will be set by upper layer */
+  a->res_apdu_data = &ccid_buffer[5]; /* will be set by upper layer */
+  a->res_apdu_data_len = 0;	     /* will be set by upper layer */
+}
+
+static void ccid_init_cb(void) {
     TU_LOG2("-------- CCID INIT\r\n");
     vendord_init();
 }
@@ -98,7 +202,7 @@ static usbd_class_driver_t const ccid_driver =
 #if CFG_TUSB_DEBUG >= 2
     .name = "CCID",
 #endif
-    .init             = ccid_init,
+    .init             = ccid_init_cb,
     .reset            = ccid_reset,
     .open             = ccid_open,
     .control_xfer_cb  = ccid_control_xfer_cb,
@@ -197,26 +301,32 @@ void led_off_all()
 
 int main(void)
 {
-  printf("BOARD INIT\r\n");
-  board_init();
-  
-  gpio_init(18);
-  gpio_set_dir(18, GPIO_OUT);
-  gpio_init(19);
-  gpio_set_dir(19, GPIO_OUT);
-  gpio_init(20);
-  gpio_set_dir(20, GPIO_OUT);
-  
-  led_off_all();
+    struct apdu *a = &apdu;
+    struct ccid *c = &ccid;
+    
+    printf("BOARD INIT\r\n");
+    board_init();
 
-  tusb_init();
+    gpio_init(18);
+    gpio_set_dir(18, GPIO_OUT);
+    gpio_init(19);
+    gpio_set_dir(19, GPIO_OUT);
+    gpio_init(20);
+    gpio_set_dir(20, GPIO_OUT);
 
-  while (1)
-  {
-    vendor_task();
-    tud_task(); // tinyusb device task
-    led_blinking_task();
-  }
+    led_off_all();
 
-  return 0;
+    tusb_init();
+
+    apdu_init(a);
+    ccid_init(c, a);
+
+    while (1)
+    {
+        vendor_task();
+        tud_task(); // tinyusb device task
+        led_blinking_task();
+    }
+
+    return 0;
 }

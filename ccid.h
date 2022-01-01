@@ -3,6 +3,49 @@
 
 #include "ccid-types.h"
 
+struct apdu {
+  uint8_t seq;
+
+  /* command APDU */
+  uint8_t *cmd_apdu_head;	/* CLS INS P1 P2 [ internal Lc ] */
+  uint8_t *cmd_apdu_data;
+  uint16_t cmd_apdu_data_len;	/* Nc, calculated by Lc field */
+  uint16_t expected_res_size;	/* Ne, calculated by Le field */
+
+  /* response APDU */
+  uint16_t sw;
+  uint16_t res_apdu_data_len;
+  uint8_t *res_apdu_data;
+};
+
+extern struct apdu apdu;
+
+enum ccid_state {
+  CCID_STATE_NOCARD,		/* No card available */
+  CCID_STATE_START,		/* Initial */
+  CCID_STATE_WAIT,		/* Waiting APDU */
+
+  CCID_STATE_EXECUTE,		/* Executing command */
+  CCID_STATE_ACK_REQUIRED_0,	/* Ack required (executing)*/
+  CCID_STATE_ACK_REQUIRED_1,	/* Waiting user's ACK (execution finished) */
+
+  CCID_STATE_EXITED,		/* CCID Thread Terminated */
+  CCID_STATE_EXEC_REQUESTED,	/* Exec requested */
+};
+
+#define APDU_STATE_WAIT_COMMAND        0
+#define APDU_STATE_COMMAND_CHAINING    1
+#define APDU_STATE_COMMAND_RECEIVED    2
+#define APDU_STATE_RESULT              3
+#define APDU_STATE_RESULT_GET_RESPONSE 4
+
+/* Maximum cmd apdu data is key import 24+4+256+256 (proc_key_import) */
+#define MAX_CMD_APDU_DATA_SIZE (24+4+256+256) /* without header */
+/* Maximum res apdu data is public key 5+9+512 (gpg_do_public_key) */
+#define MAX_RES_APDU_DATA_SIZE (5+9+512) /* without trailer */
+
+#define CCID_MSG_HEADER_SIZE	10
+
 
 static const class_desc_ccid_t desc_ccid = {
     .bLength                = sizeof (class_desc_ccid_t),
