@@ -126,9 +126,30 @@ static void apdu_init (struct apdu *a)
   a->res_apdu_data_len = 0;	     /* will be set by upper layer */
 }
 
+#define NOTIFY_SLOT_CHANGE 0x50
+static void ccid_notify_slot_change(struct ccid *c)
+{
+    uint8_t msg;
+    uint8_t notification[2];
+
+    if (c->ccid_state == CCID_STATE_NOCARD)
+        msg = 0x02;
+    else
+        msg = 0x03;
+
+    notification[0] = NOTIFY_SLOT_CHANGE;
+    notification[1] = msg;
+
+    tud_vendor_write(notification, sizeof(notification));
+}
+
 static void ccid_init_cb(void) {
+    struct ccid *c = &ccid;
     TU_LOG2("-------- CCID INIT\r\n");
     vendord_init();
+    
+    ccid_notify_slot_change(c);
+
 }
 
 static void ccid_reset(uint8_t rhport) {
@@ -138,11 +159,9 @@ static void ccid_reset(uint8_t rhport) {
 }
 
 static uint16_t ccid_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16_t max_len) {
-    
+    tusb_desc_interface_t itf_vendor;
     TU_LOG2("-------- CCID OPEN\r\n");
     TU_VERIFY(itf_desc->bInterfaceClass == TUSB_CLASS_SMART_CARD && itf_desc->bInterfaceSubClass == 0 && itf_desc->bInterfaceProtocol == 0, 0);
-    
-    vendord_open(rhport, itf_desc, max_len);
 
     uint16_t const drv_len = sizeof(tusb_desc_interface_t) + sizeof(class_desc_ccid_t) + 2*sizeof(tusb_desc_endpoint_t);
     TU_VERIFY(max_len >= drv_len, 0);
