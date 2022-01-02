@@ -29,8 +29,7 @@ static void put_hex (uint8_t nibble)
     TU_LOG3("%c",c);
 }
 
-void
-put_byte (uint8_t b)
+void put_byte (uint8_t b)
 {
     put_hex (b >> 4);
     put_hex (b &0x0f);
@@ -38,6 +37,22 @@ put_byte (uint8_t b)
 }
 
 #define DEBUG_BYTE(b)  put_byte(b)
+
+#define DEBUG_PAYLOAD(p,s) { \
+    TU_LOG3("Payload %s (%d bytes):\r\n", #p,s);\
+    for (int i = 0; i < s; i += 16) {\
+        for (int j = 0; j < 16; j++) {\
+            if (j < s-i) TU_LOG3("%02X ",p[i+j]);\
+            else TU_LOG3("   ");\
+            if (j == 7) TU_LOG3(" ");\
+            } TU_LOG3(":  "); \
+        for (int j = 0; j < MIN(16,s-i); j++) {\
+            TU_LOG3("%c",p[i+j]);\
+            if (j == 7) TU_LOG3(" ");\
+            }\
+            TU_LOG3("\r\n");\
+        } TU_LOG3("\r\n"); \
+    }
 
 
 #endif
