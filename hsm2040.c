@@ -8,6 +8,7 @@
 
 // Pico
 #include "pico/stdlib.h"
+#include <stdlib.h>
 
 // For memcpy
 #include <string.h>
@@ -249,14 +250,15 @@ static void ccid_reset_cb(uint8_t rhport) {
 }
 
 static uint16_t ccid_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16_t max_len) {
-    tusb_desc_interface_t itf_vendor;
+    uint8_t *itf_vendor = (uint8_t *)malloc(sizeof(uint8_t)*max_len);
     TU_LOG2("-------- CCID OPEN\r\n");
     TU_VERIFY(itf_desc->bInterfaceClass == TUSB_CLASS_SMART_CARD && itf_desc->bInterfaceSubClass == 0 && itf_desc->bInterfaceProtocol == 0, 0);
 
     //vendord_open expects a CLASS_VENDOR interface class
-    memcpy(&itf_vendor, itf_desc, sizeof(tusb_desc_interface_t));
-    itf_vendor.bInterfaceClass = TUSB_CLASS_VENDOR_SPECIFIC;
-    vendord_open(rhport, &itf_vendor, max_len);
+    memcpy(itf_vendor, itf_desc, sizeof(uint8_t)*max_len);
+    ((tusb_desc_interface_t *)itf_vendor)->bInterfaceClass = TUSB_CLASS_VENDOR_SPECIFIC;
+    vendord_open(rhport, (tusb_desc_interface_t *)itf_vendor, max_len);
+    free(itf_vendor);
 
     uint16_t const drv_len = sizeof(tusb_desc_interface_t) + sizeof(class_desc_ccid_t) + 2*sizeof(tusb_desc_endpoint_t);
     TU_VERIFY(max_len >= drv_len, 0);
@@ -1317,9 +1319,9 @@ static void ccid_tx_done ()
     }
 }
 
-static int usb_event_handle()
+static int usb_event_handle(struct ccid *c)
 {
-    if (tud_vendor_n_write_available(0) == CFG_TUD_VENDOR_TX_BUFSIZE)
+    if (c->tx_busy == 1 && tud_vendor_n_write_available(0) == CFG_TUD_VENDOR_TX_BUFSIZE)
     {
         ccid_tx_done ();
     }
@@ -1327,7 +1329,7 @@ static int usb_event_handle()
     {
         uint32_t count = tud_vendor_read(endp1_rx_buf, sizeof(endp1_rx_buf));
         ccid_rx_ready(count);
-        TU_LOG2("-------- RECEIVED %d, %x %x %x",count,buf[0],buf[1],buf[2]);
+        TU_LOG2("-------- RECEIVED %d, %x %x %x",count,endp1_rx_buf[0],endp1_rx_buf[1],endp1_rx_buf[2]);
     }
     return 0;
 }
@@ -1357,7 +1359,7 @@ void ccid_task(void)
         // connected and there are data available
         if (tud_vendor_available() || tud_vendor_n_write_available(0) == CFG_TUD_VENDOR_TX_BUFSIZE)
         {
-            if (usb_event_handle () == 0)
+            if (usb_event_handle (c) == 0)
         	    return;
             if (c->application)
             {
