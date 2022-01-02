@@ -103,6 +103,7 @@ struct ep_out {
     void *priv;
     void (*next_buf) (struct ep_out *epo, size_t len);
     int  (*end_rx) (struct ep_out *epo, size_t orig_len);
+    uint8_t ready;
 };
 
 static struct ep_out endpoint_out;
@@ -118,6 +119,7 @@ static void epo_init (struct ep_out *epo, int ep_num, void *priv)
     epo->priv = priv;
     epo->next_buf = NULL;
     epo->end_rx = NULL;
+    epo->ready = 0;
 }
 
 struct ccid_header {
@@ -166,6 +168,8 @@ static uint8_t endp1_tx_buf[64];
 #define APDU_STATE_RESULT              3
 #define APDU_STATE_RESULT_GET_RESPONSE 4
 
+static void ccid_prepare_receive (struct ccid *c);
+
 static void ccid_reset (struct ccid *c)
 {
       c->err = 0;
@@ -177,7 +181,7 @@ static void ccid_reset (struct ccid *c)
       c->a->expected_res_size = 0;
 }
 
-static void ccid_init(struct ccid *c, struct apdu *a)
+static void ccid_init(struct ccid *c, struct ep_in *epi, struct ep_out *epo, struct apdu *a)
 {
     c->ccid_state = CCID_STATE_START;
     c->err = 0;
@@ -188,7 +192,11 @@ static void ccid_init(struct ccid *c, struct apdu *a)
     memset (&c->ccid_header, 0, sizeof (struct ccid_header));
     c->sw1sw2[0] = 0x90;
     c->sw1sw2[1] = 0x00;
+    c->application = 0;
+    c->epi = epi;
+    c->epo = epo;
     c->a = a;
+
     queue_init(&c->openpgp_comm, sizeof(uint32_t), 64);
     queue_init(&c->ccid_comm, sizeof(uint32_t), 64);
 }
@@ -240,7 +248,6 @@ static void ccid_init_cb(void) {
     vendord_init();
 
     //ccid_notify_slot_change(c);
-
 }
 
 static void ccid_reset_cb(uint8_t rhport) {
@@ -376,6 +383,7 @@ static const uint8_t ATR_head[] = {
 /* Send back ATR (Answer To Reset) */
 static enum ccid_state ccid_power_on (struct ccid *c)
 {
+    TU_LOG2("!!! CCID POWER ON\r\n");
     uint8_t p[CCID_MSG_HEADER_SIZE+1]; /* >= size of historical_bytes -1 */
     int hist_len = 0;// historical_bytes[0];
     size_t size_atr = sizeof (ATR_head) + hist_len + 1;
@@ -452,6 +460,7 @@ static void ccid_send_status (struct ccid *c)
 
     memcpy (endp1_tx_buf, ccid_reply, CCID_MSG_HEADER_SIZE);
     usb_tx_enable (endp1_tx_buf, CCID_MSG_HEADER_SIZE);
+    DEBUG_PAYLOAD(ccid_reply,CCID_MSG_HEADER_SIZE);
     c->tx_busy = 1;
 }
 
@@ -755,15 +764,16 @@ static void ccid_error (struct ccid *c, int offset)
 
 static enum ccid_state ccid_handle_data(struct ccid *c)
 {
+TU_LOG2("---- CCID STATE %d,msg_type %x,start %d\r\n",c->ccid_state,c->ccid_header.msg_type,CCID_STATE_START);
     enum ccid_state next_state = c->ccid_state;
 
+TU_LOG2("---- CCID STATE %d,msg_type %x,start %d\r\n",c->ccid_state,c->ccid_header.msg_type,CCID_STATE_START);
     if (c->err != 0)
     {
         ccid_reset (c);
         ccid_error (c, CCID_OFFSET_DATA_LEN);
         return next_state;
     }
-
     switch (c->ccid_state)
     {
         case CCID_STATE_NOCARD:
@@ -998,7 +1008,6 @@ static enum ccid_state ccid_handle_timeout (struct ccid *c)
 static void notify_icc (struct ep_out *epo)
 {
     struct ccid *c = (struct ccid *)epo->priv;
-
     c->err = epo->err;
     uint32_t val = EV_RX_DATA_READY;
     queue_try_add(&c->ccid_comm, &val);
@@ -1129,6 +1138,8 @@ static void nomore_data (struct ep_out *epo, size_t len)
     epo->buf_len = 0;
     epo->cnt = 0;
     epo->next_buf = nomore_data;
+    epo->ready = 0;
+    TU_LOG2("------- NO MORE DATA\r\n");
 }
 
 static void ccid_cmd_apdu_data (struct ep_out *epo, size_t len)
@@ -1211,6 +1222,7 @@ static void ccid_prepare_receive (struct ccid *c)
   c->epo->cnt = 0;
   c->epo->next_buf = ccid_abdata;
   c->epo->end_rx = end_ccid_rx;
+  c->epo->ready = 1;
   DEBUG_INFO ("Rx ready\r\n");
 }
 
@@ -1256,6 +1268,7 @@ static void ccid_rx_ready (uint16_t len)
 
     if (cont == 0)
         notify_icc (epo);
+    epo->ready = 0;
 }
 
 static void notify_tx (struct ep_in *epi)
@@ -1265,6 +1278,7 @@ static void notify_tx (struct ep_in *epi)
     /* The sequence of Bulk-IN transactions finished */
     uint32_t flag = EV_TX_FINISHED;
     queue_try_add(&c->ccid_comm, &flag);
+    c->tx_busy = 0;
 }
 
 static void ccid_tx_done ()
@@ -1275,7 +1289,6 @@ static void ccid_tx_done ()
    * hard-coded, here.
    */
     struct ep_in *epi = &endpoint_in;
-
     if (epi->buf == NULL)
     {
         if (epi->tx_done)
@@ -1321,15 +1334,17 @@ static void ccid_tx_done ()
 
 static int usb_event_handle(struct ccid *c)
 {
+    TU_LOG2("!!! tx %d, vendor %d, cfg %d, rx %d\r\n",c->tx_busy,tud_vendor_n_write_available(0),CFG_TUD_VENDOR_TX_BUFSIZE,tud_vendor_available());
     if (c->tx_busy == 1 && tud_vendor_n_write_available(0) == CFG_TUD_VENDOR_TX_BUFSIZE)
     {
         ccid_tx_done ();
     }
-    else if (tud_vendor_available())
+    if (tud_vendor_available() && c->epo->ready)
     {
         uint32_t count = tud_vendor_read(endp1_rx_buf, sizeof(endp1_rx_buf));
+        TU_LOG2("-------- RECEIVED %d\r\n",count);
+        DEBUG_PAYLOAD(endp1_rx_buf, count);
         ccid_rx_ready(count);
-        TU_LOG2("-------- RECEIVED %d, %x %x %x",count,endp1_rx_buf[0],endp1_rx_buf[1],endp1_rx_buf[2]);
     }
     return 0;
 }
@@ -1348,7 +1363,7 @@ void prepare_ccid()
     epo_init (epo, 2, c);
 
     apdu_init(a);
-    ccid_init(c, a);
+    ccid_init (c, epi, epo, a);
 }
 
 void ccid_task(void)
@@ -1357,7 +1372,7 @@ void ccid_task(void)
     if (tud_vendor_mounted())
     {
         // connected and there are data available
-        if (tud_vendor_available() || tud_vendor_n_write_available(0) == CFG_TUD_VENDOR_TX_BUFSIZE)
+        if ((c->epo->ready && tud_vendor_available()) || (tud_vendor_n_write_available(0) == CFG_TUD_VENDOR_TX_BUFSIZE && c->tx_busy == 1))
         {
             if (usb_event_handle (c) == 0)
         	    return;
@@ -1378,6 +1393,8 @@ void ccid_task(void)
     	}
         uint32_t m = 0x0;
         bool has_m = queue_try_remove(&c->ccid_comm, &m);
+        if (m != 0)
+            TU_LOG2("\r\n ------ M = %d\r\n",m);
         if (has_m)
         {
             if (m == EV_CARD_CHANGE)
@@ -1491,6 +1508,8 @@ void tud_vendor_rx_cb(uint8_t itf)
 void tud_mount_cb()
 {
     TU_LOG3("!!!!!!!  MOUNTED\r\n");
+    
+    ccid_prepare_receive (&ccid);
 }
 
 void led_blinking_task(void)
