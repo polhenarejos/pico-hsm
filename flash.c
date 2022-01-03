@@ -130,9 +130,8 @@ flash_do_storage_init (const uint8_t **p_do_start, const uint8_t **p_do_end)
 
   if (gen0 == 0xffff && gen1 == 0xffff)
     {
-      /* It's terminated.  */
-      *p_do_start = *p_do_end = NULL;
-      return;
+      gen0 = 0x0000;
+      *gen0_p = gen0;
     }
 
   if (gen0 == 0xffff)
