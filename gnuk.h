@@ -1,3 +1,4 @@
+#include "config.h"
 /*
  * Application layer <-> CCID layer data structure
  */

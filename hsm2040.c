@@ -246,21 +246,21 @@ static void ccid_notify_slot_change(struct ccid *c)
 
 static void ccid_init_cb(void) {
     struct ccid *c = &ccid;
-    TU_LOG2("-------- CCID INIT\r\n");
+    TU_LOG1("-------- CCID INIT\r\n");
     vendord_init();
 
     //ccid_notify_slot_change(c);
 }
 
 static void ccid_reset_cb(uint8_t rhport) {
-    TU_LOG2("-------- CCID RESET\r\n");
+    TU_LOG1("-------- CCID RESET\r\n");
     itf_num = 0;
     vendord_reset(rhport);
 }
 
 static uint16_t ccid_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16_t max_len) {
     uint8_t *itf_vendor = (uint8_t *)malloc(sizeof(uint8_t)*max_len);
-    TU_LOG2("-------- CCID OPEN\r\n");
+    TU_LOG1("-------- CCID OPEN\r\n");
     TU_VERIFY(itf_desc->bInterfaceClass == TUSB_CLASS_SMART_CARD && itf_desc->bInterfaceSubClass == 0 && itf_desc->bInterfaceProtocol == 0, 0);
 
     //vendord_open expects a CLASS_VENDOR interface class
@@ -386,7 +386,7 @@ static const uint8_t ATR_head[] = {
 /* Send back ATR (Answer To Reset) */
 static enum ccid_state ccid_power_on (struct ccid *c)
 {
-    TU_LOG2("!!! CCID POWER ON %d\r\n",c->application);
+    TU_LOG1("!!! CCID POWER ON %d\r\n",c->application);
     uint8_t p[CCID_MSG_HEADER_SIZE+1]; /* >= size of historical_bytes -1 */
     int hist_len = historical_bytes[0];
     size_t size_atr = sizeof (ATR_head) + hist_len + 1;
@@ -465,7 +465,6 @@ static void ccid_send_status (struct ccid *c)
 
     memcpy (endp1_tx_buf, ccid_reply, CCID_MSG_HEADER_SIZE);
     usb_tx_enable (endp1_tx_buf, CCID_MSG_HEADER_SIZE);
-    DEBUG_PAYLOAD(ccid_reply,CCID_MSG_HEADER_SIZE);
     c->tx_busy = 1;
 }
 
@@ -1225,7 +1224,6 @@ static void ccid_prepare_receive (struct ccid *c)
   c->epo->next_buf = ccid_abdata;
   c->epo->end_rx = end_ccid_rx;
   c->epo->ready = 1;
-  DEBUG_INFO ("Rx ready\r\n");
 }
 
 static void ccid_rx_ready (uint16_t len)

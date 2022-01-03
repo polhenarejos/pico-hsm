@@ -24,13 +24,14 @@
 #include <stdint.h>
 #include <string.h>
 #include "tusb.h"
+#include "config.h"
 
 void my_write (const char *s, int len)
 {
   if (len == 0)
     return;
 
-  TU_LOG2(s);
+  TU_LOG1(s);
 }
 
 
