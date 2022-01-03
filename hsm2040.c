@@ -316,7 +316,7 @@ static bool ccid_control_xfer_cb(uint8_t __unused rhport, uint8_t stage, tusb_co
 }
 
 static bool ccid_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes) {
-    TU_LOG2("------ CALLED XFER_CB\r\n");
+    //TU_LOG2("------ CALLED XFER_CB\r\n");
     return vendord_xfer_cb(rhport, ep_addr, result, xferred_bytes);
     //return true;
 }
@@ -358,6 +358,7 @@ static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
 void usb_tx_enable(const void *buf, uint32_t len) 
 {
+    DEBUG_PAYLOAD(((uint8_t *)buf),len);
     tud_vendor_write(buf, len);
 }
 
@@ -385,18 +386,18 @@ static const uint8_t ATR_head[] = {
 /* Send back ATR (Answer To Reset) */
 static enum ccid_state ccid_power_on (struct ccid *c)
 {
-    TU_LOG2("!!! CCID POWER ON\r\n");
+    TU_LOG2("!!! CCID POWER ON %d\r\n",c->application);
     uint8_t p[CCID_MSG_HEADER_SIZE+1]; /* >= size of historical_bytes -1 */
     int hist_len = historical_bytes[0];
     size_t size_atr = sizeof (ATR_head) + hist_len + 1;
     uint8_t xor_check = 0;
     int i;
-
     if (c->application == 0)
     {
+        multicore_reset_core1();
+        multicore_launch_core1(openpgp_card_thread);
         multicore_fifo_push_blocking((uint32_t)&c->ccid_comm);
         multicore_fifo_push_blocking((uint32_t)&c->openpgp_comm);
-        multicore_launch_core1(openpgp_card_thread);
         c->application = 1;
     }
     p[0] = CCID_DATA_BLOCK_RET;
@@ -768,10 +769,9 @@ static void ccid_error (struct ccid *c, int offset)
 
 static enum ccid_state ccid_handle_data(struct ccid *c)
 {
-TU_LOG2("---- CCID STATE %d,msg_type %x,start %d\r\n",c->ccid_state,c->ccid_header.msg_type,CCID_STATE_START);
     enum ccid_state next_state = c->ccid_state;
 
-TU_LOG2("---- CCID STATE %d,msg_type %x,start %d\r\n",c->ccid_state,c->ccid_header.msg_type,CCID_STATE_START);
+TU_LOG3("---- CCID STATE %d,msg_type %x,start %d\r\n",c->ccid_state,c->ccid_header.msg_type,CCID_STATE_START);
     if (c->err != 0)
     {
         ccid_reset (c);
@@ -993,7 +993,6 @@ TU_LOG2("---- CCID STATE %d,msg_type %x,start %d\r\n",c->ccid_state,c->ccid_head
 static enum ccid_state ccid_handle_timeout (struct ccid *c)
 {
     enum ccid_state next_state = c->ccid_state;
-
     switch (c->ccid_state)
     {
         case CCID_STATE_EXECUTE:
@@ -1143,7 +1142,6 @@ static void nomore_data (struct ep_out *epo, size_t len)
     epo->cnt = 0;
     epo->next_buf = nomore_data;
     epo->ready = 0;
-    TU_LOG2("------- NO MORE DATA\r\n");
 }
 
 static void ccid_cmd_apdu_data (struct ep_out *epo, size_t len)
@@ -1338,7 +1336,7 @@ static void ccid_tx_done ()
 
 static int usb_event_handle(struct ccid *c)
 {
-    TU_LOG2("!!! tx %d, vendor %d, cfg %d, rx %d\r\n",c->tx_busy,tud_vendor_n_write_available(0),CFG_TUD_VENDOR_TX_BUFSIZE,tud_vendor_available());
+    TU_LOG3("!!! tx %d, vendor %d, cfg %d, rx %d\r\n",c->tx_busy,tud_vendor_n_write_available(0),CFG_TUD_VENDOR_TX_BUFSIZE,tud_vendor_available());
     if (c->tx_busy == 1 && tud_vendor_n_write_available(0) == CFG_TUD_VENDOR_TX_BUFSIZE)
     {
         ccid_tx_done ();
@@ -1346,7 +1344,6 @@ static int usb_event_handle(struct ccid *c)
     if (tud_vendor_available() && c->epo->ready)
     {
         uint32_t count = tud_vendor_read(endp1_rx_buf, sizeof(endp1_rx_buf));
-        TU_LOG2("-------- RECEIVED %d\r\n",count);
         DEBUG_PAYLOAD(endp1_rx_buf, count);
         ccid_rx_ready(count);
     }
@@ -1373,6 +1370,7 @@ void prepare_ccid()
 void ccid_task(void)
 {
     struct ccid *c = &ccid;
+    
     if (tud_vendor_mounted())
     {
         // connected and there are data available
@@ -1389,16 +1387,15 @@ void ccid_task(void)
             prepare_ccid();
             return;
         }
-        timeout -= MIN(board_millis()-prev_millis,timeout);
-        if (timeout == 0)
-    	{
+        if (timeout == 0) 
+        {
     	    timeout = USB_CCID_TIMEOUT;
     	    c->timeout_cnt++;
-    	}
+        }
         uint32_t m = 0x0;
         bool has_m = queue_try_remove(&c->ccid_comm, &m);
         if (m != 0)
-            TU_LOG2("\r\n ------ M = %d\r\n",m);
+            TU_LOG3("\r\n ------ M = %d\r\n",m);
         if (has_m)
         {
             if (m == EV_CARD_CHANGE)
@@ -1443,7 +1440,6 @@ void ccid_task(void)
             	    c->a->cmd_apdu_data_len = 0;
             	    c->sw1sw2[0] = c->a->sw >> 8;
             	    c->sw1sw2[1] = c->a->sw & 0xff;
-
             	    if (c->a->res_apdu_data_len <= c->a->expected_res_size)
             	    {
                 		c->state = APDU_STATE_RESULT;
@@ -1466,25 +1462,33 @@ void ccid_task(void)
             }
             else if (m == EV_TX_FINISHED)
         	{
+        	    TU_LOG3("state %d\r\n",c->state);
         	    if (c->state == APDU_STATE_RESULT)
         	        ccid_reset (c);
         	    else
         	        c->tx_busy = 0;
-
         	    if (c->state == APDU_STATE_WAIT_COMMAND || c->state == APDU_STATE_COMMAND_CHAINING || c->state == APDU_STATE_RESULT_GET_RESPONSE)
         	        ccid_prepare_receive (c);
         	}
         }
         else			/* Timeout */
-        {
-            if (c->timeout_cnt == 7 && c->ccid_state == CCID_STATE_ACK_REQUIRED_1)
-            {
-                c->a->sw = GPG_ACK_TIMEOUT;
-                c->a->res_apdu_data_len = 0;
-                goto exec_done;
+        {            
+            timeout -= MIN(board_millis()-prev_millis,timeout);
+            if (timeout == 0)
+        	{
+        	    TU_LOG3("timeout is 0\r\n");
+                if (c->timeout_cnt == 7 && c->ccid_state == CCID_STATE_ACK_REQUIRED_1)
+                {
+                    c->a->sw = GPG_ACK_TIMEOUT;
+                    c->a->res_apdu_data_len = 0;
+                    c->a->sw = GPG_ACK_TIMEOUT;
+                    c->a->res_apdu_data_len = 0;
+    
+                    goto exec_done;
+                }
+                else
+                    c->ccid_state = ccid_handle_timeout (c);
             }
-            else
-                c->ccid_state = ccid_handle_timeout (c);
         }
     }
 }
@@ -1506,12 +1510,12 @@ void tud_vendor_line_state_cb(uint8_t itf, bool dtr, bool rts)
 void tud_vendor_rx_cb(uint8_t itf)
 {
     (void) itf;
-    TU_LOG3("!!!!!!!  RX_CB\r\n");
+    //TU_LOG3("!!!!!!!  RX_CB\r\n");
 }
 
 void tud_mount_cb()
 {
-    TU_LOG3("!!!!!!!  MOUNTED\r\n");
+    //TU_LOG3("!!!!!!!  MOUNTED\r\n");
     
     ccid_prepare_receive (&ccid);
 }
