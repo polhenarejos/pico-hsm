@@ -34,9 +34,9 @@
  *   [MSB]       MIDI | HID | MSC | CDC          [LSB]
  */
  
-#define USB_PID   0x3010
+#define USB_PID   0x0000
                            
-#define USB_VID   0x0D46
+#define USB_VID   0x234b
 #define USB_BCD   0x0200
 
 #define USB_CONFIG_ATT_ONE TU_BIT(7)
