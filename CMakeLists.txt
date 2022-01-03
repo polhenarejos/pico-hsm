@@ -33,7 +33,7 @@ target_sources(hsm2040 PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/shake256.c
         ${CMAKE_CURRENT_LIST_DIR}/rsa.c
         ${CMAKE_CURRENT_LIST_DIR}/bignum.c
-        #${CMAKE_CURRENT_LIST_DIR}/neug.c
+        ${CMAKE_CURRENT_LIST_DIR}/neug.c
         ${CMAKE_CURRENT_LIST_DIR}/ec_p256k1.c
         ${CMAKE_CURRENT_LIST_DIR}/bn.c
         ${CMAKE_CURRENT_LIST_DIR}/mod.c
