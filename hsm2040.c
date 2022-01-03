@@ -19,7 +19,8 @@
 #include "device/usbd_pvt.h"
 #include "pico/util/queue.h"
 #include "pico/multicore.h"
-
+#include "gnuk.h"
+#include "config.h"
 
 // Device descriptors
 #include "hsm2040.h"
@@ -34,6 +35,7 @@ static uint8_t itf_num;
 
 struct apdu apdu;
 static struct ccid ccid;
+extern void openpgp_card_thread();
 
 static uint8_t ccid_buffer[USB_BUF_SIZE];
 
@@ -385,14 +387,16 @@ static enum ccid_state ccid_power_on (struct ccid *c)
 {
     TU_LOG2("!!! CCID POWER ON\r\n");
     uint8_t p[CCID_MSG_HEADER_SIZE+1]; /* >= size of historical_bytes -1 */
-    int hist_len = 0;// historical_bytes[0];
+    int hist_len = historical_bytes[0];
     size_t size_atr = sizeof (ATR_head) + hist_len + 1;
     uint8_t xor_check = 0;
     int i;
 
     if (c->application == 0)
     {
-        //multicore_launch_core1(openpgp_card_thread);
+        multicore_fifo_push_blocking((uint32_t)&c->ccid_comm);
+        multicore_fifo_push_blocking((uint32_t)&c->openpgp_comm);
+        multicore_launch_core1(openpgp_card_thread);
         c->application = 1;
     }
     p[0] = CCID_DATA_BLOCK_RET;
@@ -411,7 +415,7 @@ static enum ccid_state ccid_power_on (struct ccid *c)
 
     for (i = 1; i < (int)sizeof (ATR_head); i++)
         xor_check ^= ATR_head[i];
-    //memcpy (p, historical_bytes + 1, hist_len);
+    memcpy (p, historical_bytes + 1, hist_len);
 #ifdef LIFE_CYCLE_MANAGEMENT_SUPPORT
     if (file_selection == 255)
         p[7] = 0x03;
