@@ -21,6 +21,7 @@
 #include "pico/multicore.h"
 #include "gnuk.h"
 #include "config.h"
+#include "random.h"
 
 // Device descriptors
 #include "hsm2040.h"
@@ -1541,59 +1542,6 @@ void led_off_all()
 
 #define RANDOM_BYTES_LENGTH 32
 extern void neug_task();
-#include "hardware/adc.h"
-
-struct pcg_state_setseq_64 {    // Internals are *Private*.
-    uint64_t state;             // RNG state.  All values are possible.
-    uint64_t inc;               // Controls which RNG sequence (stream) is
-                                // selected. Must *always* be odd.
-};
-typedef struct pcg_state_setseq_64 pcg32_random_t;
-
-// If you *must* statically initialize it, here's one.
-
-#define PCG32_INITIALIZER   { 0x853c49e6748fea9bULL, 0xda3e39cb94b95bdbULL }
-uint32_t pcg32_random(void);
-uint32_t pcg32_random_r(pcg32_random_t* rng);
-
-static pcg32_random_t pcg32_global = PCG32_INITIALIZER;
-
-// pcg32_srandom(initstate, initseq)
-// pcg32_srandom_r(rng, initstate, initseq):
-//     Seed the rng.  Specified in two parts, state initializer and a
-//     sequence selection constant (a.k.a. stream id)
-
-void pcg32_srandom_r(pcg32_random_t* rng, uint64_t initstate, uint64_t initseq)
-{
-    rng->state = 0U;
-    rng->inc = (initseq << 1u) | 1u;
-    pcg32_random_r(rng);
-    rng->state += initstate;
-    pcg32_random_r(rng);
-}
-
-void pcg32_srandom(uint64_t seed, uint64_t seq)
-{
-    pcg32_srandom_r(&pcg32_global, seed, seq);
-}
-
-// pcg32_random()
-// pcg32_random_r(rng)
-//     Generate a uniformly distributed 32-bit random number
-
-uint32_t pcg32_random_r(pcg32_random_t* rng)
-{
-    uint64_t oldstate = rng->state;
-    rng->state = oldstate * 6364136223846793005ULL + rng->inc;
-    uint32_t xorshifted = ((oldstate >> 18u) ^ oldstate) >> 27u;
-    uint32_t rot = oldstate >> 59u;
-    return (xorshifted >> rot) | (xorshifted << ((-rot) & 31));
-}
-
-uint32_t pcg32_random()
-{
-    return pcg32_random_r(&pcg32_global);
-}
 
 int main(void)
 {
@@ -1615,104 +1563,16 @@ int main(void)
     tusb_init();
 
     prepare_ccid();
-
-    // ADC
     
-    adc_init();
-    adc_gpio_init(26);
-    adc_select_input(0);
+    random_init();
     
-    //random_init();
-    uint8_t *rbuf[RANDOM_BYTES_LENGTH];
-    uint32_t count[256] = { 0 };
-    uint32_t cnter = 1;
     while (1)
     {
-        //prev_millis = board_millis();
-        //ccid_task();
+        prev_millis = board_millis();
+        ccid_task();
         tud_task(); // tinyusb device task
         led_blinking_task();
-        //neug_task();
-        //uint64_t random_word = 0xcbf29ce484222325;
-        //uint64_t random_word = 0x0;
-        
-        
-        uint32_t random_word = 0x811c9dc5;
-        for (int i = 0; i < 8; i++) {
-            uint32_t word = 0x0;
-            for (int n = 0; n < 32; n++) {
-                uint8_t bit1, bit2;
-                do
-                {
-                    bit1 = rosc_hw->randombit&0xff;
-                    //sleep_ms(1);
-                    bit2 = rosc_hw->randombit&0xff;
-                } while(bit1 == bit2);
-                word = (word << 1) | bit1;
-            }
-            //random ^= byte1 << 24 | adc_result << 8 | byte2;
-            random_word ^= word^board_millis()^adc_read();
-            //TU_LOG1("%x\r\n",word);
-            //random_word *= 0x00000100000001B3;
-            random_word *= 0x01000193;
-        }
-        
-        
-        pcg32_srandom(random_word, random_word);
-        //TU_LOG1("%c%c%c%c%c%c%c%c",(random_word>>56)&0xff,(random_word>>48)&0xff,(random_word>>40)&0xff,(random_word>>32)&0xff,(random_word>>24)&0xff,(random_word>>16)&0xff,(random_word>>8)&0xff,(random_word>>0)&0xff);
-        for (int i = 0; i < 20; i++)
-        {
-            uint32_t rd = pcg32_random();
-            for (int j = 0; j < 4; j++)
-            {
-                uint8_t byte = (rd>>(j*8))&0xff;
-                //if (byte == 13)
-                //    byte = 0;
-                putchar(byte);
-            }
-            
-            /*
-            count[(rd>>24)&0xff]++;
-            count[(rd>>16)&0xff]++;
-            count[(rd>>8)&0xff]++;
-            count[(rd>>0)&0xff]++;
-            */
-            //TU_LOG1("%c%c%c%c",(rd>>24)&0xff,(rd>>16)&0xff,(rd>>8)&0xff,(rd>>0)&0xff);
-            /*
-            for (int k = 0; k < 4; k++)
-        {
-            uint8_t byte = (rd>>(k*8))&0xff;
-            if (byte == 15 || byte == 22)
-                TU_LOG1("YES! Byte %d is %d (rw = %x)\r\n",k,byte,rd);
-            }
-            */
-        }
-        /*
-        if ((cnter++)%100000 == 0) {
-            for (int i = 0; i < 256; i++)
-            {
-                TU_LOG1("%d: %d, ",i,count[i]);
-                if (i % 16 == 15)
-                    TU_LOG1("\r\n");
-            }
-            cnter = 0;
-        }
-        */
-        /*
-        for (int i = 0; i < 4; i++)
-        {
-            uint8_t byte = (random_word>>(i*8))&0xff;
-            if (byte == 4 || byte == 10 || byte == 11 || byte == 12 || byte == 13 || byte == 14 || byte == 23 || byte == 25 || byte == 26 || byte == 154)
-                TU_LOG1("YES! Byte %d is %d (rw = %x)\r\n",i,byte,random_word);
-            }
-            */
-        //for (int blk = 0; blk < 16; blk++)
-        //    TU_LOG1("%c%c%c%c",(blockout[blk]>>24)&0xff,(blockout[blk]>>16)&0xff,(blockout[blk]>>8)&0xff,blockout[blk]&0xff);
-    /*uint8_t index = 0x0;
-        random_gen(&index, rbuf, RANDOM_BYTES_LENGTH);
-        for (int c = 0; c < RANDOM_BYTES_LENGTH; c++)
-            TU_LOG1("%c",rbuf[c]);
-            */
+        neug_task();
     }
 
     return 0;
