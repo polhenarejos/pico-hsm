@@ -26,6 +26,9 @@
 // Device descriptors
 #include "hsm2040.h"
 
+extern void do_flash();
+extern void low_flash_init();
+
 static uint8_t itf_num;
 
 #if MAX_RES_APDU_DATA_SIZE > MAX_CMD_APDU_DATA_SIZE
@@ -1541,6 +1544,8 @@ void led_off_all()
 }
 
 #define RANDOM_BYTES_LENGTH 32
+#include "hardware/flash.h"
+#include "hardware/sync.h"
 extern void neug_task();
 
 int main(void)
@@ -1566,6 +1571,8 @@ int main(void)
     
     random_init();
     
+    low_flash_init();
+  
     while (1)
     {
         prev_millis = board_millis();
@@ -1573,6 +1580,7 @@ int main(void)
         tud_task(); // tinyusb device task
         led_blinking_task();
         neug_task();
+        do_flash();
     }
 
     return 0;
