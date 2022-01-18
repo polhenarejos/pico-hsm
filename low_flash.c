@@ -12,7 +12,7 @@
 #define TOTAL_FLASH_PAGES 4
 
 typedef struct PageFlash {
-    uint8_t page[FLASH_PAGE_SIZE];
+    uint8_t page[FLASH_SECTOR_SIZE];
     uintptr_t address;
     bool ready;
     bool erase;
@@ -39,22 +39,25 @@ void do_flash()
             {
                 if (flash_pages[r].ready == true)
                 {
-                    printf("\r\n");
+                    //printf("WRITTING %X\r\n",flash_pages[r].address-XIP_BASE);
+                    while (multicore_lockout_start_timeout_us(1000) == false);
+                    //printf("WRITTING %X\r\n",flash_pages[r].address-XIP_BASE);
                     uint32_t ints = save_and_disable_interrupts();
                     flash_range_erase(flash_pages[r].address-XIP_BASE, FLASH_PAGE_SIZE);
                     flash_range_program(flash_pages[r].address-XIP_BASE, flash_pages[r].page, FLASH_PAGE_SIZE);
                     restore_interrupts (ints);
-                    //printf("WRITEN %X !\r\n",flash_pages[r].address);
+                    while (multicore_lockout_end_timeout_us(1000) == false);
+                    //printf("WRITEN %X !\r\n",flash_pages[r].address);                    
+                    
                     flash_pages[r].ready = false;
                     ready_pages--;
                 }
                 else if (flash_pages[r].erase == true) 
                 {
-                    
-                    printf("\r\n");
-                    uint32_t ints = save_and_disable_interrupts();
+                    while (multicore_lockout_start_timeout_us(1000) == false);
+                    printf("WRITTING\r\n");
                     flash_range_erase(flash_pages[r].address-XIP_BASE, FLASH_PAGE_SIZE);
-                    restore_interrupts (ints);
+                    while (multicore_lockout_end_timeout_us(1000) == false);
                     flash_pages[r].erase = false;
                     ready_pages--;
                 }
@@ -177,8 +180,8 @@ flash_check_blank (const uint8_t *p_start, size_t size)
 int
 flash_write (uintptr_t dst_addr, const uint8_t *src, size_t len)
 {
-    size_t len_alg = (len + (FLASH_SECTOR_SIZE - 1)) & -FLASH_SECTOR_SIZE;
-    uintptr_t add_alg = dst_addr & -FLASH_SECTOR_SIZE;
+    size_t len_alg = (len + (FLASH_PAGE_SIZE - 1)) & -FLASH_PAGE_SIZE;
+    uintptr_t add_alg = dst_addr & -FLASH_PAGE_SIZE;
     printf("WRITE ATTEMPT %X (%d) %X (%d)\r\n",dst_addr,len,add_alg,len_alg);
   uint32_t ints = save_and_disable_interrupts();
   flash_range_program(add_alg-XIP_BASE, src, len_alg);
