@@ -42,6 +42,8 @@
 #include "hardware/flash.h"
 #include "tusb.h"
 
+extern void low_flash_available();
+
 /*
  * Flash memory map
  *
@@ -67,7 +69,7 @@
  *	   <two pages>
  */
 
-#define FLASH_DATA_POOL_HEADER_SIZE	2
+#define FLASH_DATA_POOL_HEADER_SIZE	FLASH_PAGE_SIZE
 #define FLASH_DATA_POOL_SIZE		(2048*1024)
 
 static uint16_t flash_page_size;
@@ -79,7 +81,7 @@ const uint8_t flash_data[4] __attribute__ ((section (".gnuk_data"))) = {
   0x00, 0x00, 0xff, 0xff
 };
 
-#define FLASH_TARGET_OFFSET (4096 * 1024) // DATA starts at the mid of flash
+#define FLASH_TARGET_OFFSET (PICO_FLASH_SIZE_BYTES >> 1) // DATA starts at the mid of flash
 
 
 const uint8_t *flash_addr_key_storage_start = (const uint8_t *) (XIP_BASE + FLASH_TARGET_OFFSET);
@@ -172,6 +174,7 @@ void
 flash_activate (void)
 {
   flash_program_halfword ((uintptr_t)FLASH_ADDR_DATA_STORAGE_START, 0);
+  low_flash_available();
 }
 
 
@@ -260,6 +263,7 @@ flash_copying_gc (void)
     generation++;
   flash_program_halfword ((uintptr_t)dst, generation);
   flash_erase_page ((uintptr_t)src);
+  low_flash_available();
   return 0;
 }
 
@@ -312,6 +316,8 @@ flash_do_write_internal (const uint8_t *p, int nr, const uint8_t *data, int len)
       if (flash_program_halfword (addr, hw) != 0)
 	flash_warning ("DO WRITE ERROR");
     }
+    
+  low_flash_available();
 }
 
 const uint8_t *
@@ -374,6 +380,9 @@ flash_do_release (const uint8_t *do_data)
   /* Fill 0x0000 for "tag_number and length" word */
   if (flash_program_halfword (addr_tag, 0) != 0)
     flash_warning ("fill-zero tag_nr failure");
+    
+  //CAUTION: flash_do_release is followed by a flash_write. Thus, we can avoid a single write
+  //low_flash_available();
 }
 
 
@@ -435,6 +444,7 @@ flash_key_write (uint8_t *key_addr,
       addr += 2;
     }
 
+  low_flash_available();
   return 0;
 }
 
@@ -464,6 +474,8 @@ flash_key_fill_zero_as_released (uint8_t *key_addr, int key_size)
 
   for (i = 0; i < key_size/2; i++)
     flash_program_halfword (addr + i*2, 0);
+    
+  low_flash_available();
 }
 
 void
@@ -486,6 +498,7 @@ void
 flash_clear_halfword (uintptr_t addr)
 {
   flash_program_halfword (addr, 0);
+  low_flash_available();
 }
 
 
@@ -493,6 +506,7 @@ void
 flash_put_data_internal (const uint8_t *p, uint16_t hw)
 {
   flash_program_halfword ((uintptr_t)p, hw);
+  low_flash_available();
 }
 
 void
@@ -507,6 +521,7 @@ flash_put_data (uint16_t hw)
     }
 
   flash_program_halfword ((uintptr_t)p, hw);
+  low_flash_available();
 }
 
 
@@ -520,12 +535,14 @@ flash_bool_clear (const uint8_t **addr_p)
 
   flash_program_halfword ((uintptr_t)p, 0);
   *addr_p = NULL;
+  low_flash_available();
 }
 
 void
 flash_bool_write_internal (const uint8_t *p, int nr)
 {
   flash_program_halfword ((uintptr_t)p, nr);
+  low_flash_available();
 }
 
 const uint8_t *
@@ -542,6 +559,7 @@ flash_bool_write (uint8_t nr)
     }
 
   flash_program_halfword ((uintptr_t)p, hw);
+  low_flash_available();
   return p;
 }
 
@@ -558,6 +576,7 @@ flash_enum_write_internal (const uint8_t *p, int nr, uint8_t v)
   uint16_t hw = nr | (v << 8);
 
   flash_program_halfword ((uintptr_t)p, hw);
+  low_flash_available();
 }
 
 const uint8_t *
@@ -574,6 +593,7 @@ flash_enum_write (uint8_t nr, uint8_t v)
     }
 
   flash_program_halfword ((uintptr_t)p, hw);
+  low_flash_available();
   return p;
 }
 
@@ -617,6 +637,7 @@ flash_cnt123_write_internal (const uint8_t *p, int which, int v)
     flash_program_halfword ((uintptr_t)p+2, 0xc3c3);
   else				/* v == 3 */
     flash_program_halfword ((uintptr_t)p+2, 0);
+  low_flash_available();
 }
 
 void
@@ -651,6 +672,7 @@ flash_cnt123_increment (uint8_t which, const uint8_t **addr_p)
 
       flash_program_halfword ((uintptr_t)p, hw);
     }
+  low_flash_available();
 }
 
 void
@@ -665,6 +687,7 @@ flash_cnt123_clear (const uint8_t **addr_p)
   p -= 2;
   flash_program_halfword ((uintptr_t)p, 0);
   *addr_p = NULL;
+  low_flash_available();
 }
 
 
@@ -681,6 +704,7 @@ flash_erase_binary (uint8_t file_id)
 	  if (FLASH_CH_CERTIFICATE_SIZE > flash_page_size)
 	    flash_erase_page ((uintptr_t)p + flash_page_size);
 	}
+      low_flash_available();
 
       return 0;
     }
@@ -732,6 +756,7 @@ flash_write_binary (uint8_t file_id, const uint8_t *data,
 	  addr += 2;
 	}
 
+      low_flash_available();
       return 0;
     }
 }
