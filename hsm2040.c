@@ -243,7 +243,7 @@ static void ccid_notify_slot_change(struct ccid *c)
 }
 */
 
-#define USB_CCID_TIMEOUT (1950*1000)
+#define USB_CCID_TIMEOUT (50)
 
 #define GPG_THREAD_TERMINATED 0xffff
 #define GPG_ACK_TIMEOUT 0x6600
@@ -1477,7 +1477,6 @@ void ccid_task(void)
             timeout -= MIN(board_millis()-prev_millis,timeout);
             if (timeout == 0)
         	{
-        	    TU_LOG3("timeout is 0\r\n");
                 if (c->timeout_cnt == 7 && c->ccid_state == CCID_STATE_ACK_REQUIRED_1)
                 {
                     c->a->sw = GPG_ACK_TIMEOUT;
