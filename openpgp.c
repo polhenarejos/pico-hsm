@@ -119,6 +119,7 @@ gpg_init (void)
 
   gpg_data_scan (flash_do_start, flash_do_end);
   flash_key_storage_init ();
+  multicore_lockout_victim_init();
 }
 
 static void
