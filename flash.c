@@ -40,6 +40,7 @@
 
 #include "pico/stdlib.h"
 #include "hardware/flash.h"
+#include "hsm2040.h"
 #include "tusb.h"
 
 extern void low_flash_available();
@@ -69,7 +70,7 @@ extern void low_flash_available();
  *	   <two pages>
  */
 
-#define FLASH_DATA_POOL_HEADER_SIZE	FLASH_PAGE_SIZE
+#define FLASH_DATA_POOL_HEADER_SIZE	2
 #define FLASH_DATA_POOL_SIZE		(2048*1024)
 
 static uint16_t flash_page_size;
@@ -121,7 +122,7 @@ flash_do_storage_init (const uint8_t **p_do_start, const uint8_t **p_do_end)
   uint16_t *gen0_p = (uint16_t *)FLASH_ADDR_DATA_STORAGE_START;
   uint16_t *gen1_p;
 
-  flash_page_size = FLASH_SECTOR_SIZE;
+  flash_page_size = FLASH_SECTOR_SIZE * 8; // 32 KB
 
   gen1_p = (uint16_t *)(FLASH_ADDR_DATA_STORAGE_START + flash_page_size);
   data_pool = FLASH_ADDR_DATA_STORAGE_START;
