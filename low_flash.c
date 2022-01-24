@@ -6,6 +6,7 @@
 #include "hardware/flash.h"
 #include "hardware/sync.h"
 #include "pico/mutex.h"
+#include "pico/multicore.h"
 #include "gnuk.h"
 #include <string.h>
 
@@ -43,8 +44,8 @@ void do_flash()
                     while (multicore_lockout_start_timeout_us(1000) == false);
                     //printf("WRITTING %X\r\n",flash_pages[r].address-XIP_BASE);
                     uint32_t ints = save_and_disable_interrupts();
-                    flash_range_erase(flash_pages[r].address-XIP_BASE, FLASH_PAGE_SIZE);
-                    flash_range_program(flash_pages[r].address-XIP_BASE, flash_pages[r].page, FLASH_PAGE_SIZE);
+                    flash_range_erase(flash_pages[r].address-XIP_BASE, FLASH_SECTOR_SIZE);
+                    flash_range_program(flash_pages[r].address-XIP_BASE, flash_pages[r].page, FLASH_SECTOR_SIZE);
                     restore_interrupts (ints);
                     while (multicore_lockout_end_timeout_us(1000) == false);
                     //printf("WRITEN %X !\r\n",flash_pages[r].address);                    
@@ -56,7 +57,7 @@ void do_flash()
                 {
                     while (multicore_lockout_start_timeout_us(1000) == false);
                     printf("WRITTING\r\n");
-                    flash_range_erase(flash_pages[r].address-XIP_BASE, FLASH_PAGE_SIZE);
+                    flash_range_erase(flash_pages[r].address-XIP_BASE, FLASH_SECTOR_SIZE);
                     while (multicore_lockout_end_timeout_us(1000) == false);
                     flash_pages[r].erase = false;
                     ready_pages--;
@@ -89,7 +90,7 @@ int
 flash_program_halfword (uintptr_t addr, uint16_t data)
 {
     off_t offset;
-    uintptr_t addr_alg = addr & -FLASH_PAGE_SIZE;
+    uintptr_t addr_alg = addr & -FLASH_SECTOR_SIZE;
     PageFlash_t *p = NULL;
     if (ready_pages == TOTAL_FLASH_PAGES) {
         DEBUG_INFO("ERROR: ALL FLASH PAGES CACHED\r\n");
@@ -104,7 +105,7 @@ flash_program_halfword (uintptr_t addr, uint16_t data)
             p = &flash_pages[r];
             if (!flash_pages[r].ready && !flash_pages[r].erase)
             {
-                memcpy(p->page, (uint8_t *)addr_alg, FLASH_PAGE_SIZE);
+                memcpy(p->page, (uint8_t *)addr_alg, FLASH_SECTOR_SIZE);
                 ready_pages++;
                 p->address = addr_alg;
                 p->ready = true;
@@ -120,9 +121,9 @@ flash_program_halfword (uintptr_t addr, uint16_t data)
         return 1;
     }
     
-    p->page[addr&(FLASH_PAGE_SIZE-1)] = (data & 0xff);
-    p->page[(addr&(FLASH_PAGE_SIZE-1))+1] = (data >> 8);
-    printf("Flash: modified page %X with data %x %x at [%x-%x] (top page %X)\r\n",addr_alg,(data & 0xff),data>>8,addr&(FLASH_PAGE_SIZE-1),(addr&(FLASH_PAGE_SIZE-1))+1,addr);
+    p->page[addr&(FLASH_SECTOR_SIZE-1)] = (data & 0xff);
+    p->page[(addr&(FLASH_SECTOR_SIZE-1))+1] = (data >> 8);
+    //printf("Flash: modified page %X with data %x %x at [%x-%x] (top page %X)\r\n",addr_alg,(data & 0xff),data>>8,addr&(FLASH_SECTOR_SIZE-1),(addr&(FLASH_SECTOR_SIZE-1))+1,addr);
     mutex_exit(&mtx_flash);
     return 0;
 }
@@ -180,8 +181,8 @@ flash_check_blank (const uint8_t *p_start, size_t size)
 int
 flash_write (uintptr_t dst_addr, const uint8_t *src, size_t len)
 {
-    size_t len_alg = (len + (FLASH_PAGE_SIZE - 1)) & -FLASH_PAGE_SIZE;
-    uintptr_t add_alg = dst_addr & -FLASH_PAGE_SIZE;
+    size_t len_alg = (len + (FLASH_SECTOR_SIZE - 1)) & -FLASH_SECTOR_SIZE;
+    uintptr_t add_alg = dst_addr & -FLASH_SECTOR_SIZE;
     printf("WRITE ATTEMPT %X (%d) %X (%d)\r\n",dst_addr,len,add_alg,len_alg);
   uint32_t ints = save_and_disable_interrupts();
   flash_range_program(add_alg-XIP_BASE, src, len_alg);
