@@ -45,7 +45,8 @@ put_hex (uint8_t nibble)
   else
     c = 'a' + nibble - 0x0a;
 
-  my_write ((const char *)&c, 1);
+  //my_write ((const char *)&c, 1);
+  printf("%X",nibble);
 }
 
 void
