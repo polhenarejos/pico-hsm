@@ -1272,7 +1272,8 @@ static void ccid_rx_ready (uint16_t len)
 
     if (cont == 0)
         notify_icc (epo);
-    epo->ready = 0;
+    else
+        epo->ready = 1;
 }
 
 static void notify_tx (struct ep_in *epi)
@@ -1343,7 +1344,7 @@ static int usb_event_handle(struct ccid *c)
     {
         ccid_tx_done ();
     }
-    if (tud_vendor_available() && c->epo->ready)
+    else if (tud_vendor_available() && c->epo->ready)
     {
         uint32_t count = tud_vendor_read(endp1_rx_buf, sizeof(endp1_rx_buf));
         DEBUG_PAYLOAD(endp1_rx_buf, count);
@@ -1377,16 +1378,17 @@ void ccid_task(void)
         // connected and there are data available
         if ((c->epo->ready && tud_vendor_available()) || (tud_vendor_n_write_available(0) == CFG_TUD_VENDOR_TX_BUFSIZE && c->tx_busy == 1))
         {
-            if (usb_event_handle (c) == 0)
-        	    return;
-            if (c->application)
-            {
-                uint32_t flag = EV_EXIT;
-                queue_try_add(&c->ccid_comm, &flag);
-                c->application = 0;
+            if (usb_event_handle (c) != 0)
+        	{
+                if (c->application)
+                {
+                    uint32_t flag = EV_EXIT;
+                    queue_try_add(&c->ccid_comm, &flag);
+                    c->application = 0;
+                }
+                prepare_ccid();
+                return;
             }
-            prepare_ccid();
-            return;
         }
         if (timeout == 0) 
         {
