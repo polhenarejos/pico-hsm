@@ -16,6 +16,7 @@ extern const uint8_t historical_bytes[];
 #define DEBUG_PAYLOAD(p,s) { \
     TU_LOG1("Payload %s (%d bytes):\r\n", #p,s);\
     for (int i = 0; i < s; i += 16) {\
+        TU_LOG1("%07Xh : ",i+p);\
         for (int j = 0; j < 16; j++) {\
             if (j < s-i) TU_LOG1("%02X ",p[i+j]);\
             else TU_LOG1("   ");\
