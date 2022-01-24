@@ -41,6 +41,11 @@ target_sources(hsm2040 PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/modp256k1.c
         ${CMAKE_CURRENT_LIST_DIR}/p448.c
         ${CMAKE_CURRENT_LIST_DIR}/mod25638.c
+        ${CMAKE_CURRENT_LIST_DIR}/platform_util.c
+        ${CMAKE_CURRENT_LIST_DIR}/md.c
+        ${CMAKE_CURRENT_LIST_DIR}/oid.c
+        ${CMAKE_CURRENT_LIST_DIR}/rsa_alt_helpers.c
+        ${CMAKE_CURRENT_LIST_DIR}/constant_time.c
         )
 
 target_include_directories(hsm2040 PUBLIC
@@ -48,3 +53,24 @@ target_include_directories(hsm2040 PUBLIC
 
 pico_add_extra_outputs(hsm2040)
 target_link_libraries(hsm2040 PRIVATE pico_stdlib tinyusb_device tinyusb_board pico_multicore hardware_flash hardware_sync hardware_adc)
+
+#
+#project(flash_nuke C CXX ASM)
+#add_executable(flash_nuke nuke.c)
+#target_link_libraries(flash_nuke
+#        pico_stdlib
+#        hardware_flash
+#        )
+#pico_set_binary_type(flash_nuke no_flash)
+#
+#pico_add_extra_outputs(flash_nuke)
+
+#project(memory C CXX ASM)
+#add_executable(memory memory.c)
+#target_link_libraries(memory
+#        pico_stdlib
+#        hardware_flash
+#        )
+#pico_set_binary_type(memory no_flash)
+#
+#pico_add_extra_outputs(memory)

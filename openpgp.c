@@ -31,7 +31,7 @@
 #include "gnuk.h"
 //#include "sys.h"
 #include "status-code.h"
-#include "sha256.h"
+#include "mbedtls/sha256.h"
 #include "random.h"
 #include "pico/util/queue.h"
 #include "pico/multicore.h"
@@ -518,35 +518,37 @@ void
 s2k (const unsigned char *salt, size_t slen,
      const unsigned char *input, size_t ilen, unsigned char output[32])
 {
-  sha256_context ctx;
+  mbedtls_sha256_context ctx;
+  mbedtls_sha256_init(&ctx);
   size_t count = S2KCOUNT;
   const uint8_t *unique = unique_device_id ();
 
-  sha256_start (&ctx);
+  mbedtls_sha256_starts (&ctx, 0);
 
-  sha256_update (&ctx, unique, 12);
+  mbedtls_sha256_update (&ctx, unique, 12);
 
   while (count > slen + ilen)
     {
       if (slen)
-	sha256_update (&ctx, salt, slen);
-      sha256_update (&ctx, input, ilen);
+	mbedtls_sha256_update (&ctx, salt, slen);
+      mbedtls_sha256_update (&ctx, input, ilen);
       count -= slen + ilen;
     }
 
   if (count <= slen)
-    sha256_update (&ctx, salt, count);
+    mbedtls_sha256_update (&ctx, salt, count);
   else
     {
       if (slen)
 	{
-	  sha256_update (&ctx, salt, slen);
+	  mbedtls_sha256_update (&ctx, salt, slen);
 	  count -= slen;
 	}
-      sha256_update (&ctx, input, count);
+      mbedtls_sha256_update (&ctx, input, count);
     }
 
-  sha256_finish (&ctx, output);
+  mbedtls_sha256_finish (&ctx, output);
+  mbedtls_sha256_free (&ctx);
 }
 
 

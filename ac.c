@@ -27,7 +27,7 @@
 #include "config.h"
 
 #include "gnuk.h"
-#include "sha256.h"
+#include "mbedtls/sha256.h"
 #include "random.h"
 
 uint8_t volatile auth_status;	/* Initialized to AC_NONE_AUTHORIZED */

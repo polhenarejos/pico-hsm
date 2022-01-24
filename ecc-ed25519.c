@@ -29,7 +29,7 @@
 #include "bn.h"
 #include "mod.h"
 #include "mod25638.h"
-#include "sha512.h"
+#include "mbedtls/sha512.h"
 
 /*
  * References:
@@ -665,7 +665,8 @@ eddsa_sign_25519 (const uint8_t *input, size_t ilen, uint32_t *out,
 		  const bn256 *a, const uint8_t *seed, const bn256 *pk)
 {
   bn256 *r, *s;
-  sha512_context ctx;
+  mbedtls_sha512_context ctx;
+  mbedtls_sha512_init(&ctx);
   uint8_t hash[64];
   bn256 tmp[1];
   ac R[1];
@@ -674,10 +675,10 @@ eddsa_sign_25519 (const uint8_t *input, size_t ilen, uint32_t *out,
   r = (bn256 *)out;
   s = (bn256 *)(out+(32/4));
 
-  sha512_start (&ctx);
-  sha512_update (&ctx, seed, sizeof (bn256)); /* It's upper half of the hash */
-  sha512_update (&ctx, input, ilen);
-  sha512_finish (&ctx, hash);
+  mbedtls_sha512_starts (&ctx, 0);
+  mbedtls_sha512_update (&ctx, seed, sizeof (bn256)); /* It's upper half of the hash */
+  mbedtls_sha512_update (&ctx, input, ilen);
+  mbedtls_sha512_finish (&ctx, hash);
 
   mod_reduce_M (r, (bn512 *)hash);
   compute_kG_25519 (R, r);
@@ -686,11 +687,11 @@ eddsa_sign_25519 (const uint8_t *input, size_t ilen, uint32_t *out,
   memcpy (tmp, R->y, sizeof (bn256));
   tmp->word[7] ^= mod25519_is_neg (R->x) * 0x80000000;
 
-  sha512_start (&ctx);
-  sha512_update (&ctx, (uint8_t *)tmp, sizeof (bn256));
-  sha512_update (&ctx, (uint8_t *)pk, sizeof (bn256));
-  sha512_update (&ctx, input, ilen);
-  sha512_finish (&ctx, (uint8_t *)hash);
+  mbedtls_sha512_starts (&ctx, 0);
+  mbedtls_sha512_update (&ctx, (uint8_t *)tmp, sizeof (bn256));
+  mbedtls_sha512_update (&ctx, (uint8_t *)pk, sizeof (bn256));
+  mbedtls_sha512_update (&ctx, input, ilen);
+  mbedtls_sha512_finish (&ctx, (uint8_t *)hash);
 
   mod_reduce_M (s, (bn512 *)hash);
   bn256_mul ((bn512 *)hash, s, a);
@@ -704,6 +705,8 @@ eddsa_sign_25519 (const uint8_t *input, size_t ilen, uint32_t *out,
     bn256_add (s, s, M);
   else
     bn256_add (tmp, s, M);
+    
+  mbedtls_sha512_free (&ctx);
 
   return 0;
 }

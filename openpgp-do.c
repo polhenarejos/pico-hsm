@@ -3,7 +3,8 @@
  *
  * Copyright (C) 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
  *               2020, 2021
- *               Free Software Initiative of Japan
+ *               Free Software Initiative of Japan1161
+ 
  * Author: NIIBE Yutaka <gniibe@fsij.org>
  *
  * This file is a part of Gnuk, a GnuPG USB Token implementation.
@@ -32,9 +33,9 @@
 #include "gnuk.h"
 #include "status-code.h"
 #include "random.h"
-#include "polarssl/config.h"
-#include "polarssl/aes.h"
-#include "sha512.h"
+#include "common.h"
+#include "mbedtls/aes.h"
+#include "mbedtls/sha512.h"
 #include "shake256.h"
 
 /* Forward declaration */
@@ -1160,17 +1161,17 @@ proc_resetting_code (const uint8_t *data, int len)
 static void
 encrypt (const uint8_t *key, const uint8_t *iv, uint8_t *data, int len)
 {
-  aes_context aes;
+  mbedtls_aes_context aes;
   uint8_t iv0[INITIAL_VECTOR_SIZE];
   size_t iv_offset;
 
   DEBUG_INFO ("ENC\r\n");
   DEBUG_BINARY (data, len);
 
-  aes_setkey_enc (&aes, key, 128);
+  mbedtls_aes_setkey_enc (&aes, key, 128);
   memcpy (iv0, iv, INITIAL_VECTOR_SIZE);
   iv_offset = 0;
-  aes_crypt_cfb128 (&aes, AES_ENCRYPT, len, &iv_offset, iv0, data, data);
+  mbedtls_aes_crypt_cfb128 (&aes, MBEDTLS_AES_ENCRYPT, len, &iv_offset, iv0, data, data);
 }
 
 /* For three keys: Signing, Decryption, and Authentication */
@@ -1179,14 +1180,14 @@ struct key_data kd[3];
 static void
 decrypt (const uint8_t *key, const uint8_t *iv, uint8_t *data, int len)
 {
-  aes_context aes;
+  mbedtls_aes_context aes;
   uint8_t iv0[INITIAL_VECTOR_SIZE];
   size_t iv_offset;
 
-  aes_setkey_enc (&aes, key, 128); /* This is setkey_enc, because of CFB.  */
+  mbedtls_aes_setkey_enc (&aes, key, 128); /* This is setkey_enc, because of CFB.  */
   memcpy (iv0, iv, INITIAL_VECTOR_SIZE);
   iv_offset = 0;
-  aes_crypt_cfb128 (&aes, AES_DECRYPT, len, &iv_offset, iv0, data, data);
+  mbedtls_aes_crypt_cfb128 (&aes, MBEDTLS_AES_DECRYPT, len, &iv_offset, iv0, data, data);
 
   DEBUG_INFO ("DEC\r\n");
   DEBUG_BINARY (data, len);
@@ -1195,19 +1196,19 @@ decrypt (const uint8_t *key, const uint8_t *iv, uint8_t *data, int len)
 static void
 encrypt_dek (const uint8_t *key_string, uint8_t *dek)
 {
-  aes_context aes;
+  mbedtls_aes_context aes;
 
-  aes_setkey_enc (&aes, key_string, 128);
-  aes_crypt_ecb (&aes, AES_ENCRYPT, dek, dek);
+  mbedtls_aes_setkey_enc (&aes, key_string, 128);
+  mbedtls_aes_crypt_ecb (&aes, MBEDTLS_AES_ENCRYPT, dek, dek);
 }
 
 static void
 decrypt_dek (const uint8_t *key_string, uint8_t *dek)
 {
-  aes_context aes;
+  mbedtls_aes_context aes;
 
-  aes_setkey_dec (&aes, key_string, 128);
-  aes_crypt_ecb (&aes, AES_DECRYPT, dek, dek);
+  mbedtls_aes_setkey_dec (&aes, key_string, 128);
+  mbedtls_aes_crypt_ecb (&aes, MBEDTLS_AES_DECRYPT, dek, dek);
 }
 
 static uint8_t
@@ -1745,8 +1746,14 @@ proc_key_import (const uint8_t *data, int len)
 
       if (len - 12 != 32)
 	return 0;		/* Error.  */
+      mbedtls_sha512_context ctx;
+      mbedtls_sha512_init(&ctx);
 
-      sha512 (&data[12], 32, hash);
+      mbedtls_sha512_starts (&ctx, 0);
+      mbedtls_sha512_update (&ctx, &data[12], 32);
+      mbedtls_sha512_finish (&ctx, hash);
+      mbedtls_sha512_free (&ctx);
+
       hash[0] &= 248;
       hash[31] &= 127;
       hash[31] |= 64;
@@ -2483,6 +2490,9 @@ gpg_do_write_simple (uint8_t nr, const uint8_t *data, int size)
     *do_data_p = NULL;
 }
 
+#include "hsm2040.h"
+#include "tusb.h"
+
 void
 gpg_do_keygen (uint8_t *buf)
 {
@@ -2554,7 +2564,15 @@ gpg_do_keygen (uint8_t *buf)
   else if (attr == ALGO_ED25519)
     {
       rnd = random_bytes_get ();
-      sha512 (rnd, 32, d);
+      
+      mbedtls_sha512_context ctx;
+      mbedtls_sha512_init(&ctx);
+
+      mbedtls_sha512_starts (&ctx, 0);
+      mbedtls_sha512_update (&ctx, rnd, 32);
+      mbedtls_sha512_finish (&ctx, d);
+      mbedtls_sha512_free (&ctx);
+      
       random_bytes_free (rnd);
       d[0] &= 248;
       d[31] &= 127;

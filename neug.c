@@ -32,7 +32,6 @@
 #include "sys.h"
 #include "neug.h"
 //#include "adc.h"
-#include "sha256.h"
 #include "gnuk.h"
 #include "hardware/structs/rosc.h"
 #include "hardware/gpio.h"
