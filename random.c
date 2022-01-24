@@ -54,8 +54,10 @@ random_fini (void)
 const uint8_t *
 random_bytes_get (void)
 {
+  static uint32_t return_word[RANDOM_BYTES_LENGTH/sizeof (uint32_t)];
   neug_wait_full ();
-  return (const uint8_t *)random_word;
+  memcpy(return_word, random_word, sizeof(return_word));
+  return (const uint8_t *)return_word;
 }
 
 /*
@@ -91,7 +93,7 @@ int
 random_gen (void *arg, unsigned char *out, size_t out_len)
 {
   uint8_t *index_p = (uint8_t *)arg;
-  uint8_t index = *index_p;
+  uint8_t index = index_p ? *index_p : 0;
   size_t n;
 
   while (out_len)
@@ -100,7 +102,7 @@ random_gen (void *arg, unsigned char *out, size_t out_len)
 
       n = RANDOM_BYTES_LENGTH - index;
       if (n > out_len)
-	n = out_len;
+	    n = out_len;
 
       memcpy (out, ((unsigned char *)random_word) + index, n);
       out += n;
@@ -114,7 +116,8 @@ random_gen (void *arg, unsigned char *out, size_t out_len)
 	}
     }
 
-  *index_p = index;
+  if (index_p)
+    *index_p = index;
 
   return 0;
 }
