@@ -1139,7 +1139,7 @@ static int end_cmd_apdu_data (struct ep_out *epo, size_t orig_len)
             len -= 2;
             if (len < c->a->cmd_apdu_data_len)
                 goto error;
-            c->a->cmd_apdu_data += 3;
+            c->a->cmd_apdu_data += 2;
             if (len == c->a->cmd_apdu_data_len) //no LE
                 c->a->expected_res_size = 0;
             else {
