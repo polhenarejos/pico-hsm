@@ -281,9 +281,12 @@ flash_data_pool_allocate (size_t size)
 
   size = (size + 1) & ~1;	/* allocation unit is 1-halfword (2-byte) */
 
-  if (is_data_pool_full (size))
-    if (flash_copying_gc () < 0 || /*still*/ is_data_pool_full (size))
+  if (is_data_pool_full (size)) {
+    if (flash_copying_gc () < 0 || /*still*/ is_data_pool_full (size)) {
       TU_LOG1 ("!!!! FATAL: %d\r\n",FATAL_FLASH);
+      return NULL;
+    }
+  }
 
   p = last_p;
   last_p += size;
@@ -519,6 +522,7 @@ flash_put_data (uint16_t hw)
   if (p == NULL)
     {
       DEBUG_INFO ("data allocation failure.\r\n");
+      return;
     }
 
   flash_program_halfword ((uintptr_t)p, hw);
