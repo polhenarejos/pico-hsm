@@ -35,6 +35,8 @@
 #include "random.h"
 #include "pico/util/queue.h"
 #include "pico/multicore.h"
+#include "hsm2040.h"
+#include "tusb.h"
 
 static queue_t *openpgp_comm;
 
@@ -115,6 +117,13 @@ uint16_t set_res_sw (uint8_t sw1, uint8_t sw2)
 #define FILE_EF_CYCLIC              0x06
 #define FILE_EF_CYCLIC_TLV          0x07
 
+#define ACL_OP_DELETE_SELF      0x00
+#define ACL_OP_CREATE_DF        0x01
+#define ACL_OP_CREATE_EF        0x02
+#define ACL_OP_DELETE_CHILD     0x03
+#define ACL_OP_WRITE            0x04
+#define ACL_OP_UPDATE_ERASE     0x05
+#define ACL_OP_READ_SEARCH      0x06
 
 typedef struct pkcs15_entry
 {
@@ -124,6 +133,7 @@ typedef struct pkcs15_entry
     const uint8_t type;
     const uint8_t *data; //should include 2 bytes len at begining
     const uint8_t ef_structure;
+    const uint8_t acl[7];
 } pkcs15_entry_t;
 
 //puts FCI in the RAPDU
@@ -159,18 +169,23 @@ void process_fci(const pkcs15_entry_t *pe) {
     res_APDU[1] = res_APDU_size-2;
 }
 
+uint8_t t[] = {
+               0x01,0xbb,
+                0x7F,0x21,0x82,0x01,0xB6,0x7F,0x4E,0x82,0x01,0x6E,0x5F,0x29,0x01,0x00,0x42,0x0E,0x44,0x45,0x43,0x56,0x43,0x41,0x65,0x49,0x44,0x30,0x30,0x31,0x30,0x32,0x7F,0x49,0x82,0x01,0x1D,0x06,0x0A,0x04,0x00,0x7F,0x00,0x07,0x02,0x02,0x02,0x02,0x03,0x81,0x20,0xA9,0xFB,0x57,0xDB,0xA1,0xEE,0xA9,0xBC,0x3E,0x66,0x0A,0x90,0x9D,0x83,0x8D,0x72,0x6E,0x3B,0xF6,0x23,0xD5,0x26,0x20,0x28,0x20,0x13,0x48,0x1D,0x1F,0x6E,0x53,0x77,0x82,0x20,0x7D,0x5A,0x09,0x75,0xFC,0x2C,0x30,0x57,0xEE,0xF6,0x75,0x30,0x41,0x7A,0xFF,0xE7,0xFB,0x80,0x55,0xC1,0x26,0xDC,0x5C,0x6C,0xE9,0x4A,0x4B,0x44,0xF3,0x30,0xB5,0xD9,0x83,0x20,0x26,0xDC,0x5C,0x6C,0xE9,0x4A,0x4B,0x44,0xF3,0x30,0xB5,0xD9,0xBB,0xD7,0x7C,0xBF,0x95,0x84,0x16,0x29,0x5C,0xF7,0xE1,0xCE,0x6B,0xCC,0xDC,0x18,0xFF,0x8C,0x07,0xB6,0x84,0x41,0x04,0x8B,0xD2,0xAE,0xB9,0xCB,0x7E,0x57,0xCB,0x2C,0x4B,0x48,0x2F,0xFC,0x81,0xB7,0xAF,0xB9,0xDE,0x27,0xE1,0xE3,0xBD,0x23,0xC2,0x3A,0x44,0x53,0xBD,0x9A,0xCE,0x32,0x62,0x54,0x7E,0xF8,0x35,0xC3,0xDA,0xC4,0xFD,0x97,0xF8,0x46,0x1A,0x14,0x61,0x1D,0xC9,0xC2,0x77,0x45,0x13,0x2D,0xED,0x8E,0x54,0x5C,0x1D,0x54,0xC7,0x2F,0x04,0x69,0x97,0x85,0x20,0xA9,0xFB,0x57,0xDB,0xA1,0xEE,0xA9,0xBC,0x3E,0x66,0x0A,0x90,0x9D,0x83,0x8D,0x71,0x8C,0x39,0x7A,0xA3,0xB5,0x61,0xA6,0xF7,0x90,0x1E,0x0E,0x82,0x97,0x48,0x56,0xA7,0x86,0x41,0x04,0x33,0x47,0xEC,0xF9,0x6F,0xFB,0x4B,0xD9,0xB8,0x55,0x4E,0xFB,0xCC,0xFC,0x7D,0x0B,0x24,0x2F,0x10,0x71,0xE2,0x9B,0x4C,0x9C,0x62,0x2C,0x79,0xE3,0x39,0xD8,0x40,0xAF,0x67,0xBE,0xB9,0xB9,0x12,0x69,0x22,0x65,0xD9,0xC1,0x6C,0x62,0x57,0x3F,0x45,0x79,0xFF,0xD4,0xDE,0x2D,0xE9,0x2B,0xAB,0x40,0x9D,0xD5,0xC5,0xD4,0x82,0x44,0xA9,0xF7,0x87,0x01,0x01,0x5F,0x20,0x0E,0x44,0x45,0x43,0x56,0x43,0x41,0x65,0x49,0x44,0x30,0x30,0x31,0x30,0x32,0x7F,0x4C,0x12,0x06,0x09,0x04,0x00,0x7F,0x00,0x07,0x03,0x01,0x02,0x02,0x53,0x05,0xFE,0x0F,0x01,0xFF,0xFF,0x5F,0x25,0x06,0x01,0x00,0x01,0x00,0x01,0x08,0x5F,0x24,0x06,0x01,0x03,0x01,0x00,0x01,0x08,0x5F,0x37,0x40,0x50,0x67,0x14,0x5C,0x68,0xCA,0xE9,0x52,0x0F,0x5B,0xB3,0x48,0x17,0xF1,0xCA,0x9C,0x43,0x59,0x3D,0xB5,0x64,0x06,0xC6,0xA3,0xB0,0x06,0xCB,0xF3,0xF3,0x14,0xE7,0x34,0x9A,0xCF,0x0C,0xC6,0xBF,0xEB,0xCB,0xDE,0xFD,0x10,0xB4,0xDC,0xF0,0xF2,0x31,0xDA,0x56,0x97,0x7D,0x88,0xF9,0xF9,0x01,0x82,0xD1,0x99,0x07,0x6A,0x56,0x50,0x64,0x51
+            };
+
 const pkcs15_entry_t pkcs15_entries[] = {
-    { 0x3f00, 0xff, NULL, FILE_TYPE_DF, NULL, 0 }, // MF
-    { 0x2f00, 0, NULL, FILE_TYPE_WORKING_EF, NULL, FILE_EF_TRANSPARENT }, //EF.DIR
-    { 0x2f01, 0, NULL, FILE_TYPE_WORKING_EF, NULL, FILE_EF_TRANSPARENT }, //EF.ATR
-    { 0x2f02, 0, NULL, FILE_TYPE_WORKING_EF, NULL, FILE_EF_TRANSPARENT }, //EF.GDO
-    { 0x5015, 0, NULL, FILE_TYPE_DF, NULL, 0 }, //DF.PKCS15
-    { 0x5031, 0, NULL, FILE_TYPE_WORKING_EF, NULL, FILE_EF_TRANSPARENT }, //EF.ODF
-    { 0x5032, 0, NULL, FILE_TYPE_WORKING_EF, NULL, FILE_EF_TRANSPARENT }, //EF.TokenInfo
-    { 0x5033, 0, NULL, FILE_TYPE_WORKING_EF, NULL, FILE_EF_TRANSPARENT }, //EF.UnusedSpace
-    { 0x0000, 0, openpgpcard_aid, FILE_TYPE_WORKING_EF, NULL, FILE_EF_TRANSPARENT },
-    { 0x0000, 0, sc_hsm_aid, FILE_TYPE_WORKING_EF, NULL, FILE_EF_TRANSPARENT },
-    { 0x0000, 0xff, NULL, FILE_TYPE_UNKNOWN, NULL, 0 } //end
+    { .fid = 0x3f00, .parent = 0xff, .name = NULL, .type = FILE_TYPE_DF, .data = NULL, .ef_structure = 0, .acl = {0} }, // MF
+    { .fid = 0x2f00, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.DIR
+    { .fid = 0x2f01, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.ATR
+    { .fid = 0x2f02, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF,.data = t, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.GDO
+    { .fid = 0x5015, .parent = 0, .name = NULL, .type = FILE_TYPE_DF, .data = NULL, .ef_structure = 0, .acl = {0} }, //DF.PKCS15
+    { .fid = 0x5031, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.ODF
+    { .fid = 0x5032, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.TokenInfo
+    { .fid = 0x5033, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.UnusedSpace
+    { .fid = 0x0000, .parent = 0, .name = openpgpcard_aid, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} },
+    { .fid = 0x0000, .parent = 0, .name = sc_hsm_aid, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} },
+    { .fid = 0x0000, .parent = 0xff, .name = NULL, .type = FILE_TYPE_UNKNOWN, .data = NULL, .ef_structure = 0, .acl = {0} } //end
 };
 
 const pkcs15_entry_t *MF = &pkcs15_entries[0];
@@ -252,6 +267,25 @@ const pkcs15_entry_t *search_by_path(const uint8_t *pe_path, uint8_t pathlen, co
 uint8_t file_selection;
 const pkcs15_entry_t *currentEF = NULL;
 const pkcs15_entry_t *currentDF = NULL;
+bool isUserAuthenticated = false;
+
+bool authenticate_action(const pkcs15_entry_t *ef, uint8_t op) {
+    uint8_t acl = ef->acl[op];
+    if (acl == 0x0)
+        return true;
+    else if (acl == 0xff)
+        return false;
+    else if (acl == 0x90 || acl & 0x9F == 0x10) {
+            // PIN required.
+        if(isUserAuthenticated) {
+            return true;
+        } 
+        else {
+            return false;
+        }
+    }
+    return false;
+}
 
 static void gpg_init (void)
 {
@@ -913,81 +947,66 @@ gpg_get_firmware_update_key (uint8_t keyno)
 #define FILEID_CH_CERTIFICATE_IS_VALID 0
 #endif
 
-static void
-cmd_read_binary (queue_t *ccid_comm)
+static int cmd_read_binary (queue_t *ccid_comm)
 {
-  int is_short_EF = (P1 (apdu) & 0x80) != 0;
-  uint8_t file_id;
-  uint16_t offset;
-
-  (void)ccid_comm;
-  DEBUG_INFO (" - Read binary\r\n");
-
-  if (is_short_EF)
-    file_id = (P1 (apdu) & 0x1f);
-  else
-    file_id = file_selection - FILE_EF_SERIAL_NO + FILEID_SERIAL_NO;
-
-  if (is_short_EF)
+    uint16_t fid;
+    uint32_t offset;
+    uint8_t ins = INS(apdu), p1 = P1(apdu), p2 = P2(apdu);
+    const pkcs15_entry_t *ef = NULL;
+    
+    (void)ccid_comm;
+    DEBUG_INFO (" - Read binary\r\n");
+    
+    if ((ins & 0x1) == 0)
     {
-      file_selection = file_id - FILEID_SERIAL_NO + FILE_EF_SERIAL_NO;
-      offset = P2 (apdu);
+        if ((p1 & 0x80) != 0) {
+            if (!(ef = search_by_fid(p1&0x1f, NULL, SPECIFY_EF)))
+                return SW_FILE_NOT_FOUND ();
+            offset = p2;
+        }
+        else {
+            offset = make_uint16_t(p1, p2) & 0x7fff;
+            ef = currentEF;
+        }
     }
-  else
-    offset = (P1 (apdu) << 8) | P2 (apdu);
+    else {
+        if (p1 == 0 && (p2 & 0xE0) == 0 && (p2 & 0x1f) != 0 && (p2 & 0x1f) != 0x1f) {
+            if (!(ef = search_by_fid(p2&0x1f, NULL, SPECIFY_EF)))
+                return SW_FILE_NOT_FOUND ();
+        } 
+        else {
+            uint16_t file_id = make_uint16_t(p1, p2) & 0x7fff;
+            if (file_id == 0x0)
+                ef = currentEF;
+            else if (!(ef = search_by_fid(file_id, NULL, SPECIFY_EF)))
+                return SW_FILE_NOT_FOUND ();
+            
+            if (apdu.cmd_apdu_data[0] != 0x54)
+                return SW_WRONG_DATA();
+                
+            offset = 0;
+            for (int d = 0; d < apdu.cmd_apdu_data[1]; d++)
+                offset |= apdu.cmd_apdu_data[2+d]<<(apdu.cmd_apdu_data[1]-1-d)*8;
+        }
+        
+    }
+    
+    if (!authenticate_action(ef, ACL_OP_READ_SEARCH)) {
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
+    }
+    if (ef->data) {
+        uint16_t data_len = get_uint16_t(ef->data, 0);
+        if (offset > data_len)
+            return SW_WRONG_P1P2();
+        
+        uint16_t maxle = data_len-offset;
+        if (apdu.expected_res_size > maxle)
+            apdu.expected_res_size = maxle;
+        res_APDU = ef->data+2+offset;
+        res_APDU_size = data_len-offset;
+    }
 
-  if (file_id == FILEID_SERIAL_NO)
-    {
-      if (offset != 0)
-	GPG_BAD_P1_P2 ();
-      else
-	{
-	  gpg_do_get_data (0x004f, 1); /* Get AID... */
-	  res_APDU[0] = 0x5a; /* ... and overwrite the first byte of data. */
-	}
-      return;
-    }
-#ifdef FLASH_UPGRADE_SUPPORT
-  else if (file_id >= FILEID_UPDATE_KEY_0 && file_id <= FILEID_UPDATE_KEY_3)
-    {
-      if (offset != 0)
-	GPG_MEMORY_FAILURE ();
-      else
-	{
-	  const uint8_t *p;
-
-	  p = gpg_get_firmware_update_key (file_id - FILEID_UPDATE_KEY_0);
-	  res_APDU_size = FIRMWARE_UPDATE_KEY_CONTENT_LEN;
-	  memcpy (res_APDU, p, FIRMWARE_UPDATE_KEY_CONTENT_LEN);
-	  GPG_SUCCESS ();
-	}
-    }
-#endif
-#if defined(CERTDO_SUPPORT)
-  else if (file_id == FILEID_CH_CERTIFICATE)
-    {
-      const uint8_t *p;
-      uint16_t len = 256;
-
-      p = ch_certificate_start;
-      if (offset >= FLASH_CH_CERTIFICATE_SIZE)
-	GPG_MEMORY_FAILURE ();
-      else
-	{
-	  if (offset + len >= FLASH_CH_CERTIFICATE_SIZE)
-	    len = FLASH_CH_CERTIFICATE_SIZE - offset;
-
-	  res_APDU_size = len;
-	  memcpy (res_APDU, p + offset, len);
-	  GPG_SUCCESS ();
-	}
-    }
-#endif
-  else
-    {
-      GPG_NO_FILE ();
-      return;
-    }
+    return GPG_SUCCESS ();
 }
 void select_file(const pkcs15_entry_t *pe) {
     if (!pe)
@@ -1726,7 +1745,7 @@ process_command_apdu (queue_t *ccid_comm)
     for (i = 0; i < NUM_CMDS; i++)
         if (cmds[i].command == cmd)
             break;
-DEBUG_BYTE(i);
+
     if (i < NUM_CMDS)
     {
         if (file_selection == FILE_CARD_TERMINATED
