@@ -87,9 +87,10 @@ void low_flash_available();
 uintptr_t allocate_free_addr(uint16_t size) {
     if (size > FLASH_SECTOR_SIZE)
         return 0x0; //ERROR
+    size_t real_size = size+sizeof(uint16_t)+sizeof(uintptr_t)+sizeof(uint16_t); //len+len size+next address+fid
     for (uintptr_t base = end_data_pool; base >= start_data_pool; base = *(uintptr_t *)base) {
         uintptr_t addr_alg = base & -FLASH_SECTOR_SIZE; //start address of sector
-        uintptr_t potential_addr = base-size-sizeof(uint16_t)-sizeof(uintptr_t);
+        uintptr_t potential_addr = base-real_size;
         if (*(uintptr_t *)base == 0x0) { //we are at the end
             //now we check if we fit in the current sector
             if (addr_alg <= potential_addr) //it fits in the current sector
@@ -99,7 +100,7 @@ uintptr_t allocate_free_addr(uint16_t size) {
                 return potential_addr;
             }
             else if (addr_alg-FLASH_SECTOR_SIZE >= start_data_pool) { //check whether it fits in the next sector, so we take addr_aligned as the base
-                potential_addr = addr_alg-size-sizeof(uint16_t)-sizeof(uintptr_t);
+                potential_addr = addr_alg-real_size;
                 *(uintptr_t *)potential_addr = 0x0;
                 *(uintptr_t *)base = potential_addr;
                 return potential_addr;
@@ -107,7 +108,7 @@ uintptr_t allocate_free_addr(uint16_t size) {
             return 0x0;
         }
         //we check if |base-(next_addr+size_next_addr)| >= |base-potential_addr|
-        else if (base-(*(uintptr_t *)base+*(uint16_t *)(*(uintptr_t *)base+sizeof(uintptr_t))) >= base-potential_addr && addr_alg <= potential_addr) {
+        else if (base-(*(uintptr_t *)base+*(uint16_t *)(*(uintptr_t *)base+sizeof(uintptr_t)+sizeof(uint16_t))) >= base-potential_addr && addr_alg <= potential_addr) {
             *(uintptr_t *)potential_addr = *(uintptr_t *)base;
             *(uintptr_t *)base = potential_addr;
             return potential_addr;
@@ -143,8 +144,8 @@ int flash_write_data_to_file(file_t *file, const uint8_t *data, uint16_t len) {
     uintptr_t new_addr = allocate_free_addr(len);
     if (new_addr == 0x0) 
         return 2;
-    file->data = (uint8_t *)new_addr+sizeof(uintptr_t);
-    
+    file->data = (uint8_t *)new_addr+sizeof(uintptr_t)+sizeof(uint16_t); //next addr+fid
+    flash_program_halfword(new_addr+sizeof(uintptr_t), file->fid);
     flash_program_halfword((uintptr_t)file->data, len);
     flash_program_block((uintptr_t)file->data+sizeof(uint16_t), data, len);
     low_flash_available();
