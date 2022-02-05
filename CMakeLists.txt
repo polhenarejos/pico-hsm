@@ -18,6 +18,7 @@ target_sources(hsm2040 PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/debug.c
         ${CMAKE_CURRENT_LIST_DIR}/openpgp-do.c
         ${CMAKE_CURRENT_LIST_DIR}/ac.c
+        ${CMAKE_CURRENT_LIST_DIR}/file.c
         ${CMAKE_CURRENT_LIST_DIR}/flash.c
         ${CMAKE_CURRENT_LIST_DIR}/low_flash.c
         ${CMAKE_CURRENT_LIST_DIR}/call-rsa.c

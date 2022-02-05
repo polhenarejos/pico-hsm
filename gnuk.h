@@ -1,3 +1,6 @@
+#ifndef _GNUK_H_
+#define _GNUK_H_
+
 #include "config.h"
 /*
  * Application layer <-> CCID layer data structure
@@ -8,14 +11,20 @@ struct apdu {
   /* command APDU */
   uint8_t *cmd_apdu_head;	/* CLS INS P1 P2 [ internal Lc ] */
   uint8_t *cmd_apdu_data;
-  uint16_t cmd_apdu_data_len;	/* Nc, calculated by Lc field */
-  uint16_t expected_res_size;	/* Ne, calculated by Le field */
+  size_t cmd_apdu_data_len;	/* Nc, calculated by Lc field */
+  size_t expected_res_size;	/* Ne, calculated by Le field */
 
   /* response APDU */
   uint16_t sw;
   uint16_t res_apdu_data_len;
   uint8_t *res_apdu_data;
 };
+
+
+#define CLS(a) a.cmd_apdu_head[0]
+#define INS(a) a.cmd_apdu_head[1]
+#define P1(a) a.cmd_apdu_head[2]
+#define P2(a) a.cmd_apdu_head[3]
 
 extern struct apdu apdu;
 
@@ -98,7 +107,7 @@ void ac_reset_admin (void);
 void ac_fini (void);
 
 
-void set_res_sw (uint8_t sw1, uint8_t sw2);
+uint16_t set_res_sw (uint8_t sw1, uint8_t sw2);
 extern uint8_t file_selection;
 extern const uint8_t historical_bytes[];
 extern uint16_t data_objects_number_of_bytes;
@@ -421,7 +430,8 @@ extern uint8_t admin_authorized;
 #define OPENPGP_CARD_INITIAL_PW3 "12345678"
 #endif
 
-extern const uint8_t openpgpcard_aid[14];
+extern const uint8_t openpgpcard_aid[];
+extern const uint8_t sc_hsm_aid[];
 
 void flash_bool_clear (const uint8_t **addr_p);
 const uint8_t *flash_bool_write (uint8_t nr);
@@ -500,3 +510,17 @@ unique_device_id (void)
   return id;
 }
 
+static inline const uint16_t make_uint16_t(uint8_t b1, uint8_t b2) {
+    return (b1 << 8) | b2;
+}
+static inline const uint16_t get_uint16_t(uint8_t *b, uint16_t offset) {
+    return make_uint16_t(b[offset], b[offset+1]);
+}
+static inline const void put_uint16_t(uint16_t n, uint8_t *b) {
+    *b++ = (n >> 8) & 0xff;
+    *b = n & 0xff;
+}
+
+
+
+#endif

@@ -385,6 +385,7 @@ void usb_tx_enable(const void *buf, uint32_t len)
  */
 static const uint8_t ATR_head[] = {
     0x3b, 0xda, 0x11, 0xff, 0x81, 0xb1, 0xfe, 0x55, 0x1f, 0x03,
+    //0x3B,0xFE,0x18,0x00,0x00,0x81,0x31,0xFE,0x45,0x80,0x31,0x81,0x54,0x48,0x53,0x4D,0x31,0x73,0x80,0x21,0x40,0x81,0x07,0xFA
 };
 
 /* Send back ATR (Answer To Reset) */
@@ -393,7 +394,14 @@ static enum ccid_state ccid_power_on (struct ccid *c)
     TU_LOG1("!!! CCID POWER ON %d\r\n",c->application);
     uint8_t p[CCID_MSG_HEADER_SIZE+1]; /* >= size of historical_bytes -1 */
     int hist_len = historical_bytes[0];
-    size_t size_atr = sizeof (ATR_head) + hist_len + 1;
+    
+    char atr_sc_hsm[] = { 0x3B,0x8E,0x80,0x01,0x80,0x31,0x81,0x54,0x48,0x53,0x4D,0x31,0x73,0x80,0x21,0x40,0x81,0x07,0x18 };
+    uint8_t mode = 1; //1 sc-hsm, 0 openpgp
+    size_t size_atr;
+    if (mode == 1)
+        size_atr = sizeof(atr_sc_hsm);
+    else
+        size_atr = sizeof (ATR_head) + hist_len + 1;
     uint8_t xor_check = 0;
     int i;
     if (c->application == 0)
@@ -416,20 +424,26 @@ static enum ccid_state ccid_power_on (struct ccid *c)
     p[CCID_MSG_CHAIN_OFFSET] = 0x00;
 
     memcpy (endp1_tx_buf, p, CCID_MSG_HEADER_SIZE);
-    memcpy (endp1_tx_buf+CCID_MSG_HEADER_SIZE, ATR_head, sizeof (ATR_head));
+    if (mode == 1)
+    {
+        memcpy(endp1_tx_buf+CCID_MSG_HEADER_SIZE, atr_sc_hsm, sizeof(atr_sc_hsm));
+    }
+    else
+    {
+        memcpy (endp1_tx_buf+CCID_MSG_HEADER_SIZE, ATR_head, sizeof (ATR_head));
 
-    for (i = 1; i < (int)sizeof (ATR_head); i++)
-        xor_check ^= ATR_head[i];
-    memcpy (p, historical_bytes + 1, hist_len);
+        for (i = 1; i < (int)sizeof (ATR_head); i++)
+            xor_check ^= ATR_head[i];
+        memcpy (p, historical_bytes + 1, hist_len);
 #ifdef LIFE_CYCLE_MANAGEMENT_SUPPORT
-    if (file_selection == 255)
-        p[7] = 0x03;
+        if (file_selection == 255)
+            p[7] = 0x03;
 #endif
-    for (i = 0; i < hist_len; i++)
-        xor_check ^= p[i];
-    p[i] = xor_check;
-    memcpy (endp1_tx_buf+CCID_MSG_HEADER_SIZE+sizeof (ATR_head), p, hist_len+1);
-
+        for (i = 0; i < hist_len; i++)
+            xor_check ^= p[i];
+        p[i] = xor_check;
+        memcpy (endp1_tx_buf+CCID_MSG_HEADER_SIZE+sizeof (ATR_head), p, hist_len+1);
+    }
 
   /* This is a single packet Bulk-IN transaction */
     c->epi->buf = NULL;
@@ -1112,26 +1126,54 @@ static int end_cmd_apdu_data (struct ep_out *epo, size_t orig_len)
 
     if (CMD_APDU_HEAD_SIZE + len != c->ccid_header.data_len)
         goto error;
-
-    if (len == c->a->cmd_apdu_head[4])
-        /* No Le field*/
-        c->a->expected_res_size = 0;
-    else if (len == (size_t)c->a->cmd_apdu_head[4] + 1)
-    {
-        /* it has Le field*/
-        c->a->expected_res_size = epo->buf[-1];
-        if (c->a->expected_res_size == 0)
-	        c->a->expected_res_size = 256;
-        len--;
+    //len is the length after lc (whole APDU = len+5)
+    if (c->a->cmd_apdu_head[4] == 0 && len >= 2) { //extended
+        len -= 2;
+        if (len == 0) {
+            c->a->expected_res_size = (c->a->cmd_apdu_head[5] << 8) | c->a->cmd_apdu_head[6];
+            if (c->a->expected_res_size == 0)
+                c->a->expected_res_size = 0xffff+1;
+        }
+        else {
+            c->a->cmd_apdu_data_len = (c->a->cmd_apdu_data[0] << 8) | c->a->cmd_apdu_data[1];
+            len -= 2;
+            if (len < c->a->cmd_apdu_data_len)
+                goto error;
+            c->a->cmd_apdu_data += 2;
+            if (len == c->a->cmd_apdu_data_len) //no LE
+                c->a->expected_res_size = 0;
+            else {
+                if (len - c->a->cmd_apdu_data_len < 2)
+                    goto error;
+                c->a->expected_res_size = (c->a->cmd_apdu_data[c->a->cmd_apdu_data_len] << 8) | c->a->cmd_apdu_data[c->a->cmd_apdu_data_len+1];
+                if (c->a->expected_res_size == 0)
+                    c->a->expected_res_size = 0xffff+1;
+            }
+        }
     }
-    else
-    {
-        error:
-        epo->err = 1;
-        return 0;
-    }
+    else {
 
-    c->a->cmd_apdu_data_len += len;
+        if (len == c->a->cmd_apdu_head[4])
+            /* No Le field*/
+            c->a->expected_res_size = 0;
+        else if (len == (size_t)c->a->cmd_apdu_head[4] + 1)
+        {
+            /* it has Le field*/
+            c->a->expected_res_size = epo->buf[-1];
+            if (c->a->expected_res_size == 0)
+    	        c->a->expected_res_size = 256;
+            len--;
+        }
+        else
+        {
+            error:
+                DEBUG_INFO("APDU header size error");
+                epo->err = 1;
+                return 0;
+        }
+    
+        c->a->cmd_apdu_data_len += len;
+    }
     return 0;
 }
 

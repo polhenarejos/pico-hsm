@@ -12,14 +12,15 @@
 
 #define TOTAL_FLASH_PAGES 4
 
-typedef struct PageFlash {
+typedef struct page_flash {
     uint8_t page[FLASH_SECTOR_SIZE];
     uintptr_t address;
     bool ready;
     bool erase;
-} PageFlash_t;
+    size_t page_size; //this param is for easy erase. It allows to erase with a single call. IT DOES NOT APPLY TO WRITE
+} page_flash_t;
 
-static PageFlash_t flash_pages[TOTAL_FLASH_PAGES];
+static page_flash_t flash_pages[TOTAL_FLASH_PAGES];
 
 static mutex_t mtx_flash;
 
@@ -57,7 +58,7 @@ void do_flash()
                 {
                     while (multicore_lockout_start_timeout_us(1000) == false);
                     printf("WRITTING\r\n");
-                    flash_range_erase(flash_pages[r].address-XIP_BASE, FLASH_SECTOR_SIZE);
+                    flash_range_erase(flash_pages[r].address-XIP_BASE, flash_pages[r].page_size ? ((int)(flash_pages[r].page_size/FLASH_SECTOR_SIZE))*FLASH_SECTOR_SIZE : FLASH_SECTOR_SIZE);
                     while (multicore_lockout_end_timeout_us(1000) == false);
                     flash_pages[r].erase = false;
                     ready_pages--;
@@ -76,7 +77,7 @@ void do_flash()
 void low_flash_init()
 {
     mutex_init(&mtx_flash);
-    memset(flash_pages, 0, sizeof(PageFlash_t)*TOTAL_FLASH_PAGES);
+    memset(flash_pages, 0, sizeof(page_flash_t)*TOTAL_FLASH_PAGES);
 }
 
 void low_flash_available()
@@ -86,18 +87,9 @@ void low_flash_available()
     mutex_exit(&mtx_flash);
 }
 
-int
-flash_program_halfword (uintptr_t addr, uint16_t data)
-{
-    off_t offset;
+page_flash_t *find_free_page(uintptr_t addr) {
     uintptr_t addr_alg = addr & -FLASH_SECTOR_SIZE;
-    PageFlash_t *p = NULL;
-    if (ready_pages == TOTAL_FLASH_PAGES) {
-        DEBUG_INFO("ERROR: ALL FLASH PAGES CACHED\r\n");
-        return 1;
-    }
-    mutex_enter_blocking(&mtx_flash);
-
+    page_flash_t *p = NULL;
     for (int r = 0; r < TOTAL_FLASH_PAGES; r++)
     {
         if ((!flash_pages[r].ready && !flash_pages[r].erase) || flash_pages[r].address == addr_alg) //first available
@@ -110,59 +102,66 @@ flash_program_halfword (uintptr_t addr, uint16_t data)
                 p->address = addr_alg;
                 p->ready = true;
             }
-            break;
+            return p;
         }
     }
+    return NULL;
+}
 
-    if (!p)
+int flash_program_block(uintptr_t addr, const uint8_t *data, size_t len) {
+    uintptr_t addr_alg = addr & -FLASH_SECTOR_SIZE;
+    page_flash_t *p = NULL;
+    
+    mutex_enter_blocking(&mtx_flash);
+    if (ready_pages == TOTAL_FLASH_PAGES) {
+        mutex_exit(&mtx_flash);
+        DEBUG_INFO("ERROR: ALL FLASH PAGES CACHED\r\n");
+        return 1;
+    }
+    if (!(p = find_free_page(addr)))
     {
         DEBUG_INFO("ERROR: FLASH CANNOT FIND A PAGE (rare error)\r\n");
         mutex_exit(&mtx_flash);
         return 1;
     }
-    
-    p->page[addr&(FLASH_SECTOR_SIZE-1)] = (data & 0xff);
-    p->page[(addr&(FLASH_SECTOR_SIZE-1))+1] = (data >> 8);
+    memcpy(&p->page[addr&(FLASH_SECTOR_SIZE-1)], data, len);
     //printf("Flash: modified page %X with data %x %x at [%x-%x] (top page %X)\r\n",addr_alg,(data & 0xff),data>>8,addr&(FLASH_SECTOR_SIZE-1),(addr&(FLASH_SECTOR_SIZE-1))+1,addr);
     mutex_exit(&mtx_flash);
     return 0;
 }
 
-int
-flash_erase_page (uintptr_t addr)
+int flash_program_halfword (uintptr_t addr, uint16_t data)
 {
-    /*
+    return flash_program_block(addr, (const uint8_t *)&data, sizeof(uint16_t));
+}
+
+int flash_program_word (uintptr_t addr, uint32_t data)
+{
+    return flash_program_block(addr,  (const uint8_t *)&data, sizeof(uint32_t));
+}
+
+int flash_erase_page (uintptr_t addr, size_t page_size)
+{
     uintptr_t addr_alg = addr & -FLASH_SECTOR_SIZE;
-    PageFlash_t *p = NULL;
+    page_flash_t *p = NULL;
+    
+    mutex_enter_blocking(&mtx_flash);
     if (ready_pages == TOTAL_FLASH_PAGES) {
+        mutex_exit(&mtx_flash);
         DEBUG_INFO("ERROR: ALL FLASH PAGES CACHED\r\n");
         return 1;
     }
-    mutex_enter_blocking(&mtx_flash);
-
-    for (int r = 0; r < TOTAL_FLASH_PAGES; r++)
-    {
-        if ((!flash_pages[r].ready && !flash_pages[r].erase) || flash_pages[r].address == addr_alg) //first available
-        {
-            p = &flash_pages[r];
-            if (!flash_pages[r].ready && !flash_pages[r].erase)
-            {
-                ready_pages++;
-                p->address = addr_alg;
-            }
-            p->erase = true;
-            break;
-        }
-    }
-
-    if (!p)
+    if (!(p = find_free_page(addr)))
     {
         DEBUG_INFO("ERROR: FLASH CANNOT FIND A PAGE (rare error)\r\n");
         mutex_exit(&mtx_flash);
         return 1;
     }
+    p->erase = true;
+    p->ready = false;
+    p->page_size = page_size;
     mutex_exit(&mtx_flash);
-    */
+    
     return 0;
 }
 
@@ -176,15 +175,4 @@ flash_check_blank (const uint8_t *p_start, size_t size)
       return 0;
 
   return 1;
-}
-
-int
-flash_write (uintptr_t dst_addr, const uint8_t *src, size_t len)
-{
-    size_t len_alg = (len + (FLASH_SECTOR_SIZE - 1)) & -FLASH_SECTOR_SIZE;
-    uintptr_t add_alg = dst_addr & -FLASH_SECTOR_SIZE;
-    printf("WRITE ATTEMPT %X (%d) %X (%d)\r\n",dst_addr,len,add_alg,len_alg);
-  uint32_t ints = save_and_disable_interrupts();
-  flash_range_program(add_alg-XIP_BASE, src, len_alg);
-  restore_interrupts (ints);
 }
