@@ -34,7 +34,6 @@
 
 #define MAX_DEPTH 4
 
-
 typedef struct file
 {
     const uint16_t fid;
