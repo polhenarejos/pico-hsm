@@ -6,6 +6,7 @@
 #include "hardware/flash.h"
 #include "hardware/sync.h"
 #include "pico/mutex.h"
+#include "pico/sem.h"
 #include "pico/multicore.h"
 #include "gnuk.h"
 #include <string.h>
@@ -23,10 +24,12 @@ typedef struct page_flash {
 static page_flash_t flash_pages[TOTAL_FLASH_PAGES];
 
 static mutex_t mtx_flash;
+static semaphore_t sem_wait;
 
 static uint8_t ready_pages = 0;
 
 bool flash_available = false;
+static bool locked_out = false;
 
 
 //this function has to be called from the core 0
@@ -34,7 +37,7 @@ void do_flash()
 {
     if (mutex_try_enter(&mtx_flash, NULL) == true)
     {
-        if (flash_available == true && ready_pages > 0)
+        if (locked_out == true && flash_available == true && ready_pages > 0)
         {
             //printf(" DO_FLASH AVAILABLE\r\n");
             for (int r = 0; r < TOTAL_FLASH_PAGES; r++)
@@ -57,7 +60,7 @@ void do_flash()
                 else if (flash_pages[r].erase == true) 
                 {
                     while (multicore_lockout_start_timeout_us(1000) == false);
-                    printf("WRITTING\r\n");
+                    //printf("WRITTING\r\n");
                     flash_range_erase(flash_pages[r].address-XIP_BASE, flash_pages[r].page_size ? ((int)(flash_pages[r].page_size/FLASH_SECTOR_SIZE))*FLASH_SECTOR_SIZE : FLASH_SECTOR_SIZE);
                     while (multicore_lockout_end_timeout_us(1000) == false);
                     flash_pages[r].erase = false;
@@ -71,13 +74,28 @@ void do_flash()
         }
         mutex_exit(&mtx_flash);
     }
+    sem_release(&sem_wait);
 }
 
 //this function has to be called from the core 0
 void low_flash_init()
 {
     mutex_init(&mtx_flash);
+    sem_init(&sem_wait, 0, 1);
     memset(flash_pages, 0, sizeof(page_flash_t)*TOTAL_FLASH_PAGES);
+}
+
+void low_flash_init_core1() {
+    mutex_enter_blocking(&mtx_flash);
+    multicore_lockout_victim_init();
+    locked_out = true;
+    mutex_exit(&mtx_flash);
+}
+
+void wait_flash_finish() {
+    sem_acquire_blocking(&sem_wait); //blocks until released
+    //wake up
+    sem_acquire_blocking(&sem_wait); //decrease permits
 }
 
 void low_flash_available()
@@ -125,7 +143,7 @@ int flash_program_block(uintptr_t addr, const uint8_t *data, size_t len) {
         return 1;
     }
     memcpy(&p->page[addr&(FLASH_SECTOR_SIZE-1)], data, len);
-    //printf("Flash: modified page %X with data %x %x at [%x-%x] (top page %X)\r\n",addr_alg,(data & 0xff),data>>8,addr&(FLASH_SECTOR_SIZE-1),(addr&(FLASH_SECTOR_SIZE-1))+1,addr);
+    //printf("Flash: modified page %X with data %x at [%x] (top page %X)\r\n",addr_alg,data,addr&(FLASH_SECTOR_SIZE-1),addr);
     mutex_exit(&mtx_flash);
     return 0;
 }
@@ -138,6 +156,46 @@ int flash_program_halfword (uintptr_t addr, uint16_t data)
 int flash_program_word (uintptr_t addr, uint32_t data)
 {
     return flash_program_block(addr,  (const uint8_t *)&data, sizeof(uint32_t));
+}
+
+int flash_program_uintptr (uintptr_t addr, uintptr_t data)
+{
+    return flash_program_block(addr,  (const uint8_t *)&data, sizeof(uintptr_t));
+}
+
+uint8_t *flash_read(uintptr_t addr) {
+    uintptr_t addr_alg = addr & -FLASH_SECTOR_SIZE;   
+    //mutex_enter_blocking(&mtx_flash);
+    if (ready_pages > 0) {
+        for (int r = 0; r < TOTAL_FLASH_PAGES; r++)
+        {
+            if (flash_pages[r].ready && flash_pages[r].address == addr_alg) {
+                uint8_t *v = &flash_pages[r].page[addr&(FLASH_SECTOR_SIZE-1)];
+                //mutex_exit(&mtx_flash);
+                return v;
+            }
+        }
+    }
+    uint8_t *v = (uint8_t *)addr;
+    //mutex_exit(&mtx_flash);
+    return v;
+}
+
+uintptr_t flash_read_uintptr(uintptr_t addr) {
+    uint8_t *p = flash_read(addr);
+    uintptr_t v = 0x0;
+    for (int i = 0; i < sizeof(uintptr_t); i++) {
+        v |= (uintptr_t)p[i]<<(8*i);
+    }
+    return v;
+}
+uint16_t flash_read_uint16(uintptr_t addr) {
+    uint8_t *p = flash_read(addr);
+    uint16_t v = 0x0;
+    for (int i = 0; i < sizeof(uint16_t); i++) {
+        v |= p[i]<<(8*i);
+    }
+    return v;
 }
 
 int flash_erase_page (uintptr_t addr, size_t page_size)
@@ -168,11 +226,11 @@ int flash_erase_page (uintptr_t addr, size_t page_size)
 int
 flash_check_blank (const uint8_t *p_start, size_t size)
 {
-  const uint8_t *p;
+    const uint8_t *p;
 
-  for (p = p_start; p < p_start + size; p++)
-    if (*p != 0xff)
-      return 0;
+    for (p = p_start; p < p_start + size; p++)
+        if (*p != 0xff)
+            return 0;
 
   return 1;
 }
