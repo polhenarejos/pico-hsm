@@ -45,8 +45,8 @@ typedef struct file
     const uint8_t acl[7];
 } file_t;
 
-extern const file_t *currentEF;
-extern const file_t *currentDF;
+extern file_t *currentEF;
+extern file_t *currentDF;
 extern const file_t *selected_applet;
 
 extern const file_t *MF;
@@ -54,14 +54,18 @@ extern const file_t *file_last;
 extern const file_t *file_openpgp;
 extern const file_t *file_sc_hsm;
 extern bool card_terminated;
+extern file_t *file_pin1;
+extern file_t *file_retries_pin1;
+extern file_t *file_sopin;
+extern file_t *file_retries_sopin;
 
-extern const file_t *search_by_fid(const uint16_t fid, const file_t *parent, const uint8_t sp);
-extern const file_t *search_by_name(uint8_t *name, uint16_t namelen);
-extern const file_t *search_by_path(const uint8_t *pe_path, uint8_t pathlen, const file_t *parent);
+extern file_t *search_by_fid(const uint16_t fid, const file_t *parent, const uint8_t sp);
+extern file_t *search_by_name(uint8_t *name, uint16_t namelen);
+extern file_t *search_by_path(const uint8_t *pe_path, uint8_t pathlen, const file_t *parent);
 extern bool authenticate_action(const file_t *ef, uint8_t op);
 extern void process_fci(const file_t *pe);
 
-extern const file_t file_entries[];
+extern file_t file_entries[];
 
 #endif
 
