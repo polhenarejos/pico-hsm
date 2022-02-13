@@ -68,5 +68,9 @@ extern void scan_flash();
 
 extern file_t file_entries[];
 
+extern uint8_t *file_read(const uint8_t *addr);
+extern uint16_t file_read_uint16(const uint8_t *addr);
+extern uint8_t file_read_uint8(const uint8_t *addr);
+
 #endif
 

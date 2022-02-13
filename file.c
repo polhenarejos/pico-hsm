@@ -14,6 +14,8 @@ extern int flash_program_uintptr (uintptr_t addr, uintptr_t data);
 extern int flash_program_block(uintptr_t addr, const uint8_t *data, size_t len);
 extern uintptr_t flash_read_uintptr(uintptr_t addr);
 extern uint16_t flash_read_uint16(uintptr_t addr);
+extern uint8_t flash_read_uint8(uintptr_t addr);
+extern uint8_t *flash_read(uintptr_t addr);
 extern void low_flash_available();
 
 //puts FCI in the RAPDU
@@ -75,7 +77,7 @@ file_t file_entries[] = {
     /* 11 */ { .fid = 0x1083, .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //retries PIN (PIN1)
     /* 12 */ { .fid = 0x1088, .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //PIN (SOPIN)
     /* 13 */ { .fid = 0x1089, .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //max retries PIN (SOPIN)
-    /* 14 */ { .fid = 0x1090, .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //retries PIN (SOPIN)
+    /* 14 */ { .fid = 0x108A, .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //retries PIN (SOPIN)
     /* 15 */ { .fid = 0x6040, .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.PrKDFs
     /* 16 */ { .fid = 0x6041, .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.PuKDFs
     /* 17 */ { .fid = 0x6042, .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.CDFs
@@ -186,27 +188,6 @@ bool authenticate_action(const file_t *ef, uint8_t op) {
 
 #include "libopensc/pkcs15.h"
 
-int reset_pin_retries(const file_t *pin) {
-    if (!pin)
-        return HSM_ERR_NULL_PARAM; 
-    const file_t *max = search_by_fid(pin->fid+1, NULL, SPECIFY_EF);
-    const file_t *act = search_by_fid(pin->fid+2, NULL, SPECIFY_EF);
-    if (!max || !act)
-        return HSM_ERR_FILE_NOT_FOUND;
-    return flash_write_data_to_file((file_t *)act, &max->data[2], sizeof(uint8_t));
-}
-
-int pin_wrong_retry(const file_t *pin) {
-    if (!pin)
-        return HSM_ERR_NULL_PARAM; 
-    const file_t *act = search_by_fid(pin->fid+2, NULL, SPECIFY_EF);
-    if (!act)
-        return HSM_ERR_FILE_NOT_FOUND;
-    if (act->data[2] > 0)
-        return flash_write_data_to_file((file_t *)act, &act->data[2]-1, sizeof(uint8_t));
-    return HSM_ERR_BLOCKED;
-}
-
 void scan_flash() {
     if (*(uintptr_t *)end_data_pool == 0xffffffff && *(uintptr_t *)(end_data_pool+sizeof(uintptr_t)) == 0xffffffff) 
     {
@@ -311,7 +292,7 @@ void scan_flash() {
     else {
         TU_LOG1("FATAL ERROR: Retries PIN1 not found in memory!\r\n");
     }
-    file_retries_sopin = search_by_fid(0x1090, NULL, SPECIFY_EF);
+    file_retries_sopin = search_by_fid(0x108A, NULL, SPECIFY_EF);
     if (file_retries_sopin) {
         if (!file_retries_sopin->data) {
             TU_LOG1("Retries SOPIN is empty. Initializing with default retries\r\n");
@@ -347,4 +328,14 @@ void scan_flash() {
         TU_LOG1("FATAL ERROR: Retries SOPIN not found in memory!\r\n");
     }
     low_flash_available();
+}
+
+uint8_t *file_read(const uint8_t *addr) {
+    return flash_read((uintptr_t)addr);
+}
+uint16_t file_read_uint16(const uint8_t *addr) {
+    return flash_read_uint16((uintptr_t)addr);
+}
+uint8_t file_read_uint8(const uint8_t *addr) {
+    return flash_read_uint8((uintptr_t)addr);
 }

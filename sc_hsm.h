@@ -41,7 +41,7 @@ extern const uint8_t sc_hsm_aid[];
 #define HSM_ERR_FILE_NOT_FOUND              -1003
 #define HSM_ERR_BLOCKED                     -1004
 
-extern int reset_pin_retries(const file_t *pin);
+extern int pin_reset_retries(const file_t *pin);
 extern int pin_wrong_retry(const file_t *pin);
 
 #endif

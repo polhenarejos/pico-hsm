@@ -40,7 +40,7 @@ static int cmd_verify() {
         if (!file_retries_pin1) {
             return SW_REFERENCE_NOT_FOUND();
         }
-        return set_res_sw (0x63, 0xc0 | file_retries_pin1->data[2]);
+        return set_res_sw (0x63, 0xc0 | file_read_uint8(file_retries_pin1->data+2));
     }
     else if (p2 == 0x88) { //SOPin
     }
@@ -186,19 +186,49 @@ static int cmd_read_binary()
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
     if (ef->data) {
-        uint16_t data_len = get_uint16_t(ef->data, 0);
+        uint16_t data_len = file_read_uint16(ef->data);
         if (offset > data_len)
             return SW_WRONG_P1P2();
         
         uint16_t maxle = data_len-offset;
         if (apdu.expected_res_size > maxle)
             apdu.expected_res_size = maxle;
-        res_APDU = ef->data+2+offset;
+        res_APDU = file_read(ef->data+2+offset);
         res_APDU_size = data_len-offset;
     }
 
     return SW_OK();
 }
+
+int pin_reset_retries(const file_t *pin) {
+    if (!pin)
+        return HSM_ERR_NULL_PARAM; 
+    const file_t *max = search_by_fid(pin->fid+1, NULL, SPECIFY_EF);
+    const file_t *act = search_by_fid(pin->fid+2, NULL, SPECIFY_EF);
+    if (!max || !act)
+        return HSM_ERR_FILE_NOT_FOUND;
+    uint8_t retries = file_read_uint8(max->data+2);
+    int r = flash_write_data_to_file((file_t *)act, &retries, sizeof(retries));
+    low_flash_available();
+    return r;
+}
+
+int pin_wrong_retry(const file_t *pin) {
+    if (!pin)
+        return HSM_ERR_NULL_PARAM; 
+    const file_t *act = search_by_fid(pin->fid+2, NULL, SPECIFY_EF);
+    if (!act)
+        return HSM_ERR_FILE_NOT_FOUND;
+    uint8_t retries = file_read_uint8(act->data+2);
+    if (retries > 0) {
+        retries -= 1;
+        int r = flash_write_data_to_file((file_t *)act, &retries, sizeof(retries));
+        low_flash_available();
+        return r;
+    }
+    return HSM_ERR_BLOCKED;
+}
+
 
 int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
     if (!pin)
@@ -206,14 +236,14 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
     if (!pin->data) {
         return SW_REFERENCE_NOT_FOUND();
     }
-    if (len != pin->data[0])
+    if (len != file_read_uint16(pin->data))
         return SW_CONDITIONS_NOT_SATISFIED();
-    if (memcmp(pin->data+2, data, len) != 0) {
+    if (memcmp(file_read(pin->data+2), data, len) != 0) {
         if (pin_wrong_retry(pin) != HSM_OK)
             return SW_PIN_BLOCKED();
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
-    return reset_pin_retries(pin);
+    return pin_reset_retries(pin);
 }
 
 static int cmd_reset_retry() {
@@ -229,8 +259,9 @@ static int cmd_reset_retry() {
             if (r != 0x9000)
                 return r;
             flash_write_data_to_file(file_pin1, apdu.cmd_apdu_data+8, apdu.cmd_apdu_data_len-8);
-            if (reset_pin_retries(file_pin1) != HSM_OK)
+            if (pin_reset_retries(file_pin1) != HSM_OK)
                 return SW_MEMORY_FAILURE();
+            low_flash_available();
             return SW_OK();
         }
     }

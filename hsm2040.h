@@ -110,7 +110,5 @@ void put_binary (const char *s, int len);
 #endif
 
 extern int flash_write_data_to_file(file_t *file, const uint8_t *data, uint16_t len);
-
-
-
+extern void low_flash_available();
 #endif

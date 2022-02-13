@@ -43,6 +43,7 @@
 #include "hsm2040.h"
 #include "tusb.h"
 #include "file.h"
+#include "sc_hsm.h"
 
 #define FLASH_TARGET_OFFSET (PICO_FLASH_SIZE_BYTES >> 1) // DATA starts at the mid of flash
 #define FLASH_DATA_HEADER_SIZE (sizeof(uintptr_t)+sizeof(uint32_t))
@@ -130,13 +131,13 @@ int flash_clear_file(file_t *file) {
 
 int flash_write_data_to_file(file_t *file, const uint8_t *data, uint16_t len) {
     if (len > FLASH_SECTOR_SIZE)
-        return 1;
+        return HSM_ERR_NO_MEMORY;
     if (file->data) { //already in flash
         uint16_t size_file_flash = flash_read_uint16((uintptr_t)file->data);
         if (len <= size_file_flash) { //it fits, no need to move it
             flash_program_halfword((uintptr_t)file->data, len);
             flash_program_block((uintptr_t)file->data+sizeof(uint16_t), data, len);
-            return 0;
+            return HSM_OK;
         }
         else { //we clear the old file
             flash_clear_file(file);
@@ -144,10 +145,10 @@ int flash_write_data_to_file(file_t *file, const uint8_t *data, uint16_t len) {
     }
     uintptr_t new_addr = allocate_free_addr(len);
     if (new_addr == 0x0) 
-        return 2;
+        return HSM_ERR_NO_MEMORY;
     file->data = (uint8_t *)new_addr+sizeof(uintptr_t)+sizeof(uint16_t); //next addr+fid
     flash_program_halfword(new_addr+sizeof(uintptr_t), file->fid);
     flash_program_halfword((uintptr_t)file->data, len);
     flash_program_block((uintptr_t)file->data+sizeof(uint16_t), data, len);
-    return 0;
+    return HSM_OK;
 }

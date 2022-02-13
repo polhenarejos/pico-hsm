@@ -199,6 +199,9 @@ uint16_t flash_read_uint16(uintptr_t addr) {
     }
     return v;
 }
+uint8_t flash_read_uint8(uintptr_t addr) {
+    return *flash_read(addr);
+}
 
 int flash_erase_page (uintptr_t addr, size_t page_size)
 {
