@@ -9,6 +9,7 @@
 
 #include "ccid.h"
 #include "tusb.h"
+#include "file.h"
 
 #define USB_REQ_CCID        0xA1
 
@@ -107,6 +108,8 @@ void put_binary (const char *s, int len);
 #define DEBUG_BYTE(b)
 #define DEBUG_BINARY(s,len)
 #endif
+
+extern int flash_write_data_to_file(file_t *file, const uint8_t *data, uint16_t len);
 
 
 

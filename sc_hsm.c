@@ -200,6 +200,42 @@ static int cmd_read_binary()
     return SW_OK();
 }
 
+int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
+    if (!pin)
+        return SW_FILE_NOT_FOUND();
+    if (!pin->data) {
+        return SW_REFERENCE_NOT_FOUND();
+    }
+    if (len != pin->data[0])
+        return SW_CONDITIONS_NOT_SATISFIED();
+    if (memcmp(pin->data+2, data, len) != 0) {
+        if (pin_wrong_retry(pin) != HSM_OK)
+            return SW_PIN_BLOCKED();
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
+    }
+    return reset_pin_retries(pin);
+}
+
+static int cmd_reset_retry() {
+    if (P1(apdu) == 0x0) {
+        if (P2(apdu) == 0x81) {
+            if (!file_sopin || !file_pin1) {
+                return SW_FILE_NOT_FOUND();
+            }
+            if (!file_sopin->data) {
+                return SW_REFERENCE_NOT_FOUND();
+            }
+            uint16_t r = check_pin(file_sopin, apdu.cmd_apdu_data, 8);
+            if (r != 0x9000)
+                return r;
+            flash_write_data_to_file(file_pin1, apdu.cmd_apdu_data+8, apdu.cmd_apdu_data_len-8);
+            if (reset_pin_retries(file_pin1) != HSM_OK)
+                return SW_MEMORY_FAILURE();
+            return SW_OK();
+        }
+    }
+}
+
 typedef struct cmd
 {
   uint8_t ins;
@@ -210,6 +246,7 @@ typedef struct cmd
 #define INS_READ_BINARY				0xB0
 #define INS_READ_BINARY_ODD         0xB1
 #define INS_VERIFY                  0x20
+#define INS_RESET_RETRY             0x2C
 
 static const cmd_t cmds[] = {
     { INS_SELECT_FILE, cmd_select },
@@ -217,6 +254,7 @@ static const cmd_t cmds[] = {
     { INS_READ_BINARY, cmd_read_binary },
     { INS_READ_BINARY_ODD, cmd_read_binary },
     { INS_VERIFY, cmd_verify },
+    { INS_RESET_RETRY, cmd_reset_retry },
     { 0x00, 0x0}
 };
 

@@ -2,6 +2,7 @@
 #include "gnuk.h"
 #include "tusb.h"
 #include "hsm2040.h"
+#include "sc_hsm.h"
 #include <string.h>
 
 extern const uintptr_t end_data_pool;
@@ -185,6 +186,26 @@ bool authenticate_action(const file_t *ef, uint8_t op) {
 
 #include "libopensc/pkcs15.h"
 
+int reset_pin_retries(const file_t *pin) {
+    if (!pin)
+        return HSM_ERR_NULL_PARAM; 
+    const file_t *max = search_by_fid(pin->fid+1, NULL, SPECIFY_EF);
+    const file_t *act = search_by_fid(pin->fid+2, NULL, SPECIFY_EF);
+    if (!max || !act)
+        return HSM_ERR_FILE_NOT_FOUND;
+    return flash_write_data_to_file((file_t *)act, &max->data[2], sizeof(uint8_t));
+}
+
+int pin_wrong_retry(const file_t *pin) {
+    if (!pin)
+        return HSM_ERR_NULL_PARAM; 
+    const file_t *act = search_by_fid(pin->fid+2, NULL, SPECIFY_EF);
+    if (!act)
+        return HSM_ERR_FILE_NOT_FOUND;
+    if (act->data[2] > 0)
+        return flash_write_data_to_file((file_t *)act, &act->data[2]-1, sizeof(uint8_t));
+    return HSM_ERR_BLOCKED;
+}
 
 void scan_flash() {
     if (*(uintptr_t *)end_data_pool == 0xffffffff && *(uintptr_t *)(end_data_pool+sizeof(uintptr_t)) == 0xffffffff) 

@@ -10,6 +10,7 @@
 #include "pico/multicore.h"
 #include "gnuk.h"
 #include "hsm2040.h"
+#include "sc_hsm.h"
 #include <string.h>
 
 #define TOTAL_FLASH_PAGES 4
@@ -135,18 +136,18 @@ int flash_program_block(uintptr_t addr, const uint8_t *data, size_t len) {
     if (ready_pages == TOTAL_FLASH_PAGES) {
         mutex_exit(&mtx_flash);
         DEBUG_INFO("ERROR: ALL FLASH PAGES CACHED\r\n");
-        return 1;
+        return HSM_ERR_NO_MEMORY;
     }
     if (!(p = find_free_page(addr)))
     {
         DEBUG_INFO("ERROR: FLASH CANNOT FIND A PAGE (rare error)\r\n");
         mutex_exit(&mtx_flash);
-        return 1;
+        return HSM_ERR_MEMORY_FATAL;
     }
     memcpy(&p->page[addr&(FLASH_SECTOR_SIZE-1)], data, len);
     //printf("Flash: modified page %X with data %x at [%x] (top page %X)\r\n",addr_alg,data,addr&(FLASH_SECTOR_SIZE-1),addr);
     mutex_exit(&mtx_flash);
-    return 0;
+    return HSM_OK;
 }
 
 int flash_program_halfword (uintptr_t addr, uint16_t data)
@@ -208,30 +209,29 @@ int flash_erase_page (uintptr_t addr, size_t page_size)
     if (ready_pages == TOTAL_FLASH_PAGES) {
         mutex_exit(&mtx_flash);
         DEBUG_INFO("ERROR: ALL FLASH PAGES CACHED\r\n");
-        return 1;
+        return HSM_ERR_NO_MEMORY;
     }
     if (!(p = find_free_page(addr)))
     {
         DEBUG_INFO("ERROR: FLASH CANNOT FIND A PAGE (rare error)\r\n");
         mutex_exit(&mtx_flash);
-        return 1;
+        return HSM_ERR_MEMORY_FATAL;
     }
     p->erase = true;
     p->ready = false;
     p->page_size = page_size;
     mutex_exit(&mtx_flash);
     
-    return 0;
+    return HSM_OK;
 }
 
-int
-flash_check_blank (const uint8_t *p_start, size_t size)
+bool flash_check_blank (const uint8_t *p_start, size_t size)
 {
     const uint8_t *p;
 
     for (p = p_start; p < p_start + size; p++)
         if (*p != 0xff)
-            return 0;
+            return false;
 
-  return 1;
+    return true;
 }
