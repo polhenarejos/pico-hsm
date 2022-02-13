@@ -69,19 +69,21 @@ file_t file_entries[] = {
     /*  6 */ { .fid = 0x5031, .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.ODF
     /*  7 */ { .fid = 0x5032, .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.TokenInfo
     /*  8 */ { .fid = 0x5033, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.UnusedSpace
-    /*  9 */ { .fid = 0x1081, .parent = 0, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //PIN 0x5 (PIN1)
-    /* 10 */ { .fid = 0x1088, .parent = 0, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //PIN 0x6 (SOPIN)
-    /* 11 */ { .fid = 0x1085, .parent = 0, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //retries PIN 0x5 (PIN1)
-    /* 12 */ { .fid = 0x1086, .parent = 0, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //retries PIN 0x6 (SOPIN)
-    /* 13 */ { .fid = 0x6040, .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.PrKDFs
-    /* 14 */ { .fid = 0x6041, .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.PuKDFs
-    /* 15 */ { .fid = 0x6042, .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.CDFs
-    /* 16 */ { .fid = 0x6043, .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.AODFs
-    /* 17 */ { .fid = 0x6044, .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.DODFs
-    /* 18 */ { .fid = 0x6045, .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.SKDFs
-    ///* 19 */ { .fid = 0x0000, .parent = 0, .name = openpgpcard_aid, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} },
-    /* 20 */ { .fid = 0x0000, .parent = 5, .name = sc_hsm_aid, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} },
-    /* 21 */ { .fid = 0x0000, .parent = 0xff, .name = NULL, .type = FILE_TYPE_UNKNOWN, .data = NULL, .ef_structure = 0, .acl = {0} } //end
+    /*  9 */ { .fid = 0x1081, .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //PIN (PIN1)
+    /* 10 */ { .fid = 0x1082, .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //max retries PIN (PIN1)
+    /* 11 */ { .fid = 0x1083, .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //retries PIN (PIN1)
+    /* 12 */ { .fid = 0x1088, .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //PIN (SOPIN)
+    /* 13 */ { .fid = 0x1089, .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //max retries PIN (SOPIN)
+    /* 14 */ { .fid = 0x1090, .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //retries PIN (SOPIN)
+    /* 15 */ { .fid = 0x6040, .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.PrKDFs
+    /* 16 */ { .fid = 0x6041, .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.PuKDFs
+    /* 17 */ { .fid = 0x6042, .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.CDFs
+    /* 18 */ { .fid = 0x6043, .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.AODFs
+    /* 19 */ { .fid = 0x6044, .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.DODFs
+    /* 20 */ { .fid = 0x6045, .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.SKDFs
+    ///* 21 */ { .fid = 0x0000, .parent = 0, .name = openpgpcard_aid, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} },
+    /* 22 */ { .fid = 0x0000, .parent = 5, .name = sc_hsm_aid, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} },
+    /* 23 */ { .fid = 0x0000, .parent = 0xff, .name = NULL, .type = FILE_TYPE_UNKNOWN, .data = NULL, .ef_structure = 0, .acl = {0} } //end
 };
 
 const file_t *MF = &file_entries[0];
@@ -254,7 +256,6 @@ void scan_flash() {
         }
     }
     file_pin1 = search_by_fid(0x1081, NULL, SPECIFY_EF);
-    printf("f %x\r\n",file_pin1);
     if (file_pin1) {
         if (!file_pin1->data) {
             TU_LOG1("PIN1 is empty. Initializing with default password\r\n");
@@ -270,7 +271,7 @@ void scan_flash() {
     if (file_sopin) {
         if (!file_sopin->data) {
             TU_LOG1("SOPIN is empty. Initializing with default password\r\n");
-            const uint8_t empty[16] = { 0 }, default_sopin[] = { 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38 };
+            const uint8_t empty[8] = { 0 }, default_sopin[] = { 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88 };
             flash_write_data_to_file(file_sopin, empty, sizeof(empty));
             flash_write_data_to_file(file_sopin, default_sopin, sizeof(default_sopin));
         }
@@ -278,7 +279,7 @@ void scan_flash() {
     else {
         TU_LOG1("FATAL ERROR: SOPIN not found in memory!\r\n");
     }
-    file_retries_pin1 = search_by_fid(0x1085, NULL, SPECIFY_EF);
+    file_retries_pin1 = search_by_fid(0x1083, NULL, SPECIFY_EF);
     if (file_retries_pin1) {
         if (!file_retries_pin1->data) {
             TU_LOG1("Retries PIN1 is empty. Initializing with default retriesr\n");
@@ -289,12 +290,36 @@ void scan_flash() {
     else {
         TU_LOG1("FATAL ERROR: Retries PIN1 not found in memory!\r\n");
     }
-    file_retries_sopin = search_by_fid(0x1086, NULL, SPECIFY_EF);
+    file_retries_sopin = search_by_fid(0x1090, NULL, SPECIFY_EF);
     if (file_retries_sopin) {
         if (!file_retries_sopin->data) {
             TU_LOG1("Retries SOPIN is empty. Initializing with default retries\r\n");
             const uint8_t retries = 15;
             flash_write_data_to_file(file_retries_sopin, &retries, sizeof(uint8_t));
+        }
+    }
+    else {
+        TU_LOG1("FATAL ERROR: Retries SOPIN not found in memory!\r\n");
+    }
+    file_t *tf = NULL;
+    
+    tf = search_by_fid(0x1082, NULL, SPECIFY_EF);
+    if (tf) {
+        if (!tf->data) {
+            TU_LOG1("Max retries PIN1 is empty. Initializing with default max retriesr\n");
+            const uint8_t retries = 3;
+            flash_write_data_to_file(tf, &retries, sizeof(uint8_t));
+        }
+    }
+    else {
+        TU_LOG1("FATAL ERROR: Max Retries PIN1 not found in memory!\r\n");
+    }
+    tf = search_by_fid(0x1089, NULL, SPECIFY_EF);
+    if (tf) {
+        if (!tf->data) {
+            TU_LOG1("Max Retries SOPIN is empty. Initializing with default max retries\r\n");
+            const uint8_t retries = 15;
+            flash_write_data_to_file(tf, &retries, sizeof(uint8_t));
         }
     }
     else {
