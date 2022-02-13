@@ -64,6 +64,7 @@ extern file_t *search_by_name(uint8_t *name, uint16_t namelen);
 extern file_t *search_by_path(const uint8_t *pe_path, uint8_t pathlen, const file_t *parent);
 extern bool authenticate_action(const file_t *ef, uint8_t op);
 extern void process_fci(const file_t *pe);
+extern void scan_flash();
 
 extern file_t file_entries[];
 

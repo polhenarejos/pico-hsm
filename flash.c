@@ -56,6 +56,8 @@ const uintptr_t end_data_pool = (XIP_BASE + PICO_FLASH_SIZE_BYTES)-FLASH_DATA_HE
 extern int flash_program_block(uintptr_t addr, const uint8_t *data, size_t len);
 extern int flash_program_halfword (uintptr_t addr, uint16_t data);
 extern int flash_program_uintptr(uintptr_t, uintptr_t);
+extern uintptr_t flash_read_uintptr(uintptr_t addr);
+extern uint16_t flash_read_uint16(uintptr_t addr);
 
 extern void low_flash_available();
 
@@ -118,7 +120,7 @@ uintptr_t allocate_free_addr(uint16_t size) {
 }
 
 int flash_clear_file(file_t *file) {
-    uintptr_t prev_addr = (uintptr_t)(file->data+flash_read_uint16(file->data)+sizeof(uint16_t));
+    uintptr_t prev_addr = (uintptr_t)(file->data+flash_read_uint16((uintptr_t)file->data)+sizeof(uint16_t));
     uintptr_t base_addr = (uintptr_t)file->data-sizeof(uintptr_t);
     uintptr_t next_addr = flash_read_uintptr(base_addr);
     flash_program_uintptr(prev_addr, next_addr);
@@ -130,7 +132,7 @@ int flash_write_data_to_file(file_t *file, const uint8_t *data, uint16_t len) {
     if (len > FLASH_SECTOR_SIZE)
         return 1;
     if (file->data) { //already in flash
-        uint16_t size_file_flash = flash_read_uint16(file->data);
+        uint16_t size_file_flash = flash_read_uint16((uintptr_t)file->data);
         if (len <= size_file_flash) { //it fits, no need to move it
             flash_program_halfword((uintptr_t)file->data, len);
             flash_program_block((uintptr_t)file->data+sizeof(uint16_t), data, len);
@@ -149,13 +151,3 @@ int flash_write_data_to_file(file_t *file, const uint8_t *data, uint16_t len) {
     flash_program_block((uintptr_t)file->data+sizeof(uint16_t), data, len);
     return 0;
 }
-
-void flash_warning (const char *msg)
-{
-    (void)msg;
-    DEBUG_INFO ("FLASH: ");
-    DEBUG_INFO (msg);
-    DEBUG_INFO ("\r\n");
-}
-
-

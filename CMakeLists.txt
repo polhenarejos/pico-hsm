@@ -11,6 +11,11 @@ pico_sdk_init()
 
 add_executable(hsm2040)
 
+set_source_files_properties(
+        ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/ctx.c
+        PROPERTIES COMPILE_DEFINITIONS "PACKAGE_VERSION=\"0.22.0\";OPENSC_CONF_PATH=\".\"" 
+        )
+
 target_sources(hsm2040 PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/hsm2040.c
         ${CMAKE_CURRENT_LIST_DIR}/usb_descriptors.c
@@ -20,6 +25,7 @@ target_sources(hsm2040 PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/ac.c
         ${CMAKE_CURRENT_LIST_DIR}/file.c
         ${CMAKE_CURRENT_LIST_DIR}/flash.c
+        ${CMAKE_CURRENT_LIST_DIR}/flash_openpgp.c
         ${CMAKE_CURRENT_LIST_DIR}/low_flash.c
         ${CMAKE_CURRENT_LIST_DIR}/call-rsa.c
         ${CMAKE_CURRENT_LIST_DIR}/call-ec_p256k1.c
@@ -47,10 +53,27 @@ target_sources(hsm2040 PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/oid.c
         ${CMAKE_CURRENT_LIST_DIR}/rsa_alt_helpers.c
         ${CMAKE_CURRENT_LIST_DIR}/constant_time.c
+        ${CMAKE_CURRENT_LIST_DIR}/sc_hsm.c
+        ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/pkcs15.c
+        ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/pkcs15-prkey.c
+        ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/pkcs15-algo.c
+        ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/pkcs15-cert.c
+        ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/pkcs15-data.c
+        ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/pkcs15-pin.c
+        ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/pkcs15-pubkey.c
+        ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/pkcs15-sec.c
+        ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/pkcs15-skey.c
+        ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/asn1.c
+        ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/log.c
+        ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/errors.c
+        ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/sc.c
+        ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/ctx.c
         )
 
 target_include_directories(hsm2040 PUBLIC
-        ${CMAKE_CURRENT_LIST_DIR})
+        ${CMAKE_CURRENT_LIST_DIR}
+        ${CMAKE_CURRENT_LIST_DIR}/opensc/src
+        )
 
 pico_add_extra_outputs(hsm2040)
 target_link_libraries(hsm2040 PRIVATE pico_stdlib tinyusb_device tinyusb_board pico_multicore hardware_flash hardware_sync hardware_adc)

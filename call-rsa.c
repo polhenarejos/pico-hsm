@@ -36,6 +36,7 @@
 #include "random.h"
 //#include "polarssl/config.h"
 #include "mbedtls/rsa.h"
+#include "hsm2040.h"
 
 static mbedtls_rsa_context rsa_ctx;
 //static struct chx_cleanup clp;

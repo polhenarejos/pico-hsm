@@ -37,6 +37,7 @@
 #include "mbedtls/aes.h"
 #include "mbedtls/sha512.h"
 #include "shake256.h"
+#include "hsm2040.h"
 
 /* Forward declaration */
 #define CLEAN_PAGE_FULL 1
@@ -50,8 +51,7 @@ static const uint8_t *pw_err_counter_p[3];
 static int
 gpg_pw_get_err_counter (uint8_t which)
 {
-  //return flash_cnt123_get_value (pw_err_counter_p[which]);
-  return 3;
+  return flash_cnt123_get_value (pw_err_counter_p[which]);
 }
 
 int
@@ -77,7 +77,7 @@ gpg_pw_locked (uint8_t which)
 void
 gpg_pw_reset_err_counter (uint8_t which)
 {
-  //flash_cnt123_clear (&pw_err_counter_p[which]);
+  flash_cnt123_clear (&pw_err_counter_p[which]);
   if (pw_err_counter_p[which] != NULL)
     GPG_MEMORY_FAILURE ();
 }
@@ -85,7 +85,7 @@ gpg_pw_reset_err_counter (uint8_t which)
 void
 gpg_pw_increment_err_counter (uint8_t which)
 {
-  //flash_cnt123_increment (which, &pw_err_counter_p[which]);
+  flash_cnt123_increment (which, &pw_err_counter_p[which]);
 }
 
 
@@ -386,15 +386,15 @@ gpg_write_digital_signature_counter (const uint8_t *p, uint32_t dsc)
   if ((dsc >> 10) == 0)
     { /* no upper bits */
       hw1 = NR_COUNTER_DS_LSB | ((dsc & 0x0300) >> 8) | ((dsc & 0x00ff) << 8);
-      //flash_put_data_internal (p, hw1);
+      flash_put_data_internal (p, hw1);
       return p+2;
     }
   else
     {
       hw0 = NR_COUNTER_DS | ((dsc & 0xfc0000) >> 18) | ((dsc & 0x03fc00) >> 2);
       hw1 = NR_COUNTER_DS_LSB | ((dsc & 0x0300) >> 8) | ((dsc & 0x00ff) << 8);
-      //flash_put_data_internal (p, hw0);
-      //flash_put_data_internal (p+2, hw1);
+      flash_put_data_internal (p, hw0);
+      flash_put_data_internal (p+2, hw1);
       return p+4;
     }
 }
@@ -404,8 +404,8 @@ gpg_reset_digital_signature_counter (void)
 {
   if (digital_signature_counter != 0)
     {
-      //flash_put_data (NR_COUNTER_DS);
-      //flash_put_data (NR_COUNTER_DS_LSB);
+      flash_put_data (NR_COUNTER_DS);
+      flash_put_data (NR_COUNTER_DS_LSB);
       digital_signature_counter = 0;
     }
 }
@@ -420,13 +420,13 @@ gpg_increment_digital_signature_counter (void)
     { /* carry occurs from l10 to h14 */
       hw0 = NR_COUNTER_DS | ((dsc & 0xfc0000) >> 18) | ((dsc & 0x03fc00) >> 2);
       hw1 = NR_COUNTER_DS_LSB;	/* zero */
-      //flash_put_data (hw0);
-      //flash_put_data (hw1);
+      flash_put_data (hw0);
+      flash_put_data (hw1);
     }
   else
     {
       hw1 = NR_COUNTER_DS_LSB | ((dsc & 0x0300) >> 8) | ((dsc & 0x00ff) << 8);
-      //flash_put_data (hw1);
+      flash_put_data (hw1);
     }
 
   digital_signature_counter = dsc;
@@ -658,18 +658,12 @@ do_kgtime_all (uint16_t tag, int with_tag)
 }
 
 const uint8_t openpgpcard_aid[] = {
-  14, //len
   0xd2, 0x76,		    /* D: National, 276: DEU ISO 3166-1 */
   0x00, 0x01, 0x24,	    /* Registered Application Provider Identifier */
   0x01,			    /* Application: OpenPGPcard */
   0x02, 0x00,		    /* Version 2.0 */
   /* v. id */ /*   serial number   */
   0xff, 0xff, 0xff, 0xff,  0xff, 0xff, /* To be overwritten */
-};
-
-const uint8_t sc_hsm_aid[] = {
-    11, 
-    0xE8,0x2B,0x06,0x01,0x04,0x01,0x81,0xC3,0x1F,0x02,0x01
 };
 
 static void
@@ -772,13 +766,13 @@ rw_pw_status (uint16_t tag, int with_tag,
       /* The first byte of DATA specifies the lifetime.  */
       if (data[0] == 0 && pw1_lifetime_p != NULL)
 	{
-	  //flash_bool_clear (&pw1_lifetime_p);
+	  flash_bool_clear (&pw1_lifetime_p);
 	  if (pw1_lifetime_p != NULL) /* No change after update */
 	    return 0;
 	}
       else if (pw1_lifetime_p == NULL)
 	{
-	  //pw1_lifetime_p = flash_bool_write (NR_BOOL_PW1_LIFETIME);
+	  pw1_lifetime_p = flash_bool_write (NR_BOOL_PW1_LIFETIME);
 	  if (pw1_lifetime_p == NULL) /* No change after update */
 	    return 0;
 	}
@@ -853,7 +847,7 @@ rw_algorithm_attr (uint16_t tag, int with_tag,
 	  gpg_reset_algo_attr (kk);
           /* Read it again, since GC may occur.  */
           algo_attr_pp = get_algo_attr_pointer (kk);
-	  //flash_enum_clear (algo_attr_pp);
+	  flash_enum_clear (algo_attr_pp);
 	  if (*algo_attr_pp != NULL)
 	    return 0;
 	}
@@ -863,9 +857,9 @@ rw_algorithm_attr (uint16_t tag, int with_tag,
 	  gpg_reset_algo_attr (kk);
           /* Read it again, since GC may occur.  */
           algo_attr_pp = get_algo_attr_pointer (kk);
-          //if (*algo_attr_pp)
-          //  flash_enum_clear (algo_attr_pp);
-	  //*algo_attr_pp = flash_enum_write (kk_to_nr (kk), algo);
+          if (*algo_attr_pp)
+            flash_enum_clear (algo_attr_pp);
+	  *algo_attr_pp = flash_enum_write (kk_to_nr (kk), algo);
 	  if (*algo_attr_pp == NULL)
 	    return 0;
 	}
@@ -992,8 +986,8 @@ rw_kdf (uint16_t tag, int with_tag, const uint8_t *data, int len, int is_write)
 		 && data[42] == 0x87 && data[76] == 0x88))))
 	return 0;
 
-      //if (*do_data_p)
-	//flash_do_release (*do_data_p);
+      if (*do_data_p)
+	flash_do_release (*do_data_p);
 
       /* Clear all keystrings and auth states */
       gpg_do_write_simple (NR_DO_KEYSTRING_PW1, NULL, 0);
@@ -1010,7 +1004,7 @@ rw_kdf (uint16_t tag, int with_tag, const uint8_t *data, int len, int is_write)
 	}
       else
 	{
-	  //*do_data_p = flash_do_write (NR_DO_KDF, data, len);
+	  *do_data_p = flash_do_write (NR_DO_KDF, data, len);
 	  if (*do_data_p)
 	    return 1;
 	  else
@@ -1332,20 +1326,20 @@ gpg_do_delete_prvkey (enum kind_of_key kk, int clean_page_full)
 
   if (do_data == NULL)
     {
-    //  if (clean_page_full)
-	//flash_key_release_page (kk);
+      if (clean_page_full)
+	flash_key_release_page (kk);
       return;
     }
 
   do_ptr[nr] = NULL;
-  //flash_do_release (do_data);
+  flash_do_release (do_data);
   key_addr = (uint8_t *)kd[kk].pubkey - prvkey_len;
   kd[kk].pubkey = NULL;
-  /*if (clean_page_full)
+  if (clean_page_full)
     flash_key_release_page (kk);
   else
     flash_key_release (key_addr, key_size);
-*/
+
   if (admin_authorized == BY_ADMIN && kk == GPG_KEY_FOR_SIGNING)
     {			/* Recover admin keystring DO.  */
       const uint8_t *ks_pw3 = gpg_do_read_simple (NR_DO_KEYSTRING_PW3);
@@ -1462,7 +1456,7 @@ gpg_do_write_prvkey (enum kind_of_key kk, const uint8_t *key_data,
     }
 
   DEBUG_INFO ("Getting keystore address...\r\n");
-  //key_addr = flash_key_alloc (kk);
+  key_addr = flash_key_alloc (kk);
   if (key_addr == NULL)
     return -1;
 
@@ -1522,7 +1516,7 @@ gpg_do_write_prvkey (enum kind_of_key kk, const uint8_t *key_data,
   else
     memset (pd->dek_encrypted_3, 0, DATA_ENCRYPTION_KEY_SIZE);
 
-  //p = flash_do_write (nr, (const uint8_t *)pd, sizeof (struct prvkey_data));
+  p = flash_do_write (nr, (const uint8_t *)pd, sizeof (struct prvkey_data));
   do_ptr[nr] = p;
 
   random_bytes_free (dek);
@@ -1599,9 +1593,9 @@ gpg_do_chks_prvkey (enum kind_of_key kk,
     {
       const uint8_t *p;
 
-      //flash_do_release (do_data);
+      flash_do_release (do_data);
       do_ptr[nr] = NULL;
-      //p = flash_do_write (nr, (const uint8_t *)pd, sizeof (struct prvkey_data));
+      p = flash_do_write (nr, (const uint8_t *)pd, sizeof (struct prvkey_data));
       do_ptr[nr] = p;
       if (p == NULL)
 	r = -1;
@@ -2009,7 +2003,7 @@ gpg_data_scan (const uint8_t *do_start, const uint8_t *do_end)
 	}
     }
 
-  //flash_set_data_pool_last (p);
+  flash_set_data_pool_last (p);
 
   num_prv_keys = 0;
   if (do_ptr[NR_DO_PRVKEY_SIG] != NULL)
@@ -2042,6 +2036,79 @@ gpg_data_scan (const uint8_t *do_start, const uint8_t *do_end)
     }
 
   digital_signature_counter = (dsc_h14 << 10) | dsc_l10;
+}
+
+/*
+ * Write all data to newly allocated Flash ROM page (from P_START),
+ * updating PW1_LIFETIME_P, PW_ERR_COUNTER_P, and DO_PTR.
+ * Called by flash_copying_gc.
+ */
+void
+gpg_data_copy (const uint8_t *p_start)
+{
+  const uint8_t *p;
+  int i;
+  int v;
+
+  p = gpg_write_digital_signature_counter (p_start, digital_signature_counter);
+
+  if (pw1_lifetime_p != NULL)
+    {
+      flash_bool_write_internal (p, NR_BOOL_PW1_LIFETIME);
+      pw1_lifetime_p = p;
+      p += 2;
+    }
+
+  if (algo_attr_sig_p != NULL)
+    {
+      flash_enum_write_internal (p, NR_KEY_ALGO_ATTR_SIG, algo_attr_sig_p[1]);
+      algo_attr_sig_p = p;
+      p += 2;
+    }
+
+  if (algo_attr_dec_p != NULL)
+    {
+      flash_enum_write_internal (p, NR_KEY_ALGO_ATTR_DEC, algo_attr_dec_p[1]);
+      algo_attr_dec_p = p;
+      p += 2;
+    }
+
+  if (algo_attr_aut_p != NULL)
+    {
+      flash_enum_write_internal (p, NR_KEY_ALGO_ATTR_AUT, algo_attr_aut_p[1]);
+      algo_attr_aut_p = p;
+      p += 2;
+    }
+
+  for (i = 0; i < 3; i++)
+    if ((v = flash_cnt123_get_value (pw_err_counter_p[i])) != 0)
+      {
+	flash_cnt123_write_internal (p, i, v);
+	pw_err_counter_p[i] = p + 2;
+	p += 4;
+      }
+
+  for (i = 0; i < 3; i++)
+    if ((v = (uif_flags >> (i * 2)) & 3))
+      {
+	flash_enum_write_internal (p, NR_DO_UIF_SIG + i, v);
+	p += 2;
+      }
+
+  data_objects_number_of_bytes = 0;
+  for (i = 0; i < NR_DO__LAST__; i++)
+    if (do_ptr[i] != NULL)
+      {
+	const uint8_t *do_data = do_ptr[i];
+	int len = do_data[0];
+
+	flash_do_write_internal (p, i, &do_data[1], len);
+	do_ptr[i] = p + 1;
+	p += 2 + ((len + 1) & ~1);
+	data_objects_number_of_bytes += len;
+      }
+
+  flash_set_data_pool_last (p);
 }
 
 static const struct do_table_entry *
@@ -2170,7 +2237,7 @@ gpg_do_get_data (uint16_t tag, int with_tag)
 #if defined(CERTDO_SUPPORT)
   if (tag == GPG_DO_CH_CERTIFICATE)
     {
-      //apdu.res_apdu_data = (uint8_t *)ch_certificate_start;
+      apdu.res_apdu_data = (uint8_t *)ch_certificate_start;
       apdu.res_apdu_data_len = ((apdu.res_apdu_data[2] << 8) | apdu.res_apdu_data[3]);
       if (apdu.res_apdu_data_len == 0xffff)
 	{
@@ -2234,8 +2301,8 @@ gpg_do_put_data (uint16_t tag, const uint8_t *data, int len)
 	  {
 	    const uint8_t **do_data_p = (const uint8_t **)do_p->obj;
 
-	   // if (*do_data_p)
-	   //   flash_do_release (*do_data_p);
+	    if (*do_data_p)
+	      flash_do_release (*do_data_p);
 
 	    if (len == 0)
 	      {
@@ -2254,7 +2321,7 @@ gpg_do_put_data (uint16_t tag, const uint8_t *data, int len)
 		else
 		  {
 		    *do_data_p = NULL;
-		    //*do_data_p = flash_do_write (nr, data, len);
+		    *do_data_p = flash_do_write (nr, data, len);
 		    if (*do_data_p)
 		      GPG_SUCCESS ();
 		    else
@@ -2410,13 +2477,13 @@ gpg_do_write_simple (uint8_t nr, const uint8_t *data, int size)
   const uint8_t **do_data_p;
 
   do_data_p = (const uint8_t **)&do_ptr[nr];
-  //if (*do_data_p)
-  //  flash_do_release (*do_data_p);
+  if (*do_data_p)
+    flash_do_release (*do_data_p);
 
   if (data != NULL)
     {
       *do_data_p = NULL;
-      //*do_data_p = flash_do_write (nr, data, size);
+      *do_data_p = flash_do_write (nr, data, size);
       if (*do_data_p == NULL)
 	flash_warning ("DO WRITE ERROR");
     }

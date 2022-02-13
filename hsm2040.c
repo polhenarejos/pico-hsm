@@ -39,7 +39,6 @@ static uint8_t itf_num;
 
 struct apdu apdu;
 static struct ccid ccid;
-extern void openpgp_card_thread();
 
 static uint8_t ccid_buffer[USB_BUF_SIZE];
 
@@ -78,6 +77,25 @@ static uint8_t ccid_buffer[USB_BUF_SIZE];
 #define CCID_OFFSET_CMD_NOT_SUPPORTED 0
 #define CCID_OFFSET_DATA_LEN 1
 #define CCID_OFFSET_PARAM 8
+
+static app_t apps[4];
+static uint8_t num_apps = 0;
+
+app_t *current_app = NULL;
+
+extern void card_thread();
+
+static queue_t *card_comm;
+extern void low_flash_init_core1();
+
+int register_app(app_t * (*select_aid)()) {
+    if (num_apps < sizeof(apps)/sizeof(app_t)) {
+        apps[num_apps].select_aid = select_aid;
+        num_apps++;
+        return 1;
+    }
+    return 0;
+}
 
 struct ep_in {
     uint8_t ep_num;
@@ -158,7 +176,7 @@ struct ccid {
     struct ep_in *epi;
 
     queue_t ccid_comm;
-    queue_t openpgp_comm;
+    queue_t card_comm;
 
     uint8_t application;
 
@@ -203,7 +221,7 @@ static void ccid_init(struct ccid *c, struct ep_in *epi, struct ep_out *epo, str
     c->epo = epo;
     c->a = a;
 
-    queue_init(&c->openpgp_comm, sizeof(uint32_t), 64);
+    queue_init(&c->card_comm, sizeof(uint32_t), 64);
     queue_init(&c->ccid_comm, sizeof(uint32_t), 64);
 }
 
@@ -362,7 +380,7 @@ static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
 void usb_tx_enable(const void *buf, uint32_t len) 
 {
-    DEBUG_PAYLOAD(((uint8_t *)buf),len);
+    //DEBUG_PAYLOAD(((uint8_t *)buf),len);
     tud_vendor_write(buf, len);
 }
 
@@ -407,9 +425,9 @@ static enum ccid_state ccid_power_on (struct ccid *c)
     if (c->application == 0)
     {
         multicore_reset_core1();
-        multicore_launch_core1(openpgp_card_thread);
+        multicore_launch_core1(card_thread);
         multicore_fifo_push_blocking((uint32_t)&c->ccid_comm);
-        multicore_fifo_push_blocking((uint32_t)&c->openpgp_comm);
+        multicore_fifo_push_blocking((uint32_t)&c->card_comm);
         c->application = 1;
     }
     p[0] = CCID_DATA_BLOCK_RET;
@@ -491,7 +509,7 @@ static enum ccid_state ccid_power_off (struct ccid *c)
     if (c->application)
     {
         uint32_t flag = EV_EXIT;
-        queue_try_add(&c->openpgp_comm, &flag);
+        queue_try_add(&c->card_comm, &flag);
         c->application = 0;
     }
 
@@ -874,7 +892,7 @@ TU_LOG3("---- CCID STATE %d,msg_type %x,start %d\r\n",c->ccid_state,c->ccid_head
             		        c->a->res_apdu_data = &ccid_buffer[5];
             		        
             		        uint32_t flag = EV_CMD_AVAILABLE;
-            		        queue_try_add(&c->openpgp_comm, &flag);
+            		        queue_try_add(&c->card_comm, &flag);
 
             		        next_state = CCID_STATE_EXECUTE;
             		    }
@@ -935,7 +953,7 @@ TU_LOG3("---- CCID STATE %d,msg_type %x,start %d\r\n",c->ccid_state,c->ccid_head
 
                     c->state = APDU_STATE_COMMAND_RECEIVED;
                     uint32_t flag = EV_VERIFY_CMD_AVAILABLE;
-                    queue_try_add(&c->openpgp_comm, &flag);
+                    queue_try_add(&c->card_comm, &flag);
                     next_state = CCID_STATE_EXECUTE;
         	    }
     	        else if (c->p[10-10] == 0x01) /* PIN Modification */
@@ -971,7 +989,7 @@ TU_LOG3("---- CCID STATE %d,msg_type %x,start %d\r\n",c->ccid_state,c->ccid_head
 
                     c->state = APDU_STATE_COMMAND_RECEIVED;
                     uint32_t flag = EV_MODIFY_CMD_AVAILABLE;
-                    queue_try_add(&c->openpgp_comm, &flag);
+                    queue_try_add(&c->card_comm, &flag);
                     next_state = CCID_STATE_EXECUTE;
     	        }
     	        else
@@ -1389,7 +1407,7 @@ static int usb_event_handle(struct ccid *c)
     else if (tud_vendor_available() && c->epo->ready)
     {
         uint32_t count = tud_vendor_read(endp1_rx_buf, sizeof(endp1_rx_buf));
-        DEBUG_PAYLOAD(endp1_rx_buf, count);
+        //DEBUG_PAYLOAD(endp1_rx_buf, count);
         ccid_rx_ready(count);
     }
     return 0;
@@ -1411,7 +1429,145 @@ void prepare_ccid()
     apdu_init(a);
     ccid_init (c, epi, epo, a);
 }
-#include "hardware/structs/rosc.h"
+
+int process_apdu() {
+    if (!current_app) {
+        if (INS(apdu) == 0xA4 && P1(apdu) == 0x04 && P2(apdu) == 0x00) { //select by AID
+            for (int a = 0; a < num_apps; a++) {
+                if ((current_app = apps[a].select_aid(&apps[a]))) {
+                    return set_res_sw(0x90,0x00);
+                }
+            }
+        }
+        return set_res_sw(0x6a, 0x82);
+    }
+    if (current_app->process_apdu)
+        return current_app->process_apdu();
+}
+
+
+uint16_t set_res_sw (uint8_t sw1, uint8_t sw2)
+{
+    apdu.sw = (sw1 << 8) | sw2;
+    return make_uint16_t(sw1, sw2);
+}
+
+static void card_init (void)
+{
+    //gpg_data_scan (flash_do_start, flash_do_end);
+    low_flash_init_core1();
+}
+
+void card_thread()
+{
+    queue_t *ccid_comm = (queue_t *)multicore_fifo_pop_blocking();
+    card_comm = (queue_t *)multicore_fifo_pop_blocking();
+
+    card_init ();
+
+    while (1)
+    {
+#if defined(PINPAD_SUPPORT)
+        int len, pw_len, newpw_len;
+#endif
+      
+        uint32_t m;
+        queue_remove_blocking(card_comm, &m);
+        
+        if (m == EV_VERIFY_CMD_AVAILABLE)
+	    {
+#if defined(PINPAD_SUPPORT)
+	        if (INS (apdu) != INS_VERIFY)
+	        {
+	            GPG_CONDITION_NOT_SATISFIED ();
+	            goto done;
+	        }
+
+	        pw_len = get_pinpad_input (PIN_INPUT_CURRENT);
+	        if (pw_len < 0)
+	        {
+	            set_res_sw (0x6f, 0x00);
+	            goto done;
+	        }
+	        memcpy (apdu.cmd_apdu_data, pin_input_buffer, pw_len);
+	        apdu.cmd_apdu_data_len = pw_len;
+#else
+	        set_res_sw (0x6f, 0x00);
+	        goto done;
+#endif
+	    }
+        else if (m == EV_MODIFY_CMD_AVAILABLE)
+	    {
+#if defined(PINPAD_SUPPORT)
+	        uint8_t bConfirmPIN = apdu.cmd_apdu_data[0];
+	        uint8_t *p = apdu.cmd_apdu_data;
+
+	        if (INS (apdu) != INS_CHANGE_REFERENCE_DATA
+	            && INS (apdu) != INS_RESET_RETRY_COUNTER
+	            && INS (apdu) != INS_PUT_DATA)
+	        {
+	            GPG_CONDITION_NOT_SATISFIED ();
+	            goto done;
+	        }
+
+	        if ((bConfirmPIN & 2))	/* Require old PIN */
+	        {
+	            pw_len = get_pinpad_input (PIN_INPUT_CURRENT);
+	            if (pw_len < 0)
+		        {
+		            set_res_sw (0x6f, 0x00);
+		            goto done;
+		        }
+	            memcpy (p, pin_input_buffer, pw_len);
+	            p += pw_len;
+	        }
+	        else
+	            pw_len = 0;
+
+	        newpw_len = get_pinpad_input (PIN_INPUT_NEW);
+	        if (newpw_len < 0)
+	        {
+	            set_res_sw (0x6f, 0x00);
+	            goto done;
+	        }
+	        memcpy (p, pin_input_buffer, newpw_len);
+
+	        if ((bConfirmPIN & 1))	/* New PIN twice */
+	        {
+	            len = get_pinpad_input (PIN_INPUT_CONFIRM);
+	            if (len < 0)
+		        {
+		            set_res_sw (0x6f, 0x00);
+		            goto done;
+		        }
+
+	            if (len != newpw_len || memcmp (p, pin_input_buffer, len) != 0)
+		        {
+		            GPG_SECURITY_FAILURE ();
+		            goto done;
+		        }
+	        }
+
+	        apdu.cmd_apdu_data_len = pw_len + newpw_len;
+#else
+	        set_res_sw (0x6f, 0x00);
+	        goto done;
+#endif
+	    }
+        else if (m == EV_EXIT)
+	        break;
+
+        process_apdu();
+        done:;
+        uint32_t flag = EV_EXEC_FINISHED;
+        queue_add_blocking(ccid_comm, &flag);
+    }
+    
+    if (current_app && current_app->unload)
+        current_app->unload();
+}
+
+
 void ccid_task(void)
 {
     struct ccid *c = &ccid;
@@ -1453,7 +1609,7 @@ void ccid_task(void)
 	                if (c->application)
 		            {
 		                uint32_t flag = EV_EXIT;
-		                queue_try_add(&c->openpgp_comm, &flag);
+		                queue_try_add(&c->card_comm, &flag);
 		                c->application = 0;
 		            }
                     c->ccid_state = CCID_STATE_NOCARD;

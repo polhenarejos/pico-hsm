@@ -57,23 +57,31 @@ const uint8_t token_info[] = {
     0x30, 0x26, 0x2, 0x1, 0x1, 0x4, 0x4, 0xd, 0x0, 0x0, 0x0, 0xc, 0xd, 0x50, 0x6f, 0x6c, 0x20, 0x48, 0x65, 0x6e, 0x61, 0x72, 0x65, 0x6a, 0x6f, 0x73, 0x80, 0x8, 0x48, 0x53, 0x4d, 0x20, 0x32, 0x30, 0x34, 0x30, 0x3, 0x2, 0x4, 0xf0
 };
 
+extern const uint8_t sc_hsm_aid[];
+
 file_t file_entries[] = {
-    { .fid = 0x3f00, .parent = 0xff, .name = NULL, .type = FILE_TYPE_DF, .data = NULL, .ef_structure = 0, .acl = {0} }, // MF
-    { .fid = 0x2f00, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.DIR
-    { .fid = 0x2f01, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.ATR
-    { .fid = 0x2f02, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF,.data = (uint8_t *)t, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.GDO
-    { .fid = 0x2f03, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF,.data = (uint8_t *)token_info, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.TokenInfo
-    { .fid = 0x5015, .parent = 0, .name = NULL, .type = FILE_TYPE_DF, .data = NULL, .ef_structure = 0, .acl = {0} }, //DF.PKCS15
-    { .fid = 0x5031, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.ODF
-    { .fid = 0x5032, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.TokenInfo
-    { .fid = 0x5033, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.UnusedSpace
-    { .fid = 0x1081, .parent = 0, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //PIN 0x5 (PIN1)
-    { .fid = 0x1088, .parent = 0, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //PIN 0x6 (SOPIN)
-    { .fid = 0x1085, .parent = 0, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //retries PIN 0x5 (PIN1)
-    { .fid = 0x1086, .parent = 0, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //retries PIN 0x6 (SOPIN)
-    { .fid = 0x0000, .parent = 0, .name = openpgpcard_aid, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} },
-    { .fid = 0x0000, .parent = 0, .name = sc_hsm_aid, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} },
-    { .fid = 0x0000, .parent = 0xff, .name = NULL, .type = FILE_TYPE_UNKNOWN, .data = NULL, .ef_structure = 0, .acl = {0} } //end
+    /*  0 */ { .fid = 0x3f00, .parent = 0xff, .name = NULL, .type = FILE_TYPE_DF, .data = NULL, .ef_structure = 0, .acl = {0} }, // MF
+    /*  1 */ { .fid = 0x2f00, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.DIR
+    /*  2 */ { .fid = 0x2f01, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.ATR
+    /*  3 */ { .fid = 0x2f02, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF,.data = (uint8_t *)t, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.GDO
+    /*  4 */ { .fid = 0x2f03, .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF,.data = (uint8_t *)token_info, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.TokenInfo
+    /*  5 */ { .fid = 0x5015, .parent = 0, .name = NULL, .type = FILE_TYPE_DF, .data = NULL, .ef_structure = 0, .acl = {0} }, //DF.PKCS15
+    /*  6 */ { .fid = 0x5031, .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.ODF
+    /*  7 */ { .fid = 0x5032, .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.TokenInfo
+    /*  8 */ { .fid = 0x5033, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.UnusedSpace
+    /*  9 */ { .fid = 0x1081, .parent = 0, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //PIN 0x5 (PIN1)
+    /* 10 */ { .fid = 0x1088, .parent = 0, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //PIN 0x6 (SOPIN)
+    /* 11 */ { .fid = 0x1085, .parent = 0, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //retries PIN 0x5 (PIN1)
+    /* 12 */ { .fid = 0x1086, .parent = 0, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //retries PIN 0x6 (SOPIN)
+    /* 13 */ { .fid = 0x6040, .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.PrKDFs
+    /* 14 */ { .fid = 0x6041, .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.PuKDFs
+    /* 15 */ { .fid = 0x6042, .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.CDFs
+    /* 16 */ { .fid = 0x6043, .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.AODFs
+    /* 17 */ { .fid = 0x6044, .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.DODFs
+    /* 18 */ { .fid = 0x6045, .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.SKDFs
+    ///* 19 */ { .fid = 0x0000, .parent = 0, .name = openpgpcard_aid, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} },
+    /* 20 */ { .fid = 0x0000, .parent = 5, .name = sc_hsm_aid, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} },
+    /* 21 */ { .fid = 0x0000, .parent = 0xff, .name = NULL, .type = FILE_TYPE_UNKNOWN, .data = NULL, .ef_structure = 0, .acl = {0} } //end
 };
 
 const file_t *MF = &file_entries[0];
@@ -150,7 +158,6 @@ file_t *search_by_path(const uint8_t *pe_path, uint8_t pathlen, const file_t *pa
     return NULL;
 }
 
-uint8_t file_selection;
 file_t *currentEF = NULL;
 file_t *currentDF = NULL;
 const file_t *selected_applet = NULL;
@@ -174,6 +181,9 @@ bool authenticate_action(const file_t *ef, uint8_t op) {
     return false;
 }
 
+#include "libopensc/pkcs15.h"
+
+
 void scan_flash() {
     if (*(uintptr_t *)end_data_pool == 0xffffffff && *(uintptr_t *)(end_data_pool+sizeof(uintptr_t)) == 0xffffffff) 
     {
@@ -184,6 +194,49 @@ void scan_flash() {
         //wait_flash_finish();
     }
     printf("SCAN\r\n");
+    
+    sc_context_t *ctx;
+    sc_context_param_t ctx_opts;
+    memset(&ctx_opts, 0, sizeof(sc_context_param_t));
+    sc_thread_context_t sc_thread_ctx = {
+    	0, NULL, NULL,
+    	NULL, NULL, NULL
+    };
+	ctx_opts.ver        = 0;
+	ctx_opts.app_name   = "opensc-pkcs11";
+	ctx_opts.thread_ctx = &sc_thread_ctx;
+    int r = sc_context_create(&ctx, &ctx_opts);
+    ctx->debug = 9;
+	
+    
+    struct sc_pkcs15_object obj;
+    memset(&obj, 0, sizeof(obj));
+    obj.type = SC_PKCS15_TYPE_PRKEY_RSA;
+    struct sc_pkcs15_prkey_info info;
+
+	/* Fill in defaults */
+	memset(&info, 0, sizeof(info));
+	info.key_reference = 0x2a;
+	info.native = 1;
+	char id[] = "0309";
+	info.id.len = sizeof(id);
+	memcpy(info.id.value, id, sizeof(id));
+	info.usage = 1;
+	info.access_flags = 1;
+	obj.data = malloc(sizeof(info));
+	if (obj.data == NULL) {
+		int r = SC_ERROR_OUT_OF_MEMORY;
+			TU_LOG1("Out of memory");
+
+		return ;
+	}
+	memcpy(obj.data, &info, sizeof(info));
+
+    u8 *buf;
+    size_t len;
+    r = sc_pkcs15_encode_prkdf_entry(ctx, &obj, &buf, &len);
+    printf("r %d, len %d\r\n",r,len);
+    DEBUG_PAYLOAD(buf, len);
     uintptr_t base = flash_read_uintptr(end_data_pool);
     for (uintptr_t base = flash_read_uintptr(end_data_pool); base >= start_data_pool; base = flash_read_uintptr(base)) {
         if (base == 0x0) //all is empty

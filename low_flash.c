@@ -9,6 +9,7 @@
 #include "pico/sem.h"
 #include "pico/multicore.h"
 #include "gnuk.h"
+#include "hsm2040.h"
 #include <string.h>
 
 #define TOTAL_FLASH_PAGES 4

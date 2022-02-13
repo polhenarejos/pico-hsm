@@ -29,6 +29,7 @@
 #include "gnuk.h"
 #include "mbedtls/sha256.h"
 #include "random.h"
+#include "hsm2040.h"
 
 uint8_t volatile auth_status;	/* Initialized to AC_NONE_AUTHORIZED */
 

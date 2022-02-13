@@ -5,28 +5,7 @@
 /*
  * Application layer <-> CCID layer data structure
  */
-struct apdu {
-  uint8_t seq;
 
-  /* command APDU */
-  uint8_t *cmd_apdu_head;	/* CLS INS P1 P2 [ internal Lc ] */
-  uint8_t *cmd_apdu_data;
-  size_t cmd_apdu_data_len;	/* Nc, calculated by Lc field */
-  size_t expected_res_size;	/* Ne, calculated by Le field */
-
-  /* response APDU */
-  uint16_t sw;
-  uint16_t res_apdu_data_len;
-  uint8_t *res_apdu_data;
-};
-
-
-#define CLS(a) a.cmd_apdu_head[0]
-#define INS(a) a.cmd_apdu_head[1]
-#define P1(a) a.cmd_apdu_head[2]
-#define P2(a) a.cmd_apdu_head[3]
-
-extern struct apdu apdu;
 
 #define CARD_CHANGE_INSERT 0
 #define CARD_CHANGE_REMOVE 1
@@ -54,8 +33,7 @@ void ccid_card_change_signal (int how);
 
 #define CCID_MSG_HEADER_SIZE	10
 
-#define res_APDU apdu.res_apdu_data
-#define res_APDU_size apdu.res_apdu_data_len
+
 
 /* USB buffer size of LL (Low-level): size of single Bulk transaction */
 #define USB_LL_BUF_SIZE 64
@@ -107,7 +85,6 @@ void ac_reset_admin (void);
 void ac_fini (void);
 
 
-uint16_t set_res_sw (uint8_t sw1, uint8_t sw2);
 extern uint8_t file_selection;
 extern const uint8_t historical_bytes[];
 extern uint16_t data_objects_number_of_bytes;
@@ -246,32 +223,6 @@ int gpg_change_keystring (int who_old, const uint8_t *old_ks,
 
 extern struct key_data kd[3];
 
-#ifdef DEBUG
-void stdout_init (void);
-#define DEBUG_MORE 1
-/*
- * Debug functions in debug.c
- */
-void put_byte (uint8_t b);
-void put_byte_with_no_nl (uint8_t b);
-void put_short (uint16_t x);
-void put_word (uint32_t x);
-void put_int (uint32_t x);
-void put_string (const char *s);
-void put_binary (const char *s, int len);
-
-#define DEBUG_INFO(msg)	    put_string (msg)
-#define DEBUG_WORD(w)	    put_word (w)
-#define DEBUG_SHORT(h)	    put_short (h)
-#define DEBUG_BYTE(b)       put_byte (b)
-#define DEBUG_BINARY(s,len) put_binary ((const char *)s,len)
-#else
-#define DEBUG_INFO(msg)
-#define DEBUG_WORD(w)
-#define DEBUG_SHORT(h)
-#define DEBUG_BYTE(b)
-#define DEBUG_BINARY(s,len)
-#endif
 
 int rsa_sign (const uint8_t *, uint8_t *, int, struct key_data *, int);
 int modulus_calc (const uint8_t *, int, uint8_t *);
@@ -431,7 +382,6 @@ extern uint8_t admin_authorized;
 #endif
 
 extern const uint8_t openpgpcard_aid[];
-extern const uint8_t sc_hsm_aid[];
 
 void flash_bool_clear (const uint8_t **addr_p);
 const uint8_t *flash_bool_write (uint8_t nr);
@@ -508,17 +458,6 @@ unique_device_id (void)
   };
   
   return id;
-}
-
-static inline const uint16_t make_uint16_t(uint8_t b1, uint8_t b2) {
-    return (b1 << 8) | b2;
-}
-static inline const uint16_t get_uint16_t(uint8_t *b, uint16_t offset) {
-    return make_uint16_t(b[offset], b[offset+1]);
-}
-static inline const void put_uint16_t(uint16_t n, uint8_t *b) {
-    *b++ = (n >> 8) & 0xff;
-    *b = n & 0xff;
 }
 
 
