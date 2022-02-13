@@ -1,0 +1,3 @@
+[submodule "OpenSC"]
+	path = OpenSC
+	url = https://github.com/OpenSC/OpenSC
