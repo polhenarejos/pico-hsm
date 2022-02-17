@@ -1,3 +1,6 @@
 [submodule "OpenSC"]
 	path = OpenSC
 	url = https://github.com/OpenSC/OpenSC
+[submodule "mbedtls"]
+	path = mbedtls
+	url = https://github.com/ARMmbed/mbedtls
