@@ -1,6 +1,7 @@
 #include "sc_hsm.h"
 #include "file.h"
 #include "libopensc/card-sc-hsm.h"
+#include "random.h"
 
 const uint8_t sc_hsm_aid[] = {
     11, 
@@ -267,6 +268,12 @@ static int cmd_reset_retry() {
     }
 }
 
+static int cmd_challenge() {
+    memcpy(res_APDU, random_bytes_get(), apdu.expected_res_size);
+    res_APDU_size = apdu.expected_res_size;
+    return SW_OK();
+}
+
 typedef struct cmd
 {
   uint8_t ins;
@@ -278,6 +285,7 @@ typedef struct cmd
 #define INS_READ_BINARY_ODD         0xB1
 #define INS_VERIFY                  0x20
 #define INS_RESET_RETRY             0x2C
+#define INS_CHALLENGE               0x84
 
 static const cmd_t cmds[] = {
     { INS_SELECT_FILE, cmd_select },
@@ -286,6 +294,7 @@ static const cmd_t cmds[] = {
     { INS_READ_BINARY_ODD, cmd_read_binary },
     { INS_VERIFY, cmd_verify },
     { INS_RESET_RETRY, cmd_reset_retry },
+    { INS_CHALLENGE, cmd_challenge },
     { 0x00, 0x0}
 };
 
