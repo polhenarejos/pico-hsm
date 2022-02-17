@@ -34,12 +34,17 @@ target_sources(hsm2040 PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/random.c
         ${CMAKE_CURRENT_LIST_DIR}/ecc-mont.c
         ${CMAKE_CURRENT_LIST_DIR}/ecc-x448.c
-        ${CMAKE_CURRENT_LIST_DIR}/sha256.c
-        ${CMAKE_CURRENT_LIST_DIR}/aes.c
-        ${CMAKE_CURRENT_LIST_DIR}/sha512.c
+        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/sha256.c
+        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/aes.c
+        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/sha512.c
+        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/rsa.c
+        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/bignum.c
+        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/platform_util.c
+        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/md.c
+        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/oid.c
+        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/rsa_alt_helpers.c
+        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/constant_time.c
         ${CMAKE_CURRENT_LIST_DIR}/shake256.c
-        ${CMAKE_CURRENT_LIST_DIR}/rsa.c
-        ${CMAKE_CURRENT_LIST_DIR}/bignum.c
         ${CMAKE_CURRENT_LIST_DIR}/neug.c
         ${CMAKE_CURRENT_LIST_DIR}/ec_p256k1.c
         ${CMAKE_CURRENT_LIST_DIR}/bn.c
@@ -48,11 +53,6 @@ target_sources(hsm2040 PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/modp256k1.c
         ${CMAKE_CURRENT_LIST_DIR}/p448.c
         ${CMAKE_CURRENT_LIST_DIR}/mod25638.c
-        ${CMAKE_CURRENT_LIST_DIR}/platform_util.c
-        ${CMAKE_CURRENT_LIST_DIR}/md.c
-        ${CMAKE_CURRENT_LIST_DIR}/oid.c
-        ${CMAKE_CURRENT_LIST_DIR}/rsa_alt_helpers.c
-        ${CMAKE_CURRENT_LIST_DIR}/constant_time.c
         ${CMAKE_CURRENT_LIST_DIR}/sc_hsm.c
         ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/pkcs15.c
         ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/pkcs15-prkey.c
@@ -73,6 +73,7 @@ target_sources(hsm2040 PUBLIC
 target_include_directories(hsm2040 PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}
         ${CMAKE_CURRENT_LIST_DIR}/opensc/src
+        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/include
         )
 
 pico_add_extra_outputs(hsm2040)
