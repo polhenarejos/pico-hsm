@@ -12,7 +12,7 @@ const uint8_t sc_hsm_aid[] = {
 
 uint8_t session_pin[32], session_sopin[32];
 bool has_session_pin = false, has_session_sopin = false;
-static uint8_t dkeks = 0;
+static uint8_t dkeks = 0, current_dkeks = 0;
 static uint8_t tmp_dkek[IV_SIZE+32];
 
 static int sc_hsm_process_apdu();
@@ -306,7 +306,6 @@ static int cmd_initialize() {
     while (p-apdu.cmd_apdu_data < apdu.cmd_apdu_data_len) {
         uint8_t tag = *p++;
         uint8_t tag_len = *p++;
-        printf("%d %d %x %d\r\n",p-apdu.cmd_apdu_data,apdu.cmd_apdu_data_len,tag,tag_len);
         if (tag == 0x80) { //options
         }
         else if (tag == 0x81) { //user pin
@@ -321,13 +320,9 @@ static int cmd_initialize() {
         else if (tag == 0x82) { //user pin
             if (file_sopin && file_sopin->data) {
                 uint8_t dhash[32];
-                printf("1\r\n");
                 double_hash_pin(p, tag_len, dhash);
-                printf("1\r\n");
                 flash_write_data_to_file(file_sopin, dhash, sizeof(dhash));
-                printf("1\r\n");
                 hash(p, tag_len, session_sopin);
-                printf("1\r\n");
                 has_session_sopin = true;
             } 
         }
@@ -342,10 +337,12 @@ static int cmd_initialize() {
         }
         else if (tag == 0x92) {
             dkeks = *p;
+            current_dkeks = 0;
         }
         p += tag_len;
     }
     p = random_bytes_get();
+    memset(tmp_dkek, 0, sizeof(tmp_dkek));
     memcpy(tmp_dkek, p, IV_SIZE);
     if (dkeks == 0) {
         p = random_bytes_get();
@@ -385,6 +382,37 @@ void hash(const uint8_t *input, size_t len, uint8_t output[32])
     mbedtls_sha256_free (&ctx);
 }
 
+static int cmd_import_dkek() {
+    if (dkeks == 0)
+        return SW_COMMAND_NOT_ALLOWED();
+    if (has_session_sopin == false)
+        return SW_CONDITIONS_NOT_SATISFIED();
+    file_t *tf = search_by_fid(0x108F, NULL, SPECIFY_EF);
+    if (apdu.cmd_apdu_data_len > 0) {
+        for (int i = 0; i < apdu.cmd_apdu_data_len; i++)
+            tmp_dkek[IV_SIZE+i] ^= apdu.cmd_apdu_data[i];
+        if (++current_dkeks == dkeks) {
+            encrypt(session_sopin, tmp_dkek, tmp_dkek+IV_SIZE, 32);
+            flash_write_data_to_file(tf, tmp_dkek, sizeof(tmp_dkek));
+            memset(tmp_dkek, 0, sizeof(tmp_dkek));
+        }
+    }
+    res_APDU[0] = dkeks;
+    res_APDU[1] = dkeks-current_dkeks;
+    //FNV hash
+    uint64_t hash = 0xcbf29ce484222325;
+    memcpy(tmp_dkek, file_read(tf->data+sizeof(uint16_t)), IV_SIZE+32);
+    decrypt(session_sopin, tmp_dkek, tmp_dkek+IV_SIZE, 32);
+    for (int i = 0; i < 32; i++) {
+        hash ^= tmp_dkek[IV_SIZE+i];
+        hash *= 0x00000100000001B3;
+    }
+    memset(tmp_dkek, 0, sizeof(tmp_dkek));
+    memcpy(res_APDU+2,&hash,sizeof(hash));
+    res_APDU_size = 2+sizeof(hash);
+    return SW_OK();
+}
+
 typedef struct cmd
 {
   uint8_t ins;
@@ -397,6 +425,7 @@ typedef struct cmd
 #define INS_VERIFY                  0x20
 #define INS_RESET_RETRY             0x2C
 #define INS_INITIALIZE              0x50
+#define INS_IMPORT_DKEK             0x52
 #define INS_CHALLENGE               0x84
 
 static const cmd_t cmds[] = {
@@ -408,6 +437,7 @@ static const cmd_t cmds[] = {
     { INS_RESET_RETRY, cmd_reset_retry },
     { INS_CHALLENGE, cmd_challenge },
     { INS_INITIALIZE, cmd_initialize },
+    { INS_IMPORT_DKEK, cmd_import_dkek },
     { 0x00, 0x0}
 };
 

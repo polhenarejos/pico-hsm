@@ -1773,10 +1773,7 @@ int main(void)
     random_init();
     
     low_flash_init();
-    
-    pico_get_unique_board_id(&unique_id);
-    DEBUG_PAYLOAD(unique_id.id,8);
-  
+      
     while (1)
     {
         prev_millis = board_millis();
