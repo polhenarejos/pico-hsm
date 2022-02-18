@@ -38,24 +38,6 @@ void init_sc_hsm() {
     has_session_pin = has_session_sopin = false;
 }
 
-static int cmd_verify() {
-    uint8_t p1 = P1(apdu);
-    uint8_t p2 = P2(apdu);
-    
-    if (p1 != 0x0 || (p2 & 0x60) != 0x0)
-        return SW_WRONG_P1P2();
-    uint8_t qualifier = p2&0x1f;
-    if (p2 == 0x81) { //UserPin
-        if (!file_retries_pin1) {
-            return SW_REFERENCE_NOT_FOUND();
-        }
-        return set_res_sw (0x63, 0xc0 | file_read_uint8(file_retries_pin1->data+2));
-    }
-    else if (p2 == 0x88) { //SOPin
-    }
-    return SW_REFERENCE_NOT_FOUND();
-}
-
 static int encrypt(const uint8_t *key, const uint8_t *iv, uint8_t *data, int len)
 {
     mbedtls_aes_context aes;
@@ -264,14 +246,38 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
     if (!pin->data) {
         return SW_REFERENCE_NOT_FOUND();
     }
-    if (len != file_read_uint16(pin->data))
+    uint8_t dhash[32];
+    double_hash_pin(data, len, dhash);
+    printf("dh %d %d\r\n",sizeof(dhash),file_read_uint16(pin->data));
+    if (sizeof(dhash) != file_read_uint16(pin->data))
         return SW_CONDITIONS_NOT_SATISFIED();
-    if (memcmp(file_read(pin->data+2), data, len) != 0) {
+    if (memcmp(file_read(pin->data+2), dhash, sizeof(dhash)) != 0) {
         if (pin_wrong_retry(pin) != HSM_OK)
             return SW_PIN_BLOCKED();
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
-    return pin_reset_retries(pin);
+    int r = pin_reset_retries(pin);
+    if (r != HSM_OK)
+        return SW_MEMORY_FAILURE();
+    return SW_OK();
+}
+
+static int cmd_verify() {
+    uint8_t p1 = P1(apdu);
+    uint8_t p2 = P2(apdu);
+    
+    if (p1 != 0x0 || (p2 & 0x60) != 0x0)
+        return SW_WRONG_P1P2();
+    uint8_t qualifier = p2&0x1f;
+    if (p2 == 0x81) { //UserPin
+        if (apdu.cmd_apdu_data_len > 0) {
+            return check_pin(file_pin1, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
+        }
+        return set_res_sw (0x63, 0xc0 | file_read_uint8(file_retries_pin1->data+2));
+    }
+    else if (p2 == 0x88) { //SOPin
+    }
+    return SW_REFERENCE_NOT_FOUND();
 }
 
 static int cmd_reset_retry() {

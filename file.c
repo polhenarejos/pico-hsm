@@ -190,7 +190,7 @@ bool authenticate_action(const file_t *ef, uint8_t op) {
 #include "libopensc/pkcs15.h"
 
 void scan_flash() {
-    //if (*(uintptr_t *)end_data_pool == 0xffffffff && *(uintptr_t *)(end_data_pool+sizeof(uintptr_t)) == 0xffffffff) 
+    if (*(uintptr_t *)end_data_pool == 0xffffffff && *(uintptr_t *)(end_data_pool+sizeof(uintptr_t)) == 0xffffffff) 
     {
         printf("First initialization (or corrupted!)\r\n");
         const uint8_t empty[8] = { 0 };
@@ -262,7 +262,7 @@ void scan_flash() {
     if (file_pin1) {
         if (!file_pin1->data) {
             TU_LOG1("PIN1 is empty. Initializing with default password\r\n");
-            const uint8_t empty[8] = { 0 };
+            const uint8_t empty[32] = { 0 };
             flash_write_data_to_file(file_pin1, empty, sizeof(empty));
         }
     }
@@ -273,7 +273,7 @@ void scan_flash() {
     if (file_sopin) {
         if (!file_sopin->data) {
             TU_LOG1("SOPIN is empty. Initializing with default password\r\n");
-            const uint8_t empty[8] = { 0 };
+            const uint8_t empty[32] = { 0 };
             flash_write_data_to_file(file_sopin, empty, sizeof(empty));
         }
     }
