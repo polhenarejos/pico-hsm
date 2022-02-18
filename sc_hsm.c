@@ -2,11 +2,18 @@
 #include "file.h"
 #include "libopensc/card-sc-hsm.h"
 #include "random.h"
+#include "mbedtls/sha256.h"
+#include "mbedtls/aes.h"
 
 const uint8_t sc_hsm_aid[] = {
     11, 
     0xE8,0x2B,0x06,0x01,0x04,0x01,0x81,0xC3,0x1F,0x02,0x01
 };
+
+uint8_t session_pin[32], session_sopin[32];
+bool has_session_pin = false, has_session_sopin = false;
+static uint8_t dkeks = 0;
+static uint8_t tmp_dkek[IV_SIZE+32];
 
 static int sc_hsm_process_apdu();
 
@@ -28,6 +35,7 @@ void __attribute__ ((constructor)) sc_hsm_ctor() {
 
 void init_sc_hsm() {
     scan_flash();
+    has_session_pin = has_session_sopin = false;
 }
 
 static int cmd_verify() {
@@ -46,6 +54,26 @@ static int cmd_verify() {
     else if (p2 == 0x88) { //SOPin
     }
     return SW_REFERENCE_NOT_FOUND();
+}
+
+static int encrypt(const uint8_t *key, const uint8_t *iv, uint8_t *data, int len)
+{
+    mbedtls_aes_context aes;
+    uint8_t tmp_iv[IV_SIZE];
+    size_t iv_offset = 0;
+    memcpy(tmp_iv, iv, IV_SIZE);
+    mbedtls_aes_setkey_enc (&aes, key, 256);
+    return mbedtls_aes_crypt_cfb128(&aes, MBEDTLS_AES_ENCRYPT, len, &iv_offset, tmp_iv, data, data);
+}
+
+static int decrypt(const uint8_t *key, const uint8_t *iv, uint8_t *data, int len)
+{
+    mbedtls_aes_context aes;
+    uint8_t tmp_iv[IV_SIZE];
+    size_t iv_offset = 0;
+    memcpy(tmp_iv, iv, IV_SIZE);
+    mbedtls_aes_setkey_enc (&aes, key, 256);
+    return mbedtls_aes_crypt_cfb128(&aes, MBEDTLS_AES_DECRYPT, len, &iv_offset, tmp_iv, data, data);
 }
 
 
@@ -230,7 +258,6 @@ int pin_wrong_retry(const file_t *pin) {
     return HSM_ERR_BLOCKED;
 }
 
-
 int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
     if (!pin)
         return SW_FILE_NOT_FOUND();
@@ -274,6 +301,90 @@ static int cmd_challenge() {
     return SW_OK();
 }
 
+static int cmd_initialize() {
+    const uint8_t *p = apdu.cmd_apdu_data;
+    while (p-apdu.cmd_apdu_data < apdu.cmd_apdu_data_len) {
+        uint8_t tag = *p++;
+        uint8_t tag_len = *p++;
+        printf("%d %d %x %d\r\n",p-apdu.cmd_apdu_data,apdu.cmd_apdu_data_len,tag,tag_len);
+        if (tag == 0x80) { //options
+        }
+        else if (tag == 0x81) { //user pin
+            if (file_pin1 && file_pin1->data) {
+                uint8_t dhash[32];
+                double_hash_pin(p, tag_len, dhash);
+                flash_write_data_to_file(file_pin1, dhash, sizeof(dhash));
+                hash(p, tag_len, session_pin);
+                has_session_pin = true;
+            } 
+        }
+        else if (tag == 0x82) { //user pin
+            if (file_sopin && file_sopin->data) {
+                uint8_t dhash[32];
+                printf("1\r\n");
+                double_hash_pin(p, tag_len, dhash);
+                printf("1\r\n");
+                flash_write_data_to_file(file_sopin, dhash, sizeof(dhash));
+                printf("1\r\n");
+                hash(p, tag_len, session_sopin);
+                printf("1\r\n");
+                has_session_sopin = true;
+            } 
+        }
+        else if (tag == 0x91) { //user pin
+            file_t *tf = search_by_fid(0x1082, NULL, SPECIFY_EF);
+            if (tf && tf->data) {
+                flash_write_data_to_file(tf, p, tag_len);
+            }
+            if (file_retries_pin1 && file_retries_pin1->data) {
+                flash_write_data_to_file(file_retries_pin1, p, tag_len);
+            }
+        }
+        else if (tag == 0x92) {
+            dkeks = *p;
+        }
+        p += tag_len;
+    }
+    p = random_bytes_get();
+    memcpy(tmp_dkek, p, IV_SIZE);
+    if (dkeks == 0) {
+        p = random_bytes_get();
+        memcpy(tmp_dkek, p, 32);
+        encrypt(session_sopin, tmp_dkek, tmp_dkek+IV_SIZE, 32);
+        file_t *tf = search_by_fid(0x108F, NULL, SPECIFY_EF);
+        flash_write_data_to_file(tf, tmp_dkek, sizeof(tmp_dkek));
+    }
+    return SW_OK();
+}
+
+void double_hash_pin(const uint8_t *pin, size_t len, uint8_t output[32]) {
+    uint8_t o1[32];
+    hash(pin, len, o1);
+    for (int i = 0; i < sizeof(o1); i++)
+        o1[i] ^= pin[i%len];
+    hash(o1, sizeof(o1), output);
+}
+
+void hash(const uint8_t *input, size_t len, uint8_t output[32])
+{
+    mbedtls_sha256_context ctx;
+    mbedtls_sha256_init(&ctx);
+    int iters = 256;
+    
+    mbedtls_sha256_starts (&ctx, 0);
+    mbedtls_sha256_update (&ctx, unique_id.id, sizeof(unique_id.id));
+    
+    while (iters > len)
+    {
+        mbedtls_sha256_update (&ctx, input, len);
+        iters -= len;
+    }
+    if (iters > 0) // remaining iterations
+        mbedtls_sha256_update (&ctx, input, iters);
+    mbedtls_sha256_finish (&ctx, output);
+    mbedtls_sha256_free (&ctx);
+}
+
 typedef struct cmd
 {
   uint8_t ins;
@@ -285,6 +396,7 @@ typedef struct cmd
 #define INS_READ_BINARY_ODD         0xB1
 #define INS_VERIFY                  0x20
 #define INS_RESET_RETRY             0x2C
+#define INS_INITIALIZE              0x50
 #define INS_CHALLENGE               0x84
 
 static const cmd_t cmds[] = {
@@ -295,6 +407,7 @@ static const cmd_t cmds[] = {
     { INS_VERIFY, cmd_verify },
     { INS_RESET_RETRY, cmd_reset_retry },
     { INS_CHALLENGE, cmd_challenge },
+    { INS_INITIALIZE, cmd_initialize },
     { 0x00, 0x0}
 };
 

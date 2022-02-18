@@ -44,4 +44,11 @@ extern const uint8_t sc_hsm_aid[];
 extern int pin_reset_retries(const file_t *pin);
 extern int pin_wrong_retry(const file_t *pin);
 
+extern void hash(const uint8_t *input, size_t len, uint8_t output[32]);
+extern void double_hash_pin(const uint8_t *pin, size_t len, uint8_t output[32]);
+
+extern uint8_t session_pin[32], session_sopin[32];
+
+#define IV_SIZE 16
+
 #endif
