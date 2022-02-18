@@ -77,7 +77,7 @@ target_include_directories(hsm2040 PUBLIC
         )
 
 pico_add_extra_outputs(hsm2040)
-target_link_libraries(hsm2040 PRIVATE pico_stdlib tinyusb_device tinyusb_board pico_multicore hardware_flash hardware_sync hardware_adc)
+target_link_libraries(hsm2040 PRIVATE pico_stdlib tinyusb_device tinyusb_board pico_multicore hardware_flash hardware_sync hardware_adc pico_unique_id)
 
 #
 #project(flash_nuke C CXX ASM)

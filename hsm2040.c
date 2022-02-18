@@ -1747,6 +1747,8 @@ void led_off_all()
 #include "hardware/sync.h"
 extern void neug_task();
 
+pico_unique_board_id_t unique_id;
+
 int main(void)
 {
     struct apdu *a = &apdu;
@@ -1771,6 +1773,9 @@ int main(void)
     random_init();
     
     low_flash_init();
+    
+    pico_get_unique_board_id(&unique_id);
+    DEBUG_PAYLOAD(unique_id.id,8);
   
     while (1)
     {
