@@ -4,6 +4,7 @@
 #include "random.h"
 #include "mbedtls/sha256.h"
 #include "mbedtls/aes.h"
+#include "mbedtls/rsa.h"
 
 const uint8_t sc_hsm_aid[] = {
     11, 
@@ -189,8 +190,7 @@ static int cmd_read_binary()
             offset = 0;
             for (int d = 0; d < apdu.cmd_apdu_data[1]; d++)
                 offset |= apdu.cmd_apdu_data[2+d]<<(apdu.cmd_apdu_data[1]-1-d)*8;
-        }
-        
+        }        
     }
     
     if (!authenticate_action(ef, ACL_OP_READ_SEARCH)) {
@@ -248,7 +248,6 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
     }
     uint8_t dhash[32];
     double_hash_pin(data, len, dhash);
-    printf("dh %d %d\r\n",sizeof(dhash),file_read_uint16(pin->data));
     if (sizeof(dhash) != file_read_uint16(pin->data))
         return SW_CONDITIONS_NOT_SATISFIED();
     if (memcmp(file_read(pin->data+2), dhash, sizeof(dhash)) != 0) {
@@ -419,6 +418,50 @@ static int cmd_import_dkek() {
     return SW_OK();
 }
 
+static int cmd_keypair_gen() {
+    uint8_t key_id = P1(apdu);
+    uint8_t auth_key_id = P2(apdu);
+    sc_context_t *ctx;
+    //memset(ctx, 0 , sizeof(sc_context_t));
+    sc_context_param_t ctx_opts;
+    memset(&ctx_opts, 0, sizeof(sc_context_param_t));
+    sc_context_create(&ctx, &ctx_opts);
+    ctx->debug = 9;
+    ctx->debug_file = stdout;
+    size_t tout = 0;
+    sc_asn1_print_tags(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
+    const uint8_t *p = sc_asn1_find_tag(ctx, (const uint8_t *)apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, 0x7f49, &tout);
+    if (p) {
+        size_t oid_len = 0;
+        const uint8_t *oid = sc_asn1_find_tag(ctx, p, tout, 0x6, &oid_len);
+        if (oid) {
+            if (memcmp(oid, "\x4\x0\x7F\x0\x7\x2\x2\x2\x1\x2",MIN(oid_len,10)) == 0) { //RSA
+                size_t ex_len, ks_len;
+                const uint8_t *ex = sc_asn1_find_tag(ctx, p, tout, 0x82, &ex_len);
+                const uint8_t *ks = sc_asn1_find_tag(ctx, p, tout, 0x2, &ks_len);
+                int exponent = 65537, key_size = 2048;
+                if (ex) {
+                    sc_asn1_decode_integer(ex, ex_len, &exponent, 0);
+                }
+                if (ks) {
+                    sc_asn1_decode_integer(ks, ks_len, &key_size, 0);
+                }
+                printf("exponent %d, key_size %d\r\n",exponent,key_size);
+                mbedtls_rsa_context rsa;
+                mbedtls_rsa_init(&rsa);
+                int ret;
+                uint8_t index = 0;
+                ret = mbedtls_rsa_gen_key(&rsa, random_gen, &index, key_size, exponent);
+                printf("ret %d\r\n",ret);
+                mbedtls_rsa_free(&rsa);
+            }
+            else if (memcmp(oid, "\x4\x0\x7F\x0\x7\x2\x2\x2\x2\x3",MIN(oid_len,10)) == 0) { //ECC
+            }
+        }
+    }
+    return SW_OK();
+}
+
 typedef struct cmd
 {
   uint8_t ins;
@@ -433,10 +476,12 @@ typedef struct cmd
 #define INS_INITIALIZE              0x50
 #define INS_IMPORT_DKEK             0x52
 #define INS_CHALLENGE               0x84
+#define INS_LIST_KEYS               0x58
+#define INS_KEYPAIR_GEN             0x46
 
 static const cmd_t cmds[] = {
     { INS_SELECT_FILE, cmd_select },
-    { 0x58, cmd_list_keys }, 
+    { INS_LIST_KEYS, cmd_list_keys }, 
     { INS_READ_BINARY, cmd_read_binary },
     { INS_READ_BINARY_ODD, cmd_read_binary },
     { INS_VERIFY, cmd_verify },
@@ -444,6 +489,7 @@ static const cmd_t cmds[] = {
     { INS_CHALLENGE, cmd_challenge },
     { INS_INITIALIZE, cmd_initialize },
     { INS_IMPORT_DKEK, cmd_import_dkek },
+    { INS_KEYPAIR_GEN, cmd_keypair_gen },
     { 0x00, 0x0}
 };
 
