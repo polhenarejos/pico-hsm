@@ -148,9 +148,14 @@ static int cmd_select() {
 
 static int cmd_list_keys()
 {
-    static uint16_t r[] = { KEY_PREFIX | 0x100, KEY_PREFIX | 0x200, DCOD_PREFIX | 0x100, CD_PREFIX | 0x300 };
-    res_APDU = (uint8_t *)r;
-    res_APDU_size = sizeof(r);
+    for (file_chain_t *fc = ef_prkdf; fc; fc = fc->next) {
+        res_APDU[res_APDU_size++] = KEY_PREFIX;
+        res_APDU[res_APDU_size++] = fc->file->fid & 0xff;
+    }
+    for (file_chain_t *fc = ef_cdf; fc; fc = fc->next) {
+        res_APDU[res_APDU_size++] = CD_PREFIX;
+        res_APDU[res_APDU_size++] = fc->file->fid & 0xff;
+    }
     return SW_OK();
 }
 
@@ -321,7 +326,7 @@ static int cmd_initialize() {
                 uint8_t dhash[32];
                 double_hash_pin(p, tag_len, dhash);
                 flash_write_data_to_file(file_pin1, dhash, sizeof(dhash));
-                hash(p, tag_len, session_pin);
+                hash_multi(p, tag_len, session_pin);
                 has_session_pin = true;
             } 
         }
@@ -330,7 +335,7 @@ static int cmd_initialize() {
                 uint8_t dhash[32];
                 double_hash_pin(p, tag_len, dhash);
                 flash_write_data_to_file(file_sopin, dhash, sizeof(dhash));
-                hash(p, tag_len, session_sopin);
+                hash_multi(p, tag_len, session_sopin);
                 has_session_sopin = true;
             } 
         }
@@ -364,13 +369,13 @@ static int cmd_initialize() {
 
 void double_hash_pin(const uint8_t *pin, size_t len, uint8_t output[32]) {
     uint8_t o1[32];
-    hash(pin, len, o1);
+    hash_multi(pin, len, o1);
     for (int i = 0; i < sizeof(o1); i++)
         o1[i] ^= pin[i%len];
-    hash(o1, sizeof(o1), output);
+    hash_multi(o1, sizeof(o1), output);
 }
 
-void hash(const uint8_t *input, size_t len, uint8_t output[32])
+void hash_multi(const uint8_t *input, size_t len, uint8_t output[32])
 {
     mbedtls_sha256_context ctx;
     mbedtls_sha256_init(&ctx);
@@ -386,6 +391,18 @@ void hash(const uint8_t *input, size_t len, uint8_t output[32])
     }
     if (iters > 0) // remaining iterations
         mbedtls_sha256_update (&ctx, input, iters);
+    mbedtls_sha256_finish (&ctx, output);
+    mbedtls_sha256_free (&ctx);
+}
+
+void hash(const uint8_t *input, size_t len, uint8_t output[32])
+{
+    mbedtls_sha256_context ctx;
+    mbedtls_sha256_init(&ctx);
+    
+    mbedtls_sha256_starts (&ctx, 0);
+    mbedtls_sha256_update (&ctx, input, len);
+
     mbedtls_sha256_finish (&ctx, output);
     mbedtls_sha256_free (&ctx);
 }
@@ -446,9 +463,12 @@ int store_key_rsa(mbedtls_rsa_context *rsa, int key_bits, uint8_t key_id) /*in b
     mbedtls_mpi_write_binary(&rsa->Q, pq+key_size/2, key_size/2);
     file_t *fpk = file_new((KEY_PREFIX << 8) | key_id);
     int r = flash_write_data_to_file(fpk, pq, key_size);
+    free(pq);
     if (r != HSM_OK)
         return r;
     add_file_to_chain(fpk, &ef_prkdf);
+    low_flash_available();
+    return HSM_OK;
 }
 
 sc_context_t *create_context() {
@@ -465,6 +485,9 @@ static int cmd_keypair_gen() {
     uint8_t key_id = P1(apdu);
     uint8_t auth_key_id = P2(apdu);
     sc_context_t *ctx = create_context();
+    struct sc_pkcs15_card p15card;
+    p15card.card = (sc_card_t *)malloc(sizeof(sc_card_t));
+    p15card.card->ctx = ctx;
     
     size_t tout = 0;
     sc_asn1_print_tags(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
@@ -478,6 +501,8 @@ static int cmd_keypair_gen() {
                 const uint8_t *ex = sc_asn1_find_tag(ctx, p, tout, 0x82, &ex_len);
                 const uint8_t *ks = sc_asn1_find_tag(ctx, p, tout, 0x2, &ks_len);
                 int exponent = 65537, key_size = 2048;
+                uint8_t *cvcbin;
+	            size_t cvclen;
                 if (ex) {
                     sc_asn1_decode_integer(ex, ex_len, &exponent, 0);
                 }
@@ -506,17 +531,20 @@ static int cmd_keypair_gen() {
 	            cvc.primeOrModuluslen = key_size/8;
 	            cvc.primeOrModulus = (uint8_t *)malloc(cvc.primeOrModuluslen);
 	            mbedtls_mpi_write_binary(&rsa.N, cvc.primeOrModulus, key_size/8);
+	            int r = sc_pkcs15emu_sc_hsm_encode_cvc(&p15card, &cvc, &cvcbin, &cvclen);
 	            cvc.signatureLen = key_size/8;
 	            cvc.signature = (uint8_t *)malloc(key_size/8);
-	            ret = mbedtls_rsa_rsassa_pkcs1_v15_sign(&rsa, NULL, NULL, MBEDTLS_MD_NONE, offsetof(sc_cvc_t, signature), (uint8_t *)&cvc, cvc.signature);
+	            uint8_t hsh[32];
+	            hash(cvcbin, cvclen, hsh);
+	            ret = mbedtls_rsa_rsassa_pkcs1_v15_sign(&rsa, random_gen, &index, MBEDTLS_MD_SHA256, 32, hsh, cvc.signature);
 	            printf("ret %d\r\n");
-	            u8 *cvcbin;
-	            size_t cvclen;
-	            struct sc_pkcs15_card p15card;
-	            p15card.card = (sc_card_t *)malloc(sizeof(sc_card_t));
-	            p15card.card->ctx = ctx;
-	            int r = sc_pkcs15emu_sc_hsm_encode_cvc(&p15card, &cvc, &cvcbin, &cvclen);
+	            free(cvcbin);
+	            
+	            r = sc_pkcs15emu_sc_hsm_encode_cvc(&p15card, &cvc, &cvcbin, &cvclen);
 	            printf("r %d\r\n",r);
+	            r = store_key_rsa(&rsa, key_size, key_id);
+	            printf("r %d\r\n");
+	            
 	            sc_pkcs15emu_sc_hsm_free_cvc(&cvc);
                 mbedtls_rsa_free(&rsa);
                 free(p15card.card);
@@ -524,6 +552,8 @@ static int cmd_keypair_gen() {
                 res_APDU_size = cvclen;
                 apdu.expected_res_size = cvclen;
                 free(cvcbin);
+                
+                
             }
             else if (memcmp(oid, "\x4\x0\x7F\x0\x7\x2\x2\x2\x2\x3",MIN(oid_len,10)) == 0) { //ECC
                 size_t prime_len;
@@ -547,7 +577,7 @@ static int cmd_keypair_gen() {
             
         }
     }
-    sc_release_context(ctx);
+    //sc_release_context(ctx);
     return SW_OK();
 }
 
