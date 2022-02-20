@@ -356,7 +356,7 @@ static int cmd_initialize() {
         p = random_bytes_get();
         memcpy(tmp_dkek, p, 32);
         encrypt(session_sopin, tmp_dkek, tmp_dkek+IV_SIZE, 32);
-        file_t *tf = search_by_fid(0x108F, NULL, SPECIFY_EF);
+        file_t *tf = search_by_fid(EF_DKEK, NULL, SPECIFY_EF);
         flash_write_data_to_file(tf, tmp_dkek, sizeof(tmp_dkek));
     }
     return SW_OK();
@@ -395,7 +395,7 @@ static int cmd_import_dkek() {
         return SW_COMMAND_NOT_ALLOWED();
     if (has_session_sopin == false)
         return SW_CONDITIONS_NOT_SATISFIED();
-    file_t *tf = search_by_fid(0x108F, NULL, SPECIFY_EF);
+    file_t *tf = search_by_fid(EF_DKEK, NULL, SPECIFY_EF);
     if (apdu.cmd_apdu_data_len > 0) {
         for (int i = 0; i < apdu.cmd_apdu_data_len; i++)
             tmp_dkek[IV_SIZE+i] ^= apdu.cmd_apdu_data[i];
@@ -438,16 +438,34 @@ struct ec_curve_mbed_id ec_curves_mbed[] = {
     {   { NULL, 0 }, MBEDTLS_ECP_DP_NONE }
 };
 
-static int cmd_keypair_gen() {
-    uint8_t key_id = P1(apdu);
-    uint8_t auth_key_id = P2(apdu);
+//Stores the private and public keys in flash
+int store_key_rsa(mbedtls_rsa_context *rsa, int key_bits, uint8_t key_id) /*in bits*/ {
+    int key_size = key_bits/8;
+    uint8_t *pq = (uint8_t *)malloc(key_size);
+    mbedtls_mpi_write_binary(&rsa->P, pq, key_size/2);
+    mbedtls_mpi_write_binary(&rsa->Q, pq+key_size/2, key_size/2);
+    file_t *fpk = file_new((KEY_PREFIX << 8) | key_id);
+    int r = flash_write_data_to_file(fpk, pq, key_size);
+    if (r != HSM_OK)
+        return r;
+    add_file_to_chain(fpk, &ef_prkdf);
+}
+
+sc_context_t *create_context() {
     sc_context_t *ctx;
-    //memset(ctx, 0 , sizeof(sc_context_t));
     sc_context_param_t ctx_opts;
     memset(&ctx_opts, 0, sizeof(sc_context_param_t));
     sc_context_create(&ctx, &ctx_opts);
     ctx->debug = 9;
     ctx->debug_file = stdout;
+    return ctx;
+}
+
+static int cmd_keypair_gen() {
+    uint8_t key_id = P1(apdu);
+    uint8_t auth_key_id = P2(apdu);
+    sc_context_t *ctx = create_context();
+    
     size_t tout = 0;
     sc_asn1_print_tags(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
     const uint8_t *p = sc_asn1_find_tag(ctx, (const uint8_t *)apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, 0x7f49, &tout);
@@ -488,8 +506,10 @@ static int cmd_keypair_gen() {
 	            cvc.primeOrModuluslen = key_size/8;
 	            cvc.primeOrModulus = (uint8_t *)malloc(cvc.primeOrModuluslen);
 	            mbedtls_mpi_write_binary(&rsa.N, cvc.primeOrModulus, key_size/8);
-	            cvc.signatureLen = 1;
-	            cvc.signature = (uint8_t *)malloc(1);
+	            cvc.signatureLen = key_size/8;
+	            cvc.signature = (uint8_t *)malloc(key_size/8);
+	            ret = mbedtls_rsa_rsassa_pkcs1_v15_sign(&rsa, NULL, NULL, MBEDTLS_MD_NONE, offsetof(sc_cvc_t, signature), (uint8_t *)&cvc, cvc.signature);
+	            printf("ret %d\r\n");
 	            u8 *cvcbin;
 	            size_t cvclen;
 	            struct sc_pkcs15_card p15card;

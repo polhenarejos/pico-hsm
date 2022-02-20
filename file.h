@@ -32,6 +32,14 @@
 #define SPECIFY_DF 0x2
 #define SPECIFY_ANY 0x3
 
+#define EF_DKEK     0x108F
+#define EF_PRKDFS   0x6040
+#define EF_PUKDFS   0x6041
+#define EF_CDFS     0x6042
+#define EF_AODFS    0x6043
+#define EF_DODFS    0x6044
+#define EF_SKDFS    0x6045
+
 #define MAX_DEPTH 4
 
 typedef struct file
@@ -40,10 +48,16 @@ typedef struct file
     const uint8_t parent; //entry number in the whole table!!
     const uint8_t *name;
     const uint8_t type;
-    uint8_t *data; //should include 2 bytes len at begining
     const uint8_t ef_structure;
+    uint8_t *data; //should include 2 bytes len at begining
     const uint8_t acl[7];
-} file_t;
+} __attribute__((packed)) file_t;
+
+typedef struct file_chain
+{
+    file_t *file;
+    struct file_chain *next;
+} file_chain_t;
 
 extern file_t *currentEF;
 extern file_t *currentDF;
@@ -71,6 +85,13 @@ extern file_t file_entries[];
 extern uint8_t *file_read(const uint8_t *addr);
 extern uint16_t file_read_uint16(const uint8_t *addr);
 extern uint8_t file_read_uint8(const uint8_t *addr);
+extern file_t *file_new(uint16_t);
+
+extern file_chain_t *ef_prkdf;
+extern file_chain_t *ef_pukdf;
+extern file_chain_t *ef_cdf;
+
+extern file_chain_t *add_file_to_chain(file_t *file, file_chain_t **chain);
 
 #endif
 

@@ -3,6 +3,7 @@
 #include "tusb.h"
 #include "hsm2040.h"
 #include "sc_hsm.h"
+#include "libopensc/card-sc-hsm.h"
 #include <string.h>
 
 extern const uintptr_t end_data_pool;
@@ -95,28 +96,28 @@ const uint8_t token_info[] = {
 extern const uint8_t sc_hsm_aid[];
 
 file_t file_entries[] = {
-    /*  0 */ { .fid = 0x3f00, .parent = 0xff, .name = NULL, .type = FILE_TYPE_DF, .data = NULL, .ef_structure = 0, .acl = {0} }, // MF
-    /*  1 */ { .fid = 0x2f00, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.DIR
-    /*  2 */ { .fid = 0x2f01, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.ATR
-    /*  3 */ { .fid = 0x2f02, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF,.data = (uint8_t *)cvca, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.GDO
-    /*  4 */ { .fid = 0x2f03, .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF,.data = (uint8_t *)token_info, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.TokenInfo
-    /*  5 */ { .fid = 0x5015, .parent = 0, .name = NULL, .type = FILE_TYPE_DF, .data = NULL, .ef_structure = 0, .acl = {0} }, //DF.PKCS15
-    /*  6 */ { .fid = 0x5031, .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.ODF
-    /*  7 */ { .fid = 0x5032, .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.TokenInfo
-    /*  8 */ { .fid = 0x5033, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.UnusedSpace
-    /*  9 */ { .fid = 0x1081, .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //PIN (PIN1)
-    /* 10 */ { .fid = 0x1082, .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //max retries PIN (PIN1)
-    /* 11 */ { .fid = 0x1083, .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //retries PIN (PIN1)
-    /* 12 */ { .fid = 0x1088, .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //PIN (SOPIN)
-    /* 13 */ { .fid = 0x1089, .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //max retries PIN (SOPIN)
-    /* 14 */ { .fid = 0x108A, .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //retries PIN (SOPIN)
-    /* 15 */ { .fid = 0x108F, .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //DKEK
-    /* 16 */ { .fid = 0x6040, .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.PrKDFs
-    /* 17 */ { .fid = 0x6041, .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.PuKDFs
-    /* 18 */ { .fid = 0x6042, .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.CDFs
-    /* 19 */ { .fid = 0x6043, .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.AODFs
-    /* 20 */ { .fid = 0x6044, .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.DODFs
-    /* 21 */ { .fid = 0x6045, .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.SKDFs
+    /*  0 */ { .fid = 0x3f00    , .parent = 0xff, .name = NULL, .type = FILE_TYPE_DF, .data = NULL, .ef_structure = 0, .acl = {0} }, // MF
+    /*  1 */ { .fid = 0x2f00    , .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.DIR
+    /*  2 */ { .fid = 0x2f01    , .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.ATR
+    /*  3 */ { .fid = 0x2f02    , .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF,.data = (uint8_t *)cvca, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.GDO
+    /*  4 */ { .fid = 0x2f03    , .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF,.data = (uint8_t *)token_info, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.TokenInfo
+    /*  5 */ { .fid = 0x5015    , .parent = 0, .name = NULL, .type = FILE_TYPE_DF, .data = NULL, .ef_structure = 0, .acl = {0} }, //DF.PKCS15
+    /*  6 */ { .fid = 0x5031    , .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.ODF
+    /*  7 */ { .fid = 0x5032    , .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.TokenInfo
+    /*  8 */ { .fid = 0x5033    , .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.UnusedSpace
+    /*  9 */ { .fid = 0x1081    , .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //PIN (PIN1)
+    /* 10 */ { .fid = 0x1082    , .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //max retries PIN (PIN1)
+    /* 11 */ { .fid = 0x1083    , .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //retries PIN (PIN1)
+    /* 12 */ { .fid = 0x1088    , .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //PIN (SOPIN)
+    /* 13 */ { .fid = 0x1089    , .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //max retries PIN (SOPIN)
+    /* 14 */ { .fid = 0x108A    , .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //retries PIN (SOPIN)
+    /* 15 */ { .fid = EF_DKEK   , .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //DKEK
+    /* 16 */ { .fid = EF_PRKDFS , .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.PrKDFs
+    /* 17 */ { .fid = EF_PUKDFS , .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.PuKDFs
+    /* 18 */ { .fid = EF_CDFS   , .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.CDFs
+    /* 19 */ { .fid = EF_AODFS  , .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.AODFs
+    /* 20 */ { .fid = EF_DODFS  , .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.DODFs
+    /* 21 */ { .fid = EF_SKDFS  , .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.SKDFs
     ///* 22 */ { .fid = 0x0000, .parent = 0, .name = openpgpcard_aid, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} },
     /* 23 */ { .fid = 0x0000, .parent = 5, .name = sc_hsm_aid, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} },
     /* 24 */ { .fid = 0x0000, .parent = 0xff, .name = NULL, .type = FILE_TYPE_UNKNOWN, .data = NULL, .ef_structure = 0, .acl = {0} } //end
@@ -130,6 +131,10 @@ file_t *file_pin1 = NULL;
 file_t *file_retries_pin1 = NULL;
 file_t *file_sopin = NULL;
 file_t *file_retries_sopin = NULL;
+
+file_chain_t *ef_prkdf = NULL;
+file_chain_t *ef_pukdf = NULL;
+file_chain_t *ef_cdf = NULL;
 
 bool card_terminated = false;
 
@@ -275,8 +280,14 @@ void scan_flash() {
         uint16_t fid = flash_read_uint16(base+sizeof(uintptr_t));
         file_t *file = (file_t *)search_by_fid(fid, NULL, SPECIFY_EF);
         if (!file) {
-            TU_LOG1("SCAN FOUND ORPHAN FILE: %x\r\n",fid);
-            continue;
+            if ((fid & 0xff00) == (KEY_PREFIX << 8)) {
+                file = file_new(fid);
+                add_file_to_chain(file, &ef_prkdf);
+            }
+            else {
+                TU_LOG1("SCAN FOUND ORPHAN FILE: %x\r\n",fid);
+                continue;
+            }
         }
         file->data = (uint8_t *)(base+sizeof(uintptr_t)+sizeof(uint16_t));
         if (flash_read_uintptr(base) == 0x0) {
@@ -362,4 +373,28 @@ uint16_t file_read_uint16(const uint8_t *addr) {
 }
 uint8_t file_read_uint8(const uint8_t *addr) {
     return flash_read_uint8((uintptr_t)addr);
+}
+
+file_t *file_new(uint16_t fid) {
+    file_t *f = (file_t *)malloc(sizeof(file_t));
+    file_t file = {
+        .fid = fid,
+        .parent = 5,
+        .name = NULL,
+        .type = FILE_TYPE_WORKING_EF,
+        .ef_structure = FILE_EF_TRANSPARENT,
+        .data = NULL,
+        .acl = {0}
+    };
+    memcpy(f, &file, sizeof(file_t));
+    memset((uint8_t *)f->acl, 0x90, sizeof(f->acl));
+    return f;
+}
+
+file_chain_t *add_file_to_chain(file_t *file, file_chain_t **chain) {
+    file_chain_t *f_chain = (file_chain_t *)malloc(sizeof(file_chain_t));
+    f_chain->file = file;
+    f_chain->next = *chain;
+    *chain = f_chain;
+    return f_chain;
 }
