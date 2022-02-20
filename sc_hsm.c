@@ -2,9 +2,12 @@
 #include "file.h"
 #include "libopensc/card-sc-hsm.h"
 #include "random.h"
+#include "common.h"
 #include "mbedtls/sha256.h"
 #include "mbedtls/aes.h"
 #include "mbedtls/rsa.h"
+#include "mbedtls/ecp.h"
+#include "mbedtls/ecdsa.h"
 
 const uint8_t sc_hsm_aid[] = {
     11, 
@@ -418,6 +421,23 @@ static int cmd_import_dkek() {
     return SW_OK();
 }
 
+struct ec_curve_mbed_id {
+    struct sc_lv_data curve;
+    mbedtls_ecp_group_id id;
+};
+struct ec_curve_mbed_id ec_curves_mbed[] = {
+    {   { (unsigned char *) "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFE\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF", 24}, MBEDTLS_ECP_DP_SECP192R1 },
+    {   { (unsigned char *) "\xFF\xFF\xFF\xFF\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF", 32}, MBEDTLS_ECP_DP_SECP256R1 },
+    {   { (unsigned char *) "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFE\xFF\xFF\xFF\xFF\x00\x00\x00\x00\x00\x00\x00\x00\xFF\xFF\xFF\xFF", 48}, MBEDTLS_ECP_DP_SECP384R1 },
+    {   { (unsigned char *) "\x01\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF", 66}, MBEDTLS_ECP_DP_SECP521R1 },
+    {   { (unsigned char *) "\xA9\xFB\x57\xDB\xA1\xEE\xA9\xBC\x3E\x66\x0A\x90\x9D\x83\x8D\x72\x6E\x3B\xF6\x23\xD5\x26\x20\x28\x20\x13\x48\x1D\x1F\x6E\x53\x77", 32}, MBEDTLS_ECP_DP_BP256R1 },
+    {   { (unsigned char *) "\x8C\xB9\x1E\x82\xA3\x38\x6D\x28\x0F\x5D\x6F\x7E\x50\xE6\x41\xDF\x15\x2F\x71\x09\xED\x54\x56\xB4\x12\xB1\xDA\x19\x7F\xB7\x11\x23\xAC\xD3\xA7\x29\x90\x1D\x1A\x71\x87\x47\x00\x13\x31\x07\xEC\x53", 48}, MBEDTLS_ECP_DP_BP384R1 },
+    {   { (unsigned char *) "\xAA\xDD\x9D\xB8\xDB\xE9\xC4\x8B\x3F\xD4\xE6\xAE\x33\xC9\xFC\x07\xCB\x30\x8D\xB3\xB3\xC9\xD2\x0E\xD6\x63\x9C\xCA\x70\x33\x08\x71\x7D\x4D\x9B\x00\x9B\xC6\x68\x42\xAE\xCD\xA1\x2A\xE6\xA3\x80\xE6\x28\x81\xFF\x2F\x2D\x82\xC6\x85\x28\xAA\x60\x56\x58\x3A\x48\xF3", 64}, MBEDTLS_ECP_DP_BP512R1 },
+    {   { (unsigned char *) "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFE\xFF\xFF\xEE\x37", 24}, MBEDTLS_ECP_DP_SECP192K1 },
+    {   { (unsigned char *) "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFE\xFF\xFF\xFC\x2F", 32}, MBEDTLS_ECP_DP_SECP256K1 },
+    {   { NULL, 0 }, MBEDTLS_ECP_DP_NONE }
+};
+
 static int cmd_keypair_gen() {
     uint8_t key_id = P1(apdu);
     uint8_t auth_key_id = P2(apdu);
@@ -449,16 +469,65 @@ static int cmd_keypair_gen() {
                 printf("exponent %d, key_size %d\r\n",exponent,key_size);
                 mbedtls_rsa_context rsa;
                 mbedtls_rsa_init(&rsa);
-                int ret;
                 uint8_t index = 0;
-                ret = mbedtls_rsa_gen_key(&rsa, random_gen, &index, key_size, exponent);
+                int ret = mbedtls_rsa_gen_key(&rsa, random_gen, &index, key_size, exponent);
                 printf("ret %d\r\n",ret);
+                sc_cvc_t cvc;
+                memset(&cvc, 0, sizeof(cvc));
+
+            	strlcpy(cvc.car, "UTCA00001", sizeof cvc.car);
+            	strlcpy(cvc.chr, "ESHSMCVCA", sizeof cvc.chr);
+            	strlcat(cvc.chr, "00001", sizeof cvc.chr);
+            	struct sc_object_id rsa15withSHA256 = { { 0,4,0,127,0,7,2,2,2,1,2,-1 } };
+            	cvc.coefficientAorExponentlen = ex_len;
+            	cvc.coefficientAorExponent = malloc(ex_len);
+	            memcpy(cvc.coefficientAorExponent, &exponent, ex_len);
+
+	            cvc.pukoid = rsa15withSHA256;
+	            cvc.modulusSize = key_size;
+	            cvc.primeOrModuluslen = key_size/8;
+	            cvc.primeOrModulus = (uint8_t *)malloc(cvc.primeOrModuluslen);
+	            mbedtls_mpi_write_binary(&rsa.N, cvc.primeOrModulus, key_size/8);
+	            cvc.signatureLen = 1;
+	            cvc.signature = (uint8_t *)malloc(1);
+	            u8 *cvcbin;
+	            size_t cvclen;
+	            struct sc_pkcs15_card p15card;
+	            p15card.card = (sc_card_t *)malloc(sizeof(sc_card_t));
+	            p15card.card->ctx = ctx;
+	            int r = sc_pkcs15emu_sc_hsm_encode_cvc(&p15card, &cvc, &cvcbin, &cvclen);
+	            printf("r %d\r\n",r);
+	            sc_pkcs15emu_sc_hsm_free_cvc(&cvc);
                 mbedtls_rsa_free(&rsa);
+                free(p15card.card);
+                memcpy(res_APDU, cvcbin, cvclen);
+                res_APDU_size = cvclen;
+                apdu.expected_res_size = cvclen;
+                free(cvcbin);
             }
             else if (memcmp(oid, "\x4\x0\x7F\x0\x7\x2\x2\x2\x2\x3",MIN(oid_len,10)) == 0) { //ECC
+                size_t prime_len;
+                const uint8_t *prime = sc_asn1_find_tag(ctx, p, tout, 0x81, &prime_len);
+                mbedtls_ecp_group_id ec_id = MBEDTLS_ECP_DP_NONE;
+                for (struct ec_curve_mbed_id *ec = ec_curves_mbed; ec->id != MBEDTLS_ECP_DP_NONE; ec++) {
+                    if (prime_len == ec->curve.len && memcmp(prime, ec->curve.value, prime_len) == 0) {
+                        ec_id = ec->id;
+                        break;
+                    }
+                }
+                if (ec_id == MBEDTLS_ECP_DP_NONE) 
+                    return SW_FUNC_NOT_SUPPORTED();
+                mbedtls_ecdsa_context ecdsa;
+                mbedtls_ecdsa_init(&ecdsa);
+                uint8_t index = 0;
+                int ret = mbedtls_ecdsa_genkey(&ecdsa, ec_id, random_gen, &index);
+                printf("ret %d\r\n",ret) ;
+                mbedtls_ecdsa_free(&ecdsa);
             }
+            
         }
     }
+    sc_release_context(ctx);
     return SW_OK();
 }
 

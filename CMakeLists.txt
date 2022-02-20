@@ -44,6 +44,9 @@ target_sources(hsm2040 PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/oid.c
         ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/rsa_alt_helpers.c
         ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/constant_time.c
+        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/ecdsa.c
+        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/ecp.c
+        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/ecp_curves.c
         ${CMAKE_CURRENT_LIST_DIR}/shake256.c
         ${CMAKE_CURRENT_LIST_DIR}/neug.c
         ${CMAKE_CURRENT_LIST_DIR}/ec_p256k1.c
@@ -68,12 +71,14 @@ target_sources(hsm2040 PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/errors.c
         ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/sc.c
         ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/ctx.c
+        ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/pkcs15-sc-hsm.c
         )
 
 target_include_directories(hsm2040 PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}
         ${CMAKE_CURRENT_LIST_DIR}/opensc/src
         ${CMAKE_CURRENT_LIST_DIR}/mbedtls/include
+        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library
         )
 
 pico_add_extra_outputs(hsm2040)
