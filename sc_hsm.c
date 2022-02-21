@@ -101,6 +101,10 @@ static int cmd_select() {
         if (!(pe = search_file_chain(fid, ef_cdf)))
             return SW_FILE_NOT_FOUND();
     }
+    else if ((fid & 0xff00) == (EE_CERTIFICATE_PREFIX << 8)) {
+        if (!(pe = search_file_chain(fid, ef_pukdf)))
+            return SW_FILE_NOT_FOUND();
+    }
     if (!pe) {
         if (p1 == 0x0) { //Select MF, DF or EF - File identifier or absent
             if (apdu.cmd_apdu_data_len == 0) {
@@ -328,6 +332,8 @@ static int cmd_challenge() {
 }
 
 static int cmd_initialize() {
+    initialize_flash();
+    scan_flash();
     const uint8_t *p = apdu.cmd_apdu_data;
     while (p-apdu.cmd_apdu_data < apdu.cmd_apdu_data_len) {
         uint8_t tag = *p++;
@@ -486,7 +492,8 @@ int store_key_rsa(mbedtls_rsa_context *rsa, int key_bits, uint8_t key_id, sc_con
     
     sc_pkcs15_prkey_info_t prkd;
     memset(&prkd, 0, sizeof(sc_pkcs15_prkey_info_t));
-    prkd.id.len = 8;
+    prkd.id.len = 1;
+    prkd.id.value[0] = key_id;
     prkd.usage = SC_PKCS15_PRKEY_USAGE_DECRYPT | SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_SIGNRECOVER | SC_PKCS15_PRKEY_USAGE_UNWRAP;
     prkd.access_flags = SC_PKCS15_PRKEY_ACCESS_SENSITIVE | SC_PKCS15_PRKEY_ACCESS_NEVEREXTRACTABLE | SC_PKCS15_PRKEY_ACCESS_ALWAYSSENSITIVE | SC_PKCS15_PRKEY_ACCESS_LOCAL;
     prkd.native = 1;
@@ -507,7 +514,8 @@ int store_key_rsa(mbedtls_rsa_context *rsa, int key_bits, uint8_t key_id, sc_con
  
     sc_pkcs15_pubkey_info_t pukd;
     memset(&pukd, 0, sizeof(sc_pkcs15_pubkey_info_t));
-    pukd.id.len = 8;
+    pukd.id.len = 1;
+    pukd.id.value[0] = key_id;
     pukd.usage = SC_PKCS15_PRKEY_USAGE_ENCRYPT | SC_PKCS15_PRKEY_USAGE_WRAP | SC_PKCS15_PRKEY_USAGE_VERIFY;
     pukd.access_flags = SC_PKCS15_PRKEY_ACCESS_EXTRACTABLE;
     pukd.native = 1;
@@ -526,7 +534,7 @@ int store_key_rsa(mbedtls_rsa_context *rsa, int key_bits, uint8_t key_id, sc_con
         return r;
     add_file_to_chain(fpk, &ef_cdf);
     
-    //low_flash_available();
+    low_flash_available();
     return HSM_OK;
 }
 
@@ -641,6 +649,69 @@ static int cmd_keypair_gen() {
     return SW_OK();
 }
 
+int cmd_update_ef() {
+    uint16_t fid = (P1(apdu) << 8) | P2(apdu);
+    uint8_t *p = apdu.cmd_apdu_data, *data;
+    uint16_t offset = 0;
+    uint16_t data_len = 0;
+    file_t *ef = NULL;
+        
+    if (fid == 0x0)
+        ef = currentEF;
+    else if ((fid & 0xff00) != (EE_CERTIFICATE_PREFIX << 8))
+        return SW_INCORRECT_P1P2();
+        
+    while (p-apdu.cmd_apdu_data < apdu.cmd_apdu_data_len) {
+        uint8_t tag = *p++;
+        uint8_t taglen = *p++;
+        if (tag == 0x54) { //ofset tag
+            for (int i = 0; i < taglen; i++)
+                offset |= (*p++ << (8*(taglen-i-1)));
+        }
+        else if (tag == 0x53) { //data 
+            if (taglen == 0x82) {
+                data_len = *p++ << 8;
+                data_len |= *p++;
+            }
+            else if (taglen == 0x81) {
+                data_len = *p++;
+            }
+            else 
+                data_len = taglen;
+            data = p;
+            p += data_len;
+        }
+    }
+    if (data_len == 0 && offset == 0) { //new file
+        ef = file_new(fid);
+        if ((fid & 0xff00) == (EE_CERTIFICATE_PREFIX << 8))
+            add_file_to_chain(ef, &ef_pukdf);
+        select_file(ef);
+    }
+    else {
+        if (!ef)
+            return SW_FILE_NOT_FOUND();
+        if (offset == 0) {
+            int r = flash_write_data_to_file(ef, data, data_len);
+            if (r != HSM_OK)
+                return SW_MEMORY_FAILURE();
+        }
+        else {
+            if (!ef->data)
+                return SW_DATA_INVALID();
+            uint8_t *data_merge = (uint8_t *)malloc(offset+data_len);
+            memcpy(data_merge, file_read(ef->data), offset);
+            memcpy(data_merge+offset, data, data_len);
+            int r = flash_write_data_to_file(ef, data_merge, data_len);
+            free(data_merge);
+            if (r != HSM_OK)
+                return SW_MEMORY_FAILURE();
+        }
+        low_flash_available();
+    }
+    return SW_OK(); 
+}
+
 typedef struct cmd
 {
   uint8_t ins;
@@ -657,6 +728,7 @@ typedef struct cmd
 #define INS_CHALLENGE               0x84
 #define INS_LIST_KEYS               0x58
 #define INS_KEYPAIR_GEN             0x46
+#define INS_UPDATE_EF               0xD7
 
 static const cmd_t cmds[] = {
     { INS_SELECT_FILE, cmd_select },
@@ -669,6 +741,7 @@ static const cmd_t cmds[] = {
     { INS_INITIALIZE, cmd_initialize },
     { INS_IMPORT_DKEK, cmd_import_dkek },
     { INS_KEYPAIR_GEN, cmd_keypair_gen },
+    { INS_UPDATE_EF, cmd_update_ef },
     { 0x00, 0x0}
 };
 
