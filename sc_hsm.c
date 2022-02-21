@@ -92,48 +92,58 @@ static int cmd_select() {
     
     if (apdu.cmd_apdu_data_len >= 2)
         fid = get_uint16_t(apdu.cmd_apdu_data, 0);
-    
-    if (p1 == 0x0) { //Select MF, DF or EF - File identifier or absent
-        if (apdu.cmd_apdu_data_len == 0) {
-        	pe = (file_t *)MF;
-        	//ac_fini();
+
+    if ((fid & 0xff00) == (PRKD_PREFIX << 8)) {
+        if (!(pe = search_file_chain(fid, ef_prkdf)))
+            return SW_FILE_NOT_FOUND();
+    }
+    else if ((fid & 0xff00) == (CD_PREFIX << 8)) {
+        if (!(pe = search_file_chain(fid, ef_cdf)))
+            return SW_FILE_NOT_FOUND();
+    }
+    if (!pe) {
+        if (p1 == 0x0) { //Select MF, DF or EF - File identifier or absent
+            if (apdu.cmd_apdu_data_len == 0) {
+            	pe = (file_t *)MF;
+            	//ac_fini();
+            }
+            else if (apdu.cmd_apdu_data_len == 2) {
+                if (!(pe = search_by_fid(fid, NULL, SPECIFY_ANY))) {
+                    return SW_FILE_NOT_FOUND();
+                }
+            }
         }
-        else if (apdu.cmd_apdu_data_len == 2) {
-            if (!(pe = search_by_fid(fid, NULL, SPECIFY_ANY))) {
+        else if (p1 == 0x01) { //Select child DF - DF identifier
+            if (!(pe = search_by_fid(fid, currentDF, SPECIFY_DF))) {
                 return SW_FILE_NOT_FOUND();
             }
         }
-    }
-    else if (p1 == 0x01) { //Select child DF - DF identifier
-        if (!(pe = search_by_fid(fid, currentDF, SPECIFY_DF))) {
-            return SW_FILE_NOT_FOUND();
+        else if (p1 == 0x02) { //Select EF under the current DF - EF identifier
+            if (!(pe = search_by_fid(fid, currentDF, SPECIFY_EF))) {
+                return SW_FILE_NOT_FOUND();
+            }
         }
-    }
-    else if (p1 == 0x02) { //Select EF under the current DF - EF identifier
-        if (!(pe = search_by_fid(fid, currentDF, SPECIFY_EF))) {
-            return SW_FILE_NOT_FOUND();
+        else if (p1 == 0x03) { //Select parent DF of the current DF - Absent
+            if (apdu.cmd_apdu_data_len != 0)
+                return SW_FILE_NOT_FOUND();
         }
-    }
-    else if (p1 == 0x03) { //Select parent DF of the current DF - Absent
-        if (apdu.cmd_apdu_data_len != 0)
-            return SW_FILE_NOT_FOUND();
-    }
-    else if (p1 == 0x04) { //Select by DF name - e.g., [truncated] application identifier
-        if (!(pe = search_by_name(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len))) {
-            return SW_FILE_NOT_FOUND();
+        else if (p1 == 0x04) { //Select by DF name - e.g., [truncated] application identifier
+            if (!(pe = search_by_name(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len))) {
+                return SW_FILE_NOT_FOUND();
+            }
+            if (card_terminated) {
+                return set_res_sw (0x62, 0x85);
+            }        
         }
-        if (card_terminated) {
-            return set_res_sw (0x62, 0x85);
-        }        
-    }
-    else if (p1 == 0x08) { //Select from the MF - Path without the MF identifier
-        if (!(pe = search_by_path(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, MF))) {
-            return SW_FILE_NOT_FOUND();
+        else if (p1 == 0x08) { //Select from the MF - Path without the MF identifier
+            if (!(pe = search_by_path(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, MF))) {
+                return SW_FILE_NOT_FOUND();
+            }
         }
-    }
-    else if (p1 == 0x09) { //Select from the current DF - Path without the current DF identifier
-        if (!(pe = search_by_path(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, currentDF))) {
-            return SW_FILE_NOT_FOUND();
+        else if (p1 == 0x09) { //Select from the current DF - Path without the current DF identifier
+            if (!(pe = search_by_path(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, currentDF))) {
+                return SW_FILE_NOT_FOUND();
+            }
         }
     }
     if ((p2 & 0xfc) == 0x00 || (p2 & 0xfc) == 0x04) {
@@ -266,6 +276,9 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
     int r = pin_reset_retries(pin);
     if (r != HSM_OK)
         return SW_MEMORY_FAILURE();
+    isUserAuthenticated = true;
+    hash_multi(data, len, session_pin);
+    has_session_pin = true;
     return SW_OK();
 }
 
@@ -456,9 +469,10 @@ struct ec_curve_mbed_id ec_curves_mbed[] = {
 };
 
 //Stores the private and public keys in flash
-int store_key_rsa(mbedtls_rsa_context *rsa, int key_bits, uint8_t key_id) /*in bits*/ {
+int store_key_rsa(mbedtls_rsa_context *rsa, int key_bits, uint8_t key_id, sc_context_t *ctx) {
     int key_size = key_bits/8;
-    uint8_t *pq = (uint8_t *)malloc(key_size);
+    uint8_t *pq = (uint8_t *)malloc(key_size), *asn1bin;
+    size_t asn1len = 0;
     mbedtls_mpi_write_binary(&rsa->P, pq, key_size/2);
     mbedtls_mpi_write_binary(&rsa->Q, pq+key_size/2, key_size/2);
     file_t *fpk = file_new((KEY_PREFIX << 8) | key_id);
@@ -466,8 +480,53 @@ int store_key_rsa(mbedtls_rsa_context *rsa, int key_bits, uint8_t key_id) /*in b
     free(pq);
     if (r != HSM_OK)
         return r;
+    add_file_to_chain(fpk, &ef_kf);
+        
+    struct sc_pkcs15_object p15o;
+    
+    sc_pkcs15_prkey_info_t prkd;
+    memset(&prkd, 0, sizeof(sc_pkcs15_prkey_info_t));
+    prkd.id.len = 8;
+    prkd.usage = SC_PKCS15_PRKEY_USAGE_DECRYPT | SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_SIGNRECOVER | SC_PKCS15_PRKEY_USAGE_UNWRAP;
+    prkd.access_flags = SC_PKCS15_PRKEY_ACCESS_SENSITIVE | SC_PKCS15_PRKEY_ACCESS_NEVEREXTRACTABLE | SC_PKCS15_PRKEY_ACCESS_ALWAYSSENSITIVE | SC_PKCS15_PRKEY_ACCESS_LOCAL;
+    prkd.native = 1;
+    prkd.key_reference = key_id;
+    prkd.modulus_length = key_size;
+    
+    p15o.data = &prkd;
+    p15o.type = SC_PKCS15_TYPE_PRKEY_RSA;
+    
+    r = sc_pkcs15_encode_prkdf_entry(ctx, &p15o, &asn1bin, &asn1len);
+    printf("r %d\r\n",r);
+    fpk = file_new((PRKD_PREFIX << 8) | key_id);
+    r = flash_write_data_to_file(fpk, asn1bin, asn1len);
+    free(asn1bin);
+    if (r != HSM_OK)
+        return r;
     add_file_to_chain(fpk, &ef_prkdf);
-    low_flash_available();
+ 
+    sc_pkcs15_pubkey_info_t pukd;
+    memset(&pukd, 0, sizeof(sc_pkcs15_pubkey_info_t));
+    pukd.id.len = 8;
+    pukd.usage = SC_PKCS15_PRKEY_USAGE_ENCRYPT | SC_PKCS15_PRKEY_USAGE_WRAP | SC_PKCS15_PRKEY_USAGE_VERIFY;
+    pukd.access_flags = SC_PKCS15_PRKEY_ACCESS_EXTRACTABLE;
+    pukd.native = 1;
+    pukd.key_reference = key_id;
+    pukd.modulus_length = key_size;
+    
+    p15o.data = &pukd;
+    p15o.type = SC_PKCS15_TYPE_PUBKEY_RSA;
+    
+    r = sc_pkcs15_encode_pukdf_entry(ctx, &p15o, &asn1bin, &asn1len);
+    printf("r %d\r\n",r);
+    fpk = file_new((CD_PREFIX << 8) | key_id);
+    r = flash_write_data_to_file(fpk, asn1bin, asn1len);
+    free(asn1bin);
+    if (r != HSM_OK)
+        return r;
+    add_file_to_chain(fpk, &ef_cdf);
+    
+    //low_flash_available();
     return HSM_OK;
 }
 
@@ -542,15 +601,16 @@ static int cmd_keypair_gen() {
 	            
 	            r = sc_pkcs15emu_sc_hsm_encode_cvc(&p15card, &cvc, &cvcbin, &cvclen);
 	            printf("r %d\r\n",r);
-	            r = store_key_rsa(&rsa, key_size, key_id);
-	            printf("r %d\r\n");
-	            
-	            sc_pkcs15emu_sc_hsm_free_cvc(&cvc);
-                mbedtls_rsa_free(&rsa);
-                free(p15card.card);
                 memcpy(res_APDU, cvcbin, cvclen);
                 res_APDU_size = cvclen;
                 apdu.expected_res_size = cvclen;
+                
+	            r = store_key_rsa(&rsa, key_size, key_id, ctx);
+	            printf("r %d\r\n");
+	                       
+	            sc_pkcs15emu_sc_hsm_free_cvc(&cvc);
+                mbedtls_rsa_free(&rsa);
+                free(p15card.card);
                 free(cvcbin);
                 
                 
