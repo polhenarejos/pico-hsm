@@ -1146,8 +1146,7 @@ static int end_cmd_apdu_data (struct ep_out *epo, size_t orig_len)
         goto error;
     //len is the length after lc (whole APDU = len+5)
     if (c->a->cmd_apdu_head[4] == 0 && len >= 2) { //extended
-        len -= 2;
-        if (len == 0) {
+        if (len == 2) {
             c->a->expected_res_size = (c->a->cmd_apdu_head[5] << 8) | c->a->cmd_apdu_head[6];
             if (c->a->expected_res_size == 0)
                 c->a->expected_res_size = 0xffff+1;
