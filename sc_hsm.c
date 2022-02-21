@@ -477,35 +477,39 @@ struct ec_curve_mbed_id ec_curves_mbed[] = {
 
 //Stores the private and public keys in flash
 int store_key_rsa(mbedtls_rsa_context *rsa, int key_bits, uint8_t key_id, sc_context_t *ctx) {
-    int key_size = key_bits/8;
-    uint8_t *pq = (uint8_t *)malloc(key_size), *asn1bin;
+    int key_size = key_bits/8, r;
+    uint8_t *pq = (uint8_t *)calloc(1, key_size), *asn1bin;
     size_t asn1len = 0;
+    file_t *fpk;
+    
     mbedtls_mpi_write_binary(&rsa->P, pq, key_size/2);
     mbedtls_mpi_write_binary(&rsa->Q, pq+key_size/2, key_size/2);
-    file_t *fpk = file_new((KEY_PREFIX << 8) | key_id);
-    int r = flash_write_data_to_file(fpk, pq, key_size);
+    fpk = file_new((KEY_PREFIX << 8) | key_id);
+    r = flash_write_data_to_file(fpk, pq, key_size);
     free(pq);
     if (r != HSM_OK)
         return r;
     add_file_to_chain(fpk, &ef_kf);
         
-    struct sc_pkcs15_object p15o;
+    struct sc_pkcs15_object *p15o = (struct sc_pkcs15_object *)calloc(1,sizeof (struct sc_pkcs15_object));
     
-    sc_pkcs15_prkey_info_t prkd;
-    memset(&prkd, 0, sizeof(sc_pkcs15_prkey_info_t));
-    prkd.id.len = 1;
-    prkd.id.value[0] = key_id;
-    prkd.usage = SC_PKCS15_PRKEY_USAGE_DECRYPT | SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_SIGNRECOVER | SC_PKCS15_PRKEY_USAGE_UNWRAP;
-    prkd.access_flags = SC_PKCS15_PRKEY_ACCESS_SENSITIVE | SC_PKCS15_PRKEY_ACCESS_NEVEREXTRACTABLE | SC_PKCS15_PRKEY_ACCESS_ALWAYSSENSITIVE | SC_PKCS15_PRKEY_ACCESS_LOCAL;
-    prkd.native = 1;
-    prkd.key_reference = key_id;
-    prkd.modulus_length = key_size;
+    sc_pkcs15_prkey_info_t *prkd = (sc_pkcs15_prkey_info_t *)calloc(1, sizeof (sc_pkcs15_prkey_info_t));
+    memset(prkd, 0, sizeof(sc_pkcs15_prkey_info_t));
+    prkd->id.len = 1;
+    prkd->id.value[0] = key_id;
+    prkd->usage = SC_PKCS15_PRKEY_USAGE_DECRYPT | SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_SIGNRECOVER | SC_PKCS15_PRKEY_USAGE_UNWRAP;
+    prkd->access_flags = SC_PKCS15_PRKEY_ACCESS_SENSITIVE | SC_PKCS15_PRKEY_ACCESS_NEVEREXTRACTABLE | SC_PKCS15_PRKEY_ACCESS_ALWAYSSENSITIVE | SC_PKCS15_PRKEY_ACCESS_LOCAL;
+    prkd->native = 1;
+    prkd->key_reference = key_id;
+    prkd->modulus_length = key_size;
     
-    p15o.data = &prkd;
-    p15o.type = SC_PKCS15_TYPE_PRKEY_RSA;
+    p15o->data = prkd;
+    p15o->type = SC_PKCS15_TYPE_PRKEY_RSA;
     
-    r = sc_pkcs15_encode_prkdf_entry(ctx, &p15o, &asn1bin, &asn1len);
+    r = sc_pkcs15_encode_prkdf_entry(ctx, p15o, &asn1bin, &asn1len);
+    free(prkd);
     printf("r %d\r\n",r);
+    //sc_asn1_print_tags(asn1bin, asn1len);
     fpk = file_new((PRKD_PREFIX << 8) | key_id);
     r = flash_write_data_to_file(fpk, asn1bin, asn1len);
     free(asn1bin);
@@ -513,21 +517,24 @@ int store_key_rsa(mbedtls_rsa_context *rsa, int key_bits, uint8_t key_id, sc_con
         return r;
     add_file_to_chain(fpk, &ef_prkdf);
  
-    sc_pkcs15_pubkey_info_t pukd;
-    memset(&pukd, 0, sizeof(sc_pkcs15_pubkey_info_t));
-    pukd.id.len = 1;
-    pukd.id.value[0] = key_id;
-    pukd.usage = SC_PKCS15_PRKEY_USAGE_ENCRYPT | SC_PKCS15_PRKEY_USAGE_WRAP | SC_PKCS15_PRKEY_USAGE_VERIFY;
-    pukd.access_flags = SC_PKCS15_PRKEY_ACCESS_EXTRACTABLE;
-    pukd.native = 1;
-    pukd.key_reference = key_id;
-    pukd.modulus_length = key_size;
+    sc_pkcs15_pubkey_info_t *pukd = (sc_pkcs15_pubkey_info_t *)calloc(1, sizeof(sc_pkcs15_pubkey_info_t));
+    memset(pukd, 0, sizeof(sc_pkcs15_pubkey_info_t));
+    pukd->id.len = 1;
+    pukd->id.value[0] = key_id;
+    pukd->usage = SC_PKCS15_PRKEY_USAGE_ENCRYPT | SC_PKCS15_PRKEY_USAGE_WRAP | SC_PKCS15_PRKEY_USAGE_VERIFY;
+    pukd->access_flags = SC_PKCS15_PRKEY_ACCESS_EXTRACTABLE;
+    pukd->native = 1;
+    pukd->key_reference = key_id;
+    pukd->modulus_length = key_size;
     
-    p15o.data = &pukd;
-    p15o.type = SC_PKCS15_TYPE_PUBKEY_RSA;
+    p15o->data = pukd;
+    p15o->type = SC_PKCS15_TYPE_PUBKEY_RSA;
     
-    r = sc_pkcs15_encode_pukdf_entry(ctx, &p15o, &asn1bin, &asn1len);
+    r = sc_pkcs15_encode_pukdf_entry(ctx, p15o, &asn1bin, &asn1len);
+    free(pukd);
+    free(p15o);
     printf("r %d\r\n",r);
+    //sc_asn1_print_tags(asn1bin, asn1len);
     fpk = file_new((CD_PREFIX << 8) | key_id);
     r = flash_write_data_to_file(fpk, asn1bin, asn1len);
     free(asn1bin);
@@ -544,9 +551,124 @@ sc_context_t *create_context() {
     sc_context_param_t ctx_opts;
     memset(&ctx_opts, 0, sizeof(sc_context_param_t));
     sc_context_create(&ctx, &ctx_opts);
-    ctx->debug = 9;
+    ctx->debug = 0;
     ctx->debug_file = stdout;
     return ctx;
+}
+
+#define C_ASN1_CVC_PUBKEY_SIZE 10
+static const struct sc_asn1_entry c_asn1_cvc_pubkey[C_ASN1_CVC_PUBKEY_SIZE] = {
+	{ "publicKeyOID", SC_ASN1_OBJECT, SC_ASN1_UNI | SC_ASN1_OBJECT, 0, NULL, NULL },
+	{ "primeOrModulus", SC_ASN1_OCTET_STRING, SC_ASN1_CTX | 1, SC_ASN1_OPTIONAL | SC_ASN1_ALLOC, NULL, NULL },
+	{ "coefficientAorExponent", SC_ASN1_OCTET_STRING, SC_ASN1_CTX | 2,  SC_ASN1_OPTIONAL | SC_ASN1_ALLOC, NULL, NULL },
+	{ "coefficientB", SC_ASN1_OCTET_STRING, SC_ASN1_CTX | 3, SC_ASN1_OPTIONAL | SC_ASN1_ALLOC, NULL, NULL },
+	{ "basePointG", SC_ASN1_OCTET_STRING, SC_ASN1_CTX | 4, SC_ASN1_OPTIONAL | SC_ASN1_ALLOC, NULL, NULL },
+	{ "order", SC_ASN1_OCTET_STRING, SC_ASN1_CTX | 5, SC_ASN1_OPTIONAL | SC_ASN1_ALLOC, NULL, NULL },
+	{ "publicPoint", SC_ASN1_OCTET_STRING, SC_ASN1_CTX | 6, SC_ASN1_OPTIONAL | SC_ASN1_ALLOC, NULL, NULL },
+	{ "cofactor", SC_ASN1_OCTET_STRING, SC_ASN1_CTX | 7, SC_ASN1_OPTIONAL | SC_ASN1_ALLOC, NULL, NULL },
+	{ "modulusSize", SC_ASN1_INTEGER, SC_ASN1_UNI | SC_ASN1_INTEGER, SC_ASN1_OPTIONAL, NULL, NULL },
+	{ NULL, 0, 0, 0, NULL, NULL }
+};
+#define C_ASN1_CVC_BODY_SIZE 5
+static const struct sc_asn1_entry c_asn1_cvc_body[C_ASN1_CVC_BODY_SIZE] = {
+	{ "certificateProfileIdentifier", SC_ASN1_INTEGER, SC_ASN1_APP | 0x1F29, 0, NULL, NULL },
+	{ "certificationAuthorityReference", SC_ASN1_PRINTABLESTRING, SC_ASN1_APP | 2, 0, NULL, NULL },
+	{ "publicKey", SC_ASN1_STRUCT, SC_ASN1_CONS | SC_ASN1_APP | 0x1F49, 0, NULL, NULL },
+	{ "certificateHolderReference", SC_ASN1_PRINTABLESTRING, SC_ASN1_APP | 0x1F20, 0, NULL, NULL },
+	{ NULL, 0, 0, 0, NULL, NULL }
+};
+#define C_ASN1_CVCERT_SIZE 3
+static const struct sc_asn1_entry c_asn1_cvcert[C_ASN1_CVCERT_SIZE] = {
+	{ "certificateBody", SC_ASN1_STRUCT, SC_ASN1_CONS | SC_ASN1_APP | 0x1F4E, 0, NULL, NULL },
+	{ "signature", SC_ASN1_OCTET_STRING, SC_ASN1_APP | 0x1F37, SC_ASN1_ALLOC, NULL, NULL },
+	{ NULL, 0, 0, 0, NULL, NULL }
+};
+#define C_ASN1_CVC_SIZE 2
+static const struct sc_asn1_entry c_asn1_cvc[C_ASN1_CVC_SIZE] = {
+	{ "certificate", SC_ASN1_STRUCT, SC_ASN1_CONS | SC_ASN1_APP | 0x1F21, 0, NULL, NULL },
+	{ NULL, 0, 0, 0, NULL, NULL }
+};
+#define C_ASN1_AUTHREQ_SIZE 4
+static const struct sc_asn1_entry c_asn1_authreq[C_ASN1_AUTHREQ_SIZE] = {
+	{ "certificate", SC_ASN1_STRUCT, SC_ASN1_CONS | SC_ASN1_APP | 0x1F21, 0, NULL, NULL },
+	{ "outerCAR", SC_ASN1_PRINTABLESTRING, SC_ASN1_APP | 2, 0, NULL, NULL },
+	{ "signature", SC_ASN1_OCTET_STRING, SC_ASN1_APP | 0x1F37, SC_ASN1_ALLOC, NULL, NULL },
+	{ NULL, 0, 0, 0, NULL, NULL }
+};
+#define C_ASN1_REQ_SIZE 2
+static const struct sc_asn1_entry c_asn1_req[C_ASN1_REQ_SIZE] = {
+	{ "authenticatedrequest", SC_ASN1_STRUCT, SC_ASN1_CONS | SC_ASN1_APP | 7, 0, NULL, NULL },
+	{ NULL, 0, 0, 0, NULL, NULL }
+};
+
+int sc_pkcs15emu_sc_hsm_encode_cvc_req(sc_pkcs15_card_t * p15card, sc_cvc_t *cvc, u8 ** buf, size_t *buflen)
+{
+	sc_card_t *card = p15card->card;
+	struct sc_asn1_entry asn1_req[C_ASN1_REQ_SIZE];
+	struct sc_asn1_entry asn1_authreq[C_ASN1_AUTHREQ_SIZE];
+	struct sc_asn1_entry asn1_cvc[C_ASN1_CVC_SIZE];
+	struct sc_asn1_entry asn1_cvcert[C_ASN1_CVCERT_SIZE];
+	struct sc_asn1_entry asn1_cvc_body[C_ASN1_CVC_BODY_SIZE];
+	struct sc_asn1_entry asn1_cvc_pubkey[C_ASN1_CVC_PUBKEY_SIZE];
+	size_t lenchr;
+	size_t lencar;
+	size_t lenoutCar;
+	int r;
+
+	sc_copy_asn1_entry(c_asn1_req, asn1_req);
+	sc_copy_asn1_entry(c_asn1_authreq, asn1_authreq);
+	sc_copy_asn1_entry(c_asn1_cvc, asn1_cvc);
+	sc_copy_asn1_entry(c_asn1_cvcert, asn1_cvcert);
+	sc_copy_asn1_entry(c_asn1_cvc_body, asn1_cvc_body);
+	sc_copy_asn1_entry(c_asn1_cvc_pubkey, asn1_cvc_pubkey);
+
+	asn1_cvc_pubkey[1].flags = SC_ASN1_OPTIONAL;
+	asn1_cvcert[1].flags = SC_ASN1_OPTIONAL;
+
+	sc_format_asn1_entry(asn1_cvc_pubkey    , &cvc->pukoid, NULL, 1);
+	if (cvc->primeOrModulus && (cvc->primeOrModuluslen > 0)) {
+		sc_format_asn1_entry(asn1_cvc_pubkey + 1, cvc->primeOrModulus, &cvc->primeOrModuluslen, 1);
+	}
+	sc_format_asn1_entry(asn1_cvc_pubkey + 2, cvc->coefficientAorExponent, &cvc->coefficientAorExponentlen, 1);
+	if (cvc->coefficientB && (cvc->coefficientBlen > 0)) {
+		sc_format_asn1_entry(asn1_cvc_pubkey + 3, cvc->coefficientB, &cvc->coefficientBlen, 1);
+		sc_format_asn1_entry(asn1_cvc_pubkey + 4, cvc->basePointG, &cvc->basePointGlen, 1);
+		sc_format_asn1_entry(asn1_cvc_pubkey + 5, cvc->order, &cvc->orderlen, 1);
+		if (cvc->publicPoint && (cvc->publicPointlen > 0)) {
+			sc_format_asn1_entry(asn1_cvc_pubkey + 6, cvc->publicPoint, &cvc->publicPointlen, 1);
+		}
+		sc_format_asn1_entry(asn1_cvc_pubkey + 7, cvc->cofactor, &cvc->cofactorlen, 1);
+	}
+	if (cvc->modulusSize > 0) {
+		sc_format_asn1_entry(asn1_cvc_pubkey + 8, &cvc->modulusSize, NULL, 1);
+	}
+
+	sc_format_asn1_entry(asn1_cvc_body    , &cvc->cpi, NULL, 1);
+	lencar = strnlen(cvc->car, sizeof cvc->car);
+	sc_format_asn1_entry(asn1_cvc_body + 1, &cvc->car, &lencar, 1);
+	sc_format_asn1_entry(asn1_cvc_body + 2, &asn1_cvc_pubkey, NULL, 1);
+	lenchr = strnlen(cvc->chr, sizeof cvc->chr);
+	sc_format_asn1_entry(asn1_cvc_body + 3, &cvc->chr, &lenchr, 1);
+
+	sc_format_asn1_entry(asn1_cvcert    , &asn1_cvc_body, NULL, 1);
+	if (cvc->signature && (cvc->signatureLen > 0)) {
+		sc_format_asn1_entry(asn1_cvcert + 1, cvc->signature, &cvc->signatureLen, 1);
+	}
+
+	sc_format_asn1_entry(asn1_authreq , &asn1_cvcert, NULL, 1);
+	lenoutCar = strnlen(cvc->outer_car, sizeof cvc->outer_car);
+	sc_format_asn1_entry(asn1_authreq + 1, &cvc->outer_car, &lenoutCar, 1);
+	if (cvc->outerSignature && (cvc->outerSignatureLen > 0)) {
+		sc_format_asn1_entry(asn1_authreq + 2, cvc->outerSignature, &cvc->outerSignatureLen, 1);
+	}
+	
+	sc_format_asn1_entry(asn1_req , &asn1_authreq, NULL, 1);
+
+
+	r = sc_asn1_encode(card->ctx, asn1_req, buf, buflen);
+	LOG_TEST_RET(card->ctx, r, "Could not encode card verifiable certificate");
+
+	LOG_FUNC_RETURN(card->ctx, SC_SUCCESS);
 }
 
 static int cmd_keypair_gen() {
@@ -554,11 +676,11 @@ static int cmd_keypair_gen() {
     uint8_t auth_key_id = P2(apdu);
     sc_context_t *ctx = create_context();
     struct sc_pkcs15_card p15card;
-    p15card.card = (sc_card_t *)malloc(sizeof(sc_card_t));
+    p15card.card = (sc_card_t *)calloc(1, sizeof(sc_card_t));
     p15card.card->ctx = ctx;
     
     size_t tout = 0;
-    sc_asn1_print_tags(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
+    //sc_asn1_print_tags(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
     const uint8_t *p = sc_asn1_find_tag(ctx, (const uint8_t *)apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, 0x7f49, &tout);
     if (p) {
         size_t oid_len = 0;
@@ -569,8 +691,8 @@ static int cmd_keypair_gen() {
                 const uint8_t *ex = sc_asn1_find_tag(ctx, p, tout, 0x82, &ex_len);
                 const uint8_t *ks = sc_asn1_find_tag(ctx, p, tout, 0x2, &ks_len);
                 int exponent = 65537, key_size = 2048;
-                uint8_t *cvcbin;
-	            size_t cvclen;
+                uint8_t *cvcbin, *cvcpo;
+	            size_t cvclen, taglen;
                 if (ex) {
                     sc_asn1_decode_integer(ex, ex_len, &exponent, 0);
                 }
@@ -589,38 +711,47 @@ static int cmd_keypair_gen() {
             	strlcpy(cvc.car, "UTCA00001", sizeof cvc.car);
             	strlcpy(cvc.chr, "ESHSMCVCA", sizeof cvc.chr);
             	strlcat(cvc.chr, "00001", sizeof cvc.chr);
+            	strlcpy(cvc.outer_car, "ESHSM00001", sizeof(cvc.outer_car));
             	struct sc_object_id rsa15withSHA256 = { { 0,4,0,127,0,7,2,2,2,1,2,-1 } };
             	cvc.coefficientAorExponentlen = ex_len;
-            	cvc.coefficientAorExponent = malloc(ex_len);
+            	cvc.coefficientAorExponent = calloc(1, ex_len);
 	            memcpy(cvc.coefficientAorExponent, &exponent, ex_len);
 
 	            cvc.pukoid = rsa15withSHA256;
 	            cvc.modulusSize = key_size;
 	            cvc.primeOrModuluslen = key_size/8;
-	            cvc.primeOrModulus = (uint8_t *)malloc(cvc.primeOrModuluslen);
-	            mbedtls_mpi_write_binary(&rsa.N, cvc.primeOrModulus, key_size/8);
-	            int r = sc_pkcs15emu_sc_hsm_encode_cvc(&p15card, &cvc, &cvcbin, &cvclen);
+	            cvc.primeOrModulus = (uint8_t *)calloc(1, cvc.primeOrModuluslen);
 	            cvc.signatureLen = key_size/8;
-	            cvc.signature = (uint8_t *)malloc(key_size/8);
+	            cvc.signature = (uint8_t *)calloc(1, key_size/8);
+	            cvc.outerSignatureLen = key_size/8;
+	            cvc.outerSignature = (uint8_t *)calloc(1, key_size/8);
+	            mbedtls_mpi_write_binary(&rsa.N, cvc.primeOrModulus, key_size/8);
+	            unsigned int cla,tag;
+	            int r = sc_pkcs15emu_sc_hsm_encode_cvc_req(&p15card, &cvc, &cvcbin, &cvclen);
+	            //cvcpo = cvcbin;
+	            //sc_asn1_read_tag((const u8 **)&cvcpo, cvclen, &cla, &tag, &taglen);
 	            uint8_t hsh[32];
 	            hash(cvcbin, cvclen, hsh);
 	            ret = mbedtls_rsa_rsassa_pkcs1_v15_sign(&rsa, random_gen, &index, MBEDTLS_MD_SHA256, 32, hsh, cvc.signature);
 	            printf("ret %d\r\n");
 	            free(cvcbin);
 	            
-	            r = sc_pkcs15emu_sc_hsm_encode_cvc(&p15card, &cvc, &cvcbin, &cvclen);
+	            r = sc_pkcs15emu_sc_hsm_encode_cvc_req(&p15card, &cvc, &cvcbin, &cvclen);
+	            //cvcpo = cvcbin;
+	            //sc_asn1_read_tag((const u8 **)&cvcpo, cvclen, &cla, &tag, &taglen);
 	            printf("r %d\r\n",r);
                 memcpy(res_APDU, cvcbin, cvclen);
+                free(cvcbin);
+	            sc_pkcs15emu_sc_hsm_free_cvc(&cvc);
+                free(p15card.card);
                 res_APDU_size = cvclen;
                 apdu.expected_res_size = cvclen;
+                //sc_asn1_print_tags(cvcbin, cvclen);
                 
 	            r = store_key_rsa(&rsa, key_size, key_id, ctx);
 	            printf("r %d\r\n");
 	                       
-	            sc_pkcs15emu_sc_hsm_free_cvc(&cvc);
                 mbedtls_rsa_free(&rsa);
-                free(p15card.card);
-                free(cvcbin);
                 
                 
             }
@@ -700,7 +831,7 @@ int cmd_update_ef() {
         else {
             if (!ef->data)
                 return SW_DATA_INVALID();
-            uint8_t *data_merge = (uint8_t *)malloc(offset+data_len);
+            uint8_t *data_merge = (uint8_t *)calloc(1, offset+data_len);
             memcpy(data_merge, file_read(ef->data), offset);
             memcpy(data_merge+offset, data, data_len);
             int r = flash_write_data_to_file(ef, data_merge, data_len);
