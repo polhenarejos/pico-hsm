@@ -334,6 +334,7 @@ static int cmd_challenge() {
 static int cmd_initialize() {
     initialize_flash();
     scan_flash();
+    dkeks = 0;
     const uint8_t *p = apdu.cmd_apdu_data;
     while (p-apdu.cmd_apdu_data < apdu.cmd_apdu_data_len) {
         uint8_t tag = *p++;
