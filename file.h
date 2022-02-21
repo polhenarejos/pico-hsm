@@ -87,11 +87,14 @@ extern uint16_t file_read_uint16(const uint8_t *addr);
 extern uint8_t file_read_uint8(const uint8_t *addr);
 extern file_t *file_new(uint16_t);
 
-extern file_chain_t *ef_prkdf;
-extern file_chain_t *ef_pukdf;
-extern file_chain_t *ef_cdf;
+extern file_chain_t *ef_prkdf; //key description
+extern file_chain_t *ef_kf; //key blob
+extern file_chain_t *ef_pukdf; //cvc csr
+extern file_chain_t *ef_cdf; //ce 
 
 extern file_chain_t *add_file_to_chain(file_t *file, file_chain_t **chain);
+extern file_t *search_file_chain(uint16_t fid, file_chain_t *chain);
+extern bool isUserAuthenticated;
 
 #endif
 

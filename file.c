@@ -133,6 +133,7 @@ file_t *file_sopin = NULL;
 file_t *file_retries_sopin = NULL;
 
 file_chain_t *ef_prkdf = NULL;
+file_chain_t *ef_kf = NULL;
 file_chain_t *ef_pukdf = NULL;
 file_chain_t *ef_cdf = NULL;
 
@@ -278,11 +279,20 @@ void scan_flash() {
             break;
         
         uint16_t fid = flash_read_uint16(base+sizeof(uintptr_t));
+        printf("scan fid %x\r\n",fid);
         file_t *file = (file_t *)search_by_fid(fid, NULL, SPECIFY_EF);
         if (!file) {
             if ((fid & 0xff00) == (KEY_PREFIX << 8)) {
                 file = file_new(fid);
+                add_file_to_chain(file, &ef_kf);
+            }
+            else if ((fid & 0xff00) == (PRKD_PREFIX << 8)) {
+                file = file_new(fid);
                 add_file_to_chain(file, &ef_prkdf);
+            }
+            else if ((fid & 0xff00) == (CD_PREFIX << 8)) {
+                file = file_new(fid);
+                add_file_to_chain(file, &ef_cdf);
             }
             else {
                 TU_LOG1("SCAN FOUND ORPHAN FILE: %x\r\n",fid);
@@ -387,7 +397,7 @@ file_t *file_new(uint16_t fid) {
         .acl = {0}
     };
     memcpy(f, &file, sizeof(file_t));
-    memset((uint8_t *)f->acl, 0x90, sizeof(f->acl));
+    //memset((uint8_t *)f->acl, 0x90, sizeof(f->acl));
     return f;
 }
 
@@ -397,4 +407,13 @@ file_chain_t *add_file_to_chain(file_t *file, file_chain_t **chain) {
     f_chain->next = *chain;
     *chain = f_chain;
     return f_chain;
+}
+
+file_t *search_file_chain(uint16_t fid, file_chain_t *chain) {
+    for (file_chain_t *fc = chain; fc; fc = fc->next) {
+        if (fid == fc->file->fid) {
+            return fc->file;
+        }
+    }
+    return NULL;
 }
