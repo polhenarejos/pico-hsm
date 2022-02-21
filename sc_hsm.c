@@ -601,7 +601,7 @@ static const struct sc_asn1_entry c_asn1_req[C_ASN1_REQ_SIZE] = {
 	{ NULL, 0, 0, 0, NULL, NULL }
 };
 
-int sc_pkcs15emu_sc_hsm_encode_cvc_req(sc_pkcs15_card_t * p15card, sc_cvc_t *cvc, u8 ** buf, size_t *buflen)
+int sc_pkcs15emu_sc_hsm_encode_cvc_req(sc_pkcs15_card_t * p15card, sc_cvc_t *cvc, u8 ** buf, size_t *buflen, bool only_body)
 {
 	sc_card_t *card = p15card->card;
 	struct sc_asn1_entry asn1_req[C_ASN1_REQ_SIZE];
@@ -651,21 +651,27 @@ int sc_pkcs15emu_sc_hsm_encode_cvc_req(sc_pkcs15_card_t * p15card, sc_cvc_t *cvc
 	sc_format_asn1_entry(asn1_cvc_body + 3, &cvc->chr, &lenchr, 1);
 
 	sc_format_asn1_entry(asn1_cvcert    , &asn1_cvc_body, NULL, 1);
-	if (cvc->signature && (cvc->signatureLen > 0)) {
-		sc_format_asn1_entry(asn1_cvcert + 1, cvc->signature, &cvc->signatureLen, 1);
+	if (only_body == true) {
+	    r = sc_asn1_encode(card->ctx, asn1_cvcert, buf, buflen);
 	}
-
-	sc_format_asn1_entry(asn1_authreq , &asn1_cvcert, NULL, 1);
-	lenoutCar = strnlen(cvc->outer_car, sizeof cvc->outer_car);
-	sc_format_asn1_entry(asn1_authreq + 1, &cvc->outer_car, &lenoutCar, 1);
-	if (cvc->outerSignature && (cvc->outerSignatureLen > 0)) {
-		sc_format_asn1_entry(asn1_authreq + 2, cvc->outerSignature, &cvc->outerSignatureLen, 1);
-	}
-	
-	sc_format_asn1_entry(asn1_req , &asn1_authreq, NULL, 1);
-
-
-	r = sc_asn1_encode(card->ctx, asn1_req, buf, buflen);
+	else {
+    	if (cvc->signature && (cvc->signatureLen > 0)) {
+    		sc_format_asn1_entry(asn1_cvcert + 1, cvc->signature, &cvc->signatureLen, 1);
+    	}
+    
+    	sc_format_asn1_entry(asn1_authreq , &asn1_cvcert, NULL, 1);
+    	lenoutCar = strnlen(cvc->outer_car, sizeof cvc->outer_car);
+    	sc_format_asn1_entry(asn1_authreq + 1, &cvc->outer_car, &lenoutCar, 1);
+    	if (cvc->outerSignature && (cvc->outerSignatureLen > 0)) {
+    		sc_format_asn1_entry(asn1_authreq + 2, cvc->outerSignature, &cvc->outerSignatureLen, 1);
+    	}
+    	
+    	sc_format_asn1_entry(asn1_req , &asn1_authreq, NULL, 1);
+    
+    
+    	r = sc_asn1_encode(card->ctx, asn1_req, buf, buflen);
+    }
+    
 	LOG_TEST_RET(card->ctx, r, "Could not encode card verifiable certificate");
 
 	LOG_FUNC_RETURN(card->ctx, SC_SUCCESS);
@@ -727,18 +733,14 @@ static int cmd_keypair_gen() {
 	            cvc.outerSignature = (uint8_t *)calloc(1, key_size/8);
 	            mbedtls_mpi_write_binary(&rsa.N, cvc.primeOrModulus, key_size/8);
 	            unsigned int cla,tag;
-	            int r = sc_pkcs15emu_sc_hsm_encode_cvc_req(&p15card, &cvc, &cvcbin, &cvclen);
-	            //cvcpo = cvcbin;
-	            //sc_asn1_read_tag((const u8 **)&cvcpo, cvclen, &cla, &tag, &taglen);
+	            int r = sc_pkcs15emu_sc_hsm_encode_cvc_req(&p15card, &cvc, &cvcbin, &cvclen, true);
 	            uint8_t hsh[32];
 	            hash(cvcbin, cvclen, hsh);
 	            ret = mbedtls_rsa_rsassa_pkcs1_v15_sign(&rsa, random_gen, &index, MBEDTLS_MD_SHA256, 32, hsh, cvc.signature);
 	            printf("ret %d\r\n");
 	            free(cvcbin);
 	            
-	            r = sc_pkcs15emu_sc_hsm_encode_cvc_req(&p15card, &cvc, &cvcbin, &cvclen);
-	            //cvcpo = cvcbin;
-	            //sc_asn1_read_tag((const u8 **)&cvcpo, cvclen, &cla, &tag, &taglen);
+	            r = sc_pkcs15emu_sc_hsm_encode_cvc_req(&p15card, &cvc, &cvcbin, &cvclen, false);
 	            printf("r %d\r\n",r);
                 memcpy(res_APDU, cvcbin, cvclen);
                 free(cvcbin);
