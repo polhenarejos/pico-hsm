@@ -105,13 +105,13 @@ file_t file_entries[] = {
     /*  6 */ { .fid = 0x5031    , .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.ODF
     /*  7 */ { .fid = 0x5032    , .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.TokenInfo
     /*  8 */ { .fid = 0x5033    , .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.UnusedSpace
-    /*  9 */ { .fid = 0x1081    , .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //PIN (PIN1)
-    /* 10 */ { .fid = 0x1082    , .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //max retries PIN (PIN1)
-    /* 11 */ { .fid = 0x1083    , .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //retries PIN (PIN1)
-    /* 12 */ { .fid = 0x1088    , .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //PIN (SOPIN)
-    /* 13 */ { .fid = 0x1089    , .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //max retries PIN (SOPIN)
-    /* 14 */ { .fid = 0x108A    , .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //retries PIN (SOPIN)
-    /* 15 */ { .fid = EF_DKEK   , .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //DKEK
+    /*  9 */ { .fid = 0x1081    , .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //PIN (PIN1)
+    /* 10 */ { .fid = 0x1082    , .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //max retries PIN (PIN1)
+    /* 11 */ { .fid = 0x1083    , .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //retries PIN (PIN1)
+    /* 12 */ { .fid = 0x1088    , .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //PIN (SOPIN)
+    /* 13 */ { .fid = 0x1089    , .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //max retries PIN (SOPIN)
+    /* 14 */ { .fid = 0x108A    , .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //retries PIN (SOPIN)
+    /* 15 */ { .fid = EF_DKEK   , .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //DKEK
     /* 16 */ { .fid = EF_PRKDFS , .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.PrKDFs
     /* 17 */ { .fid = EF_PUKDFS , .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.PuKDFs
     /* 18 */ { .fid = EF_CDFS   , .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.CDFs
@@ -227,6 +227,30 @@ bool authenticate_action(const file_t *ef, uint8_t op) {
 
 #include "libopensc/pkcs15.h"
 
+void initialize_chain(file_chain_t **chain) {
+    file_chain_t *next;
+    for (file_chain_t *f = *chain; f; f = next) {
+        next = f->next;
+        free(f->file);
+        free(f);
+    }
+    *chain = NULL;
+}
+
+void initialize_flash() {
+    const uint8_t empty[8] = { 0 };
+    flash_program_block(end_data_pool, empty, sizeof(empty));
+    low_flash_available();
+    initialize_chain(&ef_prkdf);
+    initialize_chain(&ef_pukdf);
+    initialize_chain(&ef_kf);
+    initialize_chain(&ef_cdf);
+    for (file_t *f = file_entries; f != file_last; f++) {
+        if ((f->type & FILE_FLASH) == FILE_FLASH)
+            f->data = NULL;
+    }
+}
+
 void scan_flash() {
     if (*(uintptr_t *)end_data_pool == 0xffffffff && *(uintptr_t *)(end_data_pool+sizeof(uintptr_t)) == 0xffffffff) 
     {
@@ -237,42 +261,7 @@ void scan_flash() {
         //wait_flash_finish();
     }
     printf("SCAN\r\n");
-    
-    sc_context_t *ctx;
-    sc_context_param_t ctx_opts;
-    memset(&ctx_opts, 0, sizeof(sc_context_param_t));
-    int r = sc_context_create(&ctx, &ctx_opts);
-    ctx->debug = 9;
-	
-    
-    struct sc_pkcs15_object obj;
-    memset(&obj, 0, sizeof(obj));
-    obj.type = SC_PKCS15_TYPE_PRKEY_RSA;
-    struct sc_pkcs15_prkey_info info;
 
-	/* Fill in defaults */
-	memset(&info, 0, sizeof(info));
-	info.key_reference = 0x2a;
-	info.native = 1;
-	char id[] = "0309";
-	info.id.len = sizeof(id);
-	memcpy(info.id.value, id, sizeof(id));
-	info.usage = 1;
-	info.access_flags = 1;
-	obj.data = malloc(sizeof(info));
-	if (obj.data == NULL) {
-		int r = SC_ERROR_OUT_OF_MEMORY;
-			TU_LOG1("Out of memory");
-
-		return ;
-	}
-	memcpy(obj.data, &info, sizeof(info));
-
-    u8 *buf;
-    size_t len;
-    r = sc_pkcs15_encode_prkdf_entry(ctx, &obj, &buf, &len);
-    printf("r %d, len %d\r\n",r,len);
-    DEBUG_PAYLOAD(buf, len);
     uintptr_t base = flash_read_uintptr(end_data_pool);
     for (uintptr_t base = flash_read_uintptr(end_data_pool); base >= start_data_pool; base = flash_read_uintptr(base)) {
         if (base == 0x0) //all is empty
@@ -293,6 +282,10 @@ void scan_flash() {
             else if ((fid & 0xff00) == (CD_PREFIX << 8)) {
                 file = file_new(fid);
                 add_file_to_chain(file, &ef_cdf);
+            }
+            else if ((fid & 0xff00) == (EE_CERTIFICATE_PREFIX << 8)) {
+                file = file_new(fid);
+                add_file_to_chain(file, &ef_pukdf);
             }
             else {
                 TU_LOG1("SCAN FOUND ORPHAN FILE: %x\r\n",fid);

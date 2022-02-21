@@ -9,6 +9,8 @@
 #define FILE_TYPE_INTERNAL_EF	0x03
 #define FILE_TYPE_WORKING_EF    0x01
 #define FILE_TYPE_BSO           0x10
+#define FILE_PERSISTENT         0x20
+#define FILE_FLASH              0x40
 
 /* EF structures */
 #define FILE_EF_UNKNOWN             0x00
@@ -79,6 +81,7 @@ extern file_t *search_by_path(const uint8_t *pe_path, uint8_t pathlen, const fil
 extern bool authenticate_action(const file_t *ef, uint8_t op);
 extern void process_fci(const file_t *pe);
 extern void scan_flash();
+extern void initialize_flash();
 
 extern file_t file_entries[];
 
