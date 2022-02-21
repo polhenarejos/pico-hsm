@@ -29,11 +29,14 @@ void process_fci(const file_t *pe) {
     
     res_APDU[res_APDU_size++] = 0x81;
     res_APDU[res_APDU_size++] = 2;
-    if (pe->data)
-        memcpy(res_APDU+res_APDU_size, pe->data, 2);
-    else
+    if (pe->data) {
+        res_APDU[res_APDU_size++] = pe->data[1];
+        res_APDU[res_APDU_size++] = pe->data[0];
+    }
+    else {
         memset(res_APDU+res_APDU_size, 0, 2);
-    res_APDU_size += 2;
+        res_APDU_size += 2;
+    }
     
     res_APDU[res_APDU_size++] = 0x82;
     res_APDU[res_APDU_size++] = 1;
