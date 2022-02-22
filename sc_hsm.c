@@ -510,6 +510,9 @@ int store_keys(void *key_ctx, int type, uint8_t key_id, sc_context_t *ctx) {
     prkd->access_flags = SC_PKCS15_PRKEY_ACCESS_SENSITIVE | SC_PKCS15_PRKEY_ACCESS_NEVEREXTRACTABLE | SC_PKCS15_PRKEY_ACCESS_ALWAYSSENSITIVE | SC_PKCS15_PRKEY_ACCESS_LOCAL;
     prkd->native = 1;
     prkd->key_reference = key_id;
+    prkd->path.value[0] = PRKD_PREFIX;
+    prkd->path.value[1] = key_id;
+    prkd->path.len = 2;
     if (type == SC_PKCS15_TYPE_PRKEY_RSA)
         prkd->modulus_length = key_size;
     else
@@ -537,6 +540,9 @@ int store_keys(void *key_ctx, int type, uint8_t key_id, sc_context_t *ctx) {
     pukd->access_flags = SC_PKCS15_PRKEY_ACCESS_EXTRACTABLE;
     pukd->native = 1;
     pukd->key_reference = key_id;
+    pukd->path.value[0] = CD_PREFIX;
+    pukd->path.value[1] = key_id;
+    pukd->path.len = 2;
     
     if (type == SC_PKCS15_TYPE_PRKEY_RSA)
         pukd->modulus_length = key_size;
@@ -567,7 +573,7 @@ sc_context_t *create_context() {
     sc_context_param_t ctx_opts;
     memset(&ctx_opts, 0, sizeof(sc_context_param_t));
     sc_context_create(&ctx, &ctx_opts);
-    ctx->debug = 9;
+    ctx->debug = 0;
     ctx->debug_file = stdout;
     return ctx;
 }
@@ -812,9 +818,10 @@ static int cmd_keypair_gen() {
             	struct sc_object_id ecdsaWithSHA256 = { { 0,4,0,127,0,7,2,2,2,2,3,-1 } };
 	            cvc.pukoid = ecdsaWithSHA256;
 	            
-            	cvc.coefficientAorExponentlen = mbedtls_mpi_size(&ecdsa.grp.A);
+            	cvc.coefficientAorExponentlen = prime_len;//mbedtls_mpi_size(&ecdsa.grp.A);
             	cvc.coefficientAorExponent = calloc(1, cvc.coefficientAorExponentlen);
-	            mbedtls_mpi_write_binary(&ecdsa.grp.A, cvc.coefficientAorExponent, cvc.coefficientAorExponentlen);
+	            ret = mbedtls_mpi_write_binary(&ecdsa.grp.A, cvc.coefficientAorExponent, cvc.coefficientAorExponentlen);
+	            printf("ret wb %d\r\n",ret);
 
 	            cvc.primeOrModuluslen = mbedtls_mpi_size(&ecdsa.grp.P);
 	            cvc.primeOrModulus = (uint8_t *)calloc(1, cvc.primeOrModuluslen);
@@ -837,6 +844,10 @@ static int cmd_keypair_gen() {
 	            cvc.publicPoint = (uint8_t *)calloc(1, cvc.publicPointlen);
 	            ret = mbedtls_ecp_point_write_binary(&ecdsa.grp, &ecdsa.Q, MBEDTLS_ECP_PF_UNCOMPRESSED, &cvc.publicPointlen, cvc.publicPoint, cvc.publicPointlen);
 	            printf("ret wb %d\r\n",ret);
+	            
+	            cvc.cofactorlen = 1;
+	            cvc.cofactor = (uint8_t *)calloc(1, cvc.cofactorlen);
+	            cvc.cofactor[0] = 1;
 	            	            
 	            cvc.modulusSize = ec_id; //we store the ec_id in the modulusSize, used for RSA, as it is an integer
 	            
