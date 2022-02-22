@@ -716,11 +716,14 @@ int cvc_prepare_signatures(sc_pkcs15_card_t *p15card, sc_cvc_t *cvc, size_t sig_
     cvc->outerSignatureLen = sig_len;
     cvc->outerSignature = (uint8_t *)calloc(1, sig_len);
     int r = sc_pkcs15emu_sc_hsm_encode_cvc_req(p15card, cvc, &cvcbin, &cvclen, true);
-    if (r != SC_SUCCESS)
+    if (r != SC_SUCCESS) {
+        if (cvcbin)
+            free(cvcbin);
         return r;
+    }
     hash(cvcbin, cvclen, hsh);
     free(cvcbin);
-    return r;
+    return HSM_OK;
 }
 
 static int cmd_keypair_gen() {
@@ -730,6 +733,7 @@ static int cmd_keypair_gen() {
     struct sc_pkcs15_card p15card;
     p15card.card = (sc_card_t *)calloc(1, sizeof(sc_card_t));
     p15card.card->ctx = ctx;
+    int ret = 0;
     
     size_t tout = 0;
     //sc_asn1_print_tags(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
@@ -743,7 +747,7 @@ static int cmd_keypair_gen() {
                 const uint8_t *ex = sc_asn1_find_tag(ctx, p, tout, 0x82, &ex_len);
                 const uint8_t *ks = sc_asn1_find_tag(ctx, p, tout, 0x2, &ks_len);
                 int exponent = 65537, key_size = 2048;
-                uint8_t *cvcbin;
+                uint8_t *cvcbin = NULL;
 	            size_t cvclen;
                 if (ex) {
                     sc_asn1_decode_integer(ex, ex_len, &exponent, 0);
@@ -751,12 +755,14 @@ static int cmd_keypair_gen() {
                 if (ks) {
                     sc_asn1_decode_integer(ks, ks_len, &key_size, 0);
                 }
-                printf("exponent %d, key_size %d\r\n",exponent,key_size);
                 mbedtls_rsa_context rsa;
                 mbedtls_rsa_init(&rsa);
                 uint8_t index = 0;
-                int ret = mbedtls_rsa_gen_key(&rsa, random_gen, &index, key_size, exponent);
-                printf("ret %d\r\n",ret);
+                ret = mbedtls_rsa_gen_key(&rsa, random_gen, &index, key_size, exponent);
+                if (ret != 0) {
+                    mbedtls_rsa_free(&rsa);
+                    goto error;
+                }
                 
                 sc_cvc_t cvc;
                 cvc_init_common(&cvc);
@@ -769,29 +775,49 @@ static int cmd_keypair_gen() {
 	            cvc.modulusSize = key_size;
 	            cvc.primeOrModuluslen = key_size/8;
 	            cvc.primeOrModulus = (uint8_t *)calloc(1, cvc.primeOrModuluslen);
-	            mbedtls_mpi_write_binary(&rsa.N, cvc.primeOrModulus, cvc.primeOrModuluslen);
+	            ret = mbedtls_mpi_write_binary(&rsa.N, cvc.primeOrModulus, cvc.primeOrModuluslen);
+	            if (ret != 0) {
+	                sc_pkcs15emu_sc_hsm_free_cvc(&cvc);
+                    mbedtls_rsa_free(&rsa);
+                    goto error;
+                }
 	            
                 uint8_t hsh[32];
-	            cvc_prepare_signatures(&p15card, &cvc, key_size/8, hsh);
+	            ret = cvc_prepare_signatures(&p15card, &cvc, key_size/8, hsh);
+	            if (ret != HSM_OK) {
+	                sc_pkcs15emu_sc_hsm_free_cvc(&cvc);
+                    mbedtls_rsa_free(&rsa);
+                    goto error;
+                }
                 ret = mbedtls_rsa_rsassa_pkcs1_v15_sign(&rsa, random_gen, &index, MBEDTLS_MD_SHA256, 32, hsh, cvc.signature);
-                printf("ret %d\r\n");
+                if (ret != 0) {
+	                sc_pkcs15emu_sc_hsm_free_cvc(&cvc);
+                    mbedtls_rsa_free(&rsa);
+                    goto error;
+                }
             	            
-	            int r = sc_pkcs15emu_sc_hsm_encode_cvc_req(&p15card, &cvc, &cvcbin, &cvclen, false);
-	            printf("r %d\r\n",r);
+	            ret = sc_pkcs15emu_sc_hsm_encode_cvc_req(&p15card, &cvc, &cvcbin, &cvclen, false);
+	            if (ret != SC_SUCCESS) {
+	                if (cvcbin)
+	                    free(cvcbin);
+	                sc_pkcs15emu_sc_hsm_free_cvc(&cvc);
+                    mbedtls_rsa_free(&rsa);
+                    goto error;
+                }
                 memcpy(res_APDU, cvcbin, cvclen);
                 free(cvcbin);
 	            sc_pkcs15emu_sc_hsm_free_cvc(&cvc);
-                free(p15card.card);
                 res_APDU_size = cvclen;
                 apdu.expected_res_size = cvclen;
                 //sc_asn1_print_tags(cvcbin, cvclen);
                 
-	            r = store_keys(&rsa, SC_PKCS15_TYPE_PRKEY_RSA, key_id, ctx);
-	            printf("r %d\r\n");
-	                       
+	            ret = store_keys(&rsa, SC_PKCS15_TYPE_PRKEY_RSA, key_id, ctx);
+	            if (ret != HSM_OK) {
+                    mbedtls_rsa_free(&rsa);
+                    goto error;
+                }
+	            
                 mbedtls_rsa_free(&rsa);
-                
-                
             }
             else if (memcmp(oid, "\x4\x0\x7F\x0\x7\x2\x2\x2\x2\x3",MIN(oid_len,10)) == 0) { //ECC
                 size_t prime_len;
@@ -808,8 +834,11 @@ static int cmd_keypair_gen() {
                 mbedtls_ecdsa_context ecdsa;
                 mbedtls_ecdsa_init(&ecdsa);
                 uint8_t index = 0;
-                int ret = mbedtls_ecdsa_genkey(&ecdsa, ec_id, random_gen, &index);
-                printf("ret %d\r\n",ret) ;
+                ret = mbedtls_ecdsa_genkey(&ecdsa, ec_id, random_gen, &index);
+                if (ret != 0) {
+                    mbedtls_ecdsa_free(&ecdsa);
+                    goto error;
+                }
                 
                 uint8_t *cvcbin;
                 size_t cvclen;
@@ -821,29 +850,56 @@ static int cmd_keypair_gen() {
             	cvc.coefficientAorExponentlen = prime_len;//mbedtls_mpi_size(&ecdsa.grp.A);
             	cvc.coefficientAorExponent = calloc(1, cvc.coefficientAorExponentlen);
 	            ret = mbedtls_mpi_write_binary(&ecdsa.grp.A, cvc.coefficientAorExponent, cvc.coefficientAorExponentlen);
-	            printf("ret wb %d\r\n",ret);
+	            if (ret != 0) {
+	                sc_pkcs15emu_sc_hsm_free_cvc(&cvc);
+                    mbedtls_ecdsa_free(&ecdsa);
+                    goto error;
+                }
 
 	            cvc.primeOrModuluslen = mbedtls_mpi_size(&ecdsa.grp.P);
 	            cvc.primeOrModulus = (uint8_t *)calloc(1, cvc.primeOrModuluslen);
-	            mbedtls_mpi_write_binary(&ecdsa.grp.P, cvc.primeOrModulus, cvc.primeOrModuluslen);
+	            ret = mbedtls_mpi_write_binary(&ecdsa.grp.P, cvc.primeOrModulus, cvc.primeOrModuluslen);
+	            if (ret != 0) {
+	                sc_pkcs15emu_sc_hsm_free_cvc(&cvc);
+                    mbedtls_ecdsa_free(&ecdsa);
+                    goto error;
+                }
 	            
 	            cvc.coefficientBlen = mbedtls_mpi_size(&ecdsa.grp.B);
 	            cvc.coefficientB = (uint8_t *)calloc(1, cvc.coefficientBlen);
-	            mbedtls_mpi_write_binary(&ecdsa.grp.B, cvc.coefficientB, cvc.coefficientBlen);
+	            ret = mbedtls_mpi_write_binary(&ecdsa.grp.B, cvc.coefficientB, cvc.coefficientBlen);
+	            if (ret != 0) {
+	                sc_pkcs15emu_sc_hsm_free_cvc(&cvc);
+                    mbedtls_ecdsa_free(&ecdsa);
+                    goto error;
+                }
 	            
 	            cvc.basePointGlen = mbedtls_mpi_size(&ecdsa.grp.G.X)+mbedtls_mpi_size(&ecdsa.grp.G.Y)+mbedtls_mpi_size(&ecdsa.grp.G.Z);
 	            cvc.basePointG = (uint8_t *)calloc(1, cvc.basePointGlen);
 	            ret = mbedtls_ecp_point_write_binary(&ecdsa.grp, &ecdsa.grp.G, MBEDTLS_ECP_PF_UNCOMPRESSED, &cvc.basePointGlen, cvc.basePointG, cvc.basePointGlen);
-	            printf("ret wb %d\r\n",ret);
+	            if (ret != 0) {
+	                sc_pkcs15emu_sc_hsm_free_cvc(&cvc);
+                    mbedtls_ecdsa_free(&ecdsa);
+                    goto error;
+                }
 	            
 	            cvc.orderlen = mbedtls_mpi_size(&ecdsa.grp.N);
 	            cvc.order = (uint8_t *)calloc(1, cvc.orderlen);
-	            mbedtls_mpi_write_binary(&ecdsa.grp.N, cvc.order, cvc.orderlen);
+	            ret = mbedtls_mpi_write_binary(&ecdsa.grp.N, cvc.order, cvc.orderlen);
+	            if (ret != 0) {
+	                sc_pkcs15emu_sc_hsm_free_cvc(&cvc);
+                    mbedtls_ecdsa_free(&ecdsa);
+                    goto error;
+                }
 	            
 	            cvc.publicPointlen = mbedtls_mpi_size(&ecdsa.Q.X)+mbedtls_mpi_size(&ecdsa.Q.Y)+mbedtls_mpi_size(&ecdsa.Q.Z);
 	            cvc.publicPoint = (uint8_t *)calloc(1, cvc.publicPointlen);
 	            ret = mbedtls_ecp_point_write_binary(&ecdsa.grp, &ecdsa.Q, MBEDTLS_ECP_PF_UNCOMPRESSED, &cvc.publicPointlen, cvc.publicPoint, cvc.publicPointlen);
-	            printf("ret wb %d\r\n",ret);
+	            if (ret != 0) {
+	                sc_pkcs15emu_sc_hsm_free_cvc(&cvc);
+                    mbedtls_ecdsa_free(&ecdsa);
+                    goto error;
+                }
 	            
 	            cvc.cofactorlen = 1;
 	            cvc.cofactor = (uint8_t *)calloc(1, cvc.cofactorlen);
@@ -852,30 +908,50 @@ static int cmd_keypair_gen() {
 	            cvc.modulusSize = ec_id; //we store the ec_id in the modulusSize, used for RSA, as it is an integer
 	            
                 uint8_t hsh[32];
-	            cvc_prepare_signatures(&p15card, &cvc, ecdsa.grp.pbits*2/8+9, hsh);
+	            ret = cvc_prepare_signatures(&p15card, &cvc, ecdsa.grp.pbits*2/8+9, hsh);
+	            if (ret != HSM_OK) {
+	                sc_pkcs15emu_sc_hsm_free_cvc(&cvc);
+                    mbedtls_ecdsa_free(&ecdsa);
+                    goto error;
+                }
                 ret = mbedtls_ecdsa_write_signature(&ecdsa, MBEDTLS_MD_SHA256, hsh, sizeof(hsh), cvc.signature, cvc.signatureLen, &cvc.signatureLen, random_gen, &index);
-                printf("ret %d\r\n");
+                if (ret != 0) {
+	                sc_pkcs15emu_sc_hsm_free_cvc(&cvc);
+                    mbedtls_ecdsa_free(&ecdsa);
+                    goto error;
+                }
             	            
-	            int r = sc_pkcs15emu_sc_hsm_encode_cvc_req(&p15card, &cvc, &cvcbin, &cvclen, false);
-	            printf("r %d\r\n",r);
+	            ret = sc_pkcs15emu_sc_hsm_encode_cvc_req(&p15card, &cvc, &cvcbin, &cvclen, false);
+	            if (ret != SC_SUCCESS) {
+	                if (cvcbin)
+	                    free(cvcbin);
+	                sc_pkcs15emu_sc_hsm_free_cvc(&cvc);
+                    mbedtls_ecdsa_free(&ecdsa);
+                    goto error;
+                }
                 memcpy(res_APDU, cvcbin, cvclen);
                 free(cvcbin);
 	            sc_pkcs15emu_sc_hsm_free_cvc(&cvc);
-                free(p15card.card);
                 res_APDU_size = cvclen;
                 apdu.expected_res_size = cvclen;
                 //sc_asn1_print_tags(cvcbin, cvclen);
                 
-	            r = store_keys(&ecdsa, SC_PKCS15_TYPE_PRKEY_EC, key_id, ctx);
-	            printf("r %d\r\n");
-	                       
+	            ret = store_keys(&ecdsa, SC_PKCS15_TYPE_PRKEY_EC, key_id, ctx);
+	            if (ret != HSM_OK) {
+                    mbedtls_ecdsa_free(&ecdsa);
+                    goto error;
+                }
                 
                 mbedtls_ecdsa_free(&ecdsa);
             }
             
         }
     }
-    //sc_release_context(ctx);
+    error:
+    sc_release_context(ctx);
+    free(p15card.card);
+    if (ret != 0)
+        return SW_EXEC_ERROR();
     return SW_OK();
 }
 

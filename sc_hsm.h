@@ -10,6 +10,7 @@ extern const uint8_t sc_hsm_aid[];
 #define SW_BYTES_REMAINING_00()             set_res_sw (0x61, 0x00)
 #define SW_WARNING_STATE_UNCHANGED()        set_res_sw (0x62, 0x00)
 #define SW_PIN_BLOCKED()                    set_res_sw (0x63, 0x00)
+#define SW_EXEC_ERROR()                     set_res_sw (0x64, 0x00)
 #define SW_MEMORY_FAILURE()                 set_res_sw (0x65, 0x81)
 #define SW_WRONG_LENGTH()                   set_res_sw (0x67, 0x00)
 #define SW_WRONG_DATA()                     set_res_sw (0x67, 0x00)
