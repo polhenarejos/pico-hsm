@@ -567,7 +567,7 @@ sc_context_t *create_context() {
     sc_context_param_t ctx_opts;
     memset(&ctx_opts, 0, sizeof(sc_context_param_t));
     sc_context_create(&ctx, &ctx_opts);
-    ctx->debug = 0;
+    ctx->debug = 9;
     ctx->debug_file = stdout;
     return ctx;
 }
@@ -694,7 +694,7 @@ int sc_pkcs15emu_sc_hsm_encode_cvc_req(sc_pkcs15_card_t * p15card, sc_cvc_t *cvc
 }
 
 void cvc_init_common(sc_cvc_t *cvc) {
-    memset(cvc, 0, sizeof(cvc));
+    memset(cvc, 0, sizeof(sc_cvc_t));
 
 	strlcpy(cvc->car, "UTCA00001", sizeof cvc->car);
 	strlcpy(cvc->chr, "ESHSMCVCA", sizeof cvc->chr);
@@ -837,12 +837,12 @@ static int cmd_keypair_gen() {
 	            cvc.publicPoint = (uint8_t *)calloc(1, cvc.publicPointlen);
 	            ret = mbedtls_ecp_point_write_binary(&ecdsa.grp, &ecdsa.Q, MBEDTLS_ECP_PF_UNCOMPRESSED, &cvc.publicPointlen, cvc.publicPoint, cvc.publicPointlen);
 	            printf("ret wb %d\r\n",ret);
-	            
+	            	            
 	            cvc.modulusSize = ec_id; //we store the ec_id in the modulusSize, used for RSA, as it is an integer
 	            
                 uint8_t hsh[32];
 	            cvc_prepare_signatures(&p15card, &cvc, ecdsa.grp.pbits*2/8+9, hsh);
-                ret = mbedtls_ecdsa_write_signature(&ecdsa, MBEDTLS_MD_SHA256, hsh, sizeof(hsh), cvc.signature, cvc.signatureLen, &cvc.signatureLen, NULL, NULL);
+                ret = mbedtls_ecdsa_write_signature(&ecdsa, MBEDTLS_MD_SHA256, hsh, sizeof(hsh), cvc.signature, cvc.signatureLen, &cvc.signatureLen, random_gen, &index);
                 printf("ret %d\r\n");
             	            
 	            int r = sc_pkcs15emu_sc_hsm_encode_cvc_req(&p15card, &cvc, &cvcbin, &cvclen, false);
