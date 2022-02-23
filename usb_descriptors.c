@@ -103,7 +103,7 @@ tusb_desc_configuration_t const desc_config  =
   	.bNumInterfaces      = 1,
   	.bConfigurationValue = 1,
   	.iConfiguration      = 4,
-  	.bmAttributes        = USB_CONFIG_ATT_ONE | TUSB_DESC_CONFIG_ATT_SELF_POWERED,
+  	.bmAttributes        = USB_CONFIG_ATT_ONE | TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP,
   	.bMaxPower           = TUSB_DESC_CONFIG_POWER_MA(MAX_USB_POWER+1),
 };
 
@@ -121,7 +121,7 @@ tusb_desc_endpoint_t const desc_ep2 =
 {
     .bLength             = sizeof(tusb_desc_endpoint_t),
 	.bDescriptorType     = TUSB_DESC_ENDPOINT,
-	.bEndpointAddress    = 1,
+	.bEndpointAddress    = 2,
 	.bmAttributes.xfer   = TUSB_XFER_BULK,
 	.wMaxPacketSize.size = (64),
 	.bInterval           = 0
