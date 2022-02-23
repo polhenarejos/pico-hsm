@@ -10,7 +10,8 @@
 #define FILE_TYPE_WORKING_EF    0x01
 #define FILE_TYPE_BSO           0x10
 #define FILE_PERSISTENT         0x20
-#define FILE_FLASH              0x40
+#define FILE_DATA_FLASH         0x40
+#define FILE_DATA_FUNC          0x80
 
 /* EF structures */
 #define FILE_EF_UNKNOWN             0x00

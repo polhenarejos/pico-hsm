@@ -30,8 +30,15 @@ void process_fci(const file_t *pe) {
     res_APDU[res_APDU_size++] = 0x81;
     res_APDU[res_APDU_size++] = 2;
     if (pe->data) {
-        res_APDU[res_APDU_size++] = pe->data[1];
-        res_APDU[res_APDU_size++] = pe->data[0];
+        if ((pe->type & FILE_DATA_FUNC) == FILE_DATA_FUNC) {
+            uint16_t len = ((int (*)(const file_t *, int))(pe->data))(pe, 0);
+            res_APDU[res_APDU_size++] = (len >> 8) & 0xff;
+            res_APDU[res_APDU_size++] = len & 0xff;
+        }
+        else {
+            res_APDU[res_APDU_size++] = pe->data[1];
+            res_APDU[res_APDU_size++] = pe->data[0];
+        }
     }
     else {
         memset(res_APDU+res_APDU_size, 0, 2);
@@ -97,24 +104,25 @@ const uint8_t token_info[] = {
 };
 
 extern const uint8_t sc_hsm_aid[];
+extern int parse_token_info(const file_t *f, int mode);
 
 file_t file_entries[] = {
     /*  0 */ { .fid = 0x3f00    , .parent = 0xff, .name = NULL, .type = FILE_TYPE_DF, .data = NULL, .ef_structure = 0, .acl = {0} }, // MF
     /*  1 */ { .fid = 0x2f00    , .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.DIR
     /*  2 */ { .fid = 0x2f01    , .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.ATR
     /*  3 */ { .fid = 0x2f02    , .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF,.data = (uint8_t *)cvca, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.GDO
-    /*  4 */ { .fid = 0x2f03    , .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF,.data = (uint8_t *)token_info, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.TokenInfo
+    /*  4 */ { .fid = 0x2f03    , .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF | FILE_DATA_FUNC,.data = (uint8_t *)parse_token_info, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.TokenInfo
     /*  5 */ { .fid = 0x5015    , .parent = 0, .name = NULL, .type = FILE_TYPE_DF, .data = NULL, .ef_structure = 0, .acl = {0} }, //DF.PKCS15
     /*  6 */ { .fid = 0x5031    , .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.ODF
     /*  7 */ { .fid = 0x5032    , .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.TokenInfo
     /*  8 */ { .fid = 0x5033    , .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.UnusedSpace
-    /*  9 */ { .fid = 0x1081    , .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //PIN (PIN1)
-    /* 10 */ { .fid = 0x1082    , .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //max retries PIN (PIN1)
-    /* 11 */ { .fid = 0x1083    , .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //retries PIN (PIN1)
-    /* 12 */ { .fid = 0x1088    , .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //PIN (SOPIN)
-    /* 13 */ { .fid = 0x1089    , .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //max retries PIN (SOPIN)
-    /* 14 */ { .fid = 0x108A    , .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //retries PIN (SOPIN)
-    /* 15 */ { .fid = EF_DKEK   , .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //DKEK
+    /*  9 */ { .fid = 0x1081    , .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //PIN (PIN1)
+    /* 10 */ { .fid = 0x1082    , .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //max retries PIN (PIN1)
+    /* 11 */ { .fid = 0x1083    , .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //retries PIN (PIN1)
+    /* 12 */ { .fid = 0x1088    , .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //PIN (SOPIN)
+    /* 13 */ { .fid = 0x1089    , .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //max retries PIN (SOPIN)
+    /* 14 */ { .fid = 0x108A    , .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //retries PIN (SOPIN)
+    /* 15 */ { .fid = EF_DKEK   , .parent = 5, .name = NULL, .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0xff} }, //DKEK
     /* 16 */ { .fid = EF_PRKDFS , .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.PrKDFs
     /* 17 */ { .fid = EF_PUKDFS , .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.PuKDFs
     /* 18 */ { .fid = EF_CDFS   , .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} }, //EF.CDFs
@@ -245,7 +253,7 @@ void initialize_flash(bool hard) {
         low_flash_available();
     }
     for (file_t *f = file_entries; f != file_last; f++) {
-        if ((f->type & FILE_FLASH) == FILE_FLASH)
+        if ((f->type & FILE_DATA_FLASH) == FILE_DATA_FLASH)
             f->data = NULL;
     }
     dynamic_files = 0;
