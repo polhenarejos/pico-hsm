@@ -32,9 +32,9 @@ extern void low_flash_init();
 static uint8_t itf_num;
 
 #if MAX_RES_APDU_DATA_SIZE > MAX_CMD_APDU_DATA_SIZE
-#define USB_BUF_SIZE (MAX_RES_APDU_DATA_SIZE+5)
+#define USB_BUF_SIZE (MAX_RES_APDU_DATA_SIZE+20+9)
 #else
-#define USB_BUF_SIZE (MAX_CMD_APDU_DATA_SIZE+5)
+#define USB_BUF_SIZE (MAX_CMD_APDU_DATA_SIZE+20+9)
 #endif
 
 struct apdu apdu;
@@ -193,16 +193,18 @@ static uint8_t endp1_tx_buf[64];
 #define APDU_STATE_RESULT_GET_RESPONSE 4
 
 static void ccid_prepare_receive (struct ccid *c);
+static void apdu_init (struct apdu *a);
 
 static void ccid_reset (struct ccid *c)
 {
-      c->err = 0;
-      c->tx_busy = 0;
-      c->state = APDU_STATE_WAIT_COMMAND;
-      c->p = c->a->cmd_apdu_data;
-      c->len = MAX_CMD_APDU_DATA_SIZE;
-      c->a->cmd_apdu_data_len = 0;
-      c->a->expected_res_size = 0;
+    apdu_init(c->a);
+    c->err = 0;
+    c->tx_busy = 0;
+    c->state = APDU_STATE_WAIT_COMMAND;
+    c->p = c->a->cmd_apdu_data;
+    c->len = MAX_CMD_APDU_DATA_SIZE;
+    c->a->cmd_apdu_data_len = 0;
+    c->a->expected_res_size = 0;
 }
 
 static void ccid_init(struct ccid *c, struct ep_in *epi, struct ep_out *epo, struct apdu *a)
@@ -1119,6 +1121,11 @@ static int end_cmd_apdu_head (struct ep_out *epo, size_t orig_len)
 	        c->a->expected_res_size = 256;
         c->a->cmd_apdu_head[4] = 0;
     }
+    else if (epo->cnt == 9) { //extended
+        c->a->expected_res_size = (c->a->cmd_apdu_head[7] << 8) | c->a->cmd_apdu_head[8];
+        if (c->a->expected_res_size == 0)
+	        c->a->expected_res_size = 65536;
+    }
 
     c->a->cmd_apdu_data_len = 0;
     return 0;
@@ -1300,7 +1307,6 @@ static void ccid_rx_ready (uint16_t len)
     int offset = 0;
     int cont;
     size_t orig_len = len;
-
     while (epo->err == 0)
     {
         if (len == 0)
@@ -1321,7 +1327,6 @@ static void ccid_rx_ready (uint16_t len)
         	epo->next_buf (epo, len); /* Update epo->buf, cnt, buf_len */
         }
     }
-
 
     /*
     * ORIG_LEN to distingush ZLP and the end of transaction
@@ -1469,6 +1474,7 @@ void card_thread()
 #if defined(PINPAD_SUPPORT)
         int len, pw_len, newpw_len;
 #endif
+
       
         uint32_t m;
         queue_remove_blocking(card_comm, &m);
@@ -1557,6 +1563,7 @@ void card_thread()
 	        break;
 
         process_apdu();
+        
         done:;
         uint32_t flag = EV_EXEC_FINISHED;
         queue_add_blocking(ccid_comm, &flag);
