@@ -161,6 +161,31 @@ static int cmd_select() {
     return SW_OK ();
 }
 
+int parse_token_info(const file_t *f, int mode) {
+    char *label = "HSM2040";
+    char *manu = "Pol Henarejos";
+    sc_pkcs15_tokeninfo_t *ti = (sc_pkcs15_tokeninfo_t *)calloc(1, sizeof(sc_pkcs15_tokeninfo_t));
+    ti->version = 3;
+    ti->flags = SC_PKCS15_TOKEN_PRN_GENERATION | SC_PKCS15_TOKEN_EID_COMPLIANT;
+    ti->label = (char *)calloc(strlen(label)+1, sizeof(char));
+    strlcpy(ti->label, label, strlen(label)+1);
+    ti->serial_number = (char *)calloc(2 * PICO_UNIQUE_BOARD_ID_SIZE_BYTES + 1, sizeof(char));
+    pico_get_unique_board_id_string(ti->serial_number, 2 * PICO_UNIQUE_BOARD_ID_SIZE_BYTES + 1);
+    ti->manufacturer_id = (char *)calloc(strlen(manu)+1, sizeof(char));
+    strlcpy(ti->manufacturer_id, manu, strlen(manu)+1);
+
+    uint8_t *b;
+    size_t len;
+    int r = sc_pkcs15_encode_tokeninfo(NULL, ti, &b, &len);
+    if (mode == 1) {
+        memcpy(res_APDU, b, len);
+        res_APDU_size = len;
+    }
+    free(b);
+    sc_pkcs15_free_tokeninfo(ti);
+    return len;
+}
+
 
 static int cmd_list_keys()
 {
@@ -225,15 +250,29 @@ static int cmd_read_binary()
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
     if (ef->data) {
-        uint16_t data_len = file_read_uint16(ef->data);
-        if (offset > data_len)
-            return SW_WRONG_P1P2();
+        if ((ef->type & FILE_DATA_FUNC) == FILE_DATA_FUNC) {
+            uint16_t data_len = ((int (*)(const file_t *, int))(ef->data))((const file_t *)ef, 1); //already copies content to res_APDU
+            if (offset > data_len)
+                return SW_WRONG_P1P2();
+            uint16_t maxle = data_len-offset;
+            if (apdu.expected_res_size > maxle)
+                apdu.expected_res_size = maxle;
+            if (offset) {
+                res_APDU += offset;
+                res_APDU_size -= offset;
+            }
+        }
+        else {
+            uint16_t data_len = file_read_uint16(ef->data);
+            if (offset > data_len)
+                return SW_WRONG_P1P2();
         
-        uint16_t maxle = data_len-offset;
-        if (apdu.expected_res_size > maxle)
-            apdu.expected_res_size = maxle;
-        res_APDU = file_read(ef->data+2+offset);
-        res_APDU_size = data_len-offset;
+            uint16_t maxle = data_len-offset;
+            if (apdu.expected_res_size > maxle)
+                apdu.expected_res_size = maxle;
+            res_APDU = file_read(ef->data+2+offset);
+            res_APDU_size = data_len-offset;
+        }
     }
 
     return SW_OK();
@@ -407,6 +446,8 @@ void hash_multi(const uint8_t *input, size_t len, uint8_t output[32])
     mbedtls_sha256_context ctx;
     mbedtls_sha256_init(&ctx);
     int iters = 256;
+    
+    pico_get_unique_board_id(&unique_id);
     
     mbedtls_sha256_starts (&ctx, 0);
     mbedtls_sha256_update (&ctx, unique_id.id, sizeof(unique_id.id));
