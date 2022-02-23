@@ -27,6 +27,7 @@ app_t *sc_hsm_select_aid(app_t *a) {
     if (!memcmp(apdu.cmd_apdu_data, sc_hsm_aid+1, MIN(apdu.cmd_apdu_data_len,sc_hsm_aid[0]))) {
         a->aid = sc_hsm_aid;
         a->process_apdu = sc_hsm_process_apdu;
+        printf("select sc-hsm\r\n");
         init_sc_hsm();
         return a;
     }
@@ -38,6 +39,7 @@ void __attribute__ ((constructor)) sc_hsm_ctor() {
 }
 
 void init_sc_hsm() {
+    printf("init sc-hsm\r\n");
     scan_flash();
     has_session_pin = has_session_sopin = false;
 }
@@ -94,15 +96,15 @@ static int cmd_select() {
         fid = get_uint16_t(apdu.cmd_apdu_data, 0);
 
     if ((fid & 0xff00) == (PRKD_PREFIX << 8)) {
-        if (!(pe = search_file_chain(fid, ef_prkdf)))
+        if (!(pe = search_dynamic_file(fid)))
             return SW_FILE_NOT_FOUND();
     }
     else if ((fid & 0xff00) == (CD_PREFIX << 8)) {
-        if (!(pe = search_file_chain(fid, ef_cdf)))
+        if (!(pe = search_dynamic_file(fid)))
             return SW_FILE_NOT_FOUND();
     }
     else if ((fid & 0xff00) == (EE_CERTIFICATE_PREFIX << 8)) {
-        if (!(pe = search_file_chain(fid, ef_pukdf)))
+        if (!(pe = search_dynamic_file(fid)))
             return SW_FILE_NOT_FOUND();
     }
     if (!pe) {
@@ -162,13 +164,17 @@ static int cmd_select() {
 
 static int cmd_list_keys()
 {
-    for (file_chain_t *fc = ef_prkdf; fc; fc = fc->next) {
-        res_APDU[res_APDU_size++] = KEY_PREFIX;
-        res_APDU[res_APDU_size++] = fc->file->fid & 0xff;
-    }
-    for (file_chain_t *fc = ef_cdf; fc; fc = fc->next) {
-        res_APDU[res_APDU_size++] = CD_PREFIX;
-        res_APDU[res_APDU_size++] = fc->file->fid & 0xff;
+    file_t *f;
+    for (int i = 0; i < dynamic_files; i++) {
+        f = &dynamic_file[i];
+        if ((f->fid & 0xff00) == (PRKD_PREFIX << 8)) {
+            res_APDU[res_APDU_size++] = KEY_PREFIX;
+            res_APDU[res_APDU_size++] = f->fid & 0xff;
+        }
+        else if ((f->fid & 0xff00) == (CD_PREFIX << 8)) {
+            res_APDU[res_APDU_size++] = CD_PREFIX;
+            res_APDU[res_APDU_size++] = f->fid & 0xff;
+        }
     }
     return SW_OK();
 }
@@ -332,7 +338,8 @@ static int cmd_challenge() {
 }
 
 static int cmd_initialize() {
-    initialize_flash();
+    printf("cmd initialize\r\n");
+    initialize_flash(true);
     scan_flash();
     dkeks = 0;
     const uint8_t *p = apdu.cmd_apdu_data;
@@ -498,7 +505,7 @@ int store_keys(void *key_ctx, int type, uint8_t key_id, sc_context_t *ctx) {
     free(kdata); 
     if (r != HSM_OK)
         return r;
-    add_file_to_chain(fpk, &ef_kf);
+    //add_file_to_chain(fpk, &ef_kf);
         
     struct sc_pkcs15_object *p15o = (struct sc_pkcs15_object *)calloc(1,sizeof (struct sc_pkcs15_object));
     
@@ -523,15 +530,14 @@ int store_keys(void *key_ctx, int type, uint8_t key_id, sc_context_t *ctx) {
     
     r = sc_pkcs15_encode_prkdf_entry(ctx, p15o, &asn1bin, &asn1len);
     free(prkd);
-    printf("r %d\r\n",r);
     //sc_asn1_print_tags(asn1bin, asn1len);
     fpk = file_new((PRKD_PREFIX << 8) | key_id);
     r = flash_write_data_to_file(fpk, asn1bin, asn1len);
     free(asn1bin);
     if (r != HSM_OK)
         return r;
-    add_file_to_chain(fpk, &ef_prkdf);
- 
+    //add_file_to_chain(fpk, &ef_prkdf);
+    printf("store 1!\r\n");
     sc_pkcs15_pubkey_info_t *pukd = (sc_pkcs15_pubkey_info_t *)calloc(1, sizeof(sc_pkcs15_pubkey_info_t));
     memset(pukd, 0, sizeof(sc_pkcs15_pubkey_info_t));
     pukd->id.len = 1;
@@ -552,19 +558,26 @@ int store_keys(void *key_ctx, int type, uint8_t key_id, sc_context_t *ctx) {
     p15o->data = pukd;
     p15o->type = SC_PKCS15_TYPE_PUBKEY | (type & 0xff);
     
+    printf("store 1!\r\n");
     r = sc_pkcs15_encode_pukdf_entry(ctx, p15o, &asn1bin, &asn1len);
+    printf("store 1!\r\n");
     free(pukd);
     free(p15o);
-    printf("r %d\r\n",r);
+    printf("store 1!\r\n");
     //sc_asn1_print_tags(asn1bin, asn1len);
     fpk = file_new((CD_PREFIX << 8) | key_id);
+    printf("store 1!\r\n");
     r = flash_write_data_to_file(fpk, asn1bin, asn1len);
+    printf("store 1!\r\n");
     free(asn1bin);
+    printf("store 1!\r\n");
     if (r != HSM_OK)
         return r;
-    add_file_to_chain(fpk, &ef_cdf);
+    //add_file_to_chain(fpk, &ef_cdf);
     
+    printf("store 1!\r\n");
     low_flash_available();
+    printf("store 3!\r\n");
     return HSM_OK;
 }
 
@@ -572,9 +585,11 @@ sc_context_t *create_context() {
     sc_context_t *ctx;
     sc_context_param_t ctx_opts;
     memset(&ctx_opts, 0, sizeof(sc_context_param_t));
+    ctx_opts.ver      = 0;
+	ctx_opts.app_name = "hsm2040";
     sc_context_create(&ctx, &ctx_opts);
     ctx->debug = 0;
-    ctx->debug_file = stdout;
+    sc_ctx_log_to_file(ctx, "stdout");
     return ctx;
 }
 
@@ -689,8 +704,6 @@ int sc_pkcs15emu_sc_hsm_encode_cvc_req(sc_pkcs15_card_t * p15card, sc_cvc_t *cvc
     	}
     	
     	sc_format_asn1_entry(asn1_req , &asn1_authreq, NULL, 1);
-    
-    
     	r = sc_asn1_encode(card->ctx, asn1_req, buf, buflen);
     }
     
@@ -948,7 +961,7 @@ static int cmd_keypair_gen() {
         }
     }
     error:
-    sc_release_context(ctx);
+    free(ctx);
     free(p15card.card);
     if (ret != 0)
         return SW_EXEC_ERROR();
@@ -961,7 +974,6 @@ int cmd_update_ef() {
     uint16_t offset = 0;
     uint16_t data_len = 0;
     file_t *ef = NULL;
-        
     if (fid == 0x0)
         ef = currentEF;
     else if ((fid & 0xff00) != (EE_CERTIFICATE_PREFIX << 8))
@@ -990,8 +1002,8 @@ int cmd_update_ef() {
     }
     if (data_len == 0 && offset == 0) { //new file
         ef = file_new(fid);
-        if ((fid & 0xff00) == (EE_CERTIFICATE_PREFIX << 8))
-            add_file_to_chain(ef, &ef_pukdf);
+        //if ((fid & 0xff00) == (EE_CERTIFICATE_PREFIX << 8))
+        //    add_file_to_chain(ef, &ef_pukdf);
         select_file(ef);
     }
     else {
