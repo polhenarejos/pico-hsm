@@ -382,8 +382,10 @@ static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
 void usb_tx_enable(const void *buf, uint32_t len) 
 {
-    //DEBUG_PAYLOAD(((uint8_t *)buf),len);
-    tud_vendor_write(buf, len);
+    if (len > 0) {
+        //DEBUG_PAYLOAD(((uint8_t *)buf),len);
+        tud_vendor_write(buf, len);
+    }
 }
 
 /*
@@ -1408,7 +1410,7 @@ static int usb_event_handle(struct ccid *c)
     {
         ccid_tx_done ();
     }
-    else if (tud_vendor_available() && c->epo->ready)
+    if (tud_vendor_available() && c->epo->ready)
     {
         uint32_t count = tud_vendor_read(endp1_rx_buf, sizeof(endp1_rx_buf));
         //DEBUG_PAYLOAD(endp1_rx_buf, count);
@@ -1447,6 +1449,7 @@ int process_apdu() {
     }
     if (current_app->process_apdu)
         return current_app->process_apdu();
+    return set_res_sw (0x6D, 0x00);
 }
 
 
@@ -1563,7 +1566,6 @@ void card_thread()
 	        break;
 
         process_apdu();
-        
         done:;
         uint32_t flag = EV_EXEC_FINISHED;
         queue_add_blocking(ccid_comm, &flag);
@@ -1669,7 +1671,6 @@ void ccid_task(void)
             }
             else if (m == EV_TX_FINISHED)
         	{
-        	    TU_LOG3("state %d\r\n",c->state);
         	    if (c->state == APDU_STATE_RESULT)
         	        ccid_reset (c);
         	    else
