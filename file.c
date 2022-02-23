@@ -135,10 +135,9 @@ file_t *file_retries_pin1 = NULL;
 file_t *file_sopin = NULL;
 file_t *file_retries_sopin = NULL;
 
-file_chain_t *ef_prkdf = NULL;
-file_chain_t *ef_kf = NULL;
-file_chain_t *ef_pukdf = NULL;
-file_chain_t *ef_cdf = NULL;
+#define MAX_DYNAMIC_FILES 64
+uint16_t dynamic_files = 0;
+file_t dynamic_file[MAX_DYNAMIC_FILES];
 
 bool card_terminated = false;
 
@@ -234,27 +233,26 @@ void initialize_chain(file_chain_t **chain) {
     file_chain_t *next;
     for (file_chain_t *f = *chain; f; f = next) {
         next = f->next;
-        free(f->file);
         free(f);
     }
     *chain = NULL;
 }
 
-void initialize_flash() {
-    const uint8_t empty[8] = { 0 };
-    flash_program_block(end_data_pool, empty, sizeof(empty));
-    low_flash_available();
-    initialize_chain(&ef_prkdf);
-    initialize_chain(&ef_pukdf);
-    initialize_chain(&ef_kf);
-    initialize_chain(&ef_cdf);
+void initialize_flash(bool hard) {
+    if (hard) {
+        const uint8_t empty[8] = { 0 };
+        flash_program_block(end_data_pool, empty, sizeof(empty));
+        low_flash_available();
+    }
     for (file_t *f = file_entries; f != file_last; f++) {
         if ((f->type & FILE_FLASH) == FILE_FLASH)
             f->data = NULL;
     }
+    dynamic_files = 0;
 }
 
 void scan_flash() {
+    initialize_flash(false); //soft initialization
     if (*(uintptr_t *)end_data_pool == 0xffffffff && *(uintptr_t *)(end_data_pool+sizeof(uintptr_t)) == 0xffffffff) 
     {
         printf("First initialization (or corrupted!)\r\n");
@@ -274,21 +272,18 @@ void scan_flash() {
         printf("scan fid %x\r\n",fid);
         file_t *file = (file_t *)search_by_fid(fid, NULL, SPECIFY_EF);
         if (!file) {
+            file = file_new(fid);
             if ((fid & 0xff00) == (KEY_PREFIX << 8)) {
-                file = file_new(fid);
-                add_file_to_chain(file, &ef_kf);
+                //add_file_to_chain(file, &ef_kf);
             }
             else if ((fid & 0xff00) == (PRKD_PREFIX << 8)) {
-                file = file_new(fid);
-                add_file_to_chain(file, &ef_prkdf);
+                //add_file_to_chain(file, &ef_prkdf);
             }
             else if ((fid & 0xff00) == (CD_PREFIX << 8)) {
-                file = file_new(fid);
-                add_file_to_chain(file, &ef_cdf);
+                //add_file_to_chain(file, &ef_cdf);
             }
             else if ((fid & 0xff00) == (EE_CERTIFICATE_PREFIX << 8)) {
-                file = file_new(fid);
-                add_file_to_chain(file, &ef_pukdf);
+                //add_file_to_chain(file, &ef_pukdf);
             }
             else {
                 TU_LOG1("SCAN FOUND ORPHAN FILE: %x\r\n",fid);
@@ -381,8 +376,22 @@ uint8_t file_read_uint8(const uint8_t *addr) {
     return flash_read_uint8((uintptr_t)addr);
 }
 
+file_t *search_dynamic_file(uint16_t fid) {
+    for (int i = 0; i < dynamic_files; i++) {
+        if (dynamic_file[i].fid == fid)
+            return &dynamic_file[i];
+    }
+    return NULL;
+}
+
 file_t *file_new(uint16_t fid) {
-    file_t *f = (file_t *)malloc(sizeof(file_t));
+    file_t *f;
+    if ((f = search_dynamic_file(fid)))
+        return f;
+    if (dynamic_files == MAX_DYNAMIC_FILES)
+        return NULL;
+    f = &dynamic_file[dynamic_files];
+    dynamic_files++;
     file_t file = {
         .fid = fid,
         .parent = 5,
@@ -398,11 +407,13 @@ file_t *file_new(uint16_t fid) {
 }
 
 file_chain_t *add_file_to_chain(file_t *file, file_chain_t **chain) {
-    file_chain_t *f_chain = (file_chain_t *)malloc(sizeof(file_chain_t));
-    f_chain->file = file;
-    f_chain->next = *chain;
-    *chain = f_chain;
-    return f_chain;
+    if (search_file_chain(file->fid, *chain))
+        return NULL;
+    file_chain_t *fc = (file_chain_t *)malloc(sizeof(file_chain_t));
+    fc->file = file;
+    fc->next = *chain;
+    *chain = fc;
+    return fc;
 }
 
 file_t *search_file_chain(uint16_t fid, file_chain_t *chain) {

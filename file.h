@@ -81,7 +81,7 @@ extern file_t *search_by_path(const uint8_t *pe_path, uint8_t pathlen, const fil
 extern bool authenticate_action(const file_t *ef, uint8_t op);
 extern void process_fci(const file_t *pe);
 extern void scan_flash();
-extern void initialize_flash();
+extern void initialize_flash(bool);
 
 extern file_t file_entries[];
 
@@ -90,10 +90,9 @@ extern uint16_t file_read_uint16(const uint8_t *addr);
 extern uint8_t file_read_uint8(const uint8_t *addr);
 extern file_t *file_new(uint16_t);
 
-extern file_chain_t *ef_prkdf; //key description
-extern file_chain_t *ef_kf; //key blob
-extern file_chain_t *ef_pukdf; //cvc csr
-extern file_chain_t *ef_cdf; //ce 
+extern uint16_t dynamic_files;
+extern file_t dynamic_file[];
+extern file_t *search_dynamic_file(uint16_t);
 
 extern file_chain_t *add_file_to_chain(file_t *file, file_chain_t **chain);
 extern file_t *search_file_chain(uint16_t fid, file_chain_t *chain);
