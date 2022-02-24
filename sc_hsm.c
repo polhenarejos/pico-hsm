@@ -1087,7 +1087,7 @@ int cmd_delete_file() {
         return SW_EXEC_ERROR();
     if (delete_dynamic_file(ef) != HSM_OK)
         return SW_EXEC_ERROR();
-    
+    low_flash_available();
     return SW_OK();
 }
 
