@@ -94,6 +94,7 @@ extern file_t *file_new(uint16_t);
 extern uint16_t dynamic_files;
 extern file_t dynamic_file[];
 extern file_t *search_dynamic_file(uint16_t);
+extern int delete_dynamic_file(file_t *f);
 
 extern file_chain_t *add_file_to_chain(file_t *file, file_chain_t **chain);
 extern file_t *search_file_chain(uint16_t fid, file_chain_t *chain);

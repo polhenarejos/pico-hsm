@@ -392,6 +392,18 @@ file_t *search_dynamic_file(uint16_t fid) {
     return NULL;
 }
 
+int delete_dynamic_file(file_t *f) {
+    for (int i = 0; i < dynamic_files; i++) {
+        if (dynamic_file[i].fid == f->fid) {
+            for (int j = i+1; j < dynamic_files; j++)
+                memcpy(&dynamic_file[j-1], &dynamic_file[j], sizeof(file_t));
+            dynamic_files--;
+            return HSM_OK;
+        }
+    }
+    return HSM_ERR_FILE_NOT_FOUND;
+}
+
 file_t *file_new(uint16_t fid) {
     file_t *f;
     if ((f = search_dynamic_file(fid)))

@@ -1071,6 +1071,26 @@ int cmd_update_ef() {
     return SW_OK(); 
 }
 
+int cmd_delete_file() {
+    file_t *ef = NULL;
+    if (apdu.cmd_apdu_data_len == 0) {
+        ef = currentEF;
+        if (!(ef = search_dynamic_file(ef->fid)))
+            return SW_FILE_INVALID();
+    }
+    else {
+        uint16_t fid = (apdu.cmd_apdu_data[0] << 8) | apdu.cmd_apdu_data[1];
+        if (!(ef = search_dynamic_file(fid)))
+            return SW_FILE_NOT_FOUND();
+    }
+    if (flash_clear_file(ef) != HSM_OK)
+        return SW_EXEC_ERROR();
+    if (delete_dynamic_file(ef) != HSM_OK)
+        return SW_EXEC_ERROR();
+    
+    return SW_OK();
+}
+
 typedef struct cmd
 {
   uint8_t ins;
@@ -1088,6 +1108,7 @@ typedef struct cmd
 #define INS_LIST_KEYS               0x58
 #define INS_KEYPAIR_GEN             0x46
 #define INS_UPDATE_EF               0xD7
+#define INS_DELETE_FILE             0xE4
 
 static const cmd_t cmds[] = {
     { INS_SELECT_FILE, cmd_select },
@@ -1101,6 +1122,7 @@ static const cmd_t cmds[] = {
     { INS_IMPORT_DKEK, cmd_import_dkek },
     { INS_KEYPAIR_GEN, cmd_keypair_gen },
     { INS_UPDATE_EF, cmd_update_ef },
+    { INS_DELETE_FILE, cmd_delete_file },
     { 0x00, 0x0}
 };
 

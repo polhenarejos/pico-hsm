@@ -112,6 +112,7 @@ void put_binary (const char *s, int len);
 
 extern int flash_write_data_to_file(file_t *file, const uint8_t *data, uint16_t len);
 extern void low_flash_available();
+extern int flash_clear_file(file_t *file);
 
 extern pico_unique_board_id_t unique_id;
 #endif
