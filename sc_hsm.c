@@ -1030,7 +1030,7 @@ int cmd_update_ef() {
     else if ((fid & 0xff00) != (EE_CERTIFICATE_PREFIX << 8))
         return SW_INCORRECT_P1P2();
         
-    if (!authenticate_action(ef, ACL_OP_UPDATE_ERASE))
+    if (ef && !authenticate_action(ef, ACL_OP_UPDATE_ERASE))
         return SW_SECURITY_STATUS_NOT_SATISFIED();
         
     while (p-apdu.cmd_apdu_data < apdu.cmd_apdu_data_len) {
