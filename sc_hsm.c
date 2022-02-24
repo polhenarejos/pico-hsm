@@ -27,7 +27,6 @@ app_t *sc_hsm_select_aid(app_t *a) {
     if (!memcmp(apdu.cmd_apdu_data, sc_hsm_aid+1, MIN(apdu.cmd_apdu_data_len,sc_hsm_aid[0]))) {
         a->aid = sc_hsm_aid;
         a->process_apdu = sc_hsm_process_apdu;
-        printf("select sc-hsm\r\n");
         init_sc_hsm();
         return a;
     }
@@ -39,7 +38,6 @@ void __attribute__ ((constructor)) sc_hsm_ctor() {
 }
 
 void init_sc_hsm() {
-    printf("init sc-hsm\r\n");
     scan_flash();
     has_session_pin = has_session_sopin = false;
 }
@@ -321,9 +319,9 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
     isUserAuthenticated = false;
     uint8_t dhash[32];
     double_hash_pin(data, len, dhash);
-    if (sizeof(dhash) != file_read_uint16(pin->data))
+    if (sizeof(dhash) != file_read_uint16(pin->data)-1) //1 byte for pin len
         return SW_CONDITIONS_NOT_SATISFIED();
-    if (memcmp(file_read(pin->data+2), dhash, sizeof(dhash)) != 0) {
+    if (memcmp(file_read(pin->data+3), dhash, sizeof(dhash)) != 0) {
         if (pin_wrong_retry(pin) != HSM_OK)
             return SW_PIN_BLOCKED();
         return SW_SECURITY_STATUS_NOT_SATISFIED();
@@ -371,8 +369,9 @@ static int cmd_reset_retry() {
             uint16_t r = check_pin(file_sopin, apdu.cmd_apdu_data, 8);
             if (r != 0x9000)
                 return r;
-            uint8_t dhash[32];
-            double_hash_pin(apdu.cmd_apdu_data+8, apdu.cmd_apdu_data_len-8, dhash);
+            uint8_t dhash[33];
+            dhash[0] = apdu.cmd_apdu_data_len-8;
+            double_hash_pin(apdu.cmd_apdu_data+8, apdu.cmd_apdu_data_len-8, dhash+1);
             flash_write_data_to_file(file_pin1, dhash, sizeof(dhash));
             if (pin_reset_retries(file_pin1, true) != HSM_OK)
                 return SW_MEMORY_FAILURE();
@@ -401,8 +400,9 @@ static int cmd_initialize() {
         }
         else if (tag == 0x81) { //user pin
             if (file_pin1 && file_pin1->data) {
-                uint8_t dhash[32];
-                double_hash_pin(p, tag_len, dhash);
+                uint8_t dhash[33];
+                dhash[0] = tag_len;
+                double_hash_pin(p, tag_len, dhash+1);
                 flash_write_data_to_file(file_pin1, dhash, sizeof(dhash));
                 hash_multi(p, tag_len, session_pin);
                 has_session_pin = true;
@@ -410,8 +410,9 @@ static int cmd_initialize() {
         }
         else if (tag == 0x82) { //user pin
             if (file_sopin && file_sopin->data) {
-                uint8_t dhash[32];
-                double_hash_pin(p, tag_len, dhash);
+                uint8_t dhash[33];
+                dhash[0] = tag_len;
+                double_hash_pin(p, tag_len, dhash+1);
                 flash_write_data_to_file(file_sopin, dhash, sizeof(dhash));
                 hash_multi(p, tag_len, session_sopin);
                 has_session_sopin = true;
@@ -1108,22 +1109,46 @@ int cmd_delete_file() {
     return SW_OK();
 }
 
+static int cmd_change_pin() {
+    if (P1(apdu) == 0x0) {
+        if (P2(apdu) == 0x81) {
+            if (!file_sopin || !file_pin1) {
+                return SW_FILE_NOT_FOUND();
+            }
+            if (!file_pin1->data) {
+                return SW_REFERENCE_NOT_FOUND();
+            }
+            uint8_t pin_len = file_read_uint8(file_pin1->data+2);
+            uint16_t r = check_pin(file_pin1, apdu.cmd_apdu_data, pin_len);
+            if (r != 0x9000)
+                return r;
+            uint8_t dhash[33];
+            dhash[0] = apdu.cmd_apdu_data_len-pin_len;
+            double_hash_pin(apdu.cmd_apdu_data+pin_len, apdu.cmd_apdu_data_len-pin_len, dhash+1);
+            flash_write_data_to_file(file_pin1, dhash, sizeof(dhash));
+            low_flash_available();
+            return SW_OK();
+        }
+    }
+}
+
 typedef struct cmd
 {
   uint8_t ins;
   int (*cmd_handler)();
 } cmd_t;
 
+#define INS_VERIFY                  0x20
+#define INS_CHANGE_PIN              0x24
+#define INS_RESET_RETRY             0x2C
+#define INS_KEYPAIR_GEN             0x46
+#define INS_INITIALIZE              0x50
+#define INS_IMPORT_DKEK             0x52
+#define INS_LIST_KEYS               0x58
+#define INS_CHALLENGE               0x84
 #define INS_SELECT_FILE				0xA4
 #define INS_READ_BINARY				0xB0
 #define INS_READ_BINARY_ODD         0xB1
-#define INS_VERIFY                  0x20
-#define INS_RESET_RETRY             0x2C
-#define INS_INITIALIZE              0x50
-#define INS_IMPORT_DKEK             0x52
-#define INS_CHALLENGE               0x84
-#define INS_LIST_KEYS               0x58
-#define INS_KEYPAIR_GEN             0x46
 #define INS_UPDATE_EF               0xD7
 #define INS_DELETE_FILE             0xE4
 
@@ -1140,6 +1165,7 @@ static const cmd_t cmds[] = {
     { INS_KEYPAIR_GEN, cmd_keypair_gen },
     { INS_UPDATE_EF, cmd_update_ef },
     { INS_DELETE_FILE, cmd_delete_file },
+    { INS_CHANGE_PIN, cmd_change_pin },
     { 0x00, 0x0}
 };
 

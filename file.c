@@ -311,7 +311,7 @@ void scan_flash() {
     if (file_pin1) {
         if (!file_pin1->data) {
             TU_LOG1("PIN1 is empty. Initializing with default password\r\n");
-            const uint8_t empty[32] = { 0 };
+            const uint8_t empty[33] = { 0 };
             flash_write_data_to_file(file_pin1, empty, sizeof(empty));
         }
     }
@@ -322,7 +322,7 @@ void scan_flash() {
     if (file_sopin) {
         if (!file_sopin->data) {
             TU_LOG1("SOPIN is empty. Initializing with default password\r\n");
-            const uint8_t empty[32] = { 0 };
+            const uint8_t empty[33] = { 0 };
             flash_write_data_to_file(file_sopin, empty, sizeof(empty));
         }
     }
