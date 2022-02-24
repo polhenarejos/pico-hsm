@@ -78,8 +78,10 @@ void select_file(file_t *pe) {
     else {
         currentDF = pe;
     }
-    if (currentEF == file_openpgp || currentEF == file_sc_hsm)
+    if (currentEF == file_openpgp || currentEF == file_sc_hsm) {
         selected_applet = currentEF;
+        isUserAuthenticated = false;
+    }
 }
 static int cmd_select() {
     uint8_t p1 = P1(apdu);
@@ -285,7 +287,10 @@ int pin_reset_retries(const file_t *pin) {
     const file_t *act = search_by_fid(pin->fid+2, NULL, SPECIFY_EF);
     if (!max || !act)
         return HSM_ERR_FILE_NOT_FOUND;
-    uint8_t retries = file_read_uint8(max->data+2);
+    uint8_t retries = file_read_uint8(act->data+2);
+    if (retries == 0) //blocked
+        return HSM_ERR_BLOCKED;
+    retries = file_read_uint8(max->data+2);
     int r = flash_write_data_to_file((file_t *)act, &retries, sizeof(retries));
     low_flash_available();
     return r;
@@ -313,6 +318,7 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
     if (!pin->data) {
         return SW_REFERENCE_NOT_FOUND();
     }
+    isUserAuthenticated = false;
     uint8_t dhash[32];
     double_hash_pin(data, len, dhash);
     if (sizeof(dhash) != file_read_uint16(pin->data))
@@ -323,6 +329,8 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
     int r = pin_reset_retries(pin);
+    if (r == HSM_ERR_BLOCKED)
+        return SW_PIN_BLOCKED();
     if (r != HSM_OK)
         return SW_MEMORY_FAILURE();
     isUserAuthenticated = true;
@@ -481,6 +489,9 @@ static int cmd_import_dkek() {
     if (has_session_sopin == false)
         return SW_CONDITIONS_NOT_SATISFIED();
     file_t *tf = search_by_fid(EF_DKEK, NULL, SPECIFY_EF);
+    if (!authenticate_action(get_parent(tf), ACL_OP_CREATE_EF)) {
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
+    }
     if (apdu.cmd_apdu_data_len > 0) {
         for (int i = 0; i < apdu.cmd_apdu_data_len; i++)
             tmp_dkek[IV_SIZE+i] ^= apdu.cmd_apdu_data[i];
@@ -578,7 +589,6 @@ int store_keys(void *key_ctx, int type, uint8_t key_id, sc_context_t *ctx) {
     if (r != HSM_OK)
         return r;
     //add_file_to_chain(fpk, &ef_prkdf);
-    printf("store 1!\r\n");
     sc_pkcs15_pubkey_info_t *pukd = (sc_pkcs15_pubkey_info_t *)calloc(1, sizeof(sc_pkcs15_pubkey_info_t));
     memset(pukd, 0, sizeof(sc_pkcs15_pubkey_info_t));
     pukd->id.len = 1;
@@ -599,26 +609,17 @@ int store_keys(void *key_ctx, int type, uint8_t key_id, sc_context_t *ctx) {
     p15o->data = pukd;
     p15o->type = SC_PKCS15_TYPE_PUBKEY | (type & 0xff);
     
-    printf("store 1!\r\n");
     r = sc_pkcs15_encode_pukdf_entry(ctx, p15o, &asn1bin, &asn1len);
-    printf("store 1!\r\n");
     free(pukd);
     free(p15o);
-    printf("store 1!\r\n");
     //sc_asn1_print_tags(asn1bin, asn1len);
     fpk = file_new((CD_PREFIX << 8) | key_id);
-    printf("store 1!\r\n");
     r = flash_write_data_to_file(fpk, asn1bin, asn1len);
-    printf("store 1!\r\n");
     free(asn1bin);
-    printf("store 1!\r\n");
     if (r != HSM_OK)
         return r;
     //add_file_to_chain(fpk, &ef_cdf);
-    
-    printf("store 1!\r\n");
     low_flash_available();
-    printf("store 3!\r\n");
     return HSM_OK;
 }
 
@@ -783,6 +784,8 @@ int cvc_prepare_signatures(sc_pkcs15_card_t *p15card, sc_cvc_t *cvc, size_t sig_
 static int cmd_keypair_gen() {
     uint8_t key_id = P1(apdu);
     uint8_t auth_key_id = P2(apdu);
+    if (!isUserAuthenticated)
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
     sc_context_t *ctx = create_context();
     struct sc_pkcs15_card p15card;
     p15card.card = (sc_card_t *)calloc(1, sizeof(sc_card_t));
@@ -1015,10 +1018,15 @@ int cmd_update_ef() {
     uint16_t offset = 0;
     uint16_t data_len = 0;
     file_t *ef = NULL;
+    if (!isUserAuthenticated)
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
     if (fid == 0x0)
         ef = currentEF;
     else if ((fid & 0xff00) != (EE_CERTIFICATE_PREFIX << 8))
         return SW_INCORRECT_P1P2();
+        
+    if (!authenticate_action(ef, ACL_OP_UPDATE_ERASE))
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
         
     while (p-apdu.cmd_apdu_data < apdu.cmd_apdu_data_len) {
         uint8_t tag = *p++;
@@ -1073,6 +1081,9 @@ int cmd_update_ef() {
 
 int cmd_delete_file() {
     file_t *ef = NULL;
+    if (!isUserAuthenticated)
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
+        
     if (apdu.cmd_apdu_data_len == 0) {
         ef = currentEF;
         if (!(ef = search_dynamic_file(ef->fid)))
@@ -1083,6 +1094,8 @@ int cmd_delete_file() {
         if (!(ef = search_dynamic_file(fid)))
             return SW_FILE_NOT_FOUND();
     }
+    if (!authenticate_action(ef, ACL_OP_DELETE_SELF))
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
     if (flash_clear_file(ef) != HSM_OK)
         return SW_EXEC_ERROR();
     if (delete_dynamic_file(ef) != HSM_OK)

@@ -90,6 +90,7 @@ extern uint8_t *file_read(const uint8_t *addr);
 extern uint16_t file_read_uint16(const uint8_t *addr);
 extern uint8_t file_read_uint8(const uint8_t *addr);
 extern file_t *file_new(uint16_t);
+file_t *get_parent(file_t *f);
 
 extern uint16_t dynamic_files;
 extern file_t dynamic_file[];

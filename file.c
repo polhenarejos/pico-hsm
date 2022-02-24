@@ -157,6 +157,10 @@ bool is_parent(const file_t *child, const file_t *parent) {
     return is_parent(&file_entries[child->parent], parent);
 }
 
+file_t *get_parent(file_t *f) {
+    return &file_entries[f->parent];
+}
+
 file_t *search_by_name(uint8_t *name, uint16_t namelen) {
     for (file_t *p = file_entries; p != file_last; p++) {
         if (p->name && *p->name == apdu.cmd_apdu_data_len && memcmp(p->name+1, name, namelen) == 0) {
