@@ -280,7 +280,7 @@ static int cmd_read_binary()
     return SW_OK();
 }
 
-int pin_reset_retries(const file_t *pin) {
+int pin_reset_retries(const file_t *pin, bool force) {
     if (!pin)
         return HSM_ERR_NULL_PARAM; 
     const file_t *max = search_by_fid(pin->fid+1, NULL, SPECIFY_EF);
@@ -288,7 +288,7 @@ int pin_reset_retries(const file_t *pin) {
     if (!max || !act)
         return HSM_ERR_FILE_NOT_FOUND;
     uint8_t retries = file_read_uint8(act->data+2);
-    if (retries == 0) //blocked
+    if (retries == 0 && force == false) //blocked
         return HSM_ERR_BLOCKED;
     retries = file_read_uint8(max->data+2);
     int r = flash_write_data_to_file((file_t *)act, &retries, sizeof(retries));
@@ -328,7 +328,7 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
             return SW_PIN_BLOCKED();
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
-    int r = pin_reset_retries(pin);
+    int r = pin_reset_retries(pin, false);
     if (r == HSM_ERR_BLOCKED)
         return SW_PIN_BLOCKED();
     if (r != HSM_OK)
@@ -350,6 +350,8 @@ static int cmd_verify() {
         if (apdu.cmd_apdu_data_len > 0) {
             return check_pin(file_pin1, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
         }
+        if (file_read_uint8(file_retries_pin1->data+2) == 0)
+            return SW_PIN_BLOCKED();
         return set_res_sw (0x63, 0xc0 | file_read_uint8(file_retries_pin1->data+2));
     }
     else if (p2 == 0x88) { //SOPin
@@ -369,8 +371,10 @@ static int cmd_reset_retry() {
             uint16_t r = check_pin(file_sopin, apdu.cmd_apdu_data, 8);
             if (r != 0x9000)
                 return r;
-            flash_write_data_to_file(file_pin1, apdu.cmd_apdu_data+8, apdu.cmd_apdu_data_len-8);
-            if (pin_reset_retries(file_pin1) != HSM_OK)
+            uint8_t dhash[32];
+            double_hash_pin(apdu.cmd_apdu_data+8, apdu.cmd_apdu_data_len-8, dhash);
+            flash_write_data_to_file(file_pin1, dhash, sizeof(dhash));
+            if (pin_reset_retries(file_pin1, true) != HSM_OK)
                 return SW_MEMORY_FAILURE();
             low_flash_available();
             return SW_OK();
