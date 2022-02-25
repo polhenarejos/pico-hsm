@@ -26,20 +26,20 @@ extern int register_app(app_t * (*)());
 extern const uint8_t historical_bytes[];
 
 #define DEBUG_PAYLOAD(p,s) { \
-    TU_LOG1("Payload %s (%d bytes):\r\n", #p,s);\
+    printf("Payload %s (%d bytes):\r\n", #p,s);\
     for (int i = 0; i < s; i += 16) {\
-        TU_LOG1("%07Xh : ",i+p);\
+        printf("%07Xh : ",i+p);\
         for (int j = 0; j < 16; j++) {\
-            if (j < s-i) TU_LOG1("%02X ",p[i+j]);\
-            else TU_LOG1("   ");\
-            if (j == 7) TU_LOG1(" ");\
-            } TU_LOG1(":  "); \
+            if (j < s-i) printf("%02X ",(p)[i+j]);\
+            else printf("   ");\
+            if (j == 7) printf(" ");\
+            } printf(":  "); \
         for (int j = 0; j < MIN(16,s-i); j++) {\
-            TU_LOG1("%c",p[i+j] == 0x0a || p[i+j] == 0x0d ? '\\' : p[i+j]);\
-            if (j == 7) TU_LOG1(" ");\
+            printf("%c",(p)[i+j] == 0x0a || (p)[i+j] == 0x0d ? '\\' : (p)[i+j]);\
+            if (j == 7) printf(" ");\
             }\
-            TU_LOG1("\r\n");\
-        } TU_LOG1("\r\n"); \
+            printf("\r\n");\
+        } printf("\r\n"); \
     }
     
 struct apdu {

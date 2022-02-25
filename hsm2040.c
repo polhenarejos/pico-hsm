@@ -380,10 +380,11 @@ enum  {
 
 static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 
-void usb_tx_enable(const void *buf, uint32_t len) 
+void usb_tx_enable(const uint8_t *buf, uint32_t len) 
 {
     if (len > 0) {
-        //DEBUG_PAYLOAD(((uint8_t *)buf),len);
+        if (buf[0] == 0x80)
+            DEBUG_PAYLOAD(buf+CCID_MSG_HEADER_SIZE,len-CCID_MSG_HEADER_SIZE);
         tud_vendor_write(buf, len);
     }
 }
@@ -406,8 +407,8 @@ void usb_tx_enable(const void *buf, uint32_t len)
  *
  */
 static const uint8_t ATR_head[] = {
-    0x3b, 0xda, 0x11, 0xff, 0x81, 0xb1, 0xfe, 0x55, 0x1f, 0x03,
-    //0x3B,0xFE,0x18,0x00,0x00,0x81,0x31,0xFE,0x45,0x80,0x31,0x81,0x54,0x48,0x53,0x4D,0x31,0x73,0x80,0x21,0x40,0x81,0x07,0xFA
+    //0x3b, 0xda, 0x11, 0xff, 0x81, 0xb1, 0xfe, 0x55, 0x1f, 0x03,
+    0x3B,0xFE,0x18,0x00,0x00,0x81,0x31,0xFE,0x45,0x80,0x31,0x81,0x54,0x48,0x53,0x4D,0x31,0x73,0x80,0x21,0x40,0x81,0x07,0xFA
 };
 
 /* Send back ATR (Answer To Reset) */
@@ -1413,7 +1414,8 @@ static int usb_event_handle(struct ccid *c)
     if (tud_vendor_available() && c->epo->ready)
     {
         uint32_t count = tud_vendor_read(endp1_rx_buf, sizeof(endp1_rx_buf));
-        //DEBUG_PAYLOAD(endp1_rx_buf, count);
+        if (endp1_rx_buf[0] == 0x6F)
+            DEBUG_PAYLOAD(endp1_rx_buf+CCID_MSG_HEADER_SIZE, count-CCID_MSG_HEADER_SIZE);
         ccid_rx_ready(count);
     }
     return 0;
@@ -1438,7 +1440,7 @@ void prepare_ccid()
 
 int process_apdu() {
     if (!current_app) {
-        if (INS(apdu) == 0xA4 && P1(apdu) == 0x04 && P2(apdu) == 0x00) { //select by AID
+        if (INS(apdu) == 0xA4 && P1(apdu) == 0x04 && (P2(apdu) == 0x00 || P2(apdu) == 0x4)) { //select by AID
             for (int a = 0; a < num_apps; a++) {
                 if ((current_app = apps[a].select_aid(&apps[a]))) {
                     return set_res_sw(0x90,0x00);
@@ -1566,6 +1568,7 @@ void card_thread()
 	        break;
 
         process_apdu();
+        
         done:;
         uint32_t flag = EV_EXEC_FINISHED;
         queue_add_blocking(ccid_comm, &flag);
