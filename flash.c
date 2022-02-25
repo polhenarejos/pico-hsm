@@ -141,7 +141,8 @@ int flash_write_data_to_file(file_t *file, const uint8_t *data, uint16_t len) {
         uint16_t size_file_flash = flash_read_uint16((uintptr_t)file->data);
         if (len <= size_file_flash) { //it fits, no need to move it
             flash_program_halfword((uintptr_t)file->data, len);
-            flash_program_block((uintptr_t)file->data+sizeof(uint16_t), data, len);
+            if (data)
+                flash_program_block((uintptr_t)file->data+sizeof(uint16_t), data, len);
             return HSM_OK;
         }
         else { //we clear the old file
@@ -155,6 +156,7 @@ int flash_write_data_to_file(file_t *file, const uint8_t *data, uint16_t len) {
     file->data = (uint8_t *)new_addr+sizeof(uintptr_t)+sizeof(uint16_t); //next addr+fid
     flash_program_halfword(new_addr+sizeof(uintptr_t), file->fid);
     flash_program_halfword((uintptr_t)file->data, len);
-    flash_program_block((uintptr_t)file->data+sizeof(uint16_t), data, len);
+    if (data)
+        flash_program_block((uintptr_t)file->data+sizeof(uint16_t), data, len);
     return HSM_OK;
 }

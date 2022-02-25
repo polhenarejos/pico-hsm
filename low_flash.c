@@ -132,6 +132,9 @@ int flash_program_block(uintptr_t addr, const uint8_t *data, size_t len) {
     uintptr_t addr_alg = addr & -FLASH_SECTOR_SIZE;
     page_flash_t *p = NULL;
     
+    if (!data || len == 0)
+        return HSM_ERR_NULL_PARAM;
+    
     mutex_enter_blocking(&mtx_flash);
     if (ready_pages == TOTAL_FLASH_PAGES) {
         mutex_exit(&mtx_flash);
