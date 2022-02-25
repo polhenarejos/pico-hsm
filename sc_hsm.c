@@ -231,10 +231,10 @@ static int cmd_read_binary()
                 return SW_FILE_NOT_FOUND ();
         } 
         else {
-            uint16_t file_id = make_uint16_t(p1, p2) & 0x7fff;
+            uint16_t file_id = make_uint16_t(p1, p2); // & 0x7fff;
             if (file_id == 0x0)
                 ef = currentEF;
-            else if (!(ef = search_by_fid(file_id, NULL, SPECIFY_EF)))
+            else if (!(ef = search_by_fid(file_id, NULL, SPECIFY_EF)) && !(ef = search_dynamic_file(file_id)))
                 return SW_FILE_NOT_FOUND ();
             
             if (apdu.cmd_apdu_data[0] != 0x54)
@@ -1017,17 +1017,19 @@ static int cmd_keypair_gen() {
     return SW_OK();
 }
 
-int cmd_update_ef() {
-    uint16_t fid = (P1(apdu) << 8) | P2(apdu);
+static int cmd_update_ef() {
+    uint8_t p1 = P1(apdu), p2 = P2(apdu);
+    uint16_t fid = (p1 << 8) | p2;
     uint8_t *p = apdu.cmd_apdu_data, *data;
     uint16_t offset = 0;
     uint16_t data_len = 0;
     file_t *ef = NULL;
+    printf("%x %x %x\r\n",p1,p2,fid);
     if (!isUserAuthenticated)
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     if (fid == 0x0)
         ef = currentEF;
-    else if ((fid & 0xff00) != (EE_CERTIFICATE_PREFIX << 8))
+    else if (p1 != EE_CERTIFICATE_PREFIX && p1 != PRKD_PREFIX)
         return SW_INCORRECT_P1P2();
         
     if (ef && !authenticate_action(ef, ACL_OP_UPDATE_ERASE))
@@ -1061,7 +1063,9 @@ int cmd_update_ef() {
         select_file(ef);
     }
     else {
-        if (!ef)
+        if (fid == 0x0 && !ef)
+            return SW_FILE_NOT_FOUND();
+        if (!(ef = search_by_fid(fid, NULL, SPECIFY_EF)) && !(ef = search_dynamic_file(fid)))
             return SW_FILE_NOT_FOUND();
         if (offset == 0) {
             int r = flash_write_data_to_file(ef, data, data_len);
@@ -1084,7 +1088,7 @@ int cmd_update_ef() {
     return SW_OK(); 
 }
 
-int cmd_delete_file() {
+static int cmd_delete_file() {
     file_t *ef = NULL;
     if (!isUserAuthenticated)
         return SW_SECURITY_STATUS_NOT_SATISFIED();
@@ -1132,6 +1136,32 @@ static int cmd_change_pin() {
     }
 }
 
+static int cmd_key_gen() {
+    uint8_t key_id = P1(apdu);
+    uint8_t p2 = P2(apdu);
+    uint8_t key_size = 32;
+    if (p2 == 0xB2)
+        key_size = 32;
+    else if (p2 == 0xB1)
+        key_size = 24;
+    else if (p2 == 0xB0)
+        key_size = 16;
+    if (!isUserAuthenticated)
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
+   //at this moment, we do not use the template, as only CBC is supported by the driver (encrypt, decrypt and CMAC)
+    const uint8_t *aes_key = random_bytes_get();
+    file_t *fpk = file_new((KEY_PREFIX << 8) | key_id);
+    int r = flash_write_data_to_file(fpk, aes_key, key_size);
+    if (r != HSM_OK)
+        return SW_MEMORY_FAILURE();
+    fpk = file_new((PRKD_PREFIX << 8) | key_id);
+    r = flash_write_data_to_file(fpk, NULL, 0);
+    if (r != HSM_OK)
+        return SW_MEMORY_FAILURE();
+    low_flash_available();
+    return SW_OK();
+}
+
 typedef struct cmd
 {
   uint8_t ins;
@@ -1142,6 +1172,7 @@ typedef struct cmd
 #define INS_CHANGE_PIN              0x24
 #define INS_RESET_RETRY             0x2C
 #define INS_KEYPAIR_GEN             0x46
+#define INS_KEY_GEN                 0x48
 #define INS_INITIALIZE              0x50
 #define INS_IMPORT_DKEK             0x52
 #define INS_LIST_KEYS               0x58
@@ -1166,6 +1197,7 @@ static const cmd_t cmds[] = {
     { INS_UPDATE_EF, cmd_update_ef },
     { INS_DELETE_FILE, cmd_delete_file },
     { INS_CHANGE_PIN, cmd_change_pin },
+    { INS_KEY_GEN, cmd_key_gen },
     { 0x00, 0x0}
 };
 
