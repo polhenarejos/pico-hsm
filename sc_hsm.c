@@ -1024,7 +1024,6 @@ static int cmd_update_ef() {
     uint16_t offset = 0;
     uint16_t data_len = 0;
     file_t *ef = NULL;
-    printf("%x %x %x\r\n",p1,p2,fid);
     if (!isUserAuthenticated)
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     if (fid == 0x0)
@@ -1065,7 +1064,7 @@ static int cmd_update_ef() {
     else {
         if (fid == 0x0 && !ef)
             return SW_FILE_NOT_FOUND();
-        if (!(ef = search_by_fid(fid, NULL, SPECIFY_EF)) && !(ef = search_dynamic_file(fid)))
+        else if (fid != 0x0 && !(ef = search_by_fid(fid, NULL, SPECIFY_EF)) && !(ef = search_dynamic_file(fid)))
             return SW_FILE_NOT_FOUND();
         if (offset == 0) {
             int r = flash_write_data_to_file(ef, data, data_len);
