@@ -38,10 +38,13 @@ static const class_desc_ccid_t desc_ccid = {
     .wLcdLayout             = (
                               0xFF00|   // Number of lines for the LCD display
                               0x00FF),  // Number of characters per line
-    .bPINSupport            = 0x1|      // PIN Verification supported
+    .bPINSupport            = 0x0,
+                              /*
+                              0x1|      // PIN Verification supported
                               0x2|      // PIN Modification supported
                               0x10|     // PIN PACE Capabilities supported
                               0x20,     // PIN PACE Verification supported
+                              */
     .bMaxCCIDBusySlots      = 0x01,
 };
 
