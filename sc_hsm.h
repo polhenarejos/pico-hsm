@@ -42,6 +42,22 @@ extern const uint8_t sc_hsm_aid[];
 #define HSM_ERR_FILE_NOT_FOUND              -1003
 #define HSM_ERR_BLOCKED                     -1004
 
+#define ALGO_RSA_RAW			0x20		/* RSA signature with external padding */
+#define ALGO_RSA_DECRYPT		0x21		/* RSA decrypt */
+#define ALGO_RSA_PKCS1			0x30		/* RSA signature with DigestInfo input and PKCS#1 V1.5 padding */
+#define ALGO_RSA_PKCS1_SHA1		0x31		/* RSA signature with SHA-1 hash and PKCS#1 V1.5 padding */
+#define ALGO_RSA_PKCS1_SHA256	0x33		/* RSA signature with SHA-256 hash and PKCS#1 V1.5 padding */
+
+#define ALGO_RSA_PSS			0x40		/* RSA signature with external hash and PKCS#1 PSS padding*/
+#define ALGO_RSA_PSS_SHA1		0x41		/* RSA signature with SHA-1 hash and PKCS#1 PSS padding */
+#define ALGO_RSA_PSS_SHA256		0x43		/* RSA signature with SHA-256 hash and PKCS#1 PSS padding */
+
+#define ALGO_EC_RAW				0x70		/* ECDSA signature with hash input */
+#define ALGO_EC_SHA1			0x71		/* ECDSA signature with SHA-1 hash */
+#define ALGO_EC_SHA224			0x72		/* ECDSA signature with SHA-224 hash */
+#define ALGO_EC_SHA256			0x73		/* ECDSA signature with SHA-256 hash */
+#define ALGO_EC_DH				0x80        /* ECDH key derivation */
+
 extern int pin_reset_retries(const file_t *pin, bool);
 extern int pin_wrong_retry(const file_t *pin);
 

@@ -1161,6 +1161,42 @@ static int cmd_key_gen() {
     return SW_OK();
 }
 
+static int cmd_signature() {
+    uint8_t key_id = P1(apdu);
+    uint8_t p2 = P2(apdu);
+    mbedtls_md_type_t md = MBEDTLS_MD_NONE;
+    if (p2 == ALGO_RSA_PKCS1_SHA1 || ALGO_RSA_PSS_SHA1 || ALGO_EC_SHA1)
+        md = MBEDTLS_MD_SHA1;
+    else if (p2 == ALGO_RSA_PKCS1_SHA256 || p2 == ALGO_RSA_PSS_SHA256 || p2 == ALGO_EC_SHA256)
+        md = MBEDTLS_MD_SHA256;
+    else if (p2 == ALGO_EC_SHA224)
+        md = MBEDTLS_MD_SHA224;
+    if (p2 == ALGO_RSA_RAW || p2 == ALGO_RSA_PKCS1 || p2 == ALGO_RSA_PKCS1_SHA1 || p2 == ALGO_RSA_PKCS1_SHA256 || p2 == ALGO_RSA_PSS || p2 == ALGO_RSA_PSS_SHA1 || p2 == ALGO_RSA_PSS_SHA256) {
+        mbedtls_rsa_context ctx;
+        if (p2 == ALGO_RSA_PSS || p2 == ALGO_RSA_PSS_SHA1 || p2 == ALGO_RSA_PSS_SHA256) {
+            mbedtls_rsa_set_padding(&ctx, MBEDTLS_RSA_PKCS_V21, md);
+        }
+        else if (p2 == ALGO_RSA_PKCS1) { //DigestInfo attached
+            unsigned int algo;
+            if (sc_pkcs1_strip_digest_info_prefix(&algo, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, apdu.cmd_apdu_data, &apdu.cmd_apdu_data_len) != SC_SUCCESS) //gets the MD algo id and strips it off
+                return SW_EXEC_ERROR();
+            if (algo == SC_ALGORITHM_RSA_HASH_SHA1)
+                md = MBEDTLS_MD_SHA1;
+            else if (algo == SC_ALGORITHM_RSA_HASH_SHA224)
+                md = MBEDTLS_MD_SHA224;
+            else if (algo == SC_ALGORITHM_RSA_HASH_SHA256)
+                md = MBEDTLS_MD_SHA256;
+            else if (algo == SC_ALGORITHM_RSA_HASH_SHA384)
+                md = MBEDTLS_MD_SHA384;
+            else if (algo == SC_ALGORITHM_RSA_HASH_SHA512)
+                md = MBEDTLS_MD_SHA512;
+        }
+    }
+    else if (p2 == ALGO_EC_RAW || p2 == ALGO_EC_SHA1 || p2 == ALGO_EC_SHA224 || p2 == ALGO_EC_SHA256) {
+        
+    }
+}
+
 typedef struct cmd
 {
   uint8_t ins;
@@ -1175,6 +1211,7 @@ typedef struct cmd
 #define INS_INITIALIZE              0x50
 #define INS_IMPORT_DKEK             0x52
 #define INS_LIST_KEYS               0x58
+#define INS_SIGNATURE               0x68
 #define INS_CHALLENGE               0x84
 #define INS_SELECT_FILE				0xA4
 #define INS_READ_BINARY				0xB0
@@ -1197,6 +1234,7 @@ static const cmd_t cmds[] = {
     { INS_DELETE_FILE, cmd_delete_file },
     { INS_CHANGE_PIN, cmd_change_pin },
     { INS_KEY_GEN, cmd_key_gen },
+    { INS_SIGNATURE, cmd_signature },
     { 0x00, 0x0}
 };
 

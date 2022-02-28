@@ -78,6 +78,7 @@ target_sources(hsm2040 PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/sc.c
         ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/ctx.c
         ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/pkcs15-sc-hsm.c
+        ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/padding.c
         )
 
 target_include_directories(hsm2040 PUBLIC
