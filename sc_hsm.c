@@ -554,8 +554,10 @@ int store_keys(void *key_ctx, int type, uint8_t key_id, sc_context_t *ctx) {
     else {
         mbedtls_ecdsa_context *ecdsa = (mbedtls_ecdsa_context *)key_ctx;
         key_size = mbedtls_mpi_size(&ecdsa->d);
-        kdata = (uint8_t *)calloc(1, key_size);
-        mbedtls_mpi_write_binary(&ecdsa->d, kdata, key_size);
+        kdata = (uint8_t *)calloc(1, key_size+1);
+        kdata[0] = ecdsa->grp.id & 0xff;
+        mbedtls_mpi_write_binary(&ecdsa->d, kdata+1, key_size);
+        key_size++;
     }
     file_t *fpk = file_new((KEY_PREFIX << 8) | key_id);
     r = flash_write_data_to_file(fpk, kdata, key_size);
@@ -580,7 +582,7 @@ int store_keys(void *key_ctx, int type, uint8_t key_id, sc_context_t *ctx) {
     if (type == SC_PKCS15_TYPE_PRKEY_RSA)
         prkd->modulus_length = key_size;
     else
-        prkd->field_length = key_size;
+        prkd->field_length = key_size-1; //contains 1 byte for the grp id
     
     p15o->data = prkd;
     p15o->type = SC_PKCS15_TYPE_PRKEY | (type & 0xff);
@@ -609,7 +611,7 @@ int store_keys(void *key_ctx, int type, uint8_t key_id, sc_context_t *ctx) {
     if (type == SC_PKCS15_TYPE_PRKEY_RSA)
         pukd->modulus_length = key_size;
     else
-        pukd->field_length = key_size;
+        pukd->field_length = key_size-1;
     
     p15o->data = pukd;
     p15o->type = SC_PKCS15_TYPE_PUBKEY | (type & 0xff);
@@ -1165,6 +1167,10 @@ static int cmd_signature() {
     uint8_t key_id = P1(apdu);
     uint8_t p2 = P2(apdu);
     mbedtls_md_type_t md = MBEDTLS_MD_NONE;
+    file_t *fkey;
+    int key_size = file_read(fkey->data);
+    if (!(fkey = search_dynamic_file((KEY_PREFIX << 8) | key_id))) 
+        return SW_FILE_NOT_FOUND();
     if (p2 == ALGO_RSA_PKCS1_SHA1 || ALGO_RSA_PSS_SHA1 || ALGO_EC_SHA1)
         md = MBEDTLS_MD_SHA1;
     else if (p2 == ALGO_RSA_PKCS1_SHA256 || p2 == ALGO_RSA_PSS_SHA256 || p2 == ALGO_EC_SHA256)
@@ -1191,9 +1197,24 @@ static int cmd_signature() {
             else if (algo == SC_ALGORITHM_RSA_HASH_SHA512)
                 md = MBEDTLS_MD_SHA512;
         }
+        if (mbedtls_mpi_read_binary(&ctx.P, fkey->data+2, key_size/2) != 0)
+            return SW_DATA_INVALID();
+        if (mbedtls_mpi_read_binary(&ctx.Q, fkey->data+2+key_size/2, key_size/2) != 0)
+            return SW_DATA_INVALID();
+        if (mbedtls_mpi_lset(&ctx.E, 0x10001) != 0)
+            return SW_EXEC_ERROR();
+        if (mbedtls_rsa_import(&ctx, NULL, &ctx.P, &ctx.Q, NULL, &ctx.E) != 0)
+            return SW_DATA_INVALID();
+        if (mbedtls_rsa_complete(&ctx) != 0)
+            return SW_DATA_INVALID();
+        if (mbedtls_rsa_check_privkey(&ctx) != 0)
+            return SW_DATA_INVALID();
+        if (mbedtls_rsa_pkcs1_sign(&ctx, random_gen, NULL, md, apdu.cmd_apdu_data_len, apdu.cmd_apdu_data, res_APDU) != 0)
+            return SW_EXEC_ERROR();
+        res_APDU_size = key_size;
+        apdu.expected_res_size = key_size;
     }
     else if (p2 == ALGO_EC_RAW || p2 == ALGO_EC_SHA1 || p2 == ALGO_EC_SHA224 || p2 == ALGO_EC_SHA256) {
-        
     }
 }
 
