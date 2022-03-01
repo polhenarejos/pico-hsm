@@ -1168,7 +1168,7 @@ static int cmd_signature() {
     uint8_t p2 = P2(apdu);
     mbedtls_md_type_t md = MBEDTLS_MD_NONE;
     file_t *fkey;
-    int key_size = file_read(fkey->data);
+    int key_size = file_read_uint16(fkey->data);
     if (!(fkey = search_dynamic_file((KEY_PREFIX << 8) | key_id))) 
         return SW_FILE_NOT_FOUND();
     if (p2 == ALGO_RSA_PKCS1_SHA1 || ALGO_RSA_PSS_SHA1 || ALGO_EC_SHA1)
@@ -1179,6 +1179,7 @@ static int cmd_signature() {
         md = MBEDTLS_MD_SHA224;
     if (p2 == ALGO_RSA_RAW || p2 == ALGO_RSA_PKCS1 || p2 == ALGO_RSA_PKCS1_SHA1 || p2 == ALGO_RSA_PKCS1_SHA256 || p2 == ALGO_RSA_PSS || p2 == ALGO_RSA_PSS_SHA1 || p2 == ALGO_RSA_PSS_SHA256) {
         mbedtls_rsa_context ctx;
+        mbedtls_rsa_init(&ctx);
         if (p2 == ALGO_RSA_PSS || p2 == ALGO_RSA_PSS_SHA1 || p2 == ALGO_RSA_PSS_SHA256) {
             mbedtls_rsa_set_padding(&ctx, MBEDTLS_RSA_PKCS_V21, md);
         }
@@ -1197,24 +1198,68 @@ static int cmd_signature() {
             else if (algo == SC_ALGORITHM_RSA_HASH_SHA512)
                 md = MBEDTLS_MD_SHA512;
         }
-        if (mbedtls_mpi_read_binary(&ctx.P, fkey->data+2, key_size/2) != 0)
+        if (mbedtls_mpi_read_binary(&ctx.P, fkey->data+2, key_size/2) != 0) {
+            mbedtls_rsa_free(&ctx);
             return SW_DATA_INVALID();
-        if (mbedtls_mpi_read_binary(&ctx.Q, fkey->data+2+key_size/2, key_size/2) != 0)
+        }
+        if (mbedtls_mpi_read_binary(&ctx.Q, fkey->data+2+key_size/2, key_size/2) != 0) {
+            mbedtls_rsa_free(&ctx);
             return SW_DATA_INVALID();
-        if (mbedtls_mpi_lset(&ctx.E, 0x10001) != 0)
+        }
+        if (mbedtls_mpi_lset(&ctx.E, 0x10001) != 0) {
+            mbedtls_rsa_free(&ctx);
             return SW_EXEC_ERROR();
-        if (mbedtls_rsa_import(&ctx, NULL, &ctx.P, &ctx.Q, NULL, &ctx.E) != 0)
+        }
+        if (mbedtls_rsa_import(&ctx, NULL, &ctx.P, &ctx.Q, NULL, &ctx.E) != 0) {
+            mbedtls_rsa_free(&ctx);
             return SW_DATA_INVALID();
-        if (mbedtls_rsa_complete(&ctx) != 0)
+        }
+        if (mbedtls_rsa_complete(&ctx) != 0) {
+            mbedtls_rsa_free(&ctx);
             return SW_DATA_INVALID();
-        if (mbedtls_rsa_check_privkey(&ctx) != 0)
+        }
+        if (mbedtls_rsa_check_privkey(&ctx) != 0) {
+            mbedtls_rsa_free(&ctx);
             return SW_DATA_INVALID();
-        if (mbedtls_rsa_pkcs1_sign(&ctx, random_gen, NULL, md, apdu.cmd_apdu_data_len, apdu.cmd_apdu_data, res_APDU) != 0)
+        }
+        if (mbedtls_rsa_pkcs1_sign(&ctx, random_gen, NULL, md, apdu.cmd_apdu_data_len, apdu.cmd_apdu_data, res_APDU) != 0) {
+            mbedtls_rsa_free(&ctx);
             return SW_EXEC_ERROR();
+        }
         res_APDU_size = key_size;
         apdu.expected_res_size = key_size;
+        mbedtls_rsa_free(&ctx);
     }
     else if (p2 == ALGO_EC_RAW || p2 == ALGO_EC_SHA1 || p2 == ALGO_EC_SHA224 || p2 == ALGO_EC_SHA256) {
+        mbedtls_ecdsa_context ctx;
+        mbedtls_ecdsa_init(&ctx);
+        mbedtls_ecp_group_id gid = file_read_uint8(fkey->data+2);
+        if (p2 == ALGO_EC_RAW) {
+            if (apdu.cmd_apdu_data_len == 32)
+                md = MBEDTLS_MD_SHA256;
+            else if (apdu.cmd_apdu_data_len == 20)
+                md = MBEDTLS_MD_SHA1;
+            else if (apdu.cmd_apdu_data_len == 28)
+                md = MBEDTLS_MD_SHA224;
+            else if (apdu.cmd_apdu_data_len == 48)
+                md = MBEDTLS_MD_SHA384;
+            else if (apdu.cmd_apdu_data_len == 64)
+                md = MBEDTLS_MD_SHA512;
+        }
+        if (mbedtls_ecp_group_load(&ctx.grp, gid) != 0) {
+            mbedtls_ecdsa_free(&ctx);
+            return SW_DATA_INVALID();
+        }
+        if (mbedtls_mpi_read_binary(&ctx.d, fkey->data+3, key_size-1) != 0) {
+            mbedtls_ecdsa_free(&ctx);
+            return SW_DATA_INVALID();
+        }
+        if (mbedtls_ecdsa_write_signature(&ctx, md, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, res_APDU, MBEDTLS_ECDSA_MAX_LEN, (size_t *)&res_APDU_size, random_gen, NULL) != 0) {
+            mbedtls_ecdsa_free(&ctx);
+            return SW_EXEC_ERROR();
+        }
+        apdu.expected_res_size = res_APDU_size;
+        mbedtls_ecdsa_free(&ctx);
     }
 }
 
