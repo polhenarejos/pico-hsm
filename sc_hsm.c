@@ -1168,9 +1168,9 @@ static int cmd_signature() {
     uint8_t p2 = P2(apdu);
     mbedtls_md_type_t md = MBEDTLS_MD_NONE;
     file_t *fkey;
-    int key_size = file_read_uint16(fkey->data);
-    if (!(fkey = search_dynamic_file((KEY_PREFIX << 8) | key_id))) 
+    if (!(fkey = search_dynamic_file((KEY_PREFIX << 8) | key_id)) || !fkey->data) 
         return SW_FILE_NOT_FOUND();
+    int key_size = file_read_uint16(fkey->data);
     if (p2 == ALGO_RSA_PKCS1_SHA1 || ALGO_RSA_PSS_SHA1 || ALGO_EC_SHA1)
         md = MBEDTLS_MD_SHA1;
     else if (p2 == ALGO_RSA_PKCS1_SHA256 || p2 == ALGO_RSA_PSS_SHA256 || p2 == ALGO_EC_SHA256)
@@ -1254,13 +1254,18 @@ static int cmd_signature() {
             mbedtls_ecdsa_free(&ctx);
             return SW_DATA_INVALID();
         }
-        if (mbedtls_ecdsa_write_signature(&ctx, md, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, res_APDU, MBEDTLS_ECDSA_MAX_LEN, (size_t *)&res_APDU_size, random_gen, NULL) != 0) {
+        size_t olen = 0;
+        if (mbedtls_ecdsa_write_signature(&ctx, md, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, res_APDU, MBEDTLS_ECDSA_MAX_LEN, &olen, random_gen, NULL) != 0) {
             mbedtls_ecdsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
-        apdu.expected_res_size = res_APDU_size;
+        
+        res_APDU_size = olen;
         mbedtls_ecdsa_free(&ctx);
     }
+    else
+        return SW_INCORRECT_P1P2();
+    return SW_OK();
 }
 
 typedef struct cmd
