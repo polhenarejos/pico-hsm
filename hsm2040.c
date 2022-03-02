@@ -383,8 +383,8 @@ static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 void usb_tx_enable(const uint8_t *buf, uint32_t len) 
 {
     if (len > 0) {
-        if (buf[0] == 0x80)
-            DEBUG_PAYLOAD(buf+CCID_MSG_HEADER_SIZE,len-CCID_MSG_HEADER_SIZE);
+        if (buf[0] != 0x81)
+            DEBUG_PAYLOAD(buf,len);
         //DEBUG_PAYLOAD(buf,len);
         tud_vendor_write(buf, len);
     }
@@ -1416,8 +1416,8 @@ static int usb_event_handle(struct ccid *c)
     if (tud_vendor_available() && c->epo->ready)
     {
         uint32_t count = tud_vendor_read(endp1_rx_buf, sizeof(endp1_rx_buf));
-        if (endp1_rx_buf[0] == 0x6F)
-            DEBUG_PAYLOAD(endp1_rx_buf+CCID_MSG_HEADER_SIZE, count-CCID_MSG_HEADER_SIZE);
+        if (endp1_rx_buf[0] != 0x65)
+            DEBUG_PAYLOAD(endp1_rx_buf, count);
         //DEBUG_PAYLOAD(endp1_rx_buf, count);
         ccid_rx_ready(count);
     }
