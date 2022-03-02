@@ -1171,7 +1171,7 @@ static int cmd_signature() {
     if (!(fkey = search_dynamic_file((KEY_PREFIX << 8) | key_id)) || !fkey->data) 
         return SW_FILE_NOT_FOUND();
     int key_size = file_read_uint16(fkey->data);
-    if (p2 == ALGO_RSA_PKCS1_SHA1 || ALGO_RSA_PSS_SHA1 || ALGO_EC_SHA1)
+    if (p2 == ALGO_RSA_PKCS1_SHA1 || p2 == ALGO_RSA_PSS_SHA1 || p2 == ALGO_EC_SHA1)
         md = MBEDTLS_MD_SHA1;
     else if (p2 == ALGO_RSA_PKCS1_SHA256 || p2 == ALGO_RSA_PSS_SHA256 || p2 == ALGO_EC_SHA256)
         md = MBEDTLS_MD_SHA256;
@@ -1222,7 +1222,16 @@ static int cmd_signature() {
             mbedtls_rsa_free(&ctx);
             return SW_DATA_INVALID();
         }
-        if (mbedtls_rsa_pkcs1_sign(&ctx, random_gen, NULL, md, apdu.cmd_apdu_data_len, apdu.cmd_apdu_data, res_APDU) != 0) {
+        int r;
+        if (md == MBEDTLS_MD_NONE) {
+            if (apdu.cmd_apdu_data_len < key_size) //needs padding
+                memset(apdu.cmd_apdu_data+apdu.cmd_apdu_data_len, 0, key_size-apdu.cmd_apdu_data_len);
+            r = mbedtls_rsa_private(&ctx, random_gen, NULL, apdu.cmd_apdu_data, res_APDU);
+        }
+        else {
+            r = mbedtls_rsa_pkcs1_sign(&ctx, random_gen, NULL, md, apdu.cmd_apdu_data_len, apdu.cmd_apdu_data, res_APDU);
+        }
+        if (r != 0) {
             mbedtls_rsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
