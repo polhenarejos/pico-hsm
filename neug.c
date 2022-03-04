@@ -264,7 +264,6 @@ void neug_wait_full (void) //should be called only on core1
 
   //chopstx_mutex_lock (&rb->m);
     while (!rb->full) {
-        printf("not full yet!\r\n");
         //neug_task(); //chopstx_cond_wait (&rb->data_available, &rb->m);
         sleep_ms(1);
     }
