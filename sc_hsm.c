@@ -462,7 +462,7 @@ static int cmd_initialize() {
     memcpy(tmp_dkek, p, IV_SIZE);
     if (dkeks == 0) {
         p = random_bytes_get(32);
-        memcpy(tmp_dkek, p, 32);
+        memcpy(tmp_dkek+IV_SIZE, p, 32);
         encrypt(session_pin, tmp_dkek, tmp_dkek+IV_SIZE, 32);
         file_t *tf = search_by_fid(EF_DKEK, NULL, SPECIFY_EF);
         flash_write_data_to_file(tf, tmp_dkek, sizeof(tmp_dkek));
