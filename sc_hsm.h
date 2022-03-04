@@ -41,6 +41,8 @@ extern const uint8_t sc_hsm_aid[];
 #define HSM_ERR_NULL_PARAM                  -1002
 #define HSM_ERR_FILE_NOT_FOUND              -1003
 #define HSM_ERR_BLOCKED                     -1004
+#define HSM_NO_LOGIN                        -1005
+#define HSM_EXEC_ERROR                      -1006
 
 #define ALGO_RSA_RAW			0x20		/* RSA signature with external padding */
 #define ALGO_RSA_DECRYPT		0x21		/* RSA decrypt */

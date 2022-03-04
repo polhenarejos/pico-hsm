@@ -48,7 +48,9 @@ static int encrypt(const uint8_t *key, const uint8_t *iv, uint8_t *data, int len
     uint8_t tmp_iv[IV_SIZE];
     size_t iv_offset = 0;
     memcpy(tmp_iv, iv, IV_SIZE);
-    mbedtls_aes_setkey_enc (&aes, key, 256);
+    int r = mbedtls_aes_setkey_enc (&aes, key, 256);
+    if (r != 0)
+        return HSM_EXEC_ERROR;
     return mbedtls_aes_crypt_cfb128(&aes, MBEDTLS_AES_ENCRYPT, len, &iv_offset, tmp_iv, data, data);
 }
 
@@ -58,10 +60,28 @@ static int decrypt(const uint8_t *key, const uint8_t *iv, uint8_t *data, int len
     uint8_t tmp_iv[IV_SIZE];
     size_t iv_offset = 0;
     memcpy(tmp_iv, iv, IV_SIZE);
-    mbedtls_aes_setkey_enc (&aes, key, 256);
+    int r = mbedtls_aes_setkey_enc (&aes, key, 256);
+    if (r != 0)
+        return HSM_EXEC_ERROR;
     return mbedtls_aes_crypt_cfb128(&aes, MBEDTLS_AES_DECRYPT, len, &iv_offset, tmp_iv, data, data);
 }
 
+int load_dkek() {
+    if (has_session_pin == false)
+        return HSM_NO_LOGIN;
+    file_t *tf = search_by_fid(EF_DKEK, NULL, SPECIFY_EF);
+    if (!tf)
+        return HSM_ERR_FILE_NOT_FOUND;
+    memcpy(tmp_dkek, file_read(tf->data+sizeof(uint16_t)), IV_SIZE+32);
+    int ret = decrypt(session_pin, tmp_dkek, tmp_dkek+IV_SIZE, 32);
+    if (ret != 0)
+        return HSM_EXEC_ERROR;
+    return HSM_OK;
+}
+
+void release_dkek() {
+    memset(tmp_dkek, 0, sizeof(tmp_dkek));
+}
 
 void select_file(file_t *pe) {
     if (!pe)
@@ -443,7 +463,7 @@ static int cmd_initialize() {
     if (dkeks == 0) {
         p = random_bytes_get(32);
         memcpy(tmp_dkek, p, 32);
-        encrypt(session_sopin, tmp_dkek, tmp_dkek+IV_SIZE, 32);
+        encrypt(session_pin, tmp_dkek, tmp_dkek+IV_SIZE, 32);
         file_t *tf = search_by_fid(EF_DKEK, NULL, SPECIFY_EF);
         flash_write_data_to_file(tf, tmp_dkek, sizeof(tmp_dkek));
     }
@@ -495,7 +515,7 @@ void hash(const uint8_t *input, size_t len, uint8_t output[32])
 static int cmd_import_dkek() {
     if (dkeks == 0)
         return SW_COMMAND_NOT_ALLOWED();
-    if (has_session_sopin == false)
+    if (has_session_pin == false)
         return SW_CONDITIONS_NOT_SATISFIED();
     file_t *tf = search_by_fid(EF_DKEK, NULL, SPECIFY_EF);
     if (!authenticate_action(get_parent(tf), ACL_OP_CREATE_EF)) {
@@ -505,7 +525,7 @@ static int cmd_import_dkek() {
         for (int i = 0; i < apdu.cmd_apdu_data_len; i++)
             tmp_dkek[IV_SIZE+i] ^= apdu.cmd_apdu_data[i];
         if (++current_dkeks == dkeks) {
-            encrypt(session_sopin, tmp_dkek, tmp_dkek+IV_SIZE, 32);
+            encrypt(session_pin, tmp_dkek, tmp_dkek+IV_SIZE, 32);
             flash_write_data_to_file(tf, tmp_dkek, sizeof(tmp_dkek));
             memset(tmp_dkek, 0, sizeof(tmp_dkek));
         }
@@ -515,7 +535,7 @@ static int cmd_import_dkek() {
     //FNV hash
     uint64_t hash = 0xcbf29ce484222325;
     memcpy(tmp_dkek, file_read(tf->data+sizeof(uint16_t)), IV_SIZE+32);
-    decrypt(session_sopin, tmp_dkek, tmp_dkek+IV_SIZE, 32);
+    decrypt(session_pin, tmp_dkek, tmp_dkek+IV_SIZE, 32);
     for (int i = 0; i < 32; i++) {
         hash ^= tmp_dkek[IV_SIZE+i];
         hash *= 0x00000100000001B3;
@@ -563,6 +583,11 @@ int store_keys(void *key_ctx, int type, uint8_t key_id, sc_context_t *ctx) {
         mbedtls_mpi_write_binary(&ecdsa->d, kdata+1, key_size);
         key_size++;
     }
+    if ((r = load_dkek()) != HSM_OK)    
+        return r;
+    if ((r = encrypt(tmp_dkek+IV_SIZE, tmp_dkek, kdata, key_size)) != 0)
+        return r;
+    release_dkek();
     file_t *fpk = file_new((KEY_PREFIX << 8) | key_id);
     r = flash_write_data_to_file(fpk, kdata, key_size);
     free(kdata); 
