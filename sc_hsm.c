@@ -412,7 +412,6 @@ static int cmd_challenge() {
 }
 
 static int cmd_initialize() {
-    printf("cmd initialize\r\n");
     initialize_flash(true);
     scan_flash();
     dkeks = 0;
@@ -1317,6 +1316,21 @@ static int cmd_signature() {
     return SW_OK();
 }
 
+static int cmd_key_wrap() {
+    int key_id = P1(apdu);
+    if (P2(apdu) != 0x92)
+        return SW_WRONG_P1P2();
+    if (!isUserAuthenticated)
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
+    file_t *ef = search_dynamic_file((KEY_PREFIX << 8) | key_id);
+    if (!ef)
+        return SW_FILE_NOT_FOUND();
+    int key_len = file_read_uint16(ef->data);
+    memcpy(res_APDU, file_read(ef->data+2), key_len);
+    res_APDU_size = key_len;
+    return SW_OK();
+}
+
 typedef struct cmd
 {
   uint8_t ins;
@@ -1332,6 +1346,7 @@ typedef struct cmd
 #define INS_IMPORT_DKEK             0x52
 #define INS_LIST_KEYS               0x58
 #define INS_SIGNATURE               0x68
+#define INS_WRAP                    0x72
 #define INS_CHALLENGE               0x84
 #define INS_SELECT_FILE				0xA4
 #define INS_READ_BINARY				0xB0
@@ -1355,6 +1370,7 @@ static const cmd_t cmds[] = {
     { INS_CHANGE_PIN, cmd_change_pin },
     { INS_KEY_GEN, cmd_key_gen },
     { INS_SIGNATURE, cmd_signature },
+    { INS_WRAP, cmd_key_wrap },
     { 0x00, 0x0}
 };
 
