@@ -1156,6 +1156,15 @@ static int cmd_change_pin() {
             uint16_t r = check_pin(file_pin1, apdu.cmd_apdu_data, pin_len);
             if (r != 0x9000)
                 return r;
+            if (load_dkek() != HSM_OK) //loads the DKEK with old pin
+                return SW_EXEC_ERROR();
+            //encrypt DKEK with new pin
+            hash_multi(apdu.cmd_apdu_data+pin_len, apdu.cmd_apdu_data_len-pin_len, session_pin);
+            has_session_pin = true;
+            encrypt(session_pin, tmp_dkek, tmp_dkek+IV_SIZE, 32);
+            file_t *tf = search_by_fid(EF_DKEK, NULL, SPECIFY_EF);
+            flash_write_data_to_file(tf, tmp_dkek, sizeof(tmp_dkek));
+            release_dkek();
             uint8_t dhash[33];
             dhash[0] = apdu.cmd_apdu_data_len-pin_len;
             double_hash_pin(apdu.cmd_apdu_data+pin_len, apdu.cmd_apdu_data_len-pin_len, dhash+1);
