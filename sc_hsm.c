@@ -235,8 +235,6 @@ static int cmd_read_binary()
     uint8_t ins = INS(apdu), p1 = P1(apdu), p2 = P2(apdu);
     const file_t *ef = NULL;
     
-    DEBUG_INFO (" - Read binary\r\n");
-    
     if ((ins & 0x1) == 0)
     {
         if ((p1 & 0x80) != 0) {
@@ -1180,6 +1178,8 @@ static int cmd_key_gen() {
     uint8_t key_id = P1(apdu);
     uint8_t p2 = P2(apdu);
     uint8_t key_size = 32;
+    if (!isUserAuthenticated)
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
     if (p2 == 0xB2)
         key_size = 32;
     else if (p2 == 0xB1)
@@ -1207,6 +1207,8 @@ static int cmd_signature() {
     uint8_t p2 = P2(apdu);
     mbedtls_md_type_t md = MBEDTLS_MD_NONE;
     file_t *fkey;
+    if (!isUserAuthenticated)
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
     if (!(fkey = search_dynamic_file((KEY_PREFIX << 8) | key_id)) || !fkey->data) 
         return SW_FILE_NOT_FOUND();
     int key_size = file_read_uint16(fkey->data);
@@ -1237,14 +1239,22 @@ static int cmd_signature() {
             else if (algo == SC_ALGORITHM_RSA_HASH_SHA512)
                 md = MBEDTLS_MD_SHA512;
         }
-        if (mbedtls_mpi_read_binary(&ctx.P, fkey->data+2, key_size/2) != 0) {
+        if (load_dkek() != HSM_OK)
+            return SW_EXEC_ERROR();
+        uint8_t *kdata = (uint8_t *)calloc(1,key_size);
+        memcpy(kdata, file_read(fkey->data+2), key_size);
+        if (decrypt(tmp_dkek+IV_SIZE, tmp_dkek, kdata, key_size) != 0)
+            return SW_EXEC_ERROR();
+        release_dkek();
+        if (mbedtls_mpi_read_binary(&ctx.P, kdata, key_size/2) != 0) {
             mbedtls_rsa_free(&ctx);
             return SW_DATA_INVALID();
         }
-        if (mbedtls_mpi_read_binary(&ctx.Q, fkey->data+2+key_size/2, key_size/2) != 0) {
+        if (mbedtls_mpi_read_binary(&ctx.Q, kdata+key_size/2, key_size/2) != 0) {
             mbedtls_rsa_free(&ctx);
             return SW_DATA_INVALID();
         }
+        free(kdata);
         if (mbedtls_mpi_lset(&ctx.E, 0x10001) != 0) {
             mbedtls_rsa_free(&ctx);
             return SW_EXEC_ERROR();
@@ -1281,7 +1291,6 @@ static int cmd_signature() {
     else if (p2 == ALGO_EC_RAW || p2 == ALGO_EC_SHA1 || p2 == ALGO_EC_SHA224 || p2 == ALGO_EC_SHA256) {
         mbedtls_ecdsa_context ctx;
         mbedtls_ecdsa_init(&ctx);
-        mbedtls_ecp_group_id gid = file_read_uint8(fkey->data+2);
         if (p2 == ALGO_EC_RAW) {
             if (apdu.cmd_apdu_data_len == 32)
                 md = MBEDTLS_MD_SHA256;
@@ -1294,14 +1303,23 @@ static int cmd_signature() {
             else if (apdu.cmd_apdu_data_len == 64)
                 md = MBEDTLS_MD_SHA512;
         }
+        if (load_dkek() != HSM_OK)
+            return SW_EXEC_ERROR();
+        uint8_t *kdata = (uint8_t *)calloc(1,key_size);
+        memcpy(kdata, file_read(fkey->data+2), key_size);
+        if (decrypt(tmp_dkek+IV_SIZE, tmp_dkek, kdata, key_size) != 0)
+            return SW_EXEC_ERROR();
+        release_dkek();
+        mbedtls_ecp_group_id gid = kdata[0];
         if (mbedtls_ecp_group_load(&ctx.grp, gid) != 0) {
             mbedtls_ecdsa_free(&ctx);
             return SW_DATA_INVALID();
         }
-        if (mbedtls_mpi_read_binary(&ctx.d, fkey->data+3, key_size-1) != 0) {
+        if (mbedtls_mpi_read_binary(&ctx.d, kdata+1, key_size-1) != 0) {
             mbedtls_ecdsa_free(&ctx);
             return SW_DATA_INVALID();
         }
+        free(kdata);
         size_t olen = 0;
         if (mbedtls_ecdsa_write_signature(&ctx, md, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, res_APDU, MBEDTLS_ECDSA_MAX_LEN, &olen, random_gen, NULL) != 0) {
             mbedtls_ecdsa_free(&ctx);
