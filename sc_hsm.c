@@ -1202,6 +1202,65 @@ static int cmd_key_gen() {
     return SW_OK();
 }
 
+int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
+    int key_size = file_read_uint16(fkey->data);
+    if (load_dkek() != HSM_OK)
+        return SW_EXEC_ERROR();
+    uint8_t *kdata = (uint8_t *)calloc(1,key_size);
+    memcpy(kdata, file_read(fkey->data+2), key_size);
+    if (decrypt(tmp_dkek+IV_SIZE, tmp_dkek, kdata, key_size) != 0)
+        return SW_EXEC_ERROR();
+    release_dkek();
+    if (mbedtls_mpi_read_binary(&ctx->P, kdata, key_size/2) != 0) {
+        mbedtls_rsa_free(ctx);
+        return SW_DATA_INVALID();
+    }
+    if (mbedtls_mpi_read_binary(&ctx->Q, kdata+key_size/2, key_size/2) != 0) {
+        mbedtls_rsa_free(ctx);
+        return SW_DATA_INVALID();
+    }
+    free(kdata);
+    if (mbedtls_mpi_lset(&ctx->E, 0x10001) != 0) {
+        mbedtls_rsa_free(ctx);
+        return SW_EXEC_ERROR();
+    }
+    if (mbedtls_rsa_import(ctx, NULL, &ctx->P, &ctx->Q, NULL, &ctx->E) != 0) {
+        mbedtls_rsa_free(ctx);
+        return SW_DATA_INVALID();
+    }
+    if (mbedtls_rsa_complete(ctx) != 0) {
+        mbedtls_rsa_free(ctx);
+        return SW_DATA_INVALID();
+    }
+    if (mbedtls_rsa_check_privkey(ctx) != 0) {
+        mbedtls_rsa_free(ctx);
+        return SW_DATA_INVALID();
+    }
+    return HSM_OK;
+}
+
+int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey) {
+    int key_size = file_read_uint16(fkey->data);
+    if (load_dkek() != HSM_OK)
+        return SW_EXEC_ERROR();
+    uint8_t *kdata = (uint8_t *)calloc(1,key_size);
+    memcpy(kdata, file_read(fkey->data+2), key_size);
+    if (decrypt(tmp_dkek+IV_SIZE, tmp_dkek, kdata, key_size) != 0)
+        return SW_EXEC_ERROR();
+    release_dkek();
+    mbedtls_ecp_group_id gid = kdata[0];
+    if (mbedtls_ecp_group_load(&ctx->grp, gid) != 0) {
+        mbedtls_ecdsa_free(ctx);
+        return SW_DATA_INVALID();
+    }
+    if (mbedtls_mpi_read_binary(&ctx->d, kdata+1, key_size-1) != 0) {
+        mbedtls_ecdsa_free(ctx);
+        return SW_DATA_INVALID();
+    }
+    free(kdata);
+    return HSM_OK;
+}
+
 static int cmd_signature() {
     uint8_t key_id = P1(apdu);
     uint8_t p2 = P2(apdu);
@@ -1239,39 +1298,11 @@ static int cmd_signature() {
             else if (algo == SC_ALGORITHM_RSA_HASH_SHA512)
                 md = MBEDTLS_MD_SHA512;
         }
-        if (load_dkek() != HSM_OK)
-            return SW_EXEC_ERROR();
-        uint8_t *kdata = (uint8_t *)calloc(1,key_size);
-        memcpy(kdata, file_read(fkey->data+2), key_size);
-        if (decrypt(tmp_dkek+IV_SIZE, tmp_dkek, kdata, key_size) != 0)
-            return SW_EXEC_ERROR();
-        release_dkek();
-        if (mbedtls_mpi_read_binary(&ctx.P, kdata, key_size/2) != 0) {
-            mbedtls_rsa_free(&ctx);
-            return SW_DATA_INVALID();
-        }
-        if (mbedtls_mpi_read_binary(&ctx.Q, kdata+key_size/2, key_size/2) != 0) {
-            mbedtls_rsa_free(&ctx);
-            return SW_DATA_INVALID();
-        }
-        free(kdata);
-        if (mbedtls_mpi_lset(&ctx.E, 0x10001) != 0) {
-            mbedtls_rsa_free(&ctx);
-            return SW_EXEC_ERROR();
-        }
-        if (mbedtls_rsa_import(&ctx, NULL, &ctx.P, &ctx.Q, NULL, &ctx.E) != 0) {
-            mbedtls_rsa_free(&ctx);
-            return SW_DATA_INVALID();
-        }
-        if (mbedtls_rsa_complete(&ctx) != 0) {
-            mbedtls_rsa_free(&ctx);
-            return SW_DATA_INVALID();
-        }
-        if (mbedtls_rsa_check_privkey(&ctx) != 0) {
-            mbedtls_rsa_free(&ctx);
-            return SW_DATA_INVALID();
-        }
+        
         int r;
+        r = load_private_key_rsa(&ctx, fkey);
+        if (r != HSM_OK)
+            return r;
         if (md == MBEDTLS_MD_NONE) {
             if (apdu.cmd_apdu_data_len < key_size) //needs padding
                 memset(apdu.cmd_apdu_data+apdu.cmd_apdu_data_len, 0, key_size-apdu.cmd_apdu_data_len);
@@ -1303,23 +1334,10 @@ static int cmd_signature() {
             else if (apdu.cmd_apdu_data_len == 64)
                 md = MBEDTLS_MD_SHA512;
         }
-        if (load_dkek() != HSM_OK)
-            return SW_EXEC_ERROR();
-        uint8_t *kdata = (uint8_t *)calloc(1,key_size);
-        memcpy(kdata, file_read(fkey->data+2), key_size);
-        if (decrypt(tmp_dkek+IV_SIZE, tmp_dkek, kdata, key_size) != 0)
-            return SW_EXEC_ERROR();
-        release_dkek();
-        mbedtls_ecp_group_id gid = kdata[0];
-        if (mbedtls_ecp_group_load(&ctx.grp, gid) != 0) {
-            mbedtls_ecdsa_free(&ctx);
-            return SW_DATA_INVALID();
-        }
-        if (mbedtls_mpi_read_binary(&ctx.d, kdata+1, key_size-1) != 0) {
-            mbedtls_ecdsa_free(&ctx);
-            return SW_DATA_INVALID();
-        }
-        free(kdata);
+        int r;
+        r = load_private_key_ecdsa(&ctx, fkey);
+        if (r != HSM_OK)
+            return r;
         size_t olen = 0;
         if (mbedtls_ecdsa_write_signature(&ctx, md, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, res_APDU, MBEDTLS_ECDSA_MAX_LEN, &olen, random_gen, NULL) != 0) {
             mbedtls_ecdsa_free(&ctx);
