@@ -466,6 +466,7 @@ static int cmd_initialize() {
         encrypt(session_pin, tmp_dkek, tmp_dkek+IV_SIZE, 32);
         file_t *tf = search_by_fid(EF_DKEK, NULL, SPECIFY_EF);
         flash_write_data_to_file(tf, tmp_dkek, sizeof(tmp_dkek));
+        low_flash_available();
     }
     return SW_OK();
 }
@@ -528,6 +529,7 @@ static int cmd_import_dkek() {
             encrypt(session_pin, tmp_dkek, tmp_dkek+IV_SIZE, 32);
             flash_write_data_to_file(tf, tmp_dkek, sizeof(tmp_dkek));
             memset(tmp_dkek, 0, sizeof(tmp_dkek));
+            low_flash_available();
         }
     }
     res_APDU[0] = dkeks;
