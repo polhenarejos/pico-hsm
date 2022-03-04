@@ -1465,7 +1465,7 @@ cmd_get_challenge (queue_t *ccid_comm)
     eventflag_signal (ccid_comm, EV_EXEC_ACK_REQUIRED);
 #endif
 
-  challenge = random_bytes_get ();
+  challenge = random_bytes_get (32);
   memcpy (res_APDU, challenge, len);
   res_APDU_size = len;
   GPG_SUCCESS ();

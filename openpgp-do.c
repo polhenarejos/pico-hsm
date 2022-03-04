@@ -1472,7 +1472,7 @@ gpg_do_write_prvkey (enum kind_of_key kk, const uint8_t *key_data,
 
   compute_key_data_checksum (&kdi, prvkey_len, CKDC_CALC);
 
-  dek = random_bytes_get (); /* 32-byte random bytes */
+  dek = random_bytes_get (32); /* 32-byte random bytes */
   iv = dek + DATA_ENCRYPTION_KEY_SIZE;
   memcpy (pd->dek_encrypted_1, dek, DATA_ENCRYPTION_KEY_SIZE);
   memcpy (pd->dek_encrypted_2, dek, DATA_ENCRYPTION_KEY_SIZE);
@@ -2532,7 +2532,7 @@ gpg_do_keygen (uint8_t *buf)
 	{
 	  if (rnd)
 	    random_bytes_free (rnd);
-	  rnd = random_bytes_get ();
+	  rnd = random_bytes_get (32);
 	  r = ecc_check_secret_p256k1 (rnd, d1);
 	}
       while (r == 0);
@@ -2553,7 +2553,7 @@ gpg_do_keygen (uint8_t *buf)
     }
   else if (attr == ALGO_CURVE25519)
     {
-      rnd = random_bytes_get ();
+      rnd = random_bytes_get (32);
       memcpy (d, rnd, 32);
       random_bytes_free (rnd);
       d[0] &= 248;
@@ -2564,7 +2564,7 @@ gpg_do_keygen (uint8_t *buf)
     }
   else if (attr == ALGO_ED25519)
     {
-      rnd = random_bytes_get ();
+      rnd = random_bytes_get (32);
       
       mbedtls_sha512_context ctx;
       mbedtls_sha512_init(&ctx);
@@ -2584,11 +2584,11 @@ gpg_do_keygen (uint8_t *buf)
   else if (attr == ALGO_ED448)
     {
       shake_context ctx;
-      rnd = random_bytes_get ();
+      rnd = random_bytes_get (32);
       shake256_start (&ctx);
       shake256_update (&ctx, rnd, 32);
       random_bytes_free (rnd);
-      rnd = random_bytes_get ();
+      rnd = random_bytes_get (32);
       shake256_update (&ctx, rnd, 25);
       shake256_finish (&ctx, d, 2*57);
       random_bytes_free (rnd);
@@ -2598,10 +2598,10 @@ gpg_do_keygen (uint8_t *buf)
     }
   else if (attr == ALGO_X448)
     {
-      rnd = random_bytes_get ();
+      rnd = random_bytes_get (32);
       memcpy (d, rnd, 32);
       random_bytes_free (rnd);
-      rnd = random_bytes_get ();
+      rnd = random_bytes_get (32);
       memcpy (d+32, rnd, 24);
       prv = d;
       ecdh_compute_public_x448 (pubkey, prv);

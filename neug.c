@@ -62,7 +62,6 @@ static void ep_init (int mode)
 /* Here, we assume a little endian architecture.  */
 static int ep_process (int mode)
 {
-  
     if (ep_round == 0)
     {
         ep_init(mode);
@@ -259,13 +258,16 @@ uint32_t neug_get (int kick)
     return v;
 }
 
-void neug_wait_full (void)
+void neug_wait_full (void) //should be called only on core1
 {
     struct rng_rb *rb = &the_ring_buffer;
 
   //chopstx_mutex_lock (&rb->m);
-    while (!rb->full)
-        neug_task(); //chopstx_cond_wait (&rb->data_available, &rb->m);
+    while (!rb->full) {
+        printf("not full yet!\r\n");
+        //neug_task(); //chopstx_cond_wait (&rb->data_available, &rb->m);
+        sleep_ms(1);
+    }
   //chopstx_mutex_unlock (&rb->m);
 }
 

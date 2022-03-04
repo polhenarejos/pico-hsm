@@ -418,7 +418,7 @@ bn256_random (bn256 *X)
 
   for (i = 0; i < 256/256; i++)
     {
-      rand = random_bytes_get ();
+      rand = random_bytes_get (32);
       for (j = 0; j < BN256_WORDS; j++)
 	X->word[i*BN256_WORDS+j] = ((uint32_t *)rand)[j];
       random_bytes_free (rand);

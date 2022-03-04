@@ -50,12 +50,14 @@ void random_fini (void)
  * Return pointer to random 32-byte
  */
 void random_bytes_free (const uint8_t *p);
-const uint8_t * random_bytes_get (void)
+const uint8_t * random_bytes_get (size_t len)
 {
-    static uint32_t return_word[RANDOM_BYTES_LENGTH/sizeof (uint32_t)];
-    neug_wait_full ();
-    memcpy(return_word, random_word, sizeof(return_word));
-    random_bytes_free((const uint8_t *)random_word);
+    static uint32_t return_word[512/sizeof(uint32_t)];
+    for (int ix = 0; ix < len; ix += RANDOM_BYTES_LENGTH) {
+        neug_wait_full ();
+        memcpy(return_word+ix/sizeof(uint32_t), random_word, RANDOM_BYTES_LENGTH);
+        random_bytes_free((const uint8_t *)random_word);
+    }
     return (const uint8_t *)return_word;
 }
 

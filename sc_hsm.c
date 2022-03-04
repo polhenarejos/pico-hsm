@@ -386,7 +386,7 @@ static int cmd_reset_retry() {
 }
 
 static int cmd_challenge() {
-    memcpy(res_APDU, random_bytes_get(), apdu.expected_res_size);
+    memcpy(res_APDU, random_bytes_get(apdu.expected_res_size), apdu.expected_res_size);
     res_APDU_size = apdu.expected_res_size;
     return SW_OK();
 }
@@ -437,11 +437,11 @@ static int cmd_initialize() {
         }
         p += tag_len;
     }
-    p = random_bytes_get();
+    p = random_bytes_get(32);
     memset(tmp_dkek, 0, sizeof(tmp_dkek));
     memcpy(tmp_dkek, p, IV_SIZE);
     if (dkeks == 0) {
-        p = random_bytes_get();
+        p = random_bytes_get(32);
         memcpy(tmp_dkek, p, 32);
         encrypt(session_sopin, tmp_dkek, tmp_dkek+IV_SIZE, 32);
         file_t *tf = search_by_fid(EF_DKEK, NULL, SPECIFY_EF);
@@ -1154,7 +1154,7 @@ static int cmd_key_gen() {
     if (!isUserAuthenticated)
         return SW_SECURITY_STATUS_NOT_SATISFIED();
    //at this moment, we do not use the template, as only CBC is supported by the driver (encrypt, decrypt and CMAC)
-    const uint8_t *aes_key = random_bytes_get();
+    const uint8_t *aes_key = random_bytes_get(32);
     file_t *fpk = file_new((KEY_PREFIX << 8) | key_id);
     int r = flash_write_data_to_file(fpk, aes_key, key_size);
     if (r != HSM_OK)

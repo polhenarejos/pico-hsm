@@ -2,7 +2,7 @@ void random_init (void);
 void random_fini (void);
 
 /* 32-byte random bytes */
-const uint8_t *random_bytes_get (void);
+const uint8_t *random_bytes_get (size_t);
 void random_bytes_free (const uint8_t *p);
 
 /* 8-byte salt */
