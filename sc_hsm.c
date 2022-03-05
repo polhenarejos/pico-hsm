@@ -1381,6 +1381,33 @@ static int cmd_key_unwrap() {
     return SW_OK();
 }
 
+static int cmd_decrypt_asym() {
+    int key_id = P1(apdu);
+    if (P2(apdu) != ALGO_RSA_DECRYPT)
+        return SW_WRONG_P1P2();
+    if (!isUserAuthenticated)
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
+    file_t *ef = search_dynamic_file((KEY_PREFIX << 8) | key_id);
+    if (!ef)
+        return SW_FILE_NOT_FOUND();
+    mbedtls_rsa_context ctx;
+    mbedtls_rsa_init(&ctx);
+    int r = load_private_key_rsa(&ctx, ef);
+    if (r != HSM_OK)
+        return r;
+    int key_size = file_read_uint16(ef->data);
+    if (apdu.cmd_apdu_data_len < key_size) //needs padding
+        memset(apdu.cmd_apdu_data+apdu.cmd_apdu_data_len, 0, key_size-apdu.cmd_apdu_data_len);
+    r = mbedtls_rsa_private(&ctx, random_gen, NULL, apdu.cmd_apdu_data, res_APDU);
+    if (r != 0) {
+        mbedtls_rsa_free(&ctx);
+        return SW_EXEC_ERROR();
+    }
+    res_APDU_size = key_size;
+    mbedtls_rsa_free(&ctx);
+    return SW_OK();
+}
+
 typedef struct cmd
 {
   uint8_t ins;
@@ -1395,6 +1422,7 @@ typedef struct cmd
 #define INS_INITIALIZE              0x50
 #define INS_IMPORT_DKEK             0x52
 #define INS_LIST_KEYS               0x58
+#define INS_DECRYPT_ASYM            0x62
 #define INS_SIGNATURE               0x68
 #define INS_WRAP                    0x72
 #define INS_UNWRAP                  0x74
@@ -1423,6 +1451,7 @@ static const cmd_t cmds[] = {
     { INS_SIGNATURE, cmd_signature },
     { INS_WRAP, cmd_key_wrap },
     { INS_UNWRAP, cmd_key_unwrap },
+    { INS_DECRYPT_ASYM, cmd_decrypt_asym },
     { 0x00, 0x0}
 };
 
