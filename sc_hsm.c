@@ -1408,6 +1408,46 @@ static int cmd_decrypt_asym() {
     return SW_OK();
 }
 
+static int cmd_cipher_sym() {
+    int key_id = P1(apdu);
+    int algo = P2(apdu);
+    printf("us %d\r\n",isUserAuthenticated);
+    if (!isUserAuthenticated)
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
+    file_t *ef = search_dynamic_file((KEY_PREFIX << 8) | key_id);
+    if (!ef)
+        return SW_FILE_NOT_FOUND();
+    int key_size = file_read_uint16(ef->data);
+    uint8_t *key = file_read(ef->data+2);
+    if (algo == ALGO_AES_CBC_ENCRYPT || algo == ALGO_AES_CBC_DECRYPT) {
+        if ((apdu.cmd_apdu_data_len % 16) != 0)
+            return SW_WRONG_LENGTH();
+        mbedtls_aes_context aes;
+        mbedtls_aes_init(&aes);
+        uint8_t tmp_iv[IV_SIZE];
+        memset(tmp_iv, 0, sizeof(tmp_iv));
+        if (algo == ALGO_AES_CBC_ENCRYPT) {
+            int r = mbedtls_aes_setkey_enc(&aes, key, key_size*8);
+            if (r != 0)
+                return SW_EXEC_ERROR();
+            r = mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_ENCRYPT, apdu.cmd_apdu_data_len, tmp_iv, apdu.cmd_apdu_data, res_APDU);
+            if (r != 0)
+                return SW_EXEC_ERROR();
+        }
+        else if (algo == ALGO_AES_CBC_DECRYPT) {
+            int r = mbedtls_aes_setkey_dec(&aes, key, key_size*8);
+            if (r != 0)
+                return SW_EXEC_ERROR();
+            r = mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_DECRYPT, apdu.cmd_apdu_data_len, tmp_iv, apdu.cmd_apdu_data, res_APDU);
+            if (r != 0)
+                return SW_EXEC_ERROR();
+        }
+    }
+    else
+        return SW_WRONG_P1P2();
+    return SW_OK();
+}
+
 typedef struct cmd
 {
   uint8_t ins;
@@ -1426,6 +1466,7 @@ typedef struct cmd
 #define INS_SIGNATURE               0x68
 #define INS_WRAP                    0x72
 #define INS_UNWRAP                  0x74
+#define INS_CIPHER_SYM              0x78
 #define INS_CHALLENGE               0x84
 #define INS_SELECT_FILE				0xA4
 #define INS_READ_BINARY				0xB0
@@ -1452,6 +1493,7 @@ static const cmd_t cmds[] = {
     { INS_WRAP, cmd_key_wrap },
     { INS_UNWRAP, cmd_key_unwrap },
     { INS_DECRYPT_ASYM, cmd_decrypt_asym },
+    { INS_CIPHER_SYM, cmd_cipher_sym },
     { 0x00, 0x0}
 };
 
