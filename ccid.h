@@ -35,9 +35,12 @@ static const class_desc_ccid_t desc_ccid = {
     .dwMaxCCIDMessageLength = (CCID_EXT_APDU_MAX),
     .bClassGetResponse      = 0xFF,
     .bclassEnvelope         = 0xFF,
-    .wLcdLayout             = (
+    .wLcdLayout             = 0x0,
+                              /*
+                              (
                               0xFF00|   // Number of lines for the LCD display
                               0x00FF),  // Number of characters per line
+                              */
     .bPINSupport            = 0x0,
                               /*
                               0x1|      // PIN Verification supported
