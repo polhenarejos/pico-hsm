@@ -45,6 +45,7 @@ void init_sc_hsm() {
 static int encrypt(const uint8_t *key, const uint8_t *iv, uint8_t *data, int len)
 {
     mbedtls_aes_context aes;
+    mbedtls_aes_init(&aes);
     uint8_t tmp_iv[IV_SIZE];
     size_t iv_offset = 0;
     memcpy(tmp_iv, iv, IV_SIZE);
@@ -57,6 +58,7 @@ static int encrypt(const uint8_t *key, const uint8_t *iv, uint8_t *data, int len
 static int decrypt(const uint8_t *key, const uint8_t *iv, uint8_t *data, int len)
 {
     mbedtls_aes_context aes;
+    mbedtls_aes_init(&aes);
     uint8_t tmp_iv[IV_SIZE];
     size_t iv_offset = 0;
     memcpy(tmp_iv, iv, IV_SIZE);
