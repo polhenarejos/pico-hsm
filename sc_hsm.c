@@ -1189,7 +1189,7 @@ static int cmd_key_gen() {
     if (!isUserAuthenticated)
         return SW_SECURITY_STATUS_NOT_SATISFIED();
    //at this moment, we do not use the template, as only CBC is supported by the driver (encrypt, decrypt and CMAC)
-    const uint8_t *aes_key = random_bytes_get(32);
+    const uint8_t *aes_key = random_bytes_get(key_size);
     file_t *fpk = file_new((KEY_PREFIX << 8) | key_id);
     int r = flash_write_data_to_file(fpk, aes_key, key_size);
     if (r != HSM_OK)
