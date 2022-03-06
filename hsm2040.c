@@ -366,9 +366,10 @@ usbd_class_driver_t const *usbd_app_driver_get_cb(uint8_t *driver_count) {
 }
 
 enum  {
-    BLINK_NOT_MOUNTED = 250,
-    BLINK_MOUNTED     = 1000,
-    BLINK_SUSPENDED   = 2500,
+    BLINK_NOT_MOUNTED = (250 << 16) | 250,
+    BLINK_MOUNTED     = (250 << 16) | 250,
+    BLINK_SUSPENDED   = (500 << 16) | 1000,
+    BLINK_PROCESSING  = (50 << 16) | 50,
 
     BLINK_RED =   18,
     BLINK_GREEN = 19,
@@ -413,7 +414,7 @@ static const uint8_t ATR_head[] = {
 };
 
 /* Send back ATR (Answer To Reset) */
-static enum ccid_state ccid_power_on (struct ccid *c)
+static enum ccid_state ccid_power_on(struct ccid *c)
 {
     TU_LOG1("!!! CCID POWER ON %d\r\n",c->application);
     uint8_t p[CCID_MSG_HEADER_SIZE+1]; /* >= size of historical_bytes -1 */
@@ -448,14 +449,14 @@ static enum ccid_state ccid_power_on (struct ccid *c)
     p[CCID_MSG_ERROR_OFFSET] = 0x00;
     p[CCID_MSG_CHAIN_OFFSET] = 0x00;
 
-    memcpy (endp1_tx_buf, p, CCID_MSG_HEADER_SIZE);
+    memcpy(endp1_tx_buf, p, CCID_MSG_HEADER_SIZE);
     if (mode == 1)
     {
         memcpy(endp1_tx_buf+CCID_MSG_HEADER_SIZE, atr_sc_hsm, sizeof(atr_sc_hsm));
     }
     else
     {
-        memcpy (endp1_tx_buf+CCID_MSG_HEADER_SIZE, ATR_head, sizeof (ATR_head));
+        memcpy(endp1_tx_buf+CCID_MSG_HEADER_SIZE, ATR_head, sizeof (ATR_head));
 
         for (i = 1; i < (int)sizeof (ATR_head); i++)
             xor_check ^= ATR_head[i];
@@ -467,21 +468,22 @@ static enum ccid_state ccid_power_on (struct ccid *c)
         for (i = 0; i < hist_len; i++)
             xor_check ^= p[i];
         p[i] = xor_check;
-        memcpy (endp1_tx_buf+CCID_MSG_HEADER_SIZE+sizeof (ATR_head), p, hist_len+1);
+        memcpy(endp1_tx_buf+CCID_MSG_HEADER_SIZE+sizeof (ATR_head), p, hist_len+1);
     }
 
   /* This is a single packet Bulk-IN transaction */
     c->epi->buf = NULL;
     c->epi->tx_done = 1;
     
-    usb_tx_enable (endp1_tx_buf, CCID_MSG_HEADER_SIZE + size_atr);
+    usb_tx_enable(endp1_tx_buf, CCID_MSG_HEADER_SIZE + size_atr);
 
-    DEBUG_INFO ("ON\r\n");
+    DEBUG_INFO("ON\r\n");
     c->tx_busy = 1;
+    blink_interval_ms = BLINK_MOUNTED;
     return CCID_STATE_WAIT;
 }
 
-static void ccid_send_status (struct ccid *c)
+static void ccid_send_status(struct ccid *c)
 {
     uint8_t ccid_reply[CCID_MSG_HEADER_SIZE];
 
@@ -506,12 +508,12 @@ static void ccid_send_status (struct ccid *c)
     c->epi->buf = NULL;
     c->epi->tx_done = 1;
 
-    memcpy (endp1_tx_buf, ccid_reply, CCID_MSG_HEADER_SIZE);
-    usb_tx_enable (endp1_tx_buf, CCID_MSG_HEADER_SIZE);
+    memcpy(endp1_tx_buf, ccid_reply, CCID_MSG_HEADER_SIZE);
+    usb_tx_enable(endp1_tx_buf, CCID_MSG_HEADER_SIZE);
     c->tx_busy = 1;
 }
 
-static enum ccid_state ccid_power_off (struct ccid *c)
+static enum ccid_state ccid_power_off(struct ccid *c)
 {
     if (c->application)
     {
@@ -524,6 +526,7 @@ static enum ccid_state ccid_power_off (struct ccid *c)
     ccid_send_status (c);
     DEBUG_INFO ("OFF\r\n");
     c->tx_busy = 1;
+    blink_interval_ms = BLINK_SUSPENDED;
     return CCID_STATE_START;
 }
 
@@ -535,7 +538,7 @@ static void no_buf (struct ep_in *epi, size_t len)
     epi->buf_len = 0;
 }
 
-static void set_sw1sw2 (struct ccid *c, size_t chunk_len)
+static void set_sw1sw2(struct ccid *c, size_t chunk_len)
 {
     if (c->a->expected_res_size >= c->len)
     {
@@ -552,7 +555,7 @@ static void set_sw1sw2 (struct ccid *c, size_t chunk_len)
     }
 }
 
-static void get_sw1sw2 (struct ep_in *epi, size_t len)
+static void get_sw1sw2(struct ep_in *epi, size_t len)
 {
     struct ccid *c = (struct ccid *)epi->priv;
 
@@ -563,7 +566,7 @@ static void get_sw1sw2 (struct ep_in *epi, size_t len)
     epi->next_buf = no_buf;
 }
 
-static void ccid_send_data_block_internal (struct ccid *c, uint8_t status, uint8_t error)
+static void ccid_send_data_block_internal(struct ccid *c, uint8_t status, uint8_t error)
 {
     int tx_size = USB_LL_BUF_SIZE;
     uint8_t p[CCID_MSG_HEADER_SIZE];
@@ -585,21 +588,21 @@ static void ccid_send_data_block_internal (struct ccid *c, uint8_t status, uint8
     p[CCID_MSG_ERROR_OFFSET] = error;
     p[CCID_MSG_CHAIN_OFFSET] = 0;
 
-    memcpy (endp1_tx_buf, p, CCID_MSG_HEADER_SIZE);
+    memcpy(endp1_tx_buf, p, CCID_MSG_HEADER_SIZE);
 
     if (len == 0)
     {
         c->epi->buf = NULL;
         c->epi->tx_done = 1;
-        usb_tx_enable (endp1_tx_buf, CCID_MSG_HEADER_SIZE);
+        usb_tx_enable(endp1_tx_buf, CCID_MSG_HEADER_SIZE);
         c->tx_busy = 1;
       return;
     }
 
     if (CCID_MSG_HEADER_SIZE + len <= USB_LL_BUF_SIZE)
     {
-      memcpy (endp1_tx_buf+CCID_MSG_HEADER_SIZE, c->a->res_apdu_data, c->a->res_apdu_data_len);
-      memcpy (endp1_tx_buf+CCID_MSG_HEADER_SIZE+c->a->res_apdu_data_len, c->sw1sw2, 2);
+      memcpy(endp1_tx_buf+CCID_MSG_HEADER_SIZE, c->a->res_apdu_data, c->a->res_apdu_data_len);
+      memcpy(endp1_tx_buf+CCID_MSG_HEADER_SIZE+c->a->res_apdu_data_len, c->sw1sw2, 2);
 
       c->epi->buf = NULL;
       if (CCID_MSG_HEADER_SIZE + len < USB_LL_BUF_SIZE)
@@ -608,8 +611,8 @@ static void ccid_send_data_block_internal (struct ccid *c, uint8_t status, uint8
     }
     else if (CCID_MSG_HEADER_SIZE + len - 1 == USB_LL_BUF_SIZE)
     {
-        memcpy (endp1_tx_buf+CCID_MSG_HEADER_SIZE, c->a->res_apdu_data, c->a->res_apdu_data_len);
-        memcpy (endp1_tx_buf+CCID_MSG_HEADER_SIZE+c->a->res_apdu_data_len, c->sw1sw2, 1);
+        memcpy(endp1_tx_buf+CCID_MSG_HEADER_SIZE, c->a->res_apdu_data, c->a->res_apdu_data_len);
+        memcpy(endp1_tx_buf+CCID_MSG_HEADER_SIZE+c->a->res_apdu_data_len, c->sw1sw2, 1);
 
         c->epi->buf = &c->sw1sw2[1];
         c->epi->cnt = 1;
@@ -618,7 +621,7 @@ static void ccid_send_data_block_internal (struct ccid *c, uint8_t status, uint8
     }
     else if (CCID_MSG_HEADER_SIZE + len - 2 == USB_LL_BUF_SIZE)
     {
-      memcpy (endp1_tx_buf+CCID_MSG_HEADER_SIZE, c->a->res_apdu_data, c->a->res_apdu_data_len);
+      memcpy(endp1_tx_buf+CCID_MSG_HEADER_SIZE, c->a->res_apdu_data, c->a->res_apdu_data_len);
 
       c->epi->buf = &c->sw1sw2[0];
       c->epi->cnt = 0;
@@ -627,28 +630,28 @@ static void ccid_send_data_block_internal (struct ccid *c, uint8_t status, uint8
     }
     else
     {
-        memcpy (endp1_tx_buf+CCID_MSG_HEADER_SIZE, c->a->res_apdu_data, USB_LL_BUF_SIZE - CCID_MSG_HEADER_SIZE);
+        memcpy(endp1_tx_buf+CCID_MSG_HEADER_SIZE, c->a->res_apdu_data, USB_LL_BUF_SIZE - CCID_MSG_HEADER_SIZE);
 
         c->epi->buf = c->a->res_apdu_data + USB_LL_BUF_SIZE - CCID_MSG_HEADER_SIZE;
         c->epi->cnt = USB_LL_BUF_SIZE - CCID_MSG_HEADER_SIZE;
         c->epi->buf_len = c->a->res_apdu_data_len - (USB_LL_BUF_SIZE - CCID_MSG_HEADER_SIZE);
         c->epi->next_buf = get_sw1sw2;
     }
-    usb_tx_enable (endp1_tx_buf, tx_size);
+    usb_tx_enable(endp1_tx_buf, tx_size);
     c->tx_busy = 1;
 }
 
-static void ccid_send_data_block (struct ccid *c)
+static void ccid_send_data_block(struct ccid *c)
 {
     ccid_send_data_block_internal (c, 0, 0);
 }
 
-static void ccid_send_data_block_time_extension (struct ccid *c)
+static void ccid_send_data_block_time_extension(struct ccid *c)
 {
     ccid_send_data_block_internal (c, CCID_CMD_STATUS_TIMEEXT, c->ccid_state == CCID_STATE_EXECUTE? 1: 0xff);
 }
 
-static void ccid_send_data_block_0x9000 (struct ccid *c)
+static void ccid_send_data_block_0x9000(struct ccid *c)
 {
     uint8_t p[CCID_MSG_HEADER_SIZE+2];
     size_t len = 2;
@@ -674,7 +677,7 @@ static void ccid_send_data_block_0x9000 (struct ccid *c)
     c->tx_busy = 1;
 }
 
-static void ccid_send_data_block_gr (struct ccid *c, size_t chunk_len)
+static void ccid_send_data_block_gr(struct ccid *c, size_t chunk_len)
 {
     int tx_size = USB_LL_BUF_SIZE;
     uint8_t p[CCID_MSG_HEADER_SIZE];
@@ -743,7 +746,7 @@ static void ccid_send_data_block_gr (struct ccid *c, size_t chunk_len)
     c->tx_busy = 1;
 }
 
-static void ccid_send_params (struct ccid *c)
+static void ccid_send_params(struct ccid *c)
 {
     uint8_t p[CCID_MSG_HEADER_SIZE];
     const uint8_t params[] =  {
@@ -777,7 +780,7 @@ static void ccid_send_params (struct ccid *c)
     c->tx_busy = 1;
 }
 
-static void ccid_error (struct ccid *c, int offset)
+static void ccid_error(struct ccid *c, int offset)
 {
     uint8_t ccid_reply[CCID_MSG_HEADER_SIZE];
 
@@ -813,57 +816,57 @@ static enum ccid_state ccid_handle_data(struct ccid *c)
 {
     enum ccid_state next_state = c->ccid_state;
 
-TU_LOG3("---- CCID STATE %d,msg_type %x,start %d\r\n",c->ccid_state,c->ccid_header.msg_type,CCID_STATE_START);
+    TU_LOG3("---- CCID STATE %d,msg_type %x,start %d\r\n",c->ccid_state,c->ccid_header.msg_type,CCID_STATE_START);
     if (c->err != 0)
     {
-        ccid_reset (c);
-        ccid_error (c, CCID_OFFSET_DATA_LEN);
+        ccid_reset(c);
+        ccid_error(c, CCID_OFFSET_DATA_LEN);
         return next_state;
     }
     switch (c->ccid_state)
     {
         case CCID_STATE_NOCARD:
             if (c->ccid_header.msg_type == CCID_SLOT_STATUS)
-	            ccid_send_status (c);
+	            ccid_send_status(c);
             else
         	{
         	  DEBUG_INFO ("ERR00\r\n");
-        	  ccid_error (c, CCID_OFFSET_CMD_NOT_SUPPORTED);
+        	  ccid_error(c, CCID_OFFSET_CMD_NOT_SUPPORTED);
         	}
             break;
         case CCID_STATE_START:
             if (c->ccid_header.msg_type == CCID_POWER_ON)
         	{
-        	    ccid_reset (c);
-        	    next_state = ccid_power_on (c);
+        	    ccid_reset(c);
+        	    next_state = ccid_power_on(c);
         	}
             else if (c->ccid_header.msg_type == CCID_POWER_OFF)
         	{
-        	    ccid_reset (c);
-        	    next_state = ccid_power_off (c);
+        	    ccid_reset(c);
+        	    next_state = ccid_power_off(c);
         	}
             else if (c->ccid_header.msg_type == CCID_SLOT_STATUS)
     	        ccid_send_status (c);
             else
         	{
-        	    DEBUG_INFO ("ERR01\r\n");
-        	    ccid_error (c, CCID_OFFSET_CMD_NOT_SUPPORTED);
+        	    DEBUG_INFO("ERR01\r\n");
+        	    ccid_error(c, CCID_OFFSET_CMD_NOT_SUPPORTED);
         	}
             break;
         case CCID_STATE_WAIT:
             if (c->ccid_header.msg_type == CCID_POWER_ON)
         	{
         	    /* Not in the spec., but pcscd/libccid */
-        	    ccid_reset (c);
-        	    next_state = ccid_power_on (c);
+        	    ccid_reset(c);
+        	    next_state = ccid_power_on(c);
         	}
             else if (c->ccid_header.msg_type == CCID_POWER_OFF)
         	{
-        	    ccid_reset (c);
-        	    next_state = ccid_power_off (c);
+        	    ccid_reset(c);
+        	    next_state = ccid_power_off(c);
         	}
             else if (c->ccid_header.msg_type == CCID_SLOT_STATUS)
-    	        ccid_send_status (c);
+    	        ccid_send_status(c);
             else if (c->ccid_header.msg_type == CCID_XFR_BLOCK)
     	    {
     	        if (c->ccid_header.param == 0)
@@ -926,82 +929,7 @@ TU_LOG3("---- CCID STATE %d,msg_type %x,start %d\r\n",c->ccid_state,c->ccid_head
     	        }
     	    }
             else if (c->ccid_header.msg_type == CCID_SET_PARAMS || c->ccid_header.msg_type == CCID_GET_PARAMS || c->ccid_header.msg_type == CCID_RESET_PARAMS)
-    	        ccid_send_params (c);
-            else if (c->ccid_header.msg_type == CCID_SECURE)
-    	    {
-    	        if (c->p != c->a->cmd_apdu_data)
-        	    {
-        	        /* SECURE received in the middle of command chaining */
-        	        ccid_reset (c);
-        	        ccid_error (c, CCID_OFFSET_DATA_LEN);
-        	        return next_state;
-        	    }
-
-    	        if (c->p[10-10] == 0x00) /* PIN verification */
-        	    {
-                    c->a->cmd_apdu_head[0] = c->p[25-10];
-                    c->a->cmd_apdu_head[1] = c->p[26-10];
-                    c->a->cmd_apdu_head[2] = c->p[27-10];
-                    c->a->cmd_apdu_head[3] = c->p[28-10];
-                    /**/
-                    c->a->cmd_apdu_data[0] = 0; /* bConfirmPIN */
-                    c->a->cmd_apdu_data[1] = c->p[17-10]; /* bEntryValidationCondition */
-                    c->a->cmd_apdu_data[2] = c->p[18-10]; /* bNumberMessage */
-                    c->a->cmd_apdu_data[3] = c->p[19-10]; /* wLangId L */
-                    c->a->cmd_apdu_data[4] = c->p[20-10]; /* wLangId H */
-                    c->a->cmd_apdu_data[5] = c->p[21-10]; /* bMsgIndex */
-
-                    c->a->cmd_apdu_data_len = 6;
-                    c->a->expected_res_size = 0;
-
-                    c->a->sw = 0x9000;
-                    c->a->res_apdu_data_len = 0;
-                    c->a->res_apdu_data = &c->p[5];
-
-                    c->state = APDU_STATE_COMMAND_RECEIVED;
-                    uint32_t flag = EV_VERIFY_CMD_AVAILABLE;
-                    queue_try_add(&c->card_comm, &flag);
-                    next_state = CCID_STATE_EXECUTE;
-        	    }
-    	        else if (c->p[10-10] == 0x01) /* PIN Modification */
-    	        {
-    	            uint8_t num_msgs = c->p[21-10];
-
-    	            if (num_msgs == 0x00)
-    		            num_msgs = 1;
-    	            else if (num_msgs == 0xff)
-    		            num_msgs = 3;
-                    c->a->cmd_apdu_head[0] = c->p[27 + num_msgs-10];
-                    c->a->cmd_apdu_head[1] = c->p[28 + num_msgs-10];
-                    c->a->cmd_apdu_head[2] = c->p[29 + num_msgs-10];
-                    c->a->cmd_apdu_head[3] = c->p[30 + num_msgs-10];
-                    /**/
-                    c->a->cmd_apdu_data[0] = c->p[19-10]; /* bConfirmPIN */
-                    c->a->cmd_apdu_data[1] = c->p[20-10]; /* bEntryValidationCondition */
-                    c->a->cmd_apdu_data[2] = c->p[21-10]; /* bNumberMessage */
-                    c->a->cmd_apdu_data[3] = c->p[22-10]; /* wLangId L */
-                    c->a->cmd_apdu_data[4] = c->p[23-10]; /* wLangId H */
-                    c->a->cmd_apdu_data[5] = c->p[24-10]; /* bMsgIndex, bMsgIndex1 */
-    	            if (num_msgs >= 2)
-    		            c->a->cmd_apdu_data[6] = c->p[25-10]; /* bMsgIndex2 */
-    	            if (num_msgs == 3)
-    		            c->a->cmd_apdu_data[7] = c->p[26-10]; /* bMsgIndex3 */
-
-                    c->a->cmd_apdu_data_len = 5 + num_msgs;
-                    c->a->expected_res_size = 0;
-
-                    c->a->sw = 0x9000;
-                    c->a->res_apdu_data_len = 0;
-                    c->a->res_apdu_data = &ccid_buffer[5];
-
-                    c->state = APDU_STATE_COMMAND_RECEIVED;
-                    uint32_t flag = EV_MODIFY_CMD_AVAILABLE;
-                    queue_try_add(&c->card_comm, &flag);
-                    next_state = CCID_STATE_EXECUTE;
-    	        }
-    	        else
-    	            ccid_error (c, CCID_MSG_DATA_OFFSET);
-    	    }
+    	        ccid_send_params(c);
             else
     	    {
                 DEBUG_INFO ("ERR03\r\n");
@@ -1032,7 +960,7 @@ TU_LOG3("---- CCID STATE %d,msg_type %x,start %d\r\n",c->ccid_state,c->ccid_head
     return next_state;
 }
 
-static enum ccid_state ccid_handle_timeout (struct ccid *c)
+static enum ccid_state ccid_handle_timeout(struct ccid *c)
 {
     enum ccid_state next_state = c->ccid_state;
     switch (c->ccid_state)
@@ -1040,7 +968,7 @@ static enum ccid_state ccid_handle_timeout (struct ccid *c)
         case CCID_STATE_EXECUTE:
         case CCID_STATE_ACK_REQUIRED_0:
         case CCID_STATE_ACK_REQUIRED_1:
-            ccid_send_data_block_time_extension (c);
+            ccid_send_data_block_time_extension(c);
             break;
         default:
         break;
@@ -1292,13 +1220,13 @@ static void ccid_abdata (struct ep_out *epo, size_t len)
 
 static void ccid_prepare_receive (struct ccid *c)
 {
-  c->epo->err = 0;
-  c->epo->buf = (uint8_t *)&c->ccid_header;
-  c->epo->buf_len = sizeof (struct ccid_header);
-  c->epo->cnt = 0;
-  c->epo->next_buf = ccid_abdata;
-  c->epo->end_rx = end_ccid_rx;
-  c->epo->ready = 1;
+    c->epo->err = 0;
+    c->epo->buf = (uint8_t *)&c->ccid_header;
+    c->epo->buf_len = sizeof (struct ccid_header);
+    c->epo->cnt = 0;
+    c->epo->next_buf = ccid_abdata;
+    c->epo->end_rx = end_ccid_rx;
+    c->epo->ready = 1;
 }
 
 static void ccid_rx_ready (uint16_t len)
@@ -1442,6 +1370,7 @@ void prepare_ccid()
 }
 
 int process_apdu() {
+    blink_interval_ms = BLINK_PROCESSING;
     if (!current_app) {
         if (INS(apdu) == 0xA4 && P1(apdu) == 0x04 && (P2(apdu) == 0x00 || P2(apdu) == 0x4)) { //select by AID
             for (int a = 0; a < num_apps; a++) {
@@ -1456,7 +1385,6 @@ int process_apdu() {
         return current_app->process_apdu();
     return set_res_sw (0x6D, 0x00);
 }
-
 
 uint16_t set_res_sw (uint8_t sw1, uint8_t sw2)
 {
@@ -1478,94 +1406,14 @@ void card_thread()
     card_init ();
 
     while (1)
-    {
-#if defined(PINPAD_SUPPORT)
-        int len, pw_len, newpw_len;
-#endif
-
-      
+    {    
         uint32_t m;
         queue_remove_blocking(card_comm, &m);
         
-        if (m == EV_VERIFY_CMD_AVAILABLE)
+        if (m == EV_VERIFY_CMD_AVAILABLE || m == EV_MODIFY_CMD_AVAILABLE)
 	    {
-#if defined(PINPAD_SUPPORT)
-	        if (INS (apdu) != INS_VERIFY)
-	        {
-	            GPG_CONDITION_NOT_SATISFIED ();
-	            goto done;
-	        }
-
-	        pw_len = get_pinpad_input (PIN_INPUT_CURRENT);
-	        if (pw_len < 0)
-	        {
-	            set_res_sw (0x6f, 0x00);
-	            goto done;
-	        }
-	        memcpy (apdu.cmd_apdu_data, pin_input_buffer, pw_len);
-	        apdu.cmd_apdu_data_len = pw_len;
-#else
 	        set_res_sw (0x6f, 0x00);
 	        goto done;
-#endif
-	    }
-        else if (m == EV_MODIFY_CMD_AVAILABLE)
-	    {
-#if defined(PINPAD_SUPPORT)
-	        uint8_t bConfirmPIN = apdu.cmd_apdu_data[0];
-	        uint8_t *p = apdu.cmd_apdu_data;
-
-	        if (INS (apdu) != INS_CHANGE_REFERENCE_DATA
-	            && INS (apdu) != INS_RESET_RETRY_COUNTER
-	            && INS (apdu) != INS_PUT_DATA)
-	        {
-	            GPG_CONDITION_NOT_SATISFIED ();
-	            goto done;
-	        }
-
-	        if ((bConfirmPIN & 2))	/* Require old PIN */
-	        {
-	            pw_len = get_pinpad_input (PIN_INPUT_CURRENT);
-	            if (pw_len < 0)
-		        {
-		            set_res_sw (0x6f, 0x00);
-		            goto done;
-		        }
-	            memcpy (p, pin_input_buffer, pw_len);
-	            p += pw_len;
-	        }
-	        else
-	            pw_len = 0;
-
-	        newpw_len = get_pinpad_input (PIN_INPUT_NEW);
-	        if (newpw_len < 0)
-	        {
-	            set_res_sw (0x6f, 0x00);
-	            goto done;
-	        }
-	        memcpy (p, pin_input_buffer, newpw_len);
-
-	        if ((bConfirmPIN & 1))	/* New PIN twice */
-	        {
-	            len = get_pinpad_input (PIN_INPUT_CONFIRM);
-	            if (len < 0)
-		        {
-		            set_res_sw (0x6f, 0x00);
-		            goto done;
-		        }
-
-	            if (len != newpw_len || memcmp (p, pin_input_buffer, len) != 0)
-		        {
-		            GPG_SECURITY_FAILURE ();
-		            goto done;
-		        }
-	        }
-
-	        apdu.cmd_apdu_data_len = pw_len + newpw_len;
-#else
-	        set_res_sw (0x6f, 0x00);
-	        goto done;
-#endif
 	    }
         else if (m == EV_EXIT) {
             if (current_app && current_app->unload)
@@ -1635,7 +1483,7 @@ void ccid_task(void)
 	        }
             else if (m == EV_RX_DATA_READY)
         	{
-        	    c->ccid_state = ccid_handle_data (c);
+        	    c->ccid_state = ccid_handle_data(c);
         	    timeout = 0;
         	    c->timeout_cnt = 0;
         	}
@@ -1649,7 +1497,7 @@ void ccid_task(void)
                 		c->sw1sw2[0] = 0x90;
                 		c->sw1sw2[1] = 0x00;
                 		c->state = APDU_STATE_RESULT;
-                		ccid_send_data_block (c);
+                		ccid_send_data_block(c);
                 		c->ccid_state = CCID_STATE_EXITED;
                 		c->application = 0;
                 		return;
@@ -1661,7 +1509,7 @@ void ccid_task(void)
             	    if (c->a->res_apdu_data_len <= c->a->expected_res_size)
             	    {
                 		c->state = APDU_STATE_RESULT;
-                		ccid_send_data_block (c);
+                		ccid_send_data_block(c);
                 		c->ccid_state = CCID_STATE_WAIT;
             	    }
             	    else
@@ -1669,7 +1517,7 @@ void ccid_task(void)
                 		c->state = APDU_STATE_RESULT_GET_RESPONSE;
                 		c->p = c->a->res_apdu_data;
                 		c->len = c->a->res_apdu_data_len;
-                		ccid_send_data_block_gr (c, c->a->expected_res_size);
+                		ccid_send_data_block_gr(c, c->a->expected_res_size);
                 		c->ccid_state = CCID_STATE_WAIT;
             	    }
             	}
@@ -1677,15 +1525,16 @@ void ccid_task(void)
         	    {
         	        DEBUG_INFO ("ERR05\r\n");
         	    }
+        	    blink_interval_ms = BLINK_MOUNTED;
             }
             else if (m == EV_TX_FINISHED)
         	{
         	    if (c->state == APDU_STATE_RESULT)
-        	        ccid_reset (c);
+        	        ccid_reset(c);
         	    else
         	        c->tx_busy = 0;
         	    if (c->state == APDU_STATE_WAIT_COMMAND || c->state == APDU_STATE_COMMAND_CHAINING || c->state == APDU_STATE_RESULT_GET_RESPONSE)
-        	        ccid_prepare_receive (c);
+        	        ccid_prepare_receive(c);
         	}
         }
         else			/* Timeout */
@@ -1703,49 +1552,29 @@ void ccid_task(void)
                     goto exec_done;
                 }
                 else
-                    c->ccid_state = ccid_handle_timeout (c);
+                    c->ccid_state = ccid_handle_timeout(c);
             }
         }
     }
 }
 
-// Invoked when cdc when line state changed e.g connected/disconnected
-void tud_vendor_line_state_cb(uint8_t itf, bool dtr, bool rts)
-{
-    (void) itf;
-
-    // connected
-    if ( dtr && rts )
-    {
-        // print initial message when connected
-        tud_vendor_write_str("\r\nTinyUSB WebUSB device example\r\n");
-    }
-}
-
-// Invoked when CDC interface received data from host
-void tud_vendor_rx_cb(uint8_t itf)
-{
-    (void) itf;
-    //TU_LOG3("!!!!!!!  RX_CB\r\n");
-}
-
 void tud_mount_cb()
 {
-    //TU_LOG3("!!!!!!!  MOUNTED\r\n");
-    
     ccid_prepare_receive (&ccid);
 }
 
-void led_blinking_task(void)
+void led_blinking_task()
 {
     static uint32_t start_ms = 0;
     static uint8_t led_state = false;
     static uint8_t led_color = BLINK_RED;
+    uint32_t interval = !led_state ? blink_interval_ms & 0xffff : blink_interval_ms >> 16;
+    
 
     // Blink every interval ms
-    if ( board_millis() - start_ms < blink_interval_ms)
+    if (board_millis() - start_ms < interval)
         return; // not enough time
-    start_ms += blink_interval_ms;
+    start_ms += interval;
 
     gpio_put(led_color, led_state);
     led_state ^= 1; // toggle
@@ -1758,9 +1587,6 @@ void led_off_all()
     gpio_put(20, 1);
 }
 
-#define RANDOM_BYTES_LENGTH 32
-#include "hardware/flash.h"
-#include "hardware/sync.h"
 extern void neug_task();
 
 pico_unique_board_id_t unique_id;
