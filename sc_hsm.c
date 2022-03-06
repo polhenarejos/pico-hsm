@@ -1474,6 +1474,7 @@ static int cmd_cipher_sym() {
                 return SW_EXEC_ERROR();
             }
         }
+        res_APDU_size = apdu.cmd_apdu_data_len;
         mbedtls_aes_free(&aes);
     }
     else {
