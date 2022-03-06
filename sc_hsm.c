@@ -584,7 +584,7 @@ int store_keys(void *key_ctx, int type, uint8_t key_id, sc_context_t *ctx) {
         mbedtls_mpi_write_binary(&ecdsa->d, kdata+1, key_size);
         key_size++;
     }
-    if ((r = load_dkek()) != HSM_OK)    
+    if ((r = load_dkek()) != HSM_OK)
         return r;
     if ((r = encrypt(tmp_dkek+IV_SIZE, tmp_dkek, kdata, key_size)) != 0)
         return r;
@@ -1180,6 +1180,7 @@ static int cmd_key_gen() {
     uint8_t key_id = P1(apdu);
     uint8_t p2 = P2(apdu);
     uint8_t key_size = 32;
+    int r;
     if (!isUserAuthenticated)
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     if (p2 == 0xB2)
@@ -1190,10 +1191,16 @@ static int cmd_key_gen() {
         key_size = 16;
     if (!isUserAuthenticated)
         return SW_SECURITY_STATUS_NOT_SATISFIED();
-   //at this moment, we do not use the template, as only CBC is supported by the driver (encrypt, decrypt and CMAC)
-    const uint8_t *aes_key = random_bytes_get(key_size);
+    //at this moment, we do not use the template, as only CBC is supported by the driver (encrypt, decrypt and CMAC)
+    uint8_t aes_key[32]; //maximum AES key size
+    memcpy(aes_key, random_bytes_get(key_size), key_size);
+    if ((r = load_dkek()) != HSM_OK)
+        return r;
+    if ((r = encrypt(tmp_dkek+IV_SIZE, tmp_dkek, aes_key, key_size)) != 0)
+        return r;
+    release_dkek();
     file_t *fpk = file_new((KEY_PREFIX << 8) | key_id);
-    int r = flash_write_data_to_file(fpk, aes_key, key_size);
+    r = flash_write_data_to_file(fpk, aes_key, key_size);
     if (r != HSM_OK)
         return SW_MEMORY_FAILURE();
     fpk = file_new((PRKD_PREFIX << 8) | key_id);
@@ -1413,40 +1420,57 @@ static int cmd_decrypt_asym() {
 static int cmd_cipher_sym() {
     int key_id = P1(apdu);
     int algo = P2(apdu);
-    printf("us %d\r\n",isUserAuthenticated);
     if (!isUserAuthenticated)
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     file_t *ef = search_dynamic_file((KEY_PREFIX << 8) | key_id);
     if (!ef)
         return SW_FILE_NOT_FOUND();
     int key_size = file_read_uint16(ef->data);
-    uint8_t *key = file_read(ef->data+2);
+    if (load_dkek() != HSM_OK)
+        return SW_EXEC_ERROR();
+    uint8_t kdata[32]; //maximum AES key size
+    memcpy(kdata, file_read(ef->data+2), key_size);
+    if (decrypt(tmp_dkek+IV_SIZE, tmp_dkek, kdata, key_size) != 0) {
+        return SW_EXEC_ERROR();
+    }
+    release_dkek();
     if (algo == ALGO_AES_CBC_ENCRYPT || algo == ALGO_AES_CBC_DECRYPT) {
-        if ((apdu.cmd_apdu_data_len % 16) != 0)
+        if ((apdu.cmd_apdu_data_len % 16) != 0) {
             return SW_WRONG_LENGTH();
+        }
         mbedtls_aes_context aes;
         mbedtls_aes_init(&aes);
         uint8_t tmp_iv[IV_SIZE];
         memset(tmp_iv, 0, sizeof(tmp_iv));
         if (algo == ALGO_AES_CBC_ENCRYPT) {
-            int r = mbedtls_aes_setkey_enc(&aes, key, key_size*8);
-            if (r != 0)
+            int r = mbedtls_aes_setkey_enc(&aes, kdata, key_size*8);
+            if (r != 0) {
+                mbedtls_aes_free(&aes);
                 return SW_EXEC_ERROR();
+            }
             r = mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_ENCRYPT, apdu.cmd_apdu_data_len, tmp_iv, apdu.cmd_apdu_data, res_APDU);
-            if (r != 0)
+            if (r != 0) {
+                mbedtls_aes_free(&aes);
                 return SW_EXEC_ERROR();
+            }
         }
         else if (algo == ALGO_AES_CBC_DECRYPT) {
-            int r = mbedtls_aes_setkey_dec(&aes, key, key_size*8);
-            if (r != 0)
+            int r = mbedtls_aes_setkey_dec(&aes, kdata, key_size*8);
+            if (r != 0) {
+                mbedtls_aes_free(&aes);
                 return SW_EXEC_ERROR();
+            }
             r = mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_DECRYPT, apdu.cmd_apdu_data_len, tmp_iv, apdu.cmd_apdu_data, res_APDU);
-            if (r != 0)
+            if (r != 0) {
+                mbedtls_aes_free(&aes);
                 return SW_EXEC_ERROR();
+            }
         }
+        mbedtls_aes_free(&aes);
     }
-    else
+    else {
         return SW_WRONG_P1P2();
+    }
     return SW_OK();
 }
 
