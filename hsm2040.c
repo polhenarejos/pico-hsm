@@ -1567,8 +1567,11 @@ void card_thread()
 	        goto done;
 #endif
 	    }
-        else if (m == EV_EXIT)
+        else if (m == EV_EXIT) {
+            if (current_app && current_app->unload)
+                current_app->unload();
 	        break;
+	    }
 
         process_apdu();
         

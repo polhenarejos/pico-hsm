@@ -22,11 +22,13 @@ static uint8_t tmp_dkek[IV_SIZE+32];
 static int sc_hsm_process_apdu();
 
 static void init_sc_hsm();
+static int sc_hsm_unload();
 
 app_t *sc_hsm_select_aid(app_t *a) {
     if (!memcmp(apdu.cmd_apdu_data, sc_hsm_aid+1, MIN(apdu.cmd_apdu_data_len,sc_hsm_aid[0]))) {
         a->aid = sc_hsm_aid;
         a->process_apdu = sc_hsm_process_apdu;
+        a->unload = sc_hsm_unload;
         init_sc_hsm();
         return a;
     }
@@ -40,6 +42,13 @@ void __attribute__ ((constructor)) sc_hsm_ctor() {
 void init_sc_hsm() {
     scan_flash();
     has_session_pin = has_session_sopin = false;
+    isUserAuthenticated = false;
+}
+
+int sc_hsm_unload() {
+    has_session_pin = has_session_sopin = false;
+    isUserAuthenticated = false;
+    return HSM_OK;
 }
 
 static int encrypt(const uint8_t *key, const uint8_t *iv, uint8_t *data, int len)
@@ -100,7 +109,6 @@ void select_file(file_t *pe) {
     }
     if (currentEF == file_openpgp || currentEF == file_sc_hsm) {
         selected_applet = currentEF;
-        isUserAuthenticated = false;
     }
 }
 static int cmd_select() {
