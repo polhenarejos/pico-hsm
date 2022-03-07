@@ -33,10 +33,14 @@
  * Auto ProductID layout's Bitmap:
  *   [MSB]       MIDI | HID | MSC | CDC          [LSB]
  */
- 
-#define USB_PID   0x0000
-                           
-#define USB_VID   0x234b
+
+#ifndef USB_VID
+#define USB_VID   0xFEFF
+#endif
+#ifndef USB_PID
+#define USB_PID   0xFCFD
+#endif
+
 #define USB_BCD   0x0200
 
 #define USB_CONFIG_ATT_ONE TU_BIT(7)
@@ -62,7 +66,7 @@ tusb_desc_device_t const desc_device =
 
     .idVendor           = (USB_VID),
     .idProduct          = (USB_PID),
-    .bcdDevice          = (0x0100),
+    .bcdDevice          = (0x0301),
 
     .iManufacturer      = 1,
     .iProduct           = 2,
@@ -177,11 +181,11 @@ uint8_t const * tud_descriptor_bos_cb(void)
 char const* string_desc_arr [] =
 {
   (const char[]) { 0x09, 0x04 }, // 0: is supported language is English (0x0409)
-  "TinyUSB",                     // 1: Manufacturer
-  "TinyUSB CCID",              // 2: Product
+  "Pol Henarejos",                     // 1: Manufacturer
+  "HSM 2040",              // 2: Product
   "11223344",                      // 3: Serials, should use chip ID
-  "TinyUSB Config",               // 4: Vendor Interface
-  "TinyUSB Interface"
+  "HSM 2040 Config",               // 4: Vendor Interface
+  "HSM 2040 Interface"
 };
 
 static uint16_t _desc_str[32];
