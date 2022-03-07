@@ -11,6 +11,15 @@ pico_sdk_init()
 
 add_executable(hsm2040)
 
+if (NOT DEFINED USB_VID)
+    set(USB_VID 0xFEFF)
+endif()
+add_definitions(-DUSB_VID=${USB_VID})
+if (NOT DEFINED USB_PID)
+    set(USB_PID 0xFCFD)
+endif()
+add_definitions(-DUSB_PID=${USB_PID})
+
 set_source_files_properties(
         ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/ctx.c
         PROPERTIES COMPILE_DEFINITIONS "PACKAGE_VERSION=\"0.22.0\";OPENSC_CONF_PATH=\".\"" 
