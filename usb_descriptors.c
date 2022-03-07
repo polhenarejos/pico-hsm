@@ -26,6 +26,7 @@
 #include "tusb.h"
 #include "usb_descriptors.h"
 #include "ccid.h"
+#include "pico/unique_id.h"
 
 /* A combination of interfaces must have a unique product id, since PC will save device driver after the first plug.
  * Same VID/PID with different interface e.g MSC (first), then CDC (later) will possibly cause system error on PC.
@@ -210,6 +211,13 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
     if ( !(index < sizeof(string_desc_arr)/sizeof(string_desc_arr[0])) ) return NULL;
 
     const char* str = string_desc_arr[index];
+    char unique_id_str[2 * PICO_UNIQUE_BOARD_ID_SIZE_BYTES + 1];
+    if (index == 3) {
+        pico_unique_board_id_t unique_id;
+        pico_get_unique_board_id(&unique_id);
+        pico_get_unique_board_id_string(unique_id_str, 2 * PICO_UNIQUE_BOARD_ID_SIZE_BYTES + 1);
+        str = unique_id_str;
+    }
 
     // Cap at max char
     chr_count = strlen(str);
