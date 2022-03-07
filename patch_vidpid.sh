@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo "----------------------------"
-echo "VID/PID patcher for HSM 2040"
+echo "VID/PID patcher for Pico HSM"
 echo "----------------------------"
 echo ""
 

@@ -192,7 +192,7 @@ static int cmd_select() {
 }
 
 int parse_token_info(const file_t *f, int mode) {
-    char *label = "HSM2040";
+    char *label = "PicoHSM";
     char *manu = "Pol Henarejos";
     sc_pkcs15_tokeninfo_t *ti = (sc_pkcs15_tokeninfo_t *)calloc(1, sizeof(sc_pkcs15_tokeninfo_t));
     ti->version = 3;
