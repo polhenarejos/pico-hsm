@@ -25,7 +25,6 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "gnuk.h"
 #include "neug.h"
 
 #define RANDOM_BYTES_LENGTH 32

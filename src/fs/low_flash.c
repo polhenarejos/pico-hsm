@@ -8,7 +8,6 @@
 #include "pico/mutex.h"
 #include "pico/sem.h"
 #include "pico/multicore.h"
-#include "gnuk.h"
 #include "hsm2040.h"
 #include "sc_hsm.h"
 #include <string.h>

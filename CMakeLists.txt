@@ -26,23 +26,15 @@ set_source_files_properties(
         )
 
 target_sources(hsm2040 PUBLIC
-        ${CMAKE_CURRENT_LIST_DIR}/hsm2040.c
-        ${CMAKE_CURRENT_LIST_DIR}/usb_descriptors.c
-        ${CMAKE_CURRENT_LIST_DIR}/openpgp.c
-        ${CMAKE_CURRENT_LIST_DIR}/debug.c
-        ${CMAKE_CURRENT_LIST_DIR}/openpgp-do.c
-        ${CMAKE_CURRENT_LIST_DIR}/ac.c
-        ${CMAKE_CURRENT_LIST_DIR}/file.c
-        ${CMAKE_CURRENT_LIST_DIR}/flash.c
-        ${CMAKE_CURRENT_LIST_DIR}/flash_openpgp.c
-        ${CMAKE_CURRENT_LIST_DIR}/low_flash.c
-        ${CMAKE_CURRENT_LIST_DIR}/call-rsa.c
-        ${CMAKE_CURRENT_LIST_DIR}/call-ec_p256k1.c
-        ${CMAKE_CURRENT_LIST_DIR}/ecc-ed25519.c
-        ${CMAKE_CURRENT_LIST_DIR}/ecc-ed448.c
-        ${CMAKE_CURRENT_LIST_DIR}/random.c
-        ${CMAKE_CURRENT_LIST_DIR}/ecc-mont.c
-        ${CMAKE_CURRENT_LIST_DIR}/ecc-x448.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/hsm/hsm2040.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/hsm/sc_hsm.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/usb/usb_descriptors.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/fs/file.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/fs/flash.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/fs/low_flash.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/rng/random.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/rng/neug.c
+        
         ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/sha256.c
         ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/aes.c
         ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/sha512.c
@@ -62,16 +54,6 @@ target_sources(hsm2040 PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/ripemd160.c
         ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/sha1.c
         
-        ${CMAKE_CURRENT_LIST_DIR}/shake256.c
-        ${CMAKE_CURRENT_LIST_DIR}/neug.c
-        ${CMAKE_CURRENT_LIST_DIR}/ec_p256k1.c
-        ${CMAKE_CURRENT_LIST_DIR}/bn.c
-        ${CMAKE_CURRENT_LIST_DIR}/mod.c
-        ${CMAKE_CURRENT_LIST_DIR}/jpc_p256k1.c
-        ${CMAKE_CURRENT_LIST_DIR}/modp256k1.c
-        ${CMAKE_CURRENT_LIST_DIR}/p448.c
-        ${CMAKE_CURRENT_LIST_DIR}/mod25638.c
-        ${CMAKE_CURRENT_LIST_DIR}/sc_hsm.c
         ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/pkcs15.c
         ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/pkcs15-prkey.c
         ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/pkcs15-algo.c
@@ -91,7 +73,10 @@ target_sources(hsm2040 PUBLIC
         )
 
 target_include_directories(hsm2040 PUBLIC
-        ${CMAKE_CURRENT_LIST_DIR}
+        ${CMAKE_CURRENT_LIST_DIR}/src/fs
+        ${CMAKE_CURRENT_LIST_DIR}/src/hsm
+        ${CMAKE_CURRENT_LIST_DIR}/src/rng
+        ${CMAKE_CURRENT_LIST_DIR}/src/usb
         ${CMAKE_CURRENT_LIST_DIR}/opensc/src
         ${CMAKE_CURRENT_LIST_DIR}/mbedtls/include
         ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library

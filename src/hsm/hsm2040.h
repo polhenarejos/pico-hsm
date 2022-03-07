@@ -57,6 +57,37 @@ struct apdu {
   uint8_t *res_apdu_data;
 };
 
+#define MAX_CMD_APDU_DATA_SIZE (24+4+256+256)
+#define MAX_RES_APDU_DATA_SIZE (5+9+512)
+#define CCID_MSG_HEADER_SIZE    10
+#define USB_LL_BUF_SIZE         64
+
+/* CCID thread */
+#define EV_CARD_CHANGE        1
+#define EV_TX_FINISHED        2 /* CCID Tx finished  */
+#define EV_EXEC_ACK_REQUIRED  4 /* OpenPGPcard Execution ACK required */
+#define EV_EXEC_FINISHED      8 /* OpenPGPcard Execution finished */
+#define EV_RX_DATA_READY     16 /* USB Rx data available  */
+
+/* OpenPGPcard thread */
+#define EV_MODIFY_CMD_AVAILABLE   1
+#define EV_VERIFY_CMD_AVAILABLE   2
+#define EV_CMD_AVAILABLE          4
+#define EV_EXIT                   8
+#define EV_PINPAD_INPUT_DONE     16
+
+enum ccid_state {
+    CCID_STATE_NOCARD,		/* No card available */
+    CCID_STATE_START,		/* Initial */
+    CCID_STATE_WAIT,		/* Waiting APDU */
+    
+    CCID_STATE_EXECUTE,		/* Executing command */
+    CCID_STATE_ACK_REQUIRED_0,	/* Ack required (executing)*/
+    CCID_STATE_ACK_REQUIRED_1,	/* Waiting user's ACK (execution finished) */
+    
+    CCID_STATE_EXITED,		/* CCID Thread Terminated */
+    CCID_STATE_EXEC_REQUESTED,	/* Exec requested */
+};
 
 #define CLS(a) a.cmd_apdu_head[0]
 #define INS(a) a.cmd_apdu_head[1]

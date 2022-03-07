@@ -29,14 +29,13 @@
 #include "pico/stdlib.h"
 //#include <chopstx.h>
 
-#include "sys.h"
 #include "neug.h"
 //#include "adc.h"
-#include "gnuk.h"
 #include "hardware/structs/rosc.h"
 #include "hardware/gpio.h"
 #include "hardware/adc.h"
 #include "bsp/board.h"
+#include "pico/unique_id.h"
 
 void adc_start () 
 {
@@ -198,7 +197,9 @@ void *neug_task ()
  */
 void neug_init (uint32_t *buf, uint8_t size)
 {
-    const uint32_t *u = (const uint32_t *)unique_device_id ();
+    pico_unique_board_id_t unique_id;
+    pico_get_unique_board_id(&unique_id);
+    const uint32_t *u = (const uint32_t *)unique_id.id;
     struct rng_rb *rb = &the_ring_buffer;
     int i;
     

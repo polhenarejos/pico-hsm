@@ -1,5 +1,4 @@
 #include "file.h"
-#include "gnuk.h"
 #include "tusb.h"
 #include "hsm2040.h"
 #include "sc_hsm.h"

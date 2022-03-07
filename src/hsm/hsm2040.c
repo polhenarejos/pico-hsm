@@ -1,9 +1,3 @@
-/**
- * Copyright (c) 2020 Raspberry Pi (Trading) Ltd.
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
 #include <stdio.h>
 
 // Pico
@@ -19,11 +13,7 @@
 #include "device/usbd_pvt.h"
 #include "pico/util/queue.h"
 #include "pico/multicore.h"
-#include "gnuk.h"
-#include "config.h"
 #include "random.h"
-
-// Device descriptors
 #include "hsm2040.h"
 
 extern void do_flash();
