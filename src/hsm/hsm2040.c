@@ -361,10 +361,6 @@ enum  {
     BLINK_SUSPENDED   = (500 << 16) | 1000,
     BLINK_PROCESSING  = (50 << 16) | 50,
 
-    BLINK_RED =   18,
-    BLINK_GREEN = 19,
-    BLINK_BLUE =  20,
-
     BLINK_ALWAYS_ON   = UINT32_MAX,
     BLINK_ALWAYS_OFF  = 0
 };
@@ -1558,8 +1554,12 @@ void led_blinking_task()
 {
     static uint32_t start_ms = 0;
     static uint8_t led_state = false;
-    static uint8_t led_color = BLINK_RED;
+    static uint8_t led_color = PICO_DEFAULT_LED_PIN;
+#ifdef PICO_DEFAULT_LED_PIN_INVERTED
     uint32_t interval = !led_state ? blink_interval_ms & 0xffff : blink_interval_ms >> 16;
+#else
+    uint32_t interval = led_state ? blink_interval_ms & 0xffff : blink_interval_ms >> 16;
+#endif
     
 
     // Blink every interval ms
@@ -1573,9 +1573,13 @@ void led_blinking_task()
 
 void led_off_all()
 {
-    gpio_put(18, 1);
-    gpio_put(19, 1);
-    gpio_put(20, 1);
+#ifdef PIMORONI_TINY2040
+    gpio_put(TINY2040_LED_R_PIN, 1);
+    gpio_put(TINY2040_LED_G_PIN, 1);
+    gpio_put(TINY2040_LED_B_PIN, 1);
+#else
+    gpio_put(PICO_DEFAULT_LED_PIN, 0);
+#endif
 }
 
 extern void neug_task();
@@ -1587,15 +1591,19 @@ int main(void)
     struct apdu *a = &apdu;
     struct ccid *c = &ccid;
 
-    printf("BOARD INIT\r\n");
     board_init();
 
-    gpio_init(18);
-    gpio_set_dir(18, GPIO_OUT);
-    gpio_init(19);
-    gpio_set_dir(19, GPIO_OUT);
-    gpio_init(20);
-    gpio_set_dir(20, GPIO_OUT);
+#ifdef PIMORONI_TINY2040
+    gpio_init(TINY2040_LED_R_PIN);
+    gpio_set_dir(TINY2040_LED_R_PIN, GPIO_OUT);
+    gpio_init(TINY2040_LED_G_PIN);
+    gpio_set_dir(TINY2040_LED_G_PIN, GPIO_OUT);
+    gpio_init(TINY2040_LED_B_PIN);
+    gpio_set_dir(TINY2040_LED_B_PIN, GPIO_OUT);
+#else
+    gpio_init(PICO_DEFAULT_LED_PIN);
+    gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
+#endif
 
     led_off_all();
 

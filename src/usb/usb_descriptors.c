@@ -27,6 +27,7 @@
 #include "usb_descriptors.h"
 #include "ccid.h"
 #include "pico/unique_id.h"
+#include "version.h"
 
 /* A combination of interfaces must have a unique product id, since PC will save device driver after the first plug.
  * Same VID/PID with different interface e.g MSC (first), then CDC (later) will possibly cause system error on PC.
@@ -67,7 +68,7 @@ tusb_desc_device_t const desc_device =
 
     .idVendor           = (USB_VID),
     .idProduct          = (USB_PID),
-    .bcdDevice          = (0x0301),
+    .bcdDevice          = HSM_VERSION,
 
     .iManufacturer      = 1,
     .iProduct           = 2,

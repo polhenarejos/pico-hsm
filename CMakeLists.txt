@@ -2,14 +2,14 @@ cmake_minimum_required(VERSION 3.13)
 
 include(pico_sdk_import.cmake)
 
-project(picohsm C CXX ASM)
+project(pico_hsm C CXX ASM)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 
 pico_sdk_init()
 
-add_executable(picohsm)
+add_executable(pico_hsm)
 
 if (NOT DEFINED USB_VID)
     set(USB_VID 0xFEFF)
@@ -25,7 +25,7 @@ set_source_files_properties(
         PROPERTIES COMPILE_DEFINITIONS "PACKAGE_VERSION=\"0.22.0\";OPENSC_CONF_PATH=\".\"" 
         )
 
-target_sources(picohsm PUBLIC
+target_sources(pico_hsm PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/hsm2040.c
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/sc_hsm.c
         ${CMAKE_CURRENT_LIST_DIR}/src/usb/usb_descriptors.c
@@ -72,7 +72,7 @@ target_sources(picohsm PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/padding.c
         )
 
-target_include_directories(picohsm PUBLIC
+target_include_directories(pico_hsm PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/src/fs
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm
         ${CMAKE_CURRENT_LIST_DIR}/src/rng
@@ -82,11 +82,11 @@ target_include_directories(picohsm PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library
         )
 
-pico_add_extra_outputs(picohsm)
+pico_add_extra_outputs(pico_hsm)
 
-#target_compile_definitions(picohsm PRIVATE MBEDTLS_ECDSA_DETERMINISTIC=1)
+#target_compile_definitions(pico_hsm PRIVATE MBEDTLS_ECDSA_DETERMINISTIC=1)
 
-target_link_libraries(picohsm PRIVATE pico_stdlib tinyusb_device tinyusb_board pico_multicore hardware_flash hardware_sync hardware_adc pico_unique_id)
+target_link_libraries(pico_hsm PRIVATE pico_stdlib tinyusb_device tinyusb_board pico_multicore hardware_flash hardware_sync hardware_adc pico_unique_id)
 
 #
 #project(flash_nuke C CXX ASM)

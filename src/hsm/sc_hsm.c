@@ -8,6 +8,7 @@
 #include "mbedtls/rsa.h"
 #include "mbedtls/ecp.h"
 #include "mbedtls/ecdsa.h"
+#include "version.h"
 
 const uint8_t sc_hsm_aid[] = {
     11, 
@@ -195,7 +196,7 @@ int parse_token_info(const file_t *f, int mode) {
     char *label = "PicoHSM";
     char *manu = "Pol Henarejos";
     sc_pkcs15_tokeninfo_t *ti = (sc_pkcs15_tokeninfo_t *)calloc(1, sizeof(sc_pkcs15_tokeninfo_t));
-    ti->version = 3;
+    ti->version = HSM_VERSION_MAJOR;
     ti->flags = SC_PKCS15_TOKEN_PRN_GENERATION | SC_PKCS15_TOKEN_EID_COMPLIANT;
     ti->label = (char *)calloc(strlen(label)+1, sizeof(char));
     strlcpy(ti->label, label, strlen(label)+1);
