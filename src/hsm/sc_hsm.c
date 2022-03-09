@@ -337,8 +337,12 @@ int pin_wrong_retry(const file_t *pin) {
     if (retries > 0) {
         retries -= 1;
         int r = flash_write_data_to_file((file_t *)act, &retries, sizeof(retries));
+        if (r != HSM_OK)
+            return r;
         low_flash_available();
-        return r;
+        if (retries == 0)
+            return HSM_ERR_BLOCKED;
+        return retries;
     }
     return HSM_ERR_BLOCKED;
 }
@@ -355,9 +359,10 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
     if (sizeof(dhash) != file_read_uint16(pin->data)-1) //1 byte for pin len
         return SW_CONDITIONS_NOT_SATISFIED();
     if (memcmp(file_read(pin->data+3), dhash, sizeof(dhash)) != 0) {
-        if (pin_wrong_retry(pin) != HSM_OK)
+        uint8_t retries;
+        if ((retries = pin_wrong_retry(pin)) < HSM_OK)
             return SW_PIN_BLOCKED();
-        return SW_SECURITY_STATUS_NOT_SATISFIED();
+        return set_res_sw(0x63, 0xc0 | retries);
     }
     int r = pin_reset_retries(pin, false);
     if (r == HSM_ERR_BLOCKED)
@@ -383,7 +388,7 @@ static int cmd_verify() {
         }
         if (file_read_uint8(file_retries_pin1->data+2) == 0)
             return SW_PIN_BLOCKED();
-        return set_res_sw (0x63, 0xc0 | file_read_uint8(file_retries_pin1->data+2));
+        return set_res_sw(0x63, 0xc0 | file_read_uint8(file_retries_pin1->data+2));
     }
     else if (p2 == 0x88) { //SOPin
     }
@@ -415,7 +420,7 @@ static int cmd_reset_retry() {
 }
 
 static int cmd_challenge() {
-    memcpy(res_APDU, random_bytes_get(apdu.expected_res_size), apdu.expected_res_size);
+    res_APDU = (uint8_t *)random_bytes_get(apdu.expected_res_size);
     res_APDU_size = apdu.expected_res_size;
     return SW_OK();
 }
