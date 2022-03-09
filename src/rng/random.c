@@ -49,9 +49,12 @@ void random_fini (void)
  * Return pointer to random 32-byte
  */
 void random_bytes_free (const uint8_t *p);
+#define MAX_RANDOM_BUFFER 1024
 const uint8_t * random_bytes_get (size_t len)
 {
-    static uint32_t return_word[512/sizeof(uint32_t)];
+    if (len > MAX_RANDOM_BUFFER)
+        return NULL;
+    static uint32_t return_word[MAX_RANDOM_BUFFER/sizeof(uint32_t)];
     for (int ix = 0; ix < len; ix += RANDOM_BYTES_LENGTH) {
         neug_wait_full ();
         memcpy(return_word+ix/sizeof(uint32_t), random_word, RANDOM_BYTES_LENGTH);

@@ -420,7 +420,10 @@ static int cmd_reset_retry() {
 }
 
 static int cmd_challenge() {
-    res_APDU = (uint8_t *)random_bytes_get(apdu.expected_res_size);
+    uint8_t *rb = (uint8_t *)random_bytes_get(apdu.expected_res_size);
+    if (!rb)
+        return SW_WRONG_LENGTH();
+    res_APDU = rb;
     res_APDU_size = apdu.expected_res_size;
     return SW_OK();
 }
