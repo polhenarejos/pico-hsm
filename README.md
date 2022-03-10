@@ -33,7 +33,22 @@ Please, go to the Release page and download the UF2 file for your board.
 Note that UF2 files are shiped with a dummy VID/PID to avoid license issues (FEFF:FCFD). If you are planning to use it with OpenSC or similar, you should modify Info.plist of CCID driver to add these VID/PID or use the VID/PID patcher as follows:
 `./patch_vidpid.sh VID:PID input_hsm_file.uf2 output_hsm_file.uf2`
 
-You can use whatever VID/PID (i.e., 234b:0000 from FISJ), but remember that you are not authorized to distribute the binary with a VID/PID that you do not own. 
+You can use whatever VID/PID (i.e., 234b:0000 from FISJ), but remember that you are not authorized to distribute the binary with a VID/PID that you do not own.
+
+## Build
+Before building, ensure you have installed the toolchain for the Pico and the Pico SDK is properly located in your drive.
+
+```
+git clone https://github.com/polhenarejos/pico-hsm
+cd pico-hsm
+mkdir build
+cd build
+PICO_SDK_PATH=/path/to/pico-sdk cmake .. -DPICO_BOARD=board_type -DUSB_VID=0x1234 -DUSB_PID=0x5678
+make
+```
+Note that `PICO_BOARD`, `USB_VID` and `USB_PID` are optional. If not provided, `pico` board and VID/PID `FEFF:FCFD` will be used.
+
+After `make` ends, the binary file `pico_hsm.uf2` will be generated. Put your pico board into loading mode, by pushing `BOOTSEL` button while pluging on, and copy the UF2 to the new fresh usb mass storage Pico device. Once copied, the pico mass storage will be disconnected automatically and the pico board will reset with the new firmware. A blinking led will indicate the device is ready to work.
 
 ## Credits
 Pico HSM uses the following libraries or portion of code:
