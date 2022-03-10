@@ -50,6 +50,23 @@ Note that `PICO_BOARD`, `USB_VID` and `USB_PID` are optional. If not provided, `
 
 After `make` ends, the binary file `pico_hsm.uf2` will be generated. Put your pico board into loading mode, by pushing `BOOTSEL` button while pluging on, and copy the UF2 to the new fresh usb mass storage Pico device. Once copied, the pico mass storage will be disconnected automatically and the pico board will reset with the new firmware. A blinking led will indicate the device is ready to work.
 
+## Usage
+The firmware uploaded to the Pico contains a reader and a virtual smart card. It is like having a physical reader with an inserted SIM card.
+We recommend the use of [OpenSC](http://github.com/opensc/opensc/ "OpenSC") to communicate with the reader. If it is not installed, you can download and build it or install the binaries for your system. The first command is to ensure that the Pico is detected as a HSM:
+```
+opensc-tool -an
+````
+It should return a text like the following:
+```
+Using reader with a card: Free Software Initiative of Japan Gnuk
+3b:fe:18:00:00:81:31:fe:45:80:31:81:54:48:53:4d:31:73:80:21:40:81:07:fa
+SmartCard-HSM
+```
+The name of the reader may vary if you modified the VID/PID.
+
+### Important
+OpenSC relies on PCSC driver, which reads a list (`Info.plist`) that contains a pair of VID/PID of supported readers. In order to be detectable, you must patch the UF2 binary (if you just downloaded from the [Release section](/releases "Release section")) or configure the project with the proper VID/PID with `USB_VID` and `USB_PID` parameters in `CMake` (see [Build section](#build "Build section")). Note that you cannot distribute the patched/compiled binary if you do not own the VID/PID.
+
 ## Credits
 Pico HSM uses the following libraries or portion of code:
 - OpenSC for ASN1 manipulation.
