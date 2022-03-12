@@ -55,3 +55,38 @@ $ pkcs11-tool --login --login-type so --so-pin=3537363231383830 --init-pin --new
 ```
 
 ## Keypair generation
+Pico HSM accepts internal keypair generation with RSA scheme. It generates a pair of private and public keys and stores both internally encrypted with a 256 bits AES key. The private key never leaves the device. It may be exported with wrap command but it will be encrypted with a passphrase and the AES key.
+
+To generate a RSA 2048 bits, use the following command:
+```
+$ pkcs11-tool -l --pin 648219 --keypairgen --key-type rsa:2048 --id 1 --label "RSA2K"
+Using slot 0 with a present token (0x0)
+Logging in to "PicoHSM (UserPIN)".
+Key pair generated:
+Private Key Object; RSA 
+  label:      RSA2K
+  ID:         1
+  Usage:      decrypt, sign, unwrap
+Public Key Object; RSA 2048 bits
+  label:      RSA2K
+  ID:         1
+  Usage:      encrypt, verify, wrap
+```
+The ID parameter is an internal hexadecimal number for easy identification. The label is a string that also identifies the key. Despite it allows to store multiple keys with the same ID and/or same label, internally are stored with a unique index (the key reference). In any case, do not reuse the same ID/label to avoid future conflicts.
+
+Pico HSM accepts RSA of 1024 (`rsa:1024`), 2048 (`rsa:2048`) and 4096 bits (`rsa:4096`).
+**Caution**: RSA 2048 bits may take more than 20 seconds. RSA 4096 bits may take more than 20 minutes. The Pico HSM will work as normally and neither the HSM nor the host will block. But, in the meantime, the Pico HSM will not accept any command. 
+An alternative is to generate the private key locally and import it to the HSM. This approach, however, is less secure as it does not use a True RNG or HRNG like Pico HSM. Use this approach if you have plugged a TRNG or you are not worried about obtaining the highest entropy.
+
+Pico HSM also accepts ECDSA keypairs:
+* secp192r1  (prime192v1)
+* secp256r1 (prime256v1)
+* secp384r1 (prime384v1)
+* secp521r1 (prime521v1)
+* brainpoolP256r1
+* brainpoolP384r1
+* brainpoolP512r1
+* secp192k1
+* secp256k1
+
+To use ECC keys, use the above command with the `--key-type` parameter with `EC:secp192r1`, `EC:secp256r1`, `EC:secp384r1`, `EC:secp521r1`, `EC:brainpoolP256r1`, `EC:brainpoolP384r1`, `EC:brainpoolP512r1`, `EC:secp192k1` and `EC:secp256r1`.
