@@ -64,7 +64,13 @@ SmartCard-HSM
 ```
 The name of the reader may vary if you modified the VID/PID.
 
-## Driver
+For initialization and asymmetric operations, check [doc/usage.md](/doc/usage.md).
+
+For backup, restore and DKEK share management, check [doc/backup-and-restore.md](/doc/backup-and-restore.md).
+
+For AES key generation, encryption and decryption, check [doc/aes.md](/doc/aes.md).
+
+## Driver
 
 Pico HSM uses the `sc-hsm` driver provided by [OpenSC](https://github.com/OpenSC/OpenSC/ "OpenSC") or the `sc-hsm-embedded` driver provided by [CardContact](https://github.com/CardContact/sc-hsm-embedded "CardContact"). This driver utilizes the standardized PKCS#11 interface to communicate with the user and it can be used with many engines that accept PKCS#11 interface, such as OpenSSL, P11 library or pkcs11-tool. 
 
