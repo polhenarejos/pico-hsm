@@ -175,6 +175,20 @@ Certificate:
          0b:08
 ``` 
 
+The resulting file `cert.pem` contains the signed certificate in PEM format. Convert it into DER format and load it into the Pico HSM:
+
+```
+$ openssl x509 -in cert.pem -out cert.der -outform der
+$ pkcs11-tool -l --pin 648219 --write-object cert.der --type cert --id 1
+Using slot 0 with a present token (0x0)
+Created certificate:
+Certificate Object; type = X.509 cert
+  label:      Certificate
+  subject:    DN: C=ES, ST=Some-State, O=Internet Widgits Pty Ltd, CN=patata.com
+  ID:         01
+```
+
+
 
 
 
