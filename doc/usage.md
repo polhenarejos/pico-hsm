@@ -188,7 +188,13 @@ Certificate Object; type = X.509 cert
   ID:         01
 ```
 
+## Backup and restore
 
+For backup, restore and DKEK share management, check [doc/backup-and-restore.md](/doc/backup-and-restore.md).
+
+## AES operations
+
+For AES key generation, encryption and decryption, check [doc/aes.md](/doc/aes.md).
 
 
 
