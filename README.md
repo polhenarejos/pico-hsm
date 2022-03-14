@@ -1,4 +1,4 @@
-# Pico HSM
+# Raspberry Pico HSM
 This is a project to create a Hardware Security Module (HSM) with a Raspberry Pico. It converts your Pico board into a HSM which is able to generate and store private keys, encrypt or decrypt with AES or signing data without to disclose the private key. In detail, the private key never leaves the board and it cannot be retrieved as it is encrypted in the flash memory.
 
 ## Capabilities
