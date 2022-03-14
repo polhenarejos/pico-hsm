@@ -188,6 +188,18 @@ Certificate Object; type = X.509 cert
   ID:         01
 ```
 
+## Generate random numbers
+
+To generate random numbers:
+
+```
+$ pkcs11-tool -l --pin 648219 --generate-random 64 | xxd -c 64 -p
+Using slot 0 with a present token (0x0)
+773ec49733435915f5cf056497d97d2b1e6a4af23e2851eb2adf75af40db6677115c401aa26d46677184f4cf878da6289cf3ff1a5192711377b869adbc7f2b6b
+```
+
+It supports up to $1024$ random bytes in a single call.
+
 ## Backup and restore
 
 For backup, restore and DKEK share management, check [doc/backup-and-restore.md](/doc/backup-and-restore.md).
