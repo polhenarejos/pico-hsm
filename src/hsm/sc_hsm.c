@@ -1308,6 +1308,8 @@ static int cmd_signature() {
         mbedtls_rsa_context ctx;
         mbedtls_rsa_init(&ctx);
         if (p2 == ALGO_RSA_PSS || p2 == ALGO_RSA_PSS_SHA1 || p2 == ALGO_RSA_PSS_SHA256) {
+            if (p2 == ALGO_RSA_PSS && apdu.cmd_apdu_data_len == 20) //default is sha1
+                md = MBEDTLS_MD_SHA1;
             mbedtls_rsa_set_padding(&ctx, MBEDTLS_RSA_PKCS_V21, md);
         }
         else if (p2 == ALGO_RSA_PKCS1) { //DigestInfo attached
@@ -1330,13 +1332,17 @@ static int cmd_signature() {
         r = load_private_key_rsa(&ctx, fkey);
         if (r != HSM_OK)
             return r;
+        //sc_asn1_print_tags(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
         if (md == MBEDTLS_MD_NONE) {
             if (apdu.cmd_apdu_data_len < key_size) //needs padding
                 memset(apdu.cmd_apdu_data+apdu.cmd_apdu_data_len, 0, key_size-apdu.cmd_apdu_data_len);
             r = mbedtls_rsa_private(&ctx, random_gen, NULL, apdu.cmd_apdu_data, res_APDU);
         }
         else {
-            r = mbedtls_rsa_pkcs1_sign(&ctx, random_gen, NULL, md, apdu.cmd_apdu_data_len, apdu.cmd_apdu_data, res_APDU);
+            uint8_t *signature = (uint8_t *)calloc(key_size, sizeof(uint8_t));
+            r = mbedtls_rsa_pkcs1_sign(&ctx, random_gen, NULL, md, apdu.cmd_apdu_data_len, apdu.cmd_apdu_data, signature);
+            memcpy(res_APDU, signature, key_size);
+            free(signature);
         }
         if (r != 0) {
             mbedtls_rsa_free(&ctx);
