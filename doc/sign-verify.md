@@ -68,11 +68,11 @@ $ dd if=/dev/zero bs=1 count=227 >> data_pad
 
 To sign the data:
 ```
-$ cat data_pad | pkcs11-tool --id 4 --sign --pin 648219 --mechanism RSA-X-509 > data.sig
+$ cat data_pad | pkcs11-tool --id 1 --sign --pin 648219 --mechanism RSA-X-509 > data.sig
 ```
 
 To verify the data:
 ```
-$ openssl rsautl -verify -inkey 4.pub -in data.sig -pubin -raw
+$ openssl rsautl -verify -inkey 1.pub -in data.sig -pubin -raw
 This is a test string. Be safe, be secure.
 ```
