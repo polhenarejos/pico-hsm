@@ -8,6 +8,7 @@
 #include "mbedtls/rsa.h"
 #include "mbedtls/ecp.h"
 #include "mbedtls/ecdsa.h"
+#include "mbedtls/ecdh.h"
 #include "version.h"
 
 const uint8_t sc_hsm_aid[] = {
@@ -1477,28 +1478,73 @@ static int cmd_key_unwrap() {
 
 static int cmd_decrypt_asym() {
     int key_id = P1(apdu);
-    if (P2(apdu) != ALGO_RSA_DECRYPT)
-        return SW_WRONG_P1P2();
     if (!isUserAuthenticated)
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     file_t *ef = search_dynamic_file((KEY_PREFIX << 8) | key_id);
     if (!ef)
         return SW_FILE_NOT_FOUND();
-    mbedtls_rsa_context ctx;
-    mbedtls_rsa_init(&ctx);
-    int r = load_private_key_rsa(&ctx, ef);
-    if (r != HSM_OK)
-        return r;
-    int key_size = file_read_uint16(ef->data);
-    if (apdu.cmd_apdu_data_len < key_size) //needs padding
-        memset(apdu.cmd_apdu_data+apdu.cmd_apdu_data_len, 0, key_size-apdu.cmd_apdu_data_len);
-    r = mbedtls_rsa_private(&ctx, random_gen, NULL, apdu.cmd_apdu_data, res_APDU);
-    if (r != 0) {
+    if (P2(apdu) == ALGO_RSA_DECRYPT) {
+        mbedtls_rsa_context ctx;
+        mbedtls_rsa_init(&ctx);
+        int r = load_private_key_rsa(&ctx, ef);
+        if (r != HSM_OK)
+            return r;
+        int key_size = file_read_uint16(ef->data);
+        if (apdu.cmd_apdu_data_len < key_size) //needs padding
+            memset(apdu.cmd_apdu_data+apdu.cmd_apdu_data_len, 0, key_size-apdu.cmd_apdu_data_len);
+        r = mbedtls_rsa_private(&ctx, random_gen, NULL, apdu.cmd_apdu_data, res_APDU);
+        if (r != 0) {
+            mbedtls_rsa_free(&ctx);
+            return SW_EXEC_ERROR();
+        }
+        res_APDU_size = key_size;
         mbedtls_rsa_free(&ctx);
-        return SW_EXEC_ERROR();
     }
-    res_APDU_size = key_size;
-    mbedtls_rsa_free(&ctx);
+    else if (P2(apdu) == ALGO_EC_DH) {
+        mbedtls_ecdh_context ctx;
+        int key_size = file_read_uint16(ef->data);
+        if (load_dkek() != HSM_OK)
+            return SW_EXEC_ERROR();
+        uint8_t *kdata = (uint8_t *)calloc(1,key_size);
+        memcpy(kdata, file_read(ef->data+2), key_size);
+        if (decrypt(tmp_dkek+IV_SIZE, tmp_dkek, kdata, key_size) != 0) {
+            free(kdata);
+            return SW_EXEC_ERROR();
+        }
+        release_dkek();
+        mbedtls_ecdh_init(&ctx);
+        mbedtls_ecp_group_id gid = kdata[0];
+        int r = 0;
+        r = mbedtls_ecdh_setup(&ctx, gid);
+        if (r != 0) {
+            mbedtls_ecdh_free(&ctx);
+            free(kdata);
+            return SW_DATA_INVALID();
+        }
+        r = mbedtls_mpi_read_binary(&ctx.ctx.mbed_ecdh.d, kdata+1, key_size-1);
+        if (r != 0) {
+            mbedtls_ecdh_free(&ctx);
+            free(kdata);
+            return SW_DATA_INVALID();
+        }
+        free(kdata);
+        r = mbedtls_ecdh_read_public(&ctx, apdu.cmd_apdu_data-1, apdu.cmd_apdu_data_len+1);
+        if (r != 0) {
+            mbedtls_ecdh_free(&ctx);
+            return SW_DATA_INVALID();
+        }
+        size_t olen = 0;
+        res_APDU[0] = 0x04;
+        r = mbedtls_ecdh_calc_secret(&ctx, &olen, res_APDU+1, MBEDTLS_ECP_MAX_BYTES, random_gen, NULL);
+        if (r != 0) {
+            mbedtls_ecdh_free(&ctx);
+            return SW_EXEC_ERROR();
+        }
+        res_APDU_size = olen+1;
+        mbedtls_ecdh_free(&ctx);
+    }
+    else
+        return SW_WRONG_P1P2();
     return SW_OK();
 }
 
