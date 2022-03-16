@@ -60,11 +60,12 @@ extern const uint8_t sc_hsm_aid[];
 #define ALGO_EC_SHA256			0x73		/* ECDSA signature with SHA-256 hash */
 #define ALGO_EC_DH				0x80        /* ECDH key derivation */
 
-#define ALGO_EC_DERIVE		0x98		/* Derive EC key from EC key */
+#define ALGO_EC_DERIVE		    0x98		/* Derive EC key from EC key */
 
 #define ALGO_AES_CBC_ENCRYPT	0x10
 #define ALGO_AES_CBC_DECRYPT	0x11
-#define ALGO_AES_CMAC		0x18
+#define ALGO_AES_CMAC		    0x18
+#define ALGO_AES_DERIVE		    0x99
 
 extern int pin_reset_retries(const file_t *pin, bool);
 extern int pin_wrong_retry(const file_t *pin);
