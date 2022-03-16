@@ -200,6 +200,14 @@ Using slot 0 with a present token (0x0)
 
 It supports up to $1024$ random bytes in a single call.
 
+## Signing and verification
+
+For signing and verification operations, check [doc/sign-verify.md](/doc/sign-verify.md).
+
+## Asymmetric encryption and decryption
+
+For asymmetric encryption and decryption, check [doc/asymmetric-ciphering.md](/doc/asymmetric-ciphering.md).
+
 ## Backup and restore
 
 For backup, restore and DKEK share management, check [doc/backup-and-restore.md](/doc/backup-and-restore.md).
