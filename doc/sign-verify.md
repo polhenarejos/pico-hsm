@@ -38,7 +38,7 @@ $ pkcs11-tool --id 1 --sign --pin 648219 --mechanism RSA-PKCS -i data -o data.si
 
 To verify the signature:
 ```
-$ openssl pkeyutl -verify -pubin -inkey 4.pub -in data -sigfile data.sig
+$ openssl pkeyutl -verify -pubin -inkey 1.pub -in data -sigfile data.sig
 Signature Verified Successfully
 ```
 
