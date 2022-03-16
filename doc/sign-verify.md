@@ -26,35 +26,33 @@ This algorithm is used to sign raw data.
 
 To sign the data:
 ```
-$ cat data | pkcs11-tool --id 1 --sign --pin 648219 --mechanism RSA-PKCS > data.sig
+$ pkcs11-tool --id 1 --sign --pin 648219 --mechanism RSA-PKCS -i data -o data.sig
 ```
 
 To verify the signature:
 ```
-$ openssl rsautl -verify -inkey 1.pub -in data.sig -pubin
-This is a test string. Be safe, be secure.
+$ openssl pkeyutl -verify -pubin -inkey 4.pub -in data -sigfile data.sig
+Signature Verified Successfully
 ```
 
 ## SHA1-RSA-PKCS
-This algorithm is used to sign digests. It supports SHA1, SHA224, SHA256, SHA384 and SHA512.
+This algorithm is used to sign digests computed outside. It supports SHA1, SHA224, SHA256, SHA384 and SHA512.
+
+First, we generate a file with the digest:
+```
+openssl dgst -sha1 -binary -out data.sha1 data
+```
 
 To sign the data:
 ```
-$ cat data | pkcs11-tool --id 1 --sign --pin 648219 --mechanism SHA256-RSA-PKCS > data.sig
+$ pkcs11-tool --id 1 --sign --pin 648219 --mechanism SHA1-RSA-PKCS -i data -o data.sig
 ```
 
 To verify the signature:
 ```
-$ openssl rsautl -verify -inkey 1.pub -in data.sig -pubin|openssl asn1parse -inform DER 
-    0:d=0  hl=2 l=  49 cons: SEQUENCE          
-    2:d=1  hl=2 l=  13 cons: SEQUENCE          
-    4:d=2  hl=2 l=   9 prim: OBJECT            :sha256
-   15:d=2  hl=2 l=   0 prim: NULL              
-   17:d=1  hl=2 l=  32 prim: OCTET STRING      [HEX DUMP]:6A0DFAFE96E1835B593812BFCDDED93AB52F67CF8B8ABB6C77A05C6DA5CAA960
-$ sha256sum 6a0dfafe96e1835b593812bfcdded93ab52f67cf8b8abb6c77a05c6da5caa960  data
+$ openssl pkeyutl -verify -in data.sha1 -sigfile data.sig -pubin -inkey 1.pub -pkeyopt digest:sha1
+Signature Verified Successfully
 ```
-
-The signature is valid if both hashes are equal.
 
 ## RSA-X-509
 This algorithm is used for signing raw data. In this algorithm, the data must be padded with a length equal to the size of private key (128, 256, 512 bytes for RSA-1024, RSA-2048 and RSA-4096, respectively).
@@ -68,11 +66,39 @@ $ dd if=/dev/zero bs=1 count=227 >> data_pad
 
 To sign the data:
 ```
-$ cat data_pad | pkcs11-tool --id 1 --sign --pin 648219 --mechanism RSA-X-509 > data.sig
+$ pkcs11-tool --id 1 --sign --pin 648219 --mechanism RSA-X-509 -i data_pad -o data.sig
 ```
 
-To verify the data:
+To verify the signature:
 ```
 $ openssl rsautl -verify -inkey 1.pub -in data.sig -pubin -raw
 This is a test string. Be safe, be secure.
+```
+
+## RSA-PKCS-PSS
+This algorithm uses the RSA-PKCS with PSS salt to randomize the signature. Pico HSM does not support arbitrary salt lengths. Instead, it always uses the maximum salt length (the hash length). It uses the hash as the input.
+
+To sign the data:
+```
+$ pkcs11-tool --id 1 --sign --pin 648219 --mechanism RSA-PKCS-PSS -i data.sha1 -o data.sig
+``` 
+
+To verify the signature:
+```
+$ openssl pkeyutl -verify -in data.sha1 -sigfile data.sig -pubin -inkey 1.pub -pkeyopt rsa_padding_mode:pss -pkeyopt rsa_pss_saltlen:-1 -pkeyopt digest:sha1
+Signature Verified Successfully
+```
+
+## SHA1-RSA-PKCS-PSS
+This algorithm takes the file as the input and sends its hash for signing with the random salt.
+
+To sign the data:
+```
+$ pkcs11-tool --id 1 --sign --pin 648219 --mechanism SHA1-RSA-PKCS-PSS -i data -o data.sig
+``` 
+
+To verify the signature:
+```
+$ openssl pkeyutl -verify -in data.sha1 -sigfile data.sig -pubin -inkey 1.pub -pkeyopt rsa_padding_mode:pss -pkeyopt rsa_pss_saltlen:-1
+Signature Verified Successfully
 ```
