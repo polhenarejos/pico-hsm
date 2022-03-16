@@ -2,11 +2,18 @@
 
 Pico HSM supports in place signature of arbitrary data. It supports the following algorithms:
 * RSA-PKCS 
+* RSA-X-509
 * SHA1-RSA-PKCS
 * SHA256-RSA-PKCS
 * SHA224-RSA-PKCS
 * SHA384-RSA-PKCS
 * SHA512-RSA-PKCS
+* RSA-PKCS-PSS
+* SHA1-RSA-PKCS-PSS
+* SHA256-RSA-PKCS-PSS
+* SHA224-RSA-PKCS-PSS
+* SHA384-RSA-PKCS-PSS
+* SHA512-RSA-PKCS-PSS
 
 First, we generate the data:
 ```
