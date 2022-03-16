@@ -1246,15 +1246,19 @@ int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
         return SW_EXEC_ERROR();
     uint8_t *kdata = (uint8_t *)calloc(1,key_size);
     memcpy(kdata, file_read(fkey->data+2), key_size);
-    if (decrypt(tmp_dkek+IV_SIZE, tmp_dkek, kdata, key_size) != 0)
+    if (decrypt(tmp_dkek+IV_SIZE, tmp_dkek, kdata, key_size) != 0) {
+        free(kdata);
         return SW_EXEC_ERROR();
+    }
     release_dkek();
     if (mbedtls_mpi_read_binary(&ctx->P, kdata, key_size/2) != 0) {
         mbedtls_rsa_free(ctx);
+        free(kdata);
         return SW_DATA_INVALID();
     }
     if (mbedtls_mpi_read_binary(&ctx->Q, kdata+key_size/2, key_size/2) != 0) {
         mbedtls_rsa_free(ctx);
+        free(kdata);
         return SW_DATA_INVALID();
     }
     free(kdata);
@@ -1283,15 +1287,19 @@ int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey) {
         return SW_EXEC_ERROR();
     uint8_t *kdata = (uint8_t *)calloc(1,key_size);
     memcpy(kdata, file_read(fkey->data+2), key_size);
-    if (decrypt(tmp_dkek+IV_SIZE, tmp_dkek, kdata, key_size) != 0)
+    if (decrypt(tmp_dkek+IV_SIZE, tmp_dkek, kdata, key_size) != 0) {
+        free(kdata);
         return SW_EXEC_ERROR();
+    }
     release_dkek();
     mbedtls_ecp_group_id gid = kdata[0];
     if (mbedtls_ecp_group_load(&ctx->grp, gid) != 0) {
+        free(kdata);
         mbedtls_ecdsa_free(ctx);
         return SW_DATA_INVALID();
     }
     if (mbedtls_mpi_read_binary(&ctx->d, kdata+1, key_size-1) != 0) {
+        free(kdata);
         mbedtls_ecdsa_free(ctx);
         return SW_DATA_INVALID();
     }
@@ -1385,10 +1393,8 @@ static int cmd_signature() {
         }
         else {
             uint8_t *signature = (uint8_t *)calloc(key_size, sizeof(uint8_t));
-            printf("md %d\r\n",md);
             DEBUG_PAYLOAD(hash,hash_len);
             r = mbedtls_rsa_pkcs1_sign(&ctx, random_gen, NULL, md, hash_len, hash, signature);
-            printf("r %d\r\n",r);
             memcpy(res_APDU, signature, key_size);
             free(signature);
         }
