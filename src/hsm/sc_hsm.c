@@ -1403,6 +1403,7 @@ static int cmd_signature() {
     else if (p2 == ALGO_EC_RAW || p2 == ALGO_EC_SHA1 || p2 == ALGO_EC_SHA224 || p2 == ALGO_EC_SHA256) {
         mbedtls_ecdsa_context ctx;
         mbedtls_ecdsa_init(&ctx);
+        md = MBEDTLS_MD_SHA256;
         if (p2 == ALGO_EC_RAW) {
             if (apdu.cmd_apdu_data_len == 32)
                 md = MBEDTLS_MD_SHA256;
@@ -1415,6 +1416,12 @@ static int cmd_signature() {
             else if (apdu.cmd_apdu_data_len == 64)
                 md = MBEDTLS_MD_SHA512;
         }
+        if (p2 == ALGO_EC_SHA1)
+            md = MBEDTLS_MD_SHA1;
+        else if (p2 == ALGO_EC_SHA224)
+            md = MBEDTLS_MD_SHA224;
+        else if (p2 == ALGO_EC_SHA256)
+            md = MBEDTLS_MD_SHA256;
         int r;
         r = load_private_key_ecdsa(&ctx, fkey);
         if (r != HSM_OK)
