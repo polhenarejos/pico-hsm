@@ -3,6 +3,7 @@
 Pico HSM supports in place decryption with the following algorithms:
 * RSA-PKCS
 * RSA-X-509
+* RSA-PKCS-OAEP
 
 First, we generate the data:
 ```
@@ -18,16 +19,17 @@ $ openssl rsa -inform DER -outform PEM -in 1.der -pubin > 1.pub
 At this moment, you are able to verify with the public key in `1.pub`. The signature is computed inside the Pico HSM with the private key. It never leaves the device.
 
 ## RSA-PKCS
+This algorithm uses the PKCSv1.5 padding. It is considered deprecated and insecure.
 First, we encrypt the data with the public key:
 
 ```
-$ openssl rsautl -encrypt -inkey 1.pub -in data -pubin -out data.crypt
+$ openssl rsautl -encrypt -inkey 1.pub -in data -pubin -out data.crypt 
 ```
 
 Then, we decrypt with the private key inside the Pico HSM:
 
 ``` 
-$ cat data.crypt | pkcs11-tool --id 1 --pin 648219 --decrypt --mechanism RSA-PKCS
+$ pkcs11-tool --id 1 --pin 648219 --decrypt --mechanism RSA-PKCS -i data.crypt
 Using slot 0 with a present token (0x0)
 Using decrypt algorithm RSA-PKCS
 This is a test string. Be safe, be secure.
@@ -56,3 +58,21 @@ Using slot 0 with a present token (0x0)
 Using decrypt algorithm RSA-X-509
 This is a test string. Be safe, be secure.
 ```
+
+## RSA-PKCS-OAEP
+This algorithm is defined as PKCSv2.1 and it includes a padding mechanism to avoid garbage. Currently it only supports SHA256.
+
+To encrypt the data:
+```
+$ openssl pkeyutl -encrypt -inkey 1.pub -pubin -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 -pkeyopt rsa_mgf1_md:sha256 -in data -out data.crypt
+```
+
+To decrypt with the private key inside the Pico HSM:
+```
+$ pkcs11-tool --id 1 --pin 648219 --decrypt --mechanism RSA-PKCS-OAEP -i data.crypt
+Using slot 0 with a present token (0x0)
+Using decrypt algorithm RSA-PKCS-OAEP
+OAEP parameters: hashAlg=SHA256, mgf=MGF1-SHA256, source_type=0, source_ptr=0x0, source_len=0
+This is a test string. Be safe, be secure.
+```
+
