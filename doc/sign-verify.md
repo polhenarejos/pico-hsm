@@ -14,6 +14,9 @@ Pico HSM supports in place signature of arbitrary data. It supports the followin
 * SHA224-RSA-PKCS-PSS
 * SHA384-RSA-PKCS-PSS
 * SHA512-RSA-PKCS-PSS
+* SHA1-ECDSA
+* SHA224-ECDSA
+* SHA256-ECDSA
 
 First, we generate the data:
 ```
@@ -109,3 +112,42 @@ To verify the signature:
 $ openssl pkeyutl -verify -in data.sha1 -sigfile data.sig -pubin -inkey 1.pub -pkeyopt rsa_padding_mode:pss -pkeyopt rsa_pss_saltlen:-1
 Signature Verified Successfully
 ```
+
+## ECDSA
+This is a raw ECDSA signature, which is usually used to sign a hashed message. `pkcs11-tool` has the limit of the maximum supported length, which is the length in bytes of the ECC curve. For a 192 bits curve, it only supports hashed messages with SHA1 (20 bytes < 24 bytes). To support SHA256 hashed messages, a minimum of ECC curve of 256 bits is required. `sc-hsm-embedded` driver and `sc-tool` do not have this constraint and can be used with arbitrary data.
+
+To sign the data:
+```
+$ pkcs11-tool --id 11 --sign --pin 648219 --mechanism ECDSA -i data.sha1 -o data.sig --signature-format openssl     
+Using slot 0 with a present token (0x0)
+Using signature algorithm ECDSA
+```
+
+To verify the signature:
+```
+$ openssl pkeyutl -verify -pubin -inkey 11.pub -in data.sha1 -sigfile data.sig                                      
+Signature Verified Successfully
+```
+
+To sign raw data, use `sc-tool` of `sc-hsm-embedded` driver instead of `pkcs11-tool`.
+
+## SHA1-ECDSA
+For ECDSA signature, we employ a ECC key with the id `--id 11`. The signature is quite similar as with RSA.
+
+To sign the data:
+```
+$ pkcs11-tool --id 11 --sign --pin 648219 --mechanism ECDSA-SHA1 -i data -o data.sig --signature-format openssl
+Using slot 0 with a present token (0x0)
+Using signature algorithm ECDSA-SHA256
+```
+
+The signature is verified with the hash:
+```
+$ openssl pkeyutl -verify -pubin -inkey 11.pub -in data.sha1 -sigfile data.sig                              
+Signature Verified Successfully
+```
+
+
+
+
+
