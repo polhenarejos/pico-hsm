@@ -100,10 +100,9 @@ Finally, we compare both shared keys:
 ```
 $ cmp bob-mine.der mine-bob.der
 ```
+No output is displayed if both are equal.
 
-If both are equal, no output is displayed.
-
-or displayed:
+You can also view the contents of both keys:
 ```
 $ xxd -p bob-mine.der             
 9874558aefa9d92cc051e5da6d1753987e5314925d6d78bf
