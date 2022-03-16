@@ -53,6 +53,7 @@ target_sources(pico_hsm PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/md5.c
         ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/ripemd160.c
         ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/sha1.c
+        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/ecdh.c
         
         ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/pkcs15.c
         ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/pkcs15-prkey.c
