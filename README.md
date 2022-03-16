@@ -66,6 +66,10 @@ The name of the reader may vary if you modified the VID/PID.
 
 For initialization and asymmetric operations, check [doc/usage.md](/doc/usage.md).
 
+For signing and verification operations, check [doc/sign-verify.md](/doc/sign-verify.md).
+
+For asymmetric encryption and decryption, check [doc/asymmetric-ciphering.md](/doc/asymmetric-ciphering.md).
+
 For backup, restore and DKEK share management, check [doc/backup-and-restore.md](/doc/backup-and-restore.md).
 
 For AES key generation, encryption and decryption, check [doc/aes.md](/doc/aes.md).
