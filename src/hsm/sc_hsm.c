@@ -9,6 +9,7 @@
 #include "mbedtls/ecp.h"
 #include "mbedtls/ecdsa.h"
 #include "mbedtls/ecdh.h"
+#include "mbedtls/cmac.h"
 #include "version.h"
 
 const uint8_t sc_hsm_aid[] = {
@@ -1556,6 +1557,9 @@ static int cmd_cipher_sym() {
     file_t *ef = search_dynamic_file((KEY_PREFIX << 8) | key_id);
     if (!ef)
         return SW_FILE_NOT_FOUND();
+    if ((apdu.cmd_apdu_data_len % 16) != 0) {
+        return SW_WRONG_LENGTH();
+    }
     int key_size = file_read_uint16(ef->data);
     if (load_dkek() != HSM_OK)
         return SW_EXEC_ERROR();
@@ -1566,9 +1570,6 @@ static int cmd_cipher_sym() {
     }
     release_dkek();
     if (algo == ALGO_AES_CBC_ENCRYPT || algo == ALGO_AES_CBC_DECRYPT) {
-        if ((apdu.cmd_apdu_data_len % 16) != 0) {
-            return SW_WRONG_LENGTH();
-        }
         mbedtls_aes_context aes;
         mbedtls_aes_init(&aes);
         uint8_t tmp_iv[IV_SIZE];
@@ -1599,6 +1600,21 @@ static int cmd_cipher_sym() {
         }
         res_APDU_size = apdu.cmd_apdu_data_len;
         mbedtls_aes_free(&aes);
+    }
+    else if (algo == ALGO_AES_CMAC) {
+        const mbedtls_cipher_info_t *cipher_info;
+        if (key_size == 16)
+            cipher_info = mbedtls_cipher_info_from_type(MBEDTLS_CIPHER_AES_128_ECB);
+        else if (key_size == 24)
+            cipher_info = mbedtls_cipher_info_from_type(MBEDTLS_CIPHER_AES_192_ECB);
+        else if (key_size == 32)
+            cipher_info = mbedtls_cipher_info_from_type(MBEDTLS_CIPHER_AES_256_ECB);
+        else
+            return SW_WRONG_DATA();
+        int r = mbedtls_cipher_cmac(cipher_info, kdata, key_size*8, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, res_APDU);
+        if (r != 0)
+            return SW_EXEC_ERROR();
+        res_APDU_size = apdu.cmd_apdu_data_len;
     }
     else {
         return SW_WRONG_P1P2();

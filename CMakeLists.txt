@@ -54,6 +54,18 @@ target_sources(pico_hsm PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/ripemd160.c
         ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/sha1.c
         ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/ecdh.c
+        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/cmac.c
+        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/cipher.c
+        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/cipher_wrap.c
+        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/chachapoly.c
+        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/camellia.c
+        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/chacha20.c
+        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/aria.c
+        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/poly1305.c
+        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/gcm.c
+        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/ccm.c
+        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/des.c
+        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/nist_kw.c
         
         ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/pkcs15.c
         ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/pkcs15-prkey.c
