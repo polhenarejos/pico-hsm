@@ -112,7 +112,7 @@ void select_file(file_t *pe) {
     }
     if (currentEF == file_openpgp || currentEF == file_sc_hsm) {
         selected_applet = currentEF;
-        sc_hsm_unload(); //reset auth status
+        //sc_hsm_unload(); //reset auth status
     }
 }
 static int cmd_select() {
