@@ -681,7 +681,7 @@ int store_keys(void *key_ctx, int type, uint8_t key_id, sc_context_t *ctx) {
     free(pukd);
     free(p15o);
     //sc_asn1_print_tags(asn1bin, asn1len);
-    fpk = file_new((CD_PREFIX << 8) | key_id);
+    fpk = file_new((EE_CERTIFICATE_PREFIX << 8) | key_id);
     r = flash_write_data_to_file(fpk, asn1bin, asn1len);
     free(asn1bin);
     if (r != HSM_OK)
