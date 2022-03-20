@@ -279,8 +279,8 @@ void scan_flash() {
         if (base == 0x0) //all is empty
             break;
         
-        uint16_t fid = flash_read_uint16(base+sizeof(uintptr_t));
-        printf("scan fid %x\r\n",fid);
+        uint16_t fid = flash_read_uint16(base+sizeof(uintptr_t)+sizeof(uintptr_t));
+        printf("[%x] scan fid %x, len %d\r\n",base,fid,flash_read_uint16(base+sizeof(uintptr_t)+sizeof(uintptr_t)+sizeof(uint16_t)));
         file_t *file = (file_t *)search_by_fid(fid, NULL, SPECIFY_EF);
         if (!file) {
             file = file_new(fid);
@@ -301,7 +301,7 @@ void scan_flash() {
                 continue;
             }
         }
-        file->data = (uint8_t *)(base+sizeof(uintptr_t)+sizeof(uint16_t));
+        file->data = (uint8_t *)(base+sizeof(uintptr_t)+sizeof(uintptr_t)+sizeof(uint16_t));
         if (flash_read_uintptr(base) == 0x0) {
             break;
         }
