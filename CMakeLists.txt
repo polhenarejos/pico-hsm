@@ -66,6 +66,7 @@ target_sources(pico_hsm PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/ccm.c
         ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/des.c
         ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/nist_kw.c
+        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/hkdf.c
         
         ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/pkcs15.c
         ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/pkcs15-prkey.c

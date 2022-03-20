@@ -10,6 +10,7 @@
 #include "mbedtls/ecdsa.h"
 #include "mbedtls/ecdh.h"
 #include "mbedtls/cmac.h"
+#include "mbedtls/hkdf.h"
 #include "version.h"
 
 const uint8_t sc_hsm_aid[] = {
@@ -485,8 +486,8 @@ static int cmd_initialize() {
         encrypt(session_pin, tmp_dkek, tmp_dkek+IV_SIZE, 32);
         file_t *tf = search_by_fid(EF_DKEK, NULL, SPECIFY_EF);
         flash_write_data_to_file(tf, tmp_dkek, sizeof(tmp_dkek));
-        low_flash_available();
     }
+    low_flash_available();
     return SW_OK();
 }
 
@@ -1220,21 +1221,23 @@ static int cmd_key_gen() {
         key_size = 24;
     else if (p2 == 0xB0)
         key_size = 16;
-    if (!isUserAuthenticated)
-        return SW_SECURITY_STATUS_NOT_SATISFIED();
     //at this moment, we do not use the template, as only CBC is supported by the driver (encrypt, decrypt and CMAC)
     uint8_t aes_key[32]; //maximum AES key size
     memcpy(aes_key, random_bytes_get(key_size), key_size);
     if ((r = load_dkek()) != HSM_OK)
-        return r;
+        return SW_EXEC_ERROR() ;
     if ((r = encrypt(tmp_dkek+IV_SIZE, tmp_dkek, aes_key, key_size)) != 0)
-        return r;
+        return SW_EXEC_ERROR() ;
     release_dkek();
     file_t *fpk = file_new((KEY_PREFIX << 8) | key_id);
+    if (!fpk)
+        return SW_MEMORY_FAILURE();
     r = flash_write_data_to_file(fpk, aes_key, key_size);
     if (r != HSM_OK)
         return SW_MEMORY_FAILURE();
     fpk = file_new((PRKD_PREFIX << 8) | key_id);
+    if (!fpk)
+        return SW_MEMORY_FAILURE();
     r = flash_write_data_to_file(fpk, NULL, 0);
     if (r != HSM_OK)
         return SW_MEMORY_FAILURE();
@@ -1612,6 +1615,12 @@ static int cmd_cipher_sym() {
         else
             return SW_WRONG_DATA();
         int r = mbedtls_cipher_cmac(cipher_info, kdata, key_size*8, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, res_APDU);
+        if (r != 0)
+            return SW_EXEC_ERROR();
+        res_APDU_size = apdu.cmd_apdu_data_len;
+    }
+    else if (algo == ALGO_AES_DERIVE) {
+        int r = mbedtls_hkdf(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), NULL, 0, file_read(ef->data+2), key_size, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, res_APDU, apdu.cmd_apdu_data_len);
         if (r != 0)
             return SW_EXEC_ERROR();
         res_APDU_size = apdu.cmd_apdu_data_len;
