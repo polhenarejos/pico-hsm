@@ -872,7 +872,7 @@ static int cmd_keypair_gen() {
     int ret = 0;
     
     size_t tout = 0;
-    sc_asn1_print_tags(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
+    //sc_asn1_print_tags(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
     const uint8_t *p = sc_asn1_find_tag(ctx, (const uint8_t *)apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, 0x7f49, &tout);
     if (p) {
         size_t oid_len = 0;
@@ -1350,7 +1350,7 @@ static int cmd_signature() {
         int r;
         r = load_private_key_rsa(&ctx, fkey);
         if (r != HSM_OK)
-            return r;
+            return SW_EXEC_ERROR();
         const uint8_t *hash = apdu.cmd_apdu_data;
         size_t hash_len = apdu.cmd_apdu_data_len;
         if (p2 == ALGO_RSA_PKCS1) { //DigestInfo attached
@@ -1369,7 +1369,7 @@ static int cmd_signature() {
                 md = MBEDTLS_MD_SHA512;
         }
         else {
-            sc_asn1_print_tags(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
+            //sc_asn1_print_tags(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
             size_t tout = 0, oid_len = 0;
             const uint8_t *p = sc_asn1_find_tag(NULL, (const uint8_t *)apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, 0x30, &tout), *oid = NULL;
             if (p) {
@@ -1447,7 +1447,7 @@ static int cmd_signature() {
         int r;
         r = load_private_key_ecdsa(&ctx, fkey);
         if (r != HSM_OK)
-            return r;
+            return SW_EXEC_ERROR();
         size_t olen = 0;
         if (mbedtls_ecdsa_write_signature(&ctx, md, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, res_APDU, MBEDTLS_ECDSA_MAX_LEN, &olen, random_gen, NULL) != 0) {
             mbedtls_ecdsa_free(&ctx);
@@ -1503,7 +1503,7 @@ static int cmd_decrypt_asym() {
         mbedtls_rsa_init(&ctx);
         int r = load_private_key_rsa(&ctx, ef);
         if (r != HSM_OK)
-            return r;
+            return SW_EXEC_ERROR();
         int key_size = file_read_uint16(ef->data);
         if (apdu.cmd_apdu_data_len < key_size) //needs padding
             memset(apdu.cmd_apdu_data+apdu.cmd_apdu_data_len, 0, key_size-apdu.cmd_apdu_data_len);
@@ -1642,8 +1642,67 @@ static int cmd_cipher_sym() {
     return SW_OK();
 }
 
-int cmd_derive_asym() {
-    
+static int cmd_derive_asym() {
+    uint8_t key_id = P1(apdu);
+    uint8_t dest_id = P2(apdu);
+    file_t *fkey;
+    if (!isUserAuthenticated)
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
+    if (!(fkey = search_dynamic_file((KEY_PREFIX << 8) | key_id)) || !fkey->data) 
+        return SW_FILE_NOT_FOUND();
+    int key_size = file_read_uint16(fkey->data);
+    if (apdu.cmd_apdu_data_len == 0)
+        return SW_WRONG_LENGTH();
+    if (apdu.cmd_apdu_data[0] == ALGO_EC_DERIVE) {
+        mbedtls_ecdsa_context ctx;
+        mbedtls_ecdsa_init(&ctx);
+        
+        int r;
+        r = load_private_key_ecdsa(&ctx, fkey);
+        if (r != HSM_OK) {
+            mbedtls_ecdsa_free(&ctx);
+            return SW_EXEC_ERROR();
+        }
+        mbedtls_mpi a, nd;
+        mbedtls_mpi_init(&a);
+        mbedtls_mpi_init(&nd);
+        r = mbedtls_mpi_read_binary(&a, apdu.cmd_apdu_data+1, apdu.cmd_apdu_data_len-1);
+        if (r != 0) {
+            mbedtls_ecdsa_free(&ctx);
+            mbedtls_mpi_free(&a);
+            mbedtls_mpi_free(&nd);
+            return SW_DATA_INVALID();
+        }
+        r = mbedtls_mpi_add_mpi(&nd, &ctx.d, &a);
+        if (r != 0) {
+            mbedtls_ecdsa_free(&ctx);
+            mbedtls_mpi_free(&a);
+            mbedtls_mpi_free(&nd);
+            return SW_EXEC_ERROR();
+        }
+        r = mbedtls_mpi_copy(&ctx.d, &nd);
+        if (r != 0) {
+            mbedtls_ecdsa_free(&ctx);
+            mbedtls_mpi_free(&a);
+            mbedtls_mpi_free(&nd);
+            return SW_EXEC_ERROR();
+        }
+        sc_context_t *card_ctx = create_context();
+        r = store_keys(&ctx, SC_PKCS15_TYPE_PRKEY_EC, dest_id, card_ctx);
+        free(card_ctx);
+        if (r != HSM_OK) {
+            mbedtls_ecdsa_free(&ctx);
+            mbedtls_mpi_free(&a);
+            mbedtls_mpi_free(&nd);
+            return SW_EXEC_ERROR();
+        }
+        mbedtls_ecdsa_free(&ctx);
+        mbedtls_mpi_free(&a);
+        mbedtls_mpi_free(&nd);
+    }
+    else 
+        return SW_WRONG_DATA();
+    return SW_OK();
 }
 
 typedef struct cmd
