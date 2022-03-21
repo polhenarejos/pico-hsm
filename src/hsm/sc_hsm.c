@@ -909,7 +909,7 @@ static int cmd_keypair_gen() {
 	            memcpy(cvc.coefficientAorExponent, &exponent, cvc.coefficientAorExponentlen);
 
 	            cvc.pukoid = rsa15withSHA256;
-	            cvc.modulusSize = key_size;
+	            //cvc.modulusSize = key_size; //NOT EXPECTED. DO NOT COMMENT (it seems not standard)
 	            cvc.primeOrModuluslen = key_size/8;
 	            cvc.primeOrModulus = (uint8_t *)calloc(1, cvc.primeOrModuluslen);
 	            ret = mbedtls_mpi_write_binary(&rsa.N, cvc.primeOrModulus, cvc.primeOrModuluslen);
