@@ -1314,12 +1314,7 @@ int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey) {
     }
     release_dkek();
     mbedtls_ecp_group_id gid = kdata[0];
-    if (mbedtls_ecp_group_load(&ctx->grp, gid) != 0) {
-        free(kdata);
-        mbedtls_ecdsa_free(ctx);
-        return SW_DATA_INVALID();
-    }
-    if (mbedtls_mpi_read_binary(&ctx->d, kdata+1, key_size-1) != 0) {
+    if (mbedtls_ecp_read_key(gid, ctx, kdata+1, key_size-1) != 0) {
         free(kdata);
         mbedtls_ecdsa_free(ctx);
         return SW_DATA_INVALID();
@@ -1647,6 +1642,10 @@ static int cmd_cipher_sym() {
     return SW_OK();
 }
 
+int cmd_derive_asym() {
+    
+}
+
 typedef struct cmd
 {
   uint8_t ins;
@@ -1665,6 +1664,7 @@ typedef struct cmd
 #define INS_SIGNATURE               0x68
 #define INS_WRAP                    0x72
 #define INS_UNWRAP                  0x74
+#define INS_DERIVE_ASYM             0x76
 #define INS_CIPHER_SYM              0x78
 #define INS_CHALLENGE               0x84
 #define INS_SELECT_FILE				0xA4
@@ -1693,6 +1693,7 @@ static const cmd_t cmds[] = {
     { INS_UNWRAP, cmd_key_unwrap },
     { INS_DECRYPT_ASYM, cmd_decrypt_asym },
     { INS_CIPHER_SYM, cmd_cipher_sym },
+    { INS_DERIVE_ASYM, cmd_derive_asym },
     { 0x00, 0x0}
 };
 
