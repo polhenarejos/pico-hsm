@@ -1108,7 +1108,7 @@ static int cmd_update_ef() {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     if (fid == 0x0)
         ef = currentEF;
-    else if (p1 != EE_CERTIFICATE_PREFIX && p1 != PRKD_PREFIX)
+    else if (p1 != EE_CERTIFICATE_PREFIX && p1 != PRKD_PREFIX && p1 != CA_CERTIFICATE_PREFIX && p1 != CD_PREFIX)
         return SW_INCORRECT_P1P2();
         
     if (ef && !authenticate_action(ef, ACL_OP_UPDATE_ERASE))
@@ -1144,8 +1144,10 @@ static int cmd_update_ef() {
     else {
         if (fid == 0x0 && !ef)
             return SW_FILE_NOT_FOUND();
-        else if (fid != 0x0 && !(ef = search_by_fid(fid, NULL, SPECIFY_EF)) && !(ef = search_dynamic_file(fid)))
-            return SW_FILE_NOT_FOUND();
+        else if (fid != 0x0 && !(ef = search_by_fid(fid, NULL, SPECIFY_EF)) && !(ef = search_dynamic_file(fid))) { //if does not exist, create it
+            //return SW_FILE_NOT_FOUND();
+            ef = file_new(fid);
+        }
         if (offset == 0) {
             int r = flash_write_data_to_file(ef, data, data_len);
             if (r != HSM_OK)
