@@ -658,6 +658,7 @@ int store_keys(void *key_ctx, int type, uint8_t key_id, sc_context_t *ctx) {
     if (r != HSM_OK)
         return r;
     //add_file_to_chain(fpk, &ef_prkdf);
+    /*
     sc_pkcs15_pubkey_info_t *pukd = (sc_pkcs15_pubkey_info_t *)calloc(1, sizeof(sc_pkcs15_pubkey_info_t));
     memset(pukd, 0, sizeof(sc_pkcs15_pubkey_info_t));
     pukd->id.len = 1;
@@ -688,6 +689,7 @@ int store_keys(void *key_ctx, int type, uint8_t key_id, sc_context_t *ctx) {
     if (r != HSM_OK)
         return r;
     //add_file_to_chain(fpk, &ef_cdf);
+    */
     low_flash_available();
     return HSM_OK;
 }
@@ -823,13 +825,21 @@ int sc_pkcs15emu_sc_hsm_encode_cvc_req(sc_pkcs15_card_t * p15card, sc_cvc_t *cvc
 	LOG_FUNC_RETURN(card->ctx, SC_SUCCESS);
 }
 
-void cvc_init_common(sc_cvc_t *cvc) {
+void cvc_init_common(sc_cvc_t *cvc, sc_context_t *ctx) {
     memset(cvc, 0, sizeof(sc_cvc_t));
 
-	strlcpy(cvc->car, "UTCA00001", sizeof cvc->car);
-	strlcpy(cvc->chr, "ESHSMCVCA", sizeof cvc->chr);
-	strlcat(cvc->chr, "00001", sizeof cvc->chr);
-	strlcpy(cvc->outer_car, "ESHSM00001", sizeof(cvc->outer_car));
+    size_t lencar = 0, lenchr = 0;
+    const unsigned char *car = sc_asn1_find_tag(ctx, (const uint8_t *)apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, 0x42, &lencar);
+    const unsigned char *chr = sc_asn1_find_tag(ctx, (const uint8_t *)apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, 0x5f20, &lenchr);
+    if (car && lencar > 0)
+        strlcpy(cvc->car, car, MIN(lencar,sizeof(cvc->car)));
+    else
+        strlcpy(cvc->car, "UTCA00001", sizeof(cvc->car));
+    if (chr && lenchr > 0)
+        strlcpy(cvc->chr, chr, MIN(lenchr, sizeof(cvc->chr)));
+    else
+	    strlcpy(cvc->chr, "ESHSMCVCA00001", sizeof(cvc->chr));
+	strlcpy(cvc->outer_car, "ESHSM00001", sizeof(cvc->outer_car));	
 }
 
 int cvc_prepare_signatures(sc_pkcs15_card_t *p15card, sc_cvc_t *cvc, size_t sig_len, uint8_t *hsh) {
@@ -862,7 +872,7 @@ static int cmd_keypair_gen() {
     int ret = 0;
     
     size_t tout = 0;
-    //sc_asn1_print_tags(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
+    sc_asn1_print_tags(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
     const uint8_t *p = sc_asn1_find_tag(ctx, (const uint8_t *)apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, 0x7f49, &tout);
     if (p) {
         size_t oid_len = 0;
@@ -881,6 +891,7 @@ static int cmd_keypair_gen() {
                 if (ks) {
                     sc_asn1_decode_integer(ks, ks_len, &key_size, 0);
                 }
+                printf("KEYPAIR RSA %d\r\n",key_size);
                 mbedtls_rsa_context rsa;
                 mbedtls_rsa_init(&rsa);
                 uint8_t index = 0;
@@ -891,7 +902,7 @@ static int cmd_keypair_gen() {
                 }
                 
                 sc_cvc_t cvc;
-                cvc_init_common(&cvc);
+                cvc_init_common(&cvc, ctx);
             	struct sc_object_id rsa15withSHA256 = { { 0,4,0,127,0,7,2,2,2,1,2,-1 } };
             	cvc.coefficientAorExponentlen = ex_len;
             	cvc.coefficientAorExponent = calloc(1, cvc.coefficientAorExponentlen);
@@ -942,7 +953,7 @@ static int cmd_keypair_gen() {
                     mbedtls_rsa_free(&rsa);
                     goto error;
                 }
-	            
+                	            
                 mbedtls_rsa_free(&rsa);
             }
             else if (memcmp(oid, "\x4\x0\x7F\x0\x7\x2\x2\x2\x2\x3",MIN(oid_len,10)) == 0) { //ECC
@@ -955,6 +966,7 @@ static int cmd_keypair_gen() {
                         break;
                     }
                 }
+                printf("KEYPAIR ECC %d\r\n",ec_id);
                 if (ec_id == MBEDTLS_ECP_DP_NONE) 
                     return SW_FUNC_NOT_SUPPORTED();
                 mbedtls_ecdsa_context ecdsa;
@@ -969,7 +981,7 @@ static int cmd_keypair_gen() {
                 uint8_t *cvcbin;
                 size_t cvclen;
                 sc_cvc_t cvc;
-                cvc_init_common(&cvc);
+                cvc_init_common(&cvc, ctx);
             	struct sc_object_id ecdsaWithSHA256 = { { 0,4,0,127,0,7,2,2,2,2,3,-1 } };
 	            cvc.pukoid = ecdsaWithSHA256;
 	            
@@ -1076,6 +1088,10 @@ static int cmd_keypair_gen() {
     error:
     free(ctx);
     free(p15card.card);
+    if (ret != 0)
+        return SW_EXEC_ERROR();
+    file_t *fpk = file_new((EE_CERTIFICATE_PREFIX << 8) | key_id);
+    ret = flash_write_data_to_file(fpk, res_APDU, res_APDU_size);
     if (ret != 0)
         return SW_EXEC_ERROR();
     return SW_OK();
