@@ -1225,7 +1225,8 @@ int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey) {
     }
     release_dkek();
     mbedtls_ecp_group_id gid = kdata[0];
-    if (mbedtls_ecp_read_key(gid, ctx, kdata+1, key_size-1) != 0) {
+    int r = mbedtls_ecp_read_key(gid, ctx, kdata+1, key_size-1);
+    if (r != 0) {
         free(kdata);
         mbedtls_ecdsa_free(ctx);
         return HSM_EXEC_ERROR;
@@ -1553,6 +1554,22 @@ static int cmd_cipher_sym() {
     return SW_OK();
 }
 
+#define MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED -0x006E
+#define MOD_ADD( N )                                                    \
+    while( mbedtls_mpi_cmp_mpi( &(N), &grp->P ) >= 0 )                  \
+        MBEDTLS_MPI_CHK( mbedtls_mpi_sub_abs( &(N), &(N), &grp->P ) )
+static inline int mbedtls_mpi_add_mod( const mbedtls_ecp_group *grp,
+                                       mbedtls_mpi *X,
+                                       const mbedtls_mpi *A,
+                                       const mbedtls_mpi *B )
+{
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+    MBEDTLS_MPI_CHK( mbedtls_mpi_add_mpi( X, A, B ) );
+    MOD_ADD( *X );
+cleanup:
+    return( ret );
+}
+
 static int cmd_derive_asym() {
     uint8_t key_id = P1(apdu);
     uint8_t dest_id = P2(apdu);
@@ -1584,7 +1601,7 @@ static int cmd_derive_asym() {
             mbedtls_mpi_free(&nd);
             return SW_DATA_INVALID();
         }
-        r = mbedtls_mpi_add_mpi(&nd, &ctx.d, &a);
+        r = mbedtls_mpi_add_mod(&ctx.grp, &nd, &ctx.d, &a);
         if (r != 0) {
             mbedtls_ecdsa_free(&ctx);
             mbedtls_mpi_free(&a);
