@@ -80,6 +80,16 @@ For backup, restore and DKEK share management, check [doc/backup-and-restore.md]
 
 For AES key generation, encryption and decryption, check [doc/aes.md](/doc/aes.md).
 
+## Key generation time
+Generating EC keys is almost instant. RSA keypair generation takes some time, specially for `2048` and `4096` bits. 
+
+| RSA key length (bits) | Average time (seconds) |
+| :---: | :---: |
+| 1024 | 16 |
+| 2048 | 124 |
+| 3072 | N/A |
+| 4096 | N/A |
+
 ## Driver
 
 Pico HSM uses the `sc-hsm` driver provided by [OpenSC](https://github.com/OpenSC/OpenSC/ "OpenSC") or the `sc-hsm-embedded` driver provided by [CardContact](https://github.com/CardContact/sc-hsm-embedded "CardContact"). This driver utilizes the standardized PKCS#11 interface to communicate with the user and it can be used with many engines that accept PKCS#11 interface, such as OpenSSL, P11 library or pkcs11-tool. 
