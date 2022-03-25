@@ -206,6 +206,15 @@ static int cmd_select() {
     }
     if ((p2 & 0xfc) == 0x00 || (p2 & 0xfc) == 0x04) {
         process_fci(pe);
+        if (pe == file_sc_hsm) {
+            res_APDU[res_APDU_size++] = 0x85;
+            res_APDU[res_APDU_size++] = 4;
+            res_APDU[res_APDU_size++] = 0xff; //options
+            res_APDU[res_APDU_size++] = 0xff;
+            res_APDU[res_APDU_size++] = HSM_VERSION_MAJOR;
+            res_APDU[res_APDU_size++] = HSM_VERSION_MINOR;
+            res_APDU[1] = res_APDU_size-2;
+        }
     }
     else
         return SW_INCORRECT_P1P2();
