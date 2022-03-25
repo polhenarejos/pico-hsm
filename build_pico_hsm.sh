@@ -18,4 +18,4 @@ done
 rm -rf *
 PICO_SDK_PATH=~/Devel/pico/pico-sdk cmake ..
 make -kj20
-mv pico_hsm.uf2 ../release/pico_hsm-$VERSION_MAJOR.$VERSION_MINOR.uf2
+mv pico_hsm.uf2 ../release/pico_hsm_pico_generic-$VERSION_MAJOR.$VERSION_MINOR.uf2
