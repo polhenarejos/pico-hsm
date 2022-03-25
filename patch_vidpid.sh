@@ -1,5 +1,25 @@
 #!/bin/bash
 
+# 
+# This file is part of the Pico HSM distribution (https://github.com/polhenarejos/pico-hsm).
+# Copyright (c) 2022 Pol Henarejos.
+# 
+# This program is free software: you can redistribute it and/or modify  
+# it under the terms of the GNU General Public License as published by  
+# the Free Software Foundation, version 3.
+#
+# This program is distributed in the hope that it will be useful, but 
+# WITHOUT ANY WARRANTY; without even the implied warranty of 
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU 
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License 
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+#
+
+VERSION_MAJOR="1"
+VERSION_MINOR="4"
+
 echo "----------------------------"
 echo "VID/PID patcher for Pico HSM"
 echo "----------------------------"
@@ -64,13 +84,10 @@ if [ "$UF2_FILE_IF" != "$UF2_FILE_OF" ]; then
     cp -R $UF2_FILE_IF $UF2_FILE_OF
 fi
 
-BASE_ADDRESS=`xxd "$UF2_FILE_IF" | grep "fffe fdfc 0103 0102 0301" | cut -d " " -f1`
-ADDRESS="0x${BASE_ADDRESS%?}"
-
 LITTLE_VID="\x${VID:2:2}\x${VID:0:2}"
 LITTLE_PID="\x${PID:2:2}\x${PID:0:2}"
 
-printf "$LITTLE_VID$LITTLE_PID" | dd of="$UF2_FILE_OF" bs=1 seek=$(($ADDRESS)) conv=notrunc 2> /dev/null
+perl -pi -e "s/\xff\xfe\xfd\xfc\x$VERSION_MINOR\x$VERSION_MAJOR\x01\x02\x03\x01/$LITTLE_VID$LITTLE_PID\x$VERSION_MINOR\x$VERSION_MAJOR\x01\x02\x03\x01/" $UF2_FILE_OF
 
 echo "Done!"
 echo ""
