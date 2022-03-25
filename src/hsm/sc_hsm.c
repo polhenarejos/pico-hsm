@@ -214,7 +214,7 @@ static int cmd_select() {
 }
 
 int parse_token_info(const file_t *f, int mode) {
-    char *label = "SmartCard-HSM";
+    char *label = "Pico-HSM";
     char *manu = "Pol Henarejos";
     sc_pkcs15_tokeninfo_t *ti = (sc_pkcs15_tokeninfo_t *)calloc(1, sizeof(sc_pkcs15_tokeninfo_t));
     ti->version = HSM_VERSION_MAJOR;
