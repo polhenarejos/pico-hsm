@@ -2,16 +2,20 @@
 This is a project to create a Hardware Security Module (HSM) with a Raspberry Pico. It converts your Pico board into a HSM which is able to generate and store private keys, encrypt or decrypt with AES or signing data without to disclose the private key. In detail, the private key never leaves the board and it cannot be retrieved as it is encrypted in the flash memory.
 
 ## Capabilities
-- Key generation and protected storing.
+- Key generation and encrypted storage.
 - RSA key generation from 1024 to 4096 bits.
 - ECDSA key generation from 192 to 521 bits.
 - ECC curves secp192r1, secp256r1, secp384r1, secp521r1, brainpoolP256r1, brainpoolP384r1, brainpoolP512r1, secp192k1 (insecure), secp256k1.
 - SHA1, SHA224, SHA256, SHA384, SHA256 digests.
 - RSA-PSS, RSA-PKCS and raw RSA signature.
-- ECDSA signature.
+- ECDSA raw and hash signature.
+- ECDH key derivation.
+- EC private key derivation.[^1]
 - RSA-OEP and RSA-X-509 decryption.
 - AES key generation of 128, 192 and 256 bits.
 - AES-CBC encryption/decryption.
+- AES-CMAC authentication.[^1]
+- AES secret key derivation.[^1]
 - PIN authorization.
 - PKCS11 compliant interface.
 - HRNG (hardware random number generator).
@@ -19,6 +23,8 @@ This is a project to create a Hardware Security Module (HSM) with a Raspberry Pi
 - DKEK n-of-m threshold scheme.
 - USB/CCID support with OpenSC, openssl, etc.
 - Extended APDU support.
+
+[^1]: PKCS11 modules (`pkcs11-tool` and `sc-tool`) do not support CMAC and key derivation. It must be processed through raw APDU command (`opensc-tool -s`).
 
 ## Security considerations
 All secret keys (asymmetric and symmetric) are stored encrypted in the flash memory of the Raspberry Pico. DKEK is used as a 256 bit AES key to protect private and secret keys. Keys are never stored in RAM except for signature and decryption operations. All keys (including DKEK) are loaded and cleared every time to avoid potential flaws. 
@@ -85,7 +91,7 @@ The way to communicate is exactly the same as with other cards, such as OpenPGP 
 For an advanced usage, see the docs and examples.
 
 ### Important
-OpenSC relies on PCSC driver, which reads a list (`Info.plist`) that contains a pair of VID/PID of supported readers. In order to be detectable, you must patch the UF2 binary (if you just downloaded from the [Release section](https://github.com/polhenarejos/pico-hsm/releases "Release section")) or configure the project with the proper VID/PID with `USB_VID` and `USB_PID` parameters in `CMake` (see [Build section](#build "Build section")). Note that you cannot distribute the patched/compiled binary if you do not own the VID/PID.
+OpenSC relies on PCSC driver, which reads a list (`Info.plist`) that contains a pair of VID/PID of supported readers. In order to be detectable, you must patch the UF2 binary (if you just downloaded from the [Release section](https://github.com/polhenarejos/pico-hsm/releases "Release section")) or configure the project with the proper VID/PID with `USB_VID` and `USB_PID` parameters in `CMake` (see [Build section](#build "Build section")). Note that you cannot distribute the patched/compiled binary if you do not own the VID/PID or have an explicit authorization.
 
 ## Credits
 Pico HSM uses the following libraries or portion of code:
