@@ -516,62 +516,83 @@ static int cmd_challenge() {
     return SW_OK();
 }
 
+extern char __StackLimit;
+int heapLeft() {
+    char *p = malloc(256);   // try to avoid undue fragmentation
+    int left = &__StackLimit - p;
+    free(p);
+    return left;
+}
+
 static int cmd_initialize() {
-    initialize_flash(true);
-    scan_flash();
-    dkeks = 0;
-    const uint8_t *p = apdu.cmd_apdu_data;
-    while (p-apdu.cmd_apdu_data < apdu.cmd_apdu_data_len) {
-        uint8_t tag = *p++;
-        uint8_t tag_len = *p++;
-        if (tag == 0x80) { //options
-        }
-        else if (tag == 0x81) { //user pin
-            if (file_pin1 && file_pin1->data) {
-                uint8_t dhash[33];
-                dhash[0] = tag_len;
-                double_hash_pin(p, tag_len, dhash+1);
-                flash_write_data_to_file(file_pin1, dhash, sizeof(dhash));
-                hash_multi(p, tag_len, session_pin);
-                has_session_pin = true;
-            } 
-        }
-        else if (tag == 0x82) { //user pin
-            if (file_sopin && file_sopin->data) {
-                uint8_t dhash[33];
-                dhash[0] = tag_len;
-                double_hash_pin(p, tag_len, dhash+1);
-                flash_write_data_to_file(file_sopin, dhash, sizeof(dhash));
-                hash_multi(p, tag_len, session_sopin);
-                has_session_sopin = true;
-            } 
-        }
-        else if (tag == 0x91) { //user pin
-            file_t *tf = search_by_fid(0x1082, NULL, SPECIFY_EF);
-            if (tf && tf->data) {
-                flash_write_data_to_file(tf, p, tag_len);
+    if (apdu.cmd_apdu_data_len > 0) {
+        initialize_flash(true);
+        scan_flash();
+        dkeks = 0;
+        const uint8_t *p = apdu.cmd_apdu_data;
+        while (p-apdu.cmd_apdu_data < apdu.cmd_apdu_data_len) {
+            uint8_t tag = *p++;
+            uint8_t tag_len = *p++;
+            if (tag == 0x80) { //options
             }
-            if (file_retries_pin1 && file_retries_pin1->data) {
-                flash_write_data_to_file(file_retries_pin1, p, tag_len);
+            else if (tag == 0x81) { //user pin
+                if (file_pin1 && file_pin1->data) {
+                    uint8_t dhash[33];
+                    dhash[0] = tag_len;
+                    double_hash_pin(p, tag_len, dhash+1);
+                    flash_write_data_to_file(file_pin1, dhash, sizeof(dhash));
+                    hash_multi(p, tag_len, session_pin);
+                    has_session_pin = true;
+                } 
             }
+            else if (tag == 0x82) { //user pin
+                if (file_sopin && file_sopin->data) {
+                    uint8_t dhash[33];
+                    dhash[0] = tag_len;
+                    double_hash_pin(p, tag_len, dhash+1);
+                    flash_write_data_to_file(file_sopin, dhash, sizeof(dhash));
+                    hash_multi(p, tag_len, session_sopin);
+                    has_session_sopin = true;
+                } 
+            }
+            else if (tag == 0x91) { //user pin
+                file_t *tf = search_by_fid(0x1082, NULL, SPECIFY_EF);
+                if (tf && tf->data) {
+                    flash_write_data_to_file(tf, p, tag_len);
+                }
+                if (file_retries_pin1 && file_retries_pin1->data) {
+                    flash_write_data_to_file(file_retries_pin1, p, tag_len);
+                }
+            }
+            else if (tag == 0x92) {
+                dkeks = *p;
+                current_dkeks = 0;
+            }
+            p += tag_len;
         }
-        else if (tag == 0x92) {
-            dkeks = *p;
-            current_dkeks = 0;
-        }
-        p += tag_len;
-    }
-    p = random_bytes_get(32);
-    memset(tmp_dkek, 0, sizeof(tmp_dkek));
-    memcpy(tmp_dkek, p, IV_SIZE);
-    if (dkeks == 0) {
         p = random_bytes_get(32);
-        memcpy(tmp_dkek+IV_SIZE, p, 32);
-        encrypt(session_pin, tmp_dkek, tmp_dkek+IV_SIZE, 32);
-        file_t *tf = search_by_fid(EF_DKEK, NULL, SPECIFY_EF);
-        flash_write_data_to_file(tf, tmp_dkek, sizeof(tmp_dkek));
+        memset(tmp_dkek, 0, sizeof(tmp_dkek));
+        memcpy(tmp_dkek, p, IV_SIZE);
+        if (dkeks == 0) {
+            p = random_bytes_get(32);
+            memcpy(tmp_dkek+IV_SIZE, p, 32);
+            encrypt(session_pin, tmp_dkek, tmp_dkek+IV_SIZE, 32);
+            file_t *tf = search_by_fid(EF_DKEK, NULL, SPECIFY_EF);
+            flash_write_data_to_file(tf, tmp_dkek, sizeof(tmp_dkek));
+        }
+        low_flash_available();
     }
-    low_flash_available();
+    else { //free memory bytes request
+        int heap_left = heapLeft();
+        res_APDU[0] = ((heap_left >> 24) & 0xff);
+        res_APDU[1] = ((heap_left >> 16) & 0xff);
+        res_APDU[2] = ((heap_left >> 8) & 0xff);
+        res_APDU[3] = ((heap_left >> 0) & 0xff);
+        res_APDU[4] = 0;
+        res_APDU[5] = HSM_VERSION_MAJOR;
+        res_APDU[6] = HSM_VERSION_MINOR;
+        res_APDU_size = 7;
+    }
     return SW_OK();
 }
 
