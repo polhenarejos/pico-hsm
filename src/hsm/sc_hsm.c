@@ -29,6 +29,7 @@
 #include "mbedtls/cmac.h"
 #include "mbedtls/hkdf.h"
 #include "version.h"
+#include "cvcerts.h"
 
 const uint8_t sc_hsm_aid[] = {
     11, 
@@ -222,6 +223,53 @@ static int cmd_select() {
     return SW_OK ();
 }
 
+sc_context_t *create_context() {
+    sc_context_t *ctx;
+    sc_context_param_t ctx_opts;
+    memset(&ctx_opts, 0, sizeof(sc_context_param_t));
+    ctx_opts.ver      = 0;
+	ctx_opts.app_name = "hsm2040";
+    sc_context_create(&ctx, &ctx_opts);
+    ctx->debug = 0;
+    sc_ctx_log_to_file(ctx, "stdout");
+    return ctx;
+}
+
+void cvc_init_common(sc_cvc_t *cvc, sc_context_t *ctx) {
+    memset(cvc, 0, sizeof(sc_cvc_t));
+
+    size_t lencar = 0, lenchr = 0;
+    const unsigned char *car = sc_asn1_find_tag(ctx, (const uint8_t *)apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, 0x42, &lencar);
+    const unsigned char *chr = sc_asn1_find_tag(ctx, (const uint8_t *)apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, 0x5f20, &lenchr);
+    if (car && lencar > 0)
+        strlcpy(cvc->car, car, MIN(lencar,sizeof(cvc->car)));
+    else
+        strlcpy(cvc->car, "UTSRCACC100001", sizeof(cvc->car));
+    if (chr && lenchr > 0)
+        strlcpy(cvc->chr, chr, MIN(lenchr, sizeof(cvc->chr)));
+    else
+	    strlcpy(cvc->chr, "ESHSMCVCA00001", sizeof(cvc->chr));
+	strlcpy(cvc->outer_car, "ESHSM00001", sizeof(cvc->outer_car));	
+}
+
+int cvc_prepare_signatures(sc_pkcs15_card_t *p15card, sc_cvc_t *cvc, size_t sig_len, uint8_t *hsh) {
+    uint8_t *cvcbin;
+    size_t cvclen;
+    cvc->signatureLen = sig_len;
+    cvc->signature = (uint8_t *)calloc(1, sig_len);
+    cvc->outerSignatureLen = 4;
+    cvc->outerSignature = (uint8_t *)calloc(1, sig_len);
+    int r = sc_pkcs15emu_sc_hsm_encode_cvc(p15card, cvc, &cvcbin, &cvclen);
+    if (r != SC_SUCCESS) {
+        if (cvcbin)
+            free(cvcbin);
+        return r;
+    }
+    hash(cvcbin, cvclen, hsh);
+    free(cvcbin);
+    return HSM_OK;
+}
+
 int parse_token_info(const file_t *f, int mode) {
     char *label = "Pico-HSM";
     char *manu = "Pol Henarejos";
@@ -247,6 +295,16 @@ int parse_token_info(const file_t *f, int mode) {
     return len;
 }
 
+int parse_cvca(const file_t *f, int mode) {
+    size_t termca_len = file_read_uint16(termca);
+    size_t dica_len = file_read_uint16(dica);
+    if (mode == 1) {
+        memcpy(res_APDU, termca+2, termca_len);
+        memcpy(res_APDU+termca_len, dica+2, dica_len);
+        res_APDU_size = termca_len+dica_len;
+    }
+    return termca_len+dica_len;
+}
 
 static int cmd_list_keys()
 {
@@ -717,53 +775,6 @@ int store_keys(void *key_ctx, int type, uint8_t key_id, sc_context_t *ctx) {
     //add_file_to_chain(fpk, &ef_cdf);
     */
     low_flash_available();
-    return HSM_OK;
-}
-
-sc_context_t *create_context() {
-    sc_context_t *ctx;
-    sc_context_param_t ctx_opts;
-    memset(&ctx_opts, 0, sizeof(sc_context_param_t));
-    ctx_opts.ver      = 0;
-	ctx_opts.app_name = "hsm2040";
-    sc_context_create(&ctx, &ctx_opts);
-    ctx->debug = 0;
-    sc_ctx_log_to_file(ctx, "stdout");
-    return ctx;
-}
-
-void cvc_init_common(sc_cvc_t *cvc, sc_context_t *ctx) {
-    memset(cvc, 0, sizeof(sc_cvc_t));
-
-    size_t lencar = 0, lenchr = 0;
-    const unsigned char *car = sc_asn1_find_tag(ctx, (const uint8_t *)apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, 0x42, &lencar);
-    const unsigned char *chr = sc_asn1_find_tag(ctx, (const uint8_t *)apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, 0x5f20, &lenchr);
-    if (car && lencar > 0)
-        strlcpy(cvc->car, car, MIN(lencar,sizeof(cvc->car)));
-    else
-        strlcpy(cvc->car, "UTCA00001", sizeof(cvc->car));
-    if (chr && lenchr > 0)
-        strlcpy(cvc->chr, chr, MIN(lenchr, sizeof(cvc->chr)));
-    else
-	    strlcpy(cvc->chr, "ESHSMCVCA00001", sizeof(cvc->chr));
-	strlcpy(cvc->outer_car, "ESHSM00001", sizeof(cvc->outer_car));	
-}
-
-int cvc_prepare_signatures(sc_pkcs15_card_t *p15card, sc_cvc_t *cvc, size_t sig_len, uint8_t *hsh) {
-    uint8_t *cvcbin;
-    size_t cvclen;
-    cvc->signatureLen = sig_len;
-    cvc->signature = (uint8_t *)calloc(1, sig_len);
-    cvc->outerSignatureLen = 4;
-    cvc->outerSignature = (uint8_t *)calloc(1, sig_len);
-    int r = sc_pkcs15emu_sc_hsm_encode_cvc(p15card, cvc, &cvcbin, &cvclen);
-    if (r != SC_SUCCESS) {
-        if (cvcbin)
-            free(cvcbin);
-        return r;
-    }
-    hash(cvcbin, cvclen, hsh);
-    free(cvcbin);
     return HSM_OK;
 }
 
