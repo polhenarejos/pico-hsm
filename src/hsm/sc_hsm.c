@@ -551,7 +551,7 @@ static int cmd_initialize() {
                     has_session_pin = true;
                 } 
             }
-            else if (tag == 0x82) { //user pin
+            else if (tag == 0x82) { //sopin pin
                 if (file_sopin && file_sopin->data) {
                     uint8_t dhash[33];
                     dhash[0] = tag_len;
@@ -561,7 +561,7 @@ static int cmd_initialize() {
                     has_session_sopin = true;
                 } 
             }
-            else if (tag == 0x91) { //user pin
+            else if (tag == 0x91) { //retries user pin
                 file_t *tf = search_by_fid(0x1082, NULL, SPECIFY_EF);
                 if (tf && tf->data) {
                     flash_write_data_to_file(tf, p, tag_len);
@@ -656,9 +656,11 @@ void generic_hash(mbedtls_md_type_t md, const uint8_t *input, size_t len, uint8_
 }
 
 static int cmd_import_dkek() {
-    if (dkeks == 0)
-        return SW_COMMAND_NOT_ALLOWED();
-    if (has_session_pin == false)
+    //if (dkeks == 0)
+    //    return SW_COMMAND_NOT_ALLOWED();
+    if (P1(apdu) != 0x0 || P2(apdu) != 0x0)
+        return SW_INCORRECT_P1P2();
+    if (has_session_pin == false && apdu.cmd_apdu_data_len > 0)
         return SW_CONDITIONS_NOT_SATISFIED();
     file_t *tf = search_by_fid(EF_DKEK, NULL, SPECIFY_EF);
     if (!authenticate_action(get_parent(tf), ACL_OP_CREATE_EF)) {
