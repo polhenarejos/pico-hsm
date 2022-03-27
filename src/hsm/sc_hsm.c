@@ -147,6 +147,9 @@ static int cmd_select() {
     
     if (apdu.cmd_apdu_data_len >= 2)
         fid = get_uint16_t(apdu.cmd_apdu_data, 0);
+        
+    //if ((fid & 0xff00) == (KEY_PREFIX << 8))
+    //    fid = (PRKD_PREFIX << 8) | (fid & 0xff);
 
     if ((fid & 0xff00) == (PRKD_PREFIX << 8)) {
         if (!(pe = search_dynamic_file(fid)))
@@ -312,6 +315,8 @@ static int cmd_list_keys()
     for (int i = 0; i < dynamic_files; i++) {
         file_t *f = &dynamic_file[i];
         if ((f->fid & 0xff00) == (PRKD_PREFIX << 8)) {
+            res_APDU[res_APDU_size++] = PRKD_PREFIX;
+            res_APDU[res_APDU_size++] = f->fid & 0xff;
             res_APDU[res_APDU_size++] = KEY_PREFIX;
             res_APDU[res_APDU_size++] = f->fid & 0xff;
         }
