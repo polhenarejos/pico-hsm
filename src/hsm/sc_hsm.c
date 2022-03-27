@@ -479,6 +479,12 @@ static int cmd_verify() {
         return set_res_sw(0x63, 0xc0 | file_read_uint8(file_retries_pin1->data+2));
     }
     else if (p2 == 0x88) { //SOPin
+        if (apdu.cmd_apdu_data_len > 0) {
+            return check_pin(file_sopin, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
+        }
+        if (file_read_uint8(file_retries_sopin->data+2) == 0)
+            return SW_PIN_BLOCKED();
+        return set_res_sw(0x63, 0xc0 | file_read_uint8(file_retries_sopin->data+2));
     }
     return SW_REFERENCE_NOT_FOUND();
 }
