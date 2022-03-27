@@ -539,7 +539,7 @@ static int cmd_initialize() {
     if (apdu.cmd_apdu_data_len > 0) {
         initialize_flash(true);
         scan_flash();
-        dkeks = 0;
+        dkeks = current_dkeks = 0;
         const uint8_t *p = apdu.cmd_apdu_data;
         while (p-apdu.cmd_apdu_data < apdu.cmd_apdu_data_len) {
             uint8_t tag = *p++;
@@ -577,7 +577,6 @@ static int cmd_initialize() {
             }
             else if (tag == 0x92) {
                 dkeks = *p;
-                current_dkeks = 0;
             }
             p += tag_len;
         }
