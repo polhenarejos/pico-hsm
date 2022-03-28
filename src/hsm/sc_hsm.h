@@ -84,6 +84,14 @@ extern const uint8_t sc_hsm_aid[];
 #define ALGO_AES_CMAC		    0x18
 #define ALGO_AES_DERIVE		    0x99
 
+#define HSM_OPT_RRC                 0x1
+#define HSM_OPT_TRANSPORT_PIN       0x2
+#define HSM_OPT_SESSION_PIN         0x4
+#define HSM_OPT_SESSION_PIN_EXPL    0xC
+#define HSM_OPT_REPLACE_PKA         0x8
+#define HSM_OPT_COMBINED_AUTH       0x10
+#define HSM_OPT_RRC_RESET_ONLY      0x20
+
 extern int pin_reset_retries(const file_t *pin, bool);
 extern int pin_wrong_retry(const file_t *pin);
 

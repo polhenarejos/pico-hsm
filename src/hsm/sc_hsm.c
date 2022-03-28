@@ -29,6 +29,7 @@
 #include "mbedtls/cmac.h"
 #include "mbedtls/hkdf.h"
 #include "version.h"
+#include "cvcerts.h"
 
 const uint8_t sc_hsm_aid[] = {
     11, 
@@ -146,6 +147,9 @@ static int cmd_select() {
     
     if (apdu.cmd_apdu_data_len >= 2)
         fid = get_uint16_t(apdu.cmd_apdu_data, 0);
+        
+    //if ((fid & 0xff00) == (KEY_PREFIX << 8))
+    //    fid = (PRKD_PREFIX << 8) | (fid & 0xff);
 
     if ((fid & 0xff00) == (PRKD_PREFIX << 8)) {
         if (!(pe = search_dynamic_file(fid)))
@@ -222,6 +226,53 @@ static int cmd_select() {
     return SW_OK ();
 }
 
+sc_context_t *create_context() {
+    sc_context_t *ctx;
+    sc_context_param_t ctx_opts;
+    memset(&ctx_opts, 0, sizeof(sc_context_param_t));
+    ctx_opts.ver      = 0;
+	ctx_opts.app_name = "hsm2040";
+    sc_context_create(&ctx, &ctx_opts);
+    ctx->debug = 0;
+    sc_ctx_log_to_file(ctx, "stdout");
+    return ctx;
+}
+
+void cvc_init_common(sc_cvc_t *cvc, sc_context_t *ctx) {
+    memset(cvc, 0, sizeof(sc_cvc_t));
+
+    size_t lencar = 0, lenchr = 0;
+    const unsigned char *car = sc_asn1_find_tag(ctx, (const uint8_t *)apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, 0x42, &lencar);
+    const unsigned char *chr = sc_asn1_find_tag(ctx, (const uint8_t *)apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, 0x5f20, &lenchr);
+    if (car && lencar > 0)
+        strlcpy(cvc->car, car, MIN(lencar,sizeof(cvc->car)));
+    else
+        strlcpy(cvc->car, "UTSRCACC100001", sizeof(cvc->car));
+    if (chr && lenchr > 0)
+        strlcpy(cvc->chr, chr, MIN(lenchr, sizeof(cvc->chr)));
+    else
+	    strlcpy(cvc->chr, "ESHSMCVCA00001", sizeof(cvc->chr));
+	strlcpy(cvc->outer_car, "ESHSM00001", sizeof(cvc->outer_car));	
+}
+
+int cvc_prepare_signatures(sc_pkcs15_card_t *p15card, sc_cvc_t *cvc, size_t sig_len, uint8_t *hsh) {
+    uint8_t *cvcbin;
+    size_t cvclen;
+    cvc->signatureLen = sig_len;
+    cvc->signature = (uint8_t *)calloc(1, sig_len);
+    cvc->outerSignatureLen = 4;
+    cvc->outerSignature = (uint8_t *)calloc(1, sig_len);
+    int r = sc_pkcs15emu_sc_hsm_encode_cvc(p15card, cvc, &cvcbin, &cvclen);
+    if (r != SC_SUCCESS) {
+        if (cvcbin)
+            free(cvcbin);
+        return r;
+    }
+    hash(cvcbin, cvclen, hsh);
+    free(cvcbin);
+    return HSM_OK;
+}
+
 int parse_token_info(const file_t *f, int mode) {
     char *label = "Pico-HSM";
     char *manu = "Pol Henarejos";
@@ -247,6 +298,16 @@ int parse_token_info(const file_t *f, int mode) {
     return len;
 }
 
+int parse_cvca(const file_t *f, int mode) {
+    size_t termca_len = file_read_uint16(termca);
+    size_t dica_len = file_read_uint16(dica);
+    if (mode == 1) {
+        memcpy(res_APDU, termca+2, termca_len);
+        memcpy(res_APDU+termca_len, dica+2, dica_len);
+        res_APDU_size = termca_len+dica_len;
+    }
+    return termca_len+dica_len;
+}
 
 static int cmd_list_keys()
 {
@@ -254,6 +315,8 @@ static int cmd_list_keys()
     for (int i = 0; i < dynamic_files; i++) {
         file_t *f = &dynamic_file[i];
         if ((f->fid & 0xff00) == (PRKD_PREFIX << 8)) {
+            res_APDU[res_APDU_size++] = PRKD_PREFIX;
+            res_APDU[res_APDU_size++] = f->fid & 0xff;
             res_APDU[res_APDU_size++] = KEY_PREFIX;
             res_APDU[res_APDU_size++] = f->fid & 0xff;
         }
@@ -421,6 +484,12 @@ static int cmd_verify() {
         return set_res_sw(0x63, 0xc0 | file_read_uint8(file_retries_pin1->data+2));
     }
     else if (p2 == 0x88) { //SOPin
+        if (apdu.cmd_apdu_data_len > 0) {
+            return check_pin(file_sopin, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
+        }
+        if (file_read_uint8(file_retries_sopin->data+2) == 0)
+            return SW_PIN_BLOCKED();
+        return set_res_sw(0x63, 0xc0 | file_read_uint8(file_retries_sopin->data+2));
     }
     return SW_REFERENCE_NOT_FOUND();
 }
@@ -458,62 +527,82 @@ static int cmd_challenge() {
     return SW_OK();
 }
 
+extern char __StackLimit;
+int heapLeft() {
+    char *p = malloc(256);   // try to avoid undue fragmentation
+    int left = &__StackLimit - p;
+    free(p);
+    return left;
+}
+
 static int cmd_initialize() {
-    initialize_flash(true);
-    scan_flash();
-    dkeks = 0;
-    const uint8_t *p = apdu.cmd_apdu_data;
-    while (p-apdu.cmd_apdu_data < apdu.cmd_apdu_data_len) {
-        uint8_t tag = *p++;
-        uint8_t tag_len = *p++;
-        if (tag == 0x80) { //options
-        }
-        else if (tag == 0x81) { //user pin
-            if (file_pin1 && file_pin1->data) {
-                uint8_t dhash[33];
-                dhash[0] = tag_len;
-                double_hash_pin(p, tag_len, dhash+1);
-                flash_write_data_to_file(file_pin1, dhash, sizeof(dhash));
-                hash_multi(p, tag_len, session_pin);
-                has_session_pin = true;
-            } 
-        }
-        else if (tag == 0x82) { //user pin
-            if (file_sopin && file_sopin->data) {
-                uint8_t dhash[33];
-                dhash[0] = tag_len;
-                double_hash_pin(p, tag_len, dhash+1);
-                flash_write_data_to_file(file_sopin, dhash, sizeof(dhash));
-                hash_multi(p, tag_len, session_sopin);
-                has_session_sopin = true;
-            } 
-        }
-        else if (tag == 0x91) { //user pin
-            file_t *tf = search_by_fid(0x1082, NULL, SPECIFY_EF);
-            if (tf && tf->data) {
-                flash_write_data_to_file(tf, p, tag_len);
+    if (apdu.cmd_apdu_data_len > 0) {
+        initialize_flash(true);
+        scan_flash();
+        dkeks = current_dkeks = 0;
+        const uint8_t *p = apdu.cmd_apdu_data;
+        while (p-apdu.cmd_apdu_data < apdu.cmd_apdu_data_len) {
+            uint8_t tag = *p++;
+            uint8_t tag_len = *p++;
+            if (tag == 0x80) { //options
             }
-            if (file_retries_pin1 && file_retries_pin1->data) {
-                flash_write_data_to_file(file_retries_pin1, p, tag_len);
+            else if (tag == 0x81) { //user pin
+                if (file_pin1 && file_pin1->data) {
+                    uint8_t dhash[33];
+                    dhash[0] = tag_len;
+                    double_hash_pin(p, tag_len, dhash+1);
+                    flash_write_data_to_file(file_pin1, dhash, sizeof(dhash));
+                    hash_multi(p, tag_len, session_pin);
+                    has_session_pin = true;
+                } 
             }
+            else if (tag == 0x82) { //sopin pin
+                if (file_sopin && file_sopin->data) {
+                    uint8_t dhash[33];
+                    dhash[0] = tag_len;
+                    double_hash_pin(p, tag_len, dhash+1);
+                    flash_write_data_to_file(file_sopin, dhash, sizeof(dhash));
+                    hash_multi(p, tag_len, session_sopin);
+                    has_session_sopin = true;
+                } 
+            }
+            else if (tag == 0x91) { //retries user pin
+                file_t *tf = search_by_fid(0x1082, NULL, SPECIFY_EF);
+                if (tf && tf->data) {
+                    flash_write_data_to_file(tf, p, tag_len);
+                }
+                if (file_retries_pin1 && file_retries_pin1->data) {
+                    flash_write_data_to_file(file_retries_pin1, p, tag_len);
+                }
+            }
+            else if (tag == 0x92) {
+                dkeks = *p;
+            }
+            p += tag_len;
         }
-        else if (tag == 0x92) {
-            dkeks = *p;
-            current_dkeks = 0;
-        }
-        p += tag_len;
-    }
-    p = random_bytes_get(32);
-    memset(tmp_dkek, 0, sizeof(tmp_dkek));
-    memcpy(tmp_dkek, p, IV_SIZE);
-    if (dkeks == 0) {
         p = random_bytes_get(32);
-        memcpy(tmp_dkek+IV_SIZE, p, 32);
-        encrypt(session_pin, tmp_dkek, tmp_dkek+IV_SIZE, 32);
-        file_t *tf = search_by_fid(EF_DKEK, NULL, SPECIFY_EF);
-        flash_write_data_to_file(tf, tmp_dkek, sizeof(tmp_dkek));
+        memset(tmp_dkek, 0, sizeof(tmp_dkek));
+        memcpy(tmp_dkek, p, IV_SIZE);
+        if (dkeks == 0) {
+            p = random_bytes_get(32);
+            memcpy(tmp_dkek+IV_SIZE, p, 32);
+            encrypt(session_pin, tmp_dkek, tmp_dkek+IV_SIZE, 32);
+            file_t *tf = search_by_fid(EF_DKEK, NULL, SPECIFY_EF);
+            flash_write_data_to_file(tf, tmp_dkek, sizeof(tmp_dkek));
+        }
+        low_flash_available();
     }
-    low_flash_available();
+    else { //free memory bytes request
+        int heap_left = heapLeft();
+        res_APDU[0] = ((heap_left >> 24) & 0xff);
+        res_APDU[1] = ((heap_left >> 16) & 0xff);
+        res_APDU[2] = ((heap_left >> 8) & 0xff);
+        res_APDU[3] = ((heap_left >> 0) & 0xff);
+        res_APDU[4] = 0;
+        res_APDU[5] = HSM_VERSION_MAJOR;
+        res_APDU[6] = HSM_VERSION_MINOR;
+        res_APDU_size = 7;
+    }
     return SW_OK();
 }
 
@@ -571,9 +660,11 @@ void generic_hash(mbedtls_md_type_t md, const uint8_t *input, size_t len, uint8_
 }
 
 static int cmd_import_dkek() {
-    if (dkeks == 0)
-        return SW_COMMAND_NOT_ALLOWED();
-    if (has_session_pin == false)
+    //if (dkeks == 0)
+    //    return SW_COMMAND_NOT_ALLOWED();
+    if (P1(apdu) != 0x0 || P2(apdu) != 0x0)
+        return SW_INCORRECT_P1P2();
+    if (has_session_pin == false && apdu.cmd_apdu_data_len > 0)
         return SW_CONDITIONS_NOT_SATISFIED();
     file_t *tf = search_by_fid(EF_DKEK, NULL, SPECIFY_EF);
     if (!authenticate_action(get_parent(tf), ACL_OP_CREATE_EF)) {
@@ -717,53 +808,6 @@ int store_keys(void *key_ctx, int type, uint8_t key_id, sc_context_t *ctx) {
     //add_file_to_chain(fpk, &ef_cdf);
     */
     low_flash_available();
-    return HSM_OK;
-}
-
-sc_context_t *create_context() {
-    sc_context_t *ctx;
-    sc_context_param_t ctx_opts;
-    memset(&ctx_opts, 0, sizeof(sc_context_param_t));
-    ctx_opts.ver      = 0;
-	ctx_opts.app_name = "hsm2040";
-    sc_context_create(&ctx, &ctx_opts);
-    ctx->debug = 0;
-    sc_ctx_log_to_file(ctx, "stdout");
-    return ctx;
-}
-
-void cvc_init_common(sc_cvc_t *cvc, sc_context_t *ctx) {
-    memset(cvc, 0, sizeof(sc_cvc_t));
-
-    size_t lencar = 0, lenchr = 0;
-    const unsigned char *car = sc_asn1_find_tag(ctx, (const uint8_t *)apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, 0x42, &lencar);
-    const unsigned char *chr = sc_asn1_find_tag(ctx, (const uint8_t *)apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, 0x5f20, &lenchr);
-    if (car && lencar > 0)
-        strlcpy(cvc->car, car, MIN(lencar,sizeof(cvc->car)));
-    else
-        strlcpy(cvc->car, "UTCA00001", sizeof(cvc->car));
-    if (chr && lenchr > 0)
-        strlcpy(cvc->chr, chr, MIN(lenchr, sizeof(cvc->chr)));
-    else
-	    strlcpy(cvc->chr, "ESHSMCVCA00001", sizeof(cvc->chr));
-	strlcpy(cvc->outer_car, "ESHSM00001", sizeof(cvc->outer_car));	
-}
-
-int cvc_prepare_signatures(sc_pkcs15_card_t *p15card, sc_cvc_t *cvc, size_t sig_len, uint8_t *hsh) {
-    uint8_t *cvcbin;
-    size_t cvclen;
-    cvc->signatureLen = sig_len;
-    cvc->signature = (uint8_t *)calloc(1, sig_len);
-    cvc->outerSignatureLen = 4;
-    cvc->outerSignature = (uint8_t *)calloc(1, sig_len);
-    int r = sc_pkcs15emu_sc_hsm_encode_cvc(p15card, cvc, &cvcbin, &cvclen);
-    if (r != SC_SUCCESS) {
-        if (cvcbin)
-            free(cvcbin);
-        return r;
-    }
-    hash(cvcbin, cvclen, hsh);
-    free(cvcbin);
     return HSM_OK;
 }
 
