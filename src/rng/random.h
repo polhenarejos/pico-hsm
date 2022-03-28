@@ -19,6 +19,9 @@
 #ifndef _RANDOM_H_
 #define _RANDOM_H_
 
+#include "stdlib.h"
+#include "pico/stdlib.h"
+
 void random_init (void);
 void random_fini (void);
 
