@@ -51,6 +51,7 @@ target_sources(pico_hsm PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/src/fs/low_flash.c
         ${CMAKE_CURRENT_LIST_DIR}/src/rng/random.c
         ${CMAKE_CURRENT_LIST_DIR}/src/rng/neug.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/hsm/hash_utils.c
         
         ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/sha256.c
         ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/aes.c
