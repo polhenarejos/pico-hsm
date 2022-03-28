@@ -60,6 +60,8 @@ extern const uint8_t sc_hsm_aid[];
 #define HSM_ERR_BLOCKED                     -1004
 #define HSM_NO_LOGIN                        -1005
 #define HSM_EXEC_ERROR                      -1006
+#define HSM_WRONG_LENGTH                    -1007
+#define HSM_WRONG_DATA                      -1008
 
 #define ALGO_RSA_RAW			0x20		/* RSA signature with external padding */
 #define ALGO_RSA_DECRYPT		0x21		/* RSA decrypt */

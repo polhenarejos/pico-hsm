@@ -18,9 +18,15 @@
 #ifndef _HASH_UTILS_H_
 #define _HASH_UTILS_H_
 
+#include "stdlib.h"
+#include "pico/stdlib.h"
+#include "mbedtls/md.h"
+
 extern void double_hash_pin(const uint8_t *pin, size_t len, uint8_t output[32]);
 extern void hash_multi(const uint8_t *input, size_t len, uint8_t output[32]);
 extern void hash256(const uint8_t *input, size_t len, uint8_t output[32]);
 extern void generic_hash(mbedtls_md_type_t md, const uint8_t *input, size_t len, uint8_t *output);
+extern int aes_encrypt(const uint8_t *key, const uint8_t *iv, int key_size, uint8_t *data, int len);
+extern int aes_decrypt(const uint8_t *key, const uint8_t *iv, int key_size, uint8_t *data, int len);
 
 #endif
