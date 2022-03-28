@@ -30,6 +30,7 @@
 #include "mbedtls/hkdf.h"
 #include "version.h"
 #include "cvcerts.h"
+#include "hash_utils.h"
 
 const uint8_t sc_hsm_aid[] = {
     11, 
@@ -73,6 +74,7 @@ int sc_hsm_unload() {
     return HSM_OK;
 }
 
+//AES CBC encryption with a 256 bit key
 static int encrypt(const uint8_t *key, const uint8_t *iv, uint8_t *data, int len)
 {
     mbedtls_aes_context aes;
@@ -86,6 +88,7 @@ static int encrypt(const uint8_t *key, const uint8_t *iv, uint8_t *data, int len
     return mbedtls_aes_crypt_cfb128(&aes, MBEDTLS_AES_ENCRYPT, len, &iv_offset, tmp_iv, data, data);
 }
 
+//AES CBC decryption with a 256 bit key
 static int decrypt(const uint8_t *key, const uint8_t *iv, uint8_t *data, int len)
 {
     mbedtls_aes_context aes;
@@ -268,7 +271,7 @@ int cvc_prepare_signatures(sc_pkcs15_card_t *p15card, sc_cvc_t *cvc, size_t sig_
             free(cvcbin);
         return r;
     }
-    hash(cvcbin, cvclen, hsh);
+    hash256(cvcbin, cvclen, hsh);
     free(cvcbin);
     return HSM_OK;
 }
@@ -604,59 +607,6 @@ static int cmd_initialize() {
         res_APDU_size = 7;
     }
     return SW_OK();
-}
-
-void double_hash_pin(const uint8_t *pin, size_t len, uint8_t output[32]) {
-    uint8_t o1[32];
-    hash_multi(pin, len, o1);
-    for (int i = 0; i < sizeof(o1); i++)
-        o1[i] ^= pin[i%len];
-    hash_multi(o1, sizeof(o1), output);
-}
-
-void hash_multi(const uint8_t *input, size_t len, uint8_t output[32])
-{
-    mbedtls_sha256_context ctx;
-    mbedtls_sha256_init(&ctx);
-    int iters = 256;
-    
-    pico_get_unique_board_id(&unique_id);
-    
-    mbedtls_sha256_starts (&ctx, 0);
-    mbedtls_sha256_update (&ctx, unique_id.id, sizeof(unique_id.id));
-    
-    while (iters > len)
-    {
-        mbedtls_sha256_update (&ctx, input, len);
-        iters -= len;
-    }
-    if (iters > 0) // remaining iterations
-        mbedtls_sha256_update (&ctx, input, iters);
-    mbedtls_sha256_finish (&ctx, output);
-    mbedtls_sha256_free (&ctx);
-}
-
-void hash(const uint8_t *input, size_t len, uint8_t output[32])
-{
-    mbedtls_sha256_context ctx;
-    mbedtls_sha256_init(&ctx);
-    
-    mbedtls_sha256_starts (&ctx, 0);
-    mbedtls_sha256_update (&ctx, input, len);
-
-    mbedtls_sha256_finish (&ctx, output);
-    mbedtls_sha256_free (&ctx);
-}
-
-void generic_hash(mbedtls_md_type_t md, const uint8_t *input, size_t len, uint8_t *output) {
-    mbedtls_md_context_t ctx;
-    mbedtls_md_init(&ctx);
-    const mbedtls_md_info_t *md_info = mbedtls_md_info_from_type(md);
-    mbedtls_md_setup(&ctx, md_info, 0);
-    mbedtls_md_starts(&ctx);
-    mbedtls_md_update(&ctx, input, len);
-    mbedtls_md_finish(&ctx, output);
-    mbedtls_md_free(&ctx);   
 }
 
 static int cmd_import_dkek() {
@@ -1610,7 +1560,7 @@ static int cmd_cipher_sym() {
         int r = mbedtls_cipher_cmac(cipher_info, kdata, key_size*8, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, res_APDU);
         if (r != 0)
             return SW_EXEC_ERROR();
-        res_APDU_size = apdu.cmd_apdu_data_len;
+        res_APDU_size = 16;
     }
     else if (algo == ALGO_AES_DERIVE) {
         int r = mbedtls_hkdf(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), NULL, 0, file_read(ef->data+2), key_size, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, res_APDU, apdu.cmd_apdu_data_len);
