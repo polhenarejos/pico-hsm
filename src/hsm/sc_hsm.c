@@ -1130,8 +1130,6 @@ static int cmd_key_gen() {
 
 int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
     int key_size = file_read_uint16(fkey->data);
-    if (load_dkek() != HSM_OK)
-        return SW_EXEC_ERROR();
     uint8_t *kdata = (uint8_t *)calloc(1,key_size);
     memcpy(kdata, file_read(fkey->data+2), key_size);
     if (dkek_decrypt(kdata, key_size) != 0) {
@@ -1170,8 +1168,6 @@ int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
 
 int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey) {
     int key_size = file_read_uint16(fkey->data);
-    if (load_dkek() != HSM_OK)
-        return HSM_EXEC_ERROR;
     uint8_t *kdata = (uint8_t *)calloc(1,key_size);
     memcpy(kdata, file_read(fkey->data+2), key_size);
     if (dkek_decrypt(kdata, key_size) != 0) {
@@ -1384,8 +1380,6 @@ static int cmd_decrypt_asym() {
     else if (P2(apdu) == ALGO_EC_DH) {
         mbedtls_ecdh_context ctx;
         int key_size = file_read_uint16(ef->data);
-        if (load_dkek() != HSM_OK)
-            return SW_EXEC_ERROR();
         uint8_t *kdata = (uint8_t *)calloc(1,key_size);
         memcpy(kdata, file_read(ef->data+2), key_size);
         if (dkek_decrypt(kdata, key_size) != 0) {
@@ -1440,8 +1434,6 @@ static int cmd_cipher_sym() {
         return SW_WRONG_LENGTH();
     }
     int key_size = file_read_uint16(ef->data);
-    if (load_dkek() != HSM_OK)
-        return SW_EXEC_ERROR();
     uint8_t kdata[32]; //maximum AES key size
     memcpy(kdata, file_read(ef->data+2), key_size);
     if (dkek_decrypt(kdata, key_size) != 0) {

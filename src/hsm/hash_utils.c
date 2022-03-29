@@ -103,12 +103,13 @@ int aes_decrypt(const uint8_t *key, const uint8_t *iv, int key_size, int mode, u
         return HSM_EXEC_ERROR;
     if (mode == HSM_AES_MODE_CBC)
         return mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_DECRYPT, len, tmp_iv, data, data);
+    r = mbedtls_aes_setkey_enc(&aes, key, key_size); //CFB requires set_enc instead set_dec
     return mbedtls_aes_crypt_cfb128(&aes, MBEDTLS_AES_DECRYPT, len, &iv_offset, tmp_iv, data, data);
 }
 
 int aes_encrypt_cfb_256(const uint8_t *key, const uint8_t *iv, uint8_t *data, int len) {
-    return aes_encrypt(key, iv, 32, HSM_AES_MODE_CFB, data, len);
+    return aes_encrypt(key, iv, 256, HSM_AES_MODE_CFB, data, len);
 }
 int aes_decrypt_cfb_256(const uint8_t *key, const uint8_t *iv, uint8_t *data, int len) {
-    return aes_decrypt(key, iv, 32, HSM_AES_MODE_CFB, data, len);
+    return aes_decrypt(key, iv, 256, HSM_AES_MODE_CFB, data, len);
 }

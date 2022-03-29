@@ -238,7 +238,7 @@ int dkek_encode_key(void *key_ctx, int key_type, uint8_t *out, size_t *out_len) 
     if (kb_len < kb_len_pad) {
         kb[kb_len] = 0x80;
     }
-    int r = aes_encrypt(kenc, NULL, 32, HSM_AES_MODE_CBC, kb, kb_len_pad);
+    int r = aes_encrypt(kenc, NULL, 256, HSM_AES_MODE_CBC, kb, kb_len_pad);
     if (r != HSM_OK)
         return r;
     
