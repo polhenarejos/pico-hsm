@@ -20,6 +20,7 @@
 
 #include "stdlib.h"
 #include "pico/stdlib.h"
+#include "mbedtls/ecp.h"
 #include "mbedtls/md.h"
 
 extern void double_hash_pin(const uint8_t *pin, size_t len, uint8_t output[32]);
@@ -30,5 +31,6 @@ extern int aes_encrypt(const uint8_t *key, const uint8_t *iv, int key_size, int 
 extern int aes_decrypt(const uint8_t *key, const uint8_t *iv, int key_size, int mode, uint8_t *data, int len);
 extern int aes_encrypt_cfb_256(const uint8_t *key, const uint8_t *iv, uint8_t *data, int len);
 extern int aes_decrypt_cfb_256(const uint8_t *key, const uint8_t *iv, uint8_t *data, int len);
+extern mbedtls_ecp_group_id ec_get_curve_from_prime(const uint8_t *prime, size_t prime_len);
 
 #endif

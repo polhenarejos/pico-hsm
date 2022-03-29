@@ -232,7 +232,7 @@ int cvc_prepare_signatures(sc_pkcs15_card_t *p15card, sc_cvc_t *cvc, size_t sig_
 }
 
 int parse_token_info(const file_t *f, int mode) {
-    char *label = "Pico-HSM";
+    char *label = "SmartCard-HSM";
     char *manu = "Pol Henarejos";
     sc_pkcs15_tokeninfo_t *ti = (sc_pkcs15_tokeninfo_t *)calloc(1, sizeof(sc_pkcs15_tokeninfo_t));
     ti->version = HSM_VERSION_MAJOR;
@@ -586,23 +586,6 @@ static int cmd_import_dkek() {
     return SW_OK();
 }
 
-struct ec_curve_mbed_id {
-    struct sc_lv_data curve;
-    mbedtls_ecp_group_id id;
-};
-struct ec_curve_mbed_id ec_curves_mbed[] = {
-    {   { (unsigned char *) "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFE\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF", 24}, MBEDTLS_ECP_DP_SECP192R1 },
-    {   { (unsigned char *) "\xFF\xFF\xFF\xFF\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF", 32}, MBEDTLS_ECP_DP_SECP256R1 },
-    {   { (unsigned char *) "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFE\xFF\xFF\xFF\xFF\x00\x00\x00\x00\x00\x00\x00\x00\xFF\xFF\xFF\xFF", 48}, MBEDTLS_ECP_DP_SECP384R1 },
-    {   { (unsigned char *) "\x01\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF", 66}, MBEDTLS_ECP_DP_SECP521R1 },
-    {   { (unsigned char *) "\xA9\xFB\x57\xDB\xA1\xEE\xA9\xBC\x3E\x66\x0A\x90\x9D\x83\x8D\x72\x6E\x3B\xF6\x23\xD5\x26\x20\x28\x20\x13\x48\x1D\x1F\x6E\x53\x77", 32}, MBEDTLS_ECP_DP_BP256R1 },
-    {   { (unsigned char *) "\x8C\xB9\x1E\x82\xA3\x38\x6D\x28\x0F\x5D\x6F\x7E\x50\xE6\x41\xDF\x15\x2F\x71\x09\xED\x54\x56\xB4\x12\xB1\xDA\x19\x7F\xB7\x11\x23\xAC\xD3\xA7\x29\x90\x1D\x1A\x71\x87\x47\x00\x13\x31\x07\xEC\x53", 48}, MBEDTLS_ECP_DP_BP384R1 },
-    {   { (unsigned char *) "\xAA\xDD\x9D\xB8\xDB\xE9\xC4\x8B\x3F\xD4\xE6\xAE\x33\xC9\xFC\x07\xCB\x30\x8D\xB3\xB3\xC9\xD2\x0E\xD6\x63\x9C\xCA\x70\x33\x08\x71\x7D\x4D\x9B\x00\x9B\xC6\x68\x42\xAE\xCD\xA1\x2A\xE6\xA3\x80\xE6\x28\x81\xFF\x2F\x2D\x82\xC6\x85\x28\xAA\x60\x56\x58\x3A\x48\xF3", 64}, MBEDTLS_ECP_DP_BP512R1 },
-    {   { (unsigned char *) "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFE\xFF\xFF\xEE\x37", 24}, MBEDTLS_ECP_DP_SECP192K1 },
-    {   { (unsigned char *) "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFE\xFF\xFF\xFC\x2F", 32}, MBEDTLS_ECP_DP_SECP256K1 },
-    {   { NULL, 0 }, MBEDTLS_ECP_DP_NONE }
-};
-
 //Stores the private and public keys in flash
 int store_keys(void *key_ctx, int type, uint8_t key_id, sc_context_t *ctx) {
     int r, key_size;
@@ -793,13 +776,7 @@ static int cmd_keypair_gen() {
             else if (memcmp(oid, "\x4\x0\x7F\x0\x7\x2\x2\x2\x2\x3",MIN(oid_len,10)) == 0) { //ECC
                 size_t prime_len;
                 const uint8_t *prime = sc_asn1_find_tag(ctx, p, tout, 0x81, &prime_len);
-                mbedtls_ecp_group_id ec_id = MBEDTLS_ECP_DP_NONE;
-                for (struct ec_curve_mbed_id *ec = ec_curves_mbed; ec->id != MBEDTLS_ECP_DP_NONE; ec++) {
-                    if (prime_len == ec->curve.len && memcmp(prime, ec->curve.value, prime_len) == 0) {
-                        ec_id = ec->id;
-                        break;
-                    }
-                }
+                mbedtls_ecp_group_id ec_id = ec_get_curve_from_prime(prime, prime_len);
                 printf("KEYPAIR ECC %d\r\n",ec_id);
                 if (ec_id == MBEDTLS_ECP_DP_NONE) {
                     sc_pkcs15emu_sc_hsm_free_cvc(&cvc);
@@ -1130,23 +1107,19 @@ static int cmd_key_gen() {
 
 int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
     int key_size = file_read_uint16(fkey->data);
-    uint8_t *kdata = (uint8_t *)calloc(1,key_size);
+    uint8_t kdata[4096/8];
     memcpy(kdata, file_read(fkey->data+2), key_size);
     if (dkek_decrypt(kdata, key_size) != 0) {
-        free(kdata);
         return SW_EXEC_ERROR();
     }
     if (mbedtls_mpi_read_binary(&ctx->P, kdata, key_size/2) != 0) {
         mbedtls_rsa_free(ctx);
-        free(kdata);
         return SW_DATA_INVALID();
     }
     if (mbedtls_mpi_read_binary(&ctx->Q, kdata+key_size/2, key_size/2) != 0) {
         mbedtls_rsa_free(ctx);
-        free(kdata);
         return SW_DATA_INVALID();
     }
-    free(kdata);
     if (mbedtls_mpi_lset(&ctx->E, 0x10001) != 0) {
         mbedtls_rsa_free(ctx);
         return SW_EXEC_ERROR();
@@ -1168,20 +1141,17 @@ int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
 
 int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey) {
     int key_size = file_read_uint16(fkey->data);
-    uint8_t *kdata = (uint8_t *)calloc(1,key_size);
+    uint8_t kdata[67]; //Worst case, 521 bit + 1byte
     memcpy(kdata, file_read(fkey->data+2), key_size);
     if (dkek_decrypt(kdata, key_size) != 0) {
-        free(kdata);
         return HSM_EXEC_ERROR;
     }
     mbedtls_ecp_group_id gid = kdata[0];
     int r = mbedtls_ecp_read_key(gid, ctx, kdata+1, key_size-1);
     if (r != 0) {
-        free(kdata);
         mbedtls_ecdsa_free(ctx);
         return HSM_EXEC_ERROR;
     }
-    free(kdata);
     return HSM_OK;
 }
 
