@@ -130,7 +130,6 @@ int dkek_encode_key(void *key_ctx, int key_type, uint8_t *out, size_t *out_len) 
     uint8_t *allowed = NULL;
     uint8_t allowed_len = 0;
     uint8_t kenc[32];
-    
     memset(kenc, 0, sizeof(kenc));
     dkek_kenc(kenc);
     
@@ -155,8 +154,8 @@ int dkek_encode_key(void *key_ctx, int key_type, uint8_t *out, size_t *out_len) 
         if (*out_len < 8+1+10+6+4+(2+32+14)+16)
             return HSM_WRONG_LENGTH;
         
-        memcpy(kb+10, key_ctx, kb_len);
         put_uint16_t(kb_len, kb+8);
+        memcpy(kb+10, key_ctx, kb_len);
         kb_len += 2;
         
         algo = "\x00\x08\x60\x86\x48\x01\x65\x03\x04\x01"; //2.16.840.1.101.3.4.1 (2+8)
@@ -261,5 +260,187 @@ int dkek_encode_key(void *key_ctx, int key_type, uint8_t *out, size_t *out_len) 
     if (r != 0)
         return r;
     return HSM_OK;
-} 
+}
 
+int dkek_type_key(const uint8_t *in) {
+    if (in[8] == 5)
+        return HSM_KEY_RSA;
+    else if (in[8] == 12)
+        return HSM_KEY_EC;
+    else if (in[8] == 15)
+        return HSM_KEY_AES;
+    return 0x0;
+}
+
+int dkek_decode_key(void *key_ctx, const uint8_t *in, size_t in_len) {
+    uint8_t kcv[8];
+    memset(kcv, 0, sizeof(kcv));
+    dkek_kcv(kcv);
+    
+    uint8_t kmac[32];
+    memset(kmac, 0, sizeof(kmac));
+    dkek_kmac(kmac);
+    
+    uint8_t kenc[32];
+    memset(kenc, 0, sizeof(kenc));
+    dkek_kenc(kenc);
+    
+    if (memcmp(kcv, in, 8) != 0)
+        return HSM_WRONG_DKEK;
+        
+    uint8_t signature[16];
+    int r = mbedtls_cipher_cmac(mbedtls_cipher_info_from_type(MBEDTLS_CIPHER_AES_256_ECB), kmac, 256, in, in_len-16, signature);
+    if (r != 0)
+        return HSM_WRONG_SIGNATURE;
+    if (memcmp(signature, in+in_len-16, 16) != 0)
+        return HSM_WRONG_SIGNATURE;
+        
+    int key_type = in[8];
+        
+    if (key_type != 5 && key_type != 6 && key_type != 12 && key_type != 15)
+        return HSM_WRONG_DATA;
+    
+    if ((key_type == 5 || key_type == 6) && memcmp(in+9, "\x00\x0A\x04\x00\x7F\x00\x07\x02\x02\x02\x01\x02", 12) != 0)
+        return HSM_WRONG_DATA;
+        
+    if (key_type == 12 && memcmp(in+9, "\x00\x0A\x04\x00\x7F\x00\x07\x02\x02\x02\x02\x03", 12) != 0)
+        return HSM_WRONG_DATA;
+        
+    if (key_type == 15 && memcmp(in+9, "\x00\x08\x60\x86\x48\x01\x65\x03\x04\x01", 10) != 0)
+        return HSM_WRONG_DATA;
+        
+    size_t ofs = 9;
+    
+    //OID
+    size_t len = get_uint16_t(in, ofs);
+    ofs += len+2;
+    
+    //Allowed algorithms
+    len = get_uint16_t(in, ofs);
+    ofs += len+2;
+    
+    //Access conditions
+    len = get_uint16_t(in, ofs);
+    ofs += len+2;
+    
+    //Key OID
+    len = get_uint16_t(in, ofs);
+    ofs += len+2;
+    
+    if ((in_len-16-ofs) % 16 != 0)
+        return HSM_WRONG_PADDING;
+    uint8_t kb[8+2*4+2*4096/8+3+13]; //worst case: RSA-4096  (plus, 13 bytes padding)
+    memset(kb, 0, sizeof(kb));
+    r = aes_encrypt(kenc, NULL, 256, HSM_AES_MODE_CBC, kb, in_len-16-ofs);
+    if (r != HSM_OK)
+        return r;
+    
+    int key_size = get_uint16_t(kb, 8);
+    ofs = 10;
+    if (key_type == 5 || key_type == 6) {
+        mbedtls_rsa_context *rsa = (mbedtls_rsa_context *)key_ctx;
+        mbedtls_rsa_init(rsa);
+        if (key_type == 5) {
+            len = get_uint16_t(kb, ofs); ofs += 2;
+            r = mbedtls_mpi_read_binary(&rsa->D, kb+ofs, len); ofs += len;
+            if (r != 0) {
+                mbedtls_rsa_free(rsa);
+                return HSM_WRONG_DATA;
+            }
+        }
+        else if (key_type == 6) {
+            //DP-1
+            len = get_uint16_t(kb, ofs); ofs += len+2;
+            
+            //DQ-1
+            len = get_uint16_t(kb, ofs); ofs += len+2;
+            
+            r = mbedtls_mpi_read_binary(&rsa->P, kb+ofs, len); ofs += len;
+            if (r != 0) {
+                mbedtls_rsa_free(rsa);
+                return HSM_WRONG_DATA;
+            }
+            
+            //PQ
+            len = get_uint16_t(kb, ofs); ofs += len+2;
+            
+            r = mbedtls_mpi_read_binary(&rsa->Q, kb+ofs, len); ofs += len;
+            if (r != 0) {
+                mbedtls_rsa_free(rsa);
+                return HSM_WRONG_DATA;
+            }
+        }
+        len = get_uint16_t(kb, ofs); ofs += 2;
+        r = mbedtls_mpi_read_binary(&rsa->N, kb+ofs, len); ofs += len;
+        if (r != 0) {
+            mbedtls_rsa_free(rsa);
+            return HSM_WRONG_DATA;
+        }
+        
+        len = get_uint16_t(kb, ofs); ofs += 2;
+        r = mbedtls_mpi_read_binary(&rsa->E, kb+ofs, len); ofs += len;
+        if (r != 0) {
+            mbedtls_rsa_free(rsa);
+            return HSM_WRONG_DATA;
+        }
+        
+        if (key_type == 5) {
+            r = mbedtls_rsa_import(rsa, &rsa->N, NULL, NULL, &rsa->D, &rsa->E);
+            if (r != 0) {
+                mbedtls_rsa_free(rsa);
+                return HSM_EXEC_ERROR;
+            }
+        }
+        else if (key_type == 6) {
+            r = mbedtls_rsa_import(rsa, NULL, &rsa->P, &rsa->Q, NULL, &rsa->E);
+            if (r != 0) {
+                mbedtls_rsa_free(rsa);
+                return HSM_EXEC_ERROR;
+            }
+        }
+        
+        if (mbedtls_rsa_complete(rsa) != 0) {
+            mbedtls_rsa_free(rsa);
+            return HSM_EXEC_ERROR;
+        }
+        if (mbedtls_rsa_check_privkey(rsa) != 0) {
+            mbedtls_rsa_free(rsa);
+            return HSM_EXEC_ERROR;
+        }
+    }
+    else if (key_type == 12) {
+        mbedtls_ecdsa_context *ecdsa = (mbedtls_ecdsa_context *)key_ctx;
+        mbedtls_ecdsa_init(ecdsa);
+        
+        //A
+        len = get_uint16_t(kb, ofs); ofs += len+2;
+        
+        //B
+        len = get_uint16_t(kb, ofs); ofs += len+2;
+        
+        //P
+        len = get_uint16_t(kb, ofs); ofs += 2;
+        mbedtls_ecp_group_id ec_id = ec_get_curve_from_prime(kb+ofs, len);
+        if (ec_id == MBEDTLS_ECP_DP_NONE) {
+            mbedtls_ecdsa_free(ecdsa);
+            return HSM_WRONG_DATA;
+        }
+        
+        //N
+        len = get_uint16_t(kb, ofs); ofs += len+2;
+        
+        //G
+        len = get_uint16_t(kb, ofs); ofs += len+2;
+        
+        //d
+        r = mbedtls_ecp_read_key(ec_id, ecdsa, kb+ofs, len);
+        if (r != 0) {
+            mbedtls_ecdsa_free(ecdsa);
+            return HSM_EXEC_ERROR;
+        }
+    }
+    else if (key_type == 15) {
+        memcpy(key_ctx, kb+ofs, key_size);
+    }
+    return HSM_OK;
+}
