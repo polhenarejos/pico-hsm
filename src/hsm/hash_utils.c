@@ -78,26 +78,24 @@ int aes_encrypt(const uint8_t *key, const uint8_t *iv, int key_size, uint8_t *da
     mbedtls_aes_context aes;
     mbedtls_aes_init(&aes);
     uint8_t tmp_iv[IV_SIZE];
-    size_t iv_offset = 0;
     memset(tmp_iv, 0, IV_SIZE);
     if (iv)
         memcpy(tmp_iv, iv, IV_SIZE);
     int r = mbedtls_aes_setkey_enc(&aes, key, key_size);
     if (r != 0)
         return HSM_EXEC_ERROR;
-    return mbedtls_aes_crypt_cfb128(&aes, MBEDTLS_AES_ENCRYPT, len, &iv_offset, tmp_iv, data, data);
+    return mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_ENCRYPT, len, tmp_iv, data, data);
 }
 
 int aes_decrypt(const uint8_t *key, const uint8_t *iv, int key_size, uint8_t *data, int len) {
     mbedtls_aes_context aes;
     mbedtls_aes_init(&aes);
     uint8_t tmp_iv[IV_SIZE];
-    size_t iv_offset = 0;
     memset(tmp_iv, 0, IV_SIZE);
     if (iv)
         memcpy(tmp_iv, iv, IV_SIZE);
-    int r = mbedtls_aes_setkey_enc(&aes, key, key_size);
+    int r = mbedtls_aes_setkey_dec(&aes, key, key_size);
     if (r != 0)
         return HSM_EXEC_ERROR;
-    return mbedtls_aes_crypt_cfb128(&aes, MBEDTLS_AES_DECRYPT, len, &iv_offset, tmp_iv, data, data);
+    return mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_DECRYPT, len, tmp_iv, data, data);
 }
