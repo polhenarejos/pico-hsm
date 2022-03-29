@@ -296,7 +296,6 @@ int dkek_decode_key(void *key_ctx, const uint8_t *in, size_t in_len) {
         return HSM_WRONG_SIGNATURE;
         
     int key_type = in[8];
-        
     if (key_type != 5 && key_type != 6 && key_type != 12 && key_type != 15)
         return HSM_WRONG_DATA;
     
@@ -331,7 +330,8 @@ int dkek_decode_key(void *key_ctx, const uint8_t *in, size_t in_len) {
         return HSM_WRONG_PADDING;
     uint8_t kb[8+2*4+2*4096/8+3+13]; //worst case: RSA-4096  (plus, 13 bytes padding)
     memset(kb, 0, sizeof(kb));
-    r = aes_encrypt(kenc, NULL, 256, HSM_AES_MODE_CBC, kb, in_len-16-ofs);
+    memcpy(kb, in+ofs, in_len-16-ofs);
+    r = aes_decrypt(kenc, NULL, 256, HSM_AES_MODE_CBC, kb, in_len-16-ofs);
     if (r != HSM_OK)
         return r;
     
@@ -425,6 +425,7 @@ int dkek_decode_key(void *key_ctx, const uint8_t *in, size_t in_len) {
             mbedtls_ecdsa_free(ecdsa);
             return HSM_WRONG_DATA;
         }
+        ofs += len;
         
         //N
         len = get_uint16_t(kb, ofs); ofs += len+2;
@@ -433,6 +434,7 @@ int dkek_decode_key(void *key_ctx, const uint8_t *in, size_t in_len) {
         len = get_uint16_t(kb, ofs); ofs += len+2;
         
         //d
+        len = get_uint16_t(kb, ofs); ofs += 2;
         r = mbedtls_ecp_read_key(ec_id, ecdsa, kb+ofs, len);
         if (r != 0) {
             mbedtls_ecdsa_free(ecdsa);

@@ -23,6 +23,16 @@
 #include "mbedtls/ecp.h"
 #include "mbedtls/md.h"
 
+#define HSM_KEY_RSA                 0x1
+#define HSM_KEY_EC                  0x10
+#define HSM_KEY_AES                 0x100
+#define HSM_KEY_AES_128             0x300
+#define HSM_KEY_AES_192             0x500
+#define HSM_KEY_AES_256             0x900
+
+#define HSM_AES_MODE_CBC            1
+#define HSM_AES_MODE_CFB            2
+
 extern void double_hash_pin(const uint8_t *pin, size_t len, uint8_t output[32]);
 extern void hash_multi(const uint8_t *input, size_t len, uint8_t output[32]);
 extern void hash256(const uint8_t *input, size_t len, uint8_t output[32]);

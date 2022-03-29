@@ -589,31 +589,28 @@ static int cmd_import_dkek() {
 //Stores the private and public keys in flash
 int store_keys(void *key_ctx, int type, uint8_t key_id, sc_context_t *ctx) {
     int r, key_size;
-    uint8_t *asn1bin, *kdata;
+    uint8_t *asn1bin;
     size_t asn1len = 0;
+    uint8_t kdata[4096/8]; //worst case
     if (type == SC_PKCS15_TYPE_PRKEY_RSA) {
         mbedtls_rsa_context *rsa = (mbedtls_rsa_context *)key_ctx;
         key_size = mbedtls_mpi_size(&rsa->P)+mbedtls_mpi_size(&rsa->Q);
-        kdata = (uint8_t *)calloc(1, key_size);
         mbedtls_mpi_write_binary(&rsa->P, kdata, key_size/2);
         mbedtls_mpi_write_binary(&rsa->Q, kdata+key_size/2, key_size/2);
     }
     else {
         mbedtls_ecdsa_context *ecdsa = (mbedtls_ecdsa_context *)key_ctx;
         key_size = mbedtls_mpi_size(&ecdsa->d);
-        kdata = (uint8_t *)calloc(1, key_size+1);
         kdata[0] = ecdsa->grp.id & 0xff;
         mbedtls_mpi_write_binary(&ecdsa->d, kdata+1, key_size);
         key_size++;
     }
     r = dkek_encrypt(kdata, key_size);
     if (r != HSM_OK) {
-        free(kdata);
         return r;
     }
     file_t *fpk = file_new((KEY_PREFIX << 8) | key_id);
     r = flash_write_data_to_file(fpk, kdata, key_size);
-    free(kdata); 
     if (r != HSM_OK)
         return r;
     //add_file_to_chain(fpk, &ef_kf);
@@ -1295,7 +1292,7 @@ static int cmd_signature() {
 }
 
 static int cmd_key_wrap() {
-    int key_id = P1(apdu);
+    int key_id = P1(apdu), r = 0, key_type = 0x0;
     if (P2(apdu) != 0x92)
         return SW_WRONG_P1P2();
     if (!isUserAuthenticated)
@@ -1303,23 +1300,75 @@ static int cmd_key_wrap() {
     file_t *ef = search_dynamic_file((KEY_PREFIX << 8) | key_id);
     if (!ef)
         return SW_FILE_NOT_FOUND();
-    int key_len = file_read_uint16(ef->data);
-    memcpy(res_APDU, file_read(ef->data+2), key_len);
-    res_APDU_size = key_len;
+    file_t *prkd = search_dynamic_file((PRKD_PREFIX << 8) | key_id);
+    if (!prkd)
+        return SW_FILE_NOT_FOUND();
+    const uint8_t *dprkd = file_read(prkd->data+2);
+    size_t wrap_len = MAX_DKEK_ENCODE_KEY_BUFFER;
+    if (*dprkd == P15_KEYTYPE_RSA) {
+        mbedtls_rsa_context ctx;
+        mbedtls_rsa_init(&ctx);
+        r = load_private_key_rsa(&ctx, ef);
+        if (r != HSM_OK) {
+            mbedtls_rsa_free(&ctx);
+            return SW_EXEC_ERROR();
+        }
+        r = dkek_encode_key(&ctx, HSM_KEY_RSA, res_APDU, &wrap_len);
+        mbedtls_rsa_free(&ctx);
+    }
+    else if (*dprkd == P15_KEYTYPE_ECC) {
+        mbedtls_ecdsa_context ctx;
+        mbedtls_ecdsa_init(&ctx);
+        r = load_private_key_ecdsa(&ctx, ef);
+        if (r != HSM_OK) {
+            mbedtls_ecdsa_free(&ctx);
+            return SW_EXEC_ERROR();
+        }
+        r = dkek_encode_key(&ctx, HSM_KEY_EC, res_APDU, &wrap_len);
+        mbedtls_ecdsa_free(&ctx);
+    }
+    if (r != HSM_OK)
+        return SW_EXEC_ERROR();
+    res_APDU_size = wrap_len;
     return SW_OK();
 }
 
 static int cmd_key_unwrap() {
-    int key_id = P1(apdu);
+    int key_id = P1(apdu), r = 0;
     if (P2(apdu) != 0x93)
         return SW_WRONG_P1P2();
     if (!isUserAuthenticated)
         return SW_SECURITY_STATUS_NOT_SATISFIED();
-    file_t *ef = search_dynamic_file((KEY_PREFIX << 8) | key_id);
-    if (!ef)
-        ef = file_new((KEY_PREFIX << 8) | key_id);
-    flash_write_data_to_file(ef, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
-    low_flash_available();
+    int key_type = dkek_type_key(apdu.cmd_apdu_data);
+    if (key_type == 0x0)
+        return SW_DATA_INVALID();
+    if (key_type == HSM_KEY_RSA) {
+        mbedtls_rsa_context ctx;
+        mbedtls_rsa_init(&ctx);
+        r = dkek_decode_key(&ctx, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
+        printf("r %d\r\n",r);
+        if (r != HSM_OK) {
+            mbedtls_rsa_free(&ctx);
+            return SW_EXEC_ERROR();
+        }
+        sc_context_t *card_ctx = create_context();
+        r = store_keys(&ctx, SC_PKCS15_TYPE_PRKEY_RSA, key_id, card_ctx);
+        free(card_ctx);
+        mbedtls_rsa_free(&ctx);
+    }
+    else if (key_type == HSM_KEY_EC) {
+        mbedtls_ecdsa_context ctx;
+        mbedtls_ecdsa_init(&ctx);
+        r = dkek_decode_key(&ctx, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
+        if (r != HSM_OK) {
+            mbedtls_ecdsa_free(&ctx);
+            return SW_EXEC_ERROR();
+        }
+        sc_context_t *card_ctx = create_context();
+        r = store_keys(&ctx, SC_PKCS15_TYPE_PRKEY_EC, key_id, card_ctx);
+        free(card_ctx);
+        mbedtls_ecdsa_free(&ctx);
+    }
     return SW_OK();
 }
 

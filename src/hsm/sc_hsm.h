@@ -97,15 +97,9 @@ extern const uint8_t sc_hsm_aid[];
 #define HSM_OPT_COMBINED_AUTH       0x10
 #define HSM_OPT_RRC_RESET_ONLY      0x20
 
-#define HSM_KEY_RSA                 0x1
-#define HSM_KEY_EC                  0x10
-#define HSM_KEY_AES                 0x100
-#define HSM_KEY_AES_128             0x300
-#define HSM_KEY_AES_192             0x500
-#define HSM_KEY_AES_256             0x900
-
-#define HSM_AES_MODE_CBC            1
-#define HSM_AES_MODE_CFB            2
+#define P15_KEYTYPE_RSA     0x30
+#define P15_KEYTYPE_ECC     0xA0
+#define P15_KEYTYPE_AES     0xA8
 
 extern int pin_reset_retries(const file_t *pin, bool);
 extern int pin_wrong_retry(const file_t *pin);
