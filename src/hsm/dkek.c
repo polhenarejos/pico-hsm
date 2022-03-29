@@ -175,8 +175,13 @@ int dkek_encode_key(void *key_ctx, int key_type, uint8_t *out, size_t *out_len) 
         mbedtls_mpi_write_binary(&rsa->N, kb+8+kb_len, mbedtls_mpi_size(&rsa->N)); kb_len += mbedtls_mpi_size(&rsa->N);
         put_uint16_t(mbedtls_mpi_size(&rsa->E), kb+8+kb_len); kb_len += 2;
         mbedtls_mpi_write_binary(&rsa->E, kb+8+kb_len, mbedtls_mpi_size(&rsa->E)); kb_len += mbedtls_mpi_size(&rsa->E);
+        
+        algo = "\x00\x0A\x04\x00\x7F\x00\x07\x02\x02\x02\x01\x02";
+        algo_len = 12;
     }
     else if (key_type & HSM_KEY_EC) {
+        if (*out_len < 8+1+10+6+4+48+16)
+            return HSM_WRONG_LENGTH;
         mbedtls_ecdsa_context *ecdsa = (mbedtls_ecdsa_context *)key_ctx;
         kb_len = 0;
         put_uint16_t(mbedtls_mpi_size(&ecdsa->grp.P)*8, kb+8+kb_len); kb_len += 2;
@@ -198,6 +203,9 @@ int dkek_encode_key(void *key_ctx, int key_type, uint8_t *out, size_t *out_len) 
         kb[8+kb_len++] = 0x4;
         mbedtls_mpi_write_binary(&ecdsa->Q.X, kb+8+kb_len, mbedtls_mpi_size(&ecdsa->Q.X)); kb_len += mbedtls_mpi_size(&ecdsa->Q.X);
         mbedtls_mpi_write_binary(&ecdsa->Q.Y, kb+8+kb_len, mbedtls_mpi_size(&ecdsa->Q.Y)); kb_len += mbedtls_mpi_size(&ecdsa->Q.Y);
+        
+        algo = "\x00\x0A\x04\x00\x7F\x00\x07\x02\x02\x02\x02\x03";
+        algo_len = 12;
     }
     memset(out, 0, *out_len);
     *out_len = 0;
@@ -205,11 +213,11 @@ int dkek_encode_key(void *key_ctx, int key_type, uint8_t *out, size_t *out_len) 
     memcpy(out+*out_len, kcv, 8);
     *out_len += 8;
     
-    if (key_type == HSM_KEY_AES)
+    if (key_type & HSM_KEY_AES)
         out[*out_len] = 15;
-    else if (key_type == HSM_KEY_RSA)
+    else if (key_type & HSM_KEY_RSA)
         out[*out_len] = 5;
-    else if (key_type == HSM_KEY_EC)
+    else if (key_type & HSM_KEY_EC)
         out[*out_len] = 12;
     *out_len += 1;
     
