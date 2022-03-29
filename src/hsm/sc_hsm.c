@@ -31,6 +31,7 @@
 #include "version.h"
 #include "cvcerts.h"
 #include "hash_utils.h"
+#include "dkek.h"
 
 const uint8_t sc_hsm_aid[] = {
     11, 
@@ -40,7 +41,6 @@ const uint8_t sc_hsm_aid[] = {
 uint8_t session_pin[32], session_sopin[32];
 bool has_session_pin = false, has_session_sopin = false;
 static uint8_t dkeks = 0, current_dkeks = 0;
-static uint8_t tmp_dkek[IV_SIZE+32];
 
 static int sc_hsm_process_apdu();
 
@@ -72,51 +72,6 @@ int sc_hsm_unload() {
     has_session_pin = has_session_sopin = false;
     isUserAuthenticated = false;
     return HSM_OK;
-}
-
-//AES CFB encryption with a 256 bit key
-static int encrypt(const uint8_t *key, const uint8_t *iv, uint8_t *data, int len)
-{
-    mbedtls_aes_context aes;
-    mbedtls_aes_init(&aes);
-    uint8_t tmp_iv[IV_SIZE];
-    size_t iv_offset = 0;
-    memcpy(tmp_iv, iv, IV_SIZE);
-    int r = mbedtls_aes_setkey_enc(&aes, key, 256);
-    if (r != 0)
-        return HSM_EXEC_ERROR;
-    return mbedtls_aes_crypt_cfb128(&aes, MBEDTLS_AES_ENCRYPT, len, &iv_offset, tmp_iv, data, data);
-}
-
-//AES CFB decryption with a 256 bit key
-static int decrypt(const uint8_t *key, const uint8_t *iv, uint8_t *data, int len)
-{
-    mbedtls_aes_context aes;
-    mbedtls_aes_init(&aes);
-    uint8_t tmp_iv[IV_SIZE];
-    size_t iv_offset = 0;
-    memcpy(tmp_iv, iv, IV_SIZE);
-    int r = mbedtls_aes_setkey_dec(&aes, key, 256);
-    if (r != 0)
-        return HSM_EXEC_ERROR;
-    return mbedtls_aes_crypt_cfb128(&aes, MBEDTLS_AES_DECRYPT, len, &iv_offset, tmp_iv, data, data);
-}
-
-int load_dkek() {
-    if (has_session_pin == false)
-        return HSM_NO_LOGIN;
-    file_t *tf = search_by_fid(EF_DKEK, NULL, SPECIFY_EF);
-    if (!tf)
-        return HSM_ERR_FILE_NOT_FOUND;
-    memcpy(tmp_dkek, file_read(tf->data+sizeof(uint16_t)), IV_SIZE+32);
-    int ret = decrypt(session_pin, tmp_dkek, tmp_dkek+IV_SIZE, 32);
-    if (ret != 0)
-        return HSM_EXEC_ERROR;
-    return HSM_OK;
-}
-
-void release_dkek() {
-    memset(tmp_dkek, 0, sizeof(tmp_dkek));
 }
 
 void select_file(file_t *pe) {
@@ -583,17 +538,11 @@ static int cmd_initialize() {
             }
             p += tag_len;
         }
-        p = random_bytes_get(32);
-        memset(tmp_dkek, 0, sizeof(tmp_dkek));
-        memcpy(tmp_dkek, p, IV_SIZE);
         if (dkeks == 0) {
-            p = random_bytes_get(32);
-            memcpy(tmp_dkek+IV_SIZE, p, 32);
-            encrypt(session_pin, tmp_dkek, tmp_dkek+IV_SIZE, 32);
-            file_t *tf = search_by_fid(EF_DKEK, NULL, SPECIFY_EF);
-            flash_write_data_to_file(tf, tmp_dkek, sizeof(tmp_dkek));
+            int r = save_dkek_key(random_bytes_get(32));
+            if (r != HSM_OK)
+                return SW_EXEC_ERROR();
         }
-        low_flash_available();
     }
     else { //free memory bytes request
         int heap_left = heapLeft();
@@ -621,28 +570,19 @@ static int cmd_import_dkek() {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
     if (apdu.cmd_apdu_data_len > 0) {
-        for (int i = 0; i < apdu.cmd_apdu_data_len; i++)
-            tmp_dkek[IV_SIZE+i] ^= apdu.cmd_apdu_data[i];
+        if (apdu.cmd_apdu_data_len < 32)
+            return SW_WRONG_LENGTH();
+        import_dkek_share(apdu.cmd_apdu_data);
         if (++current_dkeks == dkeks) {
-            encrypt(session_pin, tmp_dkek, tmp_dkek+IV_SIZE, 32);
-            flash_write_data_to_file(tf, tmp_dkek, sizeof(tmp_dkek));
-            memset(tmp_dkek, 0, sizeof(tmp_dkek));
-            low_flash_available();
+            if (save_dkek_key(NULL) != HSM_OK)
+                return SW_FILE_NOT_FOUND();
+            
         }
     }
     res_APDU[0] = dkeks;
     res_APDU[1] = dkeks-current_dkeks;
-    //FNV hash
-    uint64_t hash = 0xcbf29ce484222325;
-    memcpy(tmp_dkek, file_read(tf->data+sizeof(uint16_t)), IV_SIZE+32);
-    decrypt(session_pin, tmp_dkek, tmp_dkek+IV_SIZE, 32);
-    for (int i = 0; i < 32; i++) {
-        hash ^= tmp_dkek[IV_SIZE+i];
-        hash *= 0x00000100000001B3;
-    }
-    memset(tmp_dkek, 0, sizeof(tmp_dkek));
-    memcpy(res_APDU+2,&hash,sizeof(hash));
-    res_APDU_size = 2+sizeof(hash);
+    dkek_kcv(res_APDU+2);
+    res_APDU_size = 2+8;
     return SW_OK();
 }
 
@@ -683,11 +623,11 @@ int store_keys(void *key_ctx, int type, uint8_t key_id, sc_context_t *ctx) {
         mbedtls_mpi_write_binary(&ecdsa->d, kdata+1, key_size);
         key_size++;
     }
-    if ((r = load_dkek()) != HSM_OK)
+    r = dkek_encrypt(kdata, key_size);
+    if (r != HSM_OK) {
+        free(kdata);
         return r;
-    if ((r = encrypt(tmp_dkek+IV_SIZE, tmp_dkek, kdata, key_size)) != 0)
-        return r;
-    release_dkek();
+    }
     file_t *fpk = file_new((KEY_PREFIX << 8) | key_id);
     r = flash_write_data_to_file(fpk, kdata, key_size);
     free(kdata); 
@@ -1141,10 +1081,8 @@ static int cmd_change_pin() {
             //encrypt DKEK with new pin
             hash_multi(apdu.cmd_apdu_data+pin_len, apdu.cmd_apdu_data_len-pin_len, session_pin);
             has_session_pin = true;
-            encrypt(session_pin, tmp_dkek, tmp_dkek+IV_SIZE, 32);
-            file_t *tf = search_by_fid(EF_DKEK, NULL, SPECIFY_EF);
-            flash_write_data_to_file(tf, tmp_dkek, sizeof(tmp_dkek));
-            release_dkek();
+            if (store_dkek_key() != HSM_OK)
+                return SW_EXEC_ERROR();
             uint8_t dhash[33];
             dhash[0] = apdu.cmd_apdu_data_len-pin_len;
             double_hash_pin(apdu.cmd_apdu_data+pin_len, apdu.cmd_apdu_data_len-pin_len, dhash+1);
@@ -1171,11 +1109,9 @@ static int cmd_key_gen() {
     //at this moment, we do not use the template, as only CBC is supported by the driver (encrypt, decrypt and CMAC)
     uint8_t aes_key[32]; //maximum AES key size
     memcpy(aes_key, random_bytes_get(key_size), key_size);
-    if ((r = load_dkek()) != HSM_OK)
-        return SW_EXEC_ERROR() ;
-    if ((r = encrypt(tmp_dkek+IV_SIZE, tmp_dkek, aes_key, key_size)) != 0)
-        return SW_EXEC_ERROR() ;
-    release_dkek();
+    r = dkek_encrypt(aes_key, key_size);
+    if (r != HSM_OK)
+        return SW_EXEC_ERROR();
     file_t *fpk = file_new((KEY_PREFIX << 8) | key_id);
     if (!fpk)
         return SW_MEMORY_FAILURE();
@@ -1198,11 +1134,10 @@ int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
         return SW_EXEC_ERROR();
     uint8_t *kdata = (uint8_t *)calloc(1,key_size);
     memcpy(kdata, file_read(fkey->data+2), key_size);
-    if (decrypt(tmp_dkek+IV_SIZE, tmp_dkek, kdata, key_size) != 0) {
+    if (dkek_decrypt(kdata, key_size) != 0) {
         free(kdata);
         return SW_EXEC_ERROR();
     }
-    release_dkek();
     if (mbedtls_mpi_read_binary(&ctx->P, kdata, key_size/2) != 0) {
         mbedtls_rsa_free(ctx);
         free(kdata);
@@ -1239,11 +1174,10 @@ int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey) {
         return HSM_EXEC_ERROR;
     uint8_t *kdata = (uint8_t *)calloc(1,key_size);
     memcpy(kdata, file_read(fkey->data+2), key_size);
-    if (decrypt(tmp_dkek+IV_SIZE, tmp_dkek, kdata, key_size) != 0) {
+    if (dkek_decrypt(kdata, key_size) != 0) {
         free(kdata);
         return HSM_EXEC_ERROR;
     }
-    release_dkek();
     mbedtls_ecp_group_id gid = kdata[0];
     int r = mbedtls_ecp_read_key(gid, ctx, kdata+1, key_size-1);
     if (r != 0) {
@@ -1454,11 +1388,10 @@ static int cmd_decrypt_asym() {
             return SW_EXEC_ERROR();
         uint8_t *kdata = (uint8_t *)calloc(1,key_size);
         memcpy(kdata, file_read(ef->data+2), key_size);
-        if (decrypt(tmp_dkek+IV_SIZE, tmp_dkek, kdata, key_size) != 0) {
+        if (dkek_decrypt(kdata, key_size) != 0) {
             free(kdata);
             return SW_EXEC_ERROR();
         }
-        release_dkek();
         mbedtls_ecdh_init(&ctx);
         mbedtls_ecp_group_id gid = kdata[0];
         int r = 0;
@@ -1511,10 +1444,9 @@ static int cmd_cipher_sym() {
         return SW_EXEC_ERROR();
     uint8_t kdata[32]; //maximum AES key size
     memcpy(kdata, file_read(ef->data+2), key_size);
-    if (decrypt(tmp_dkek+IV_SIZE, tmp_dkek, kdata, key_size) != 0) {
+    if (dkek_decrypt(kdata, key_size) != 0) {
         return SW_EXEC_ERROR();
     }
-    release_dkek();
     if (algo == ALGO_AES_CBC_ENCRYPT || algo == ALGO_AES_CBC_DECRYPT) {
         mbedtls_aes_context aes;
         mbedtls_aes_init(&aes);

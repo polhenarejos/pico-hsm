@@ -18,4 +18,13 @@
 #ifndef _DKEK_H_
 #define _DKEK_H_
 
+extern int load_dkek();
+extern int save_dkek_key(const uint8_t *key);
+extern int store_dkek_key();
+extern void release_dkek();
+extern void import_dkek_share(const uint8_t *share);
+extern void dkek_kcv(uint8_t *kcv);
+extern int dkek_encrypt(uint8_t *data, size_t len);
+extern int dkek_decrypt(uint8_t *data, size_t len);
+
 #endif
