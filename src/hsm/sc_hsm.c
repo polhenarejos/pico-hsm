@@ -74,7 +74,7 @@ int sc_hsm_unload() {
     return HSM_OK;
 }
 
-//AES CBC encryption with a 256 bit key
+//AES CFB encryption with a 256 bit key
 static int encrypt(const uint8_t *key, const uint8_t *iv, uint8_t *data, int len)
 {
     mbedtls_aes_context aes;
@@ -82,13 +82,13 @@ static int encrypt(const uint8_t *key, const uint8_t *iv, uint8_t *data, int len
     uint8_t tmp_iv[IV_SIZE];
     size_t iv_offset = 0;
     memcpy(tmp_iv, iv, IV_SIZE);
-    int r = mbedtls_aes_setkey_enc (&aes, key, 256);
+    int r = mbedtls_aes_setkey_enc(&aes, key, 256);
     if (r != 0)
         return HSM_EXEC_ERROR;
     return mbedtls_aes_crypt_cfb128(&aes, MBEDTLS_AES_ENCRYPT, len, &iv_offset, tmp_iv, data, data);
 }
 
-//AES CBC decryption with a 256 bit key
+//AES CFB decryption with a 256 bit key
 static int decrypt(const uint8_t *key, const uint8_t *iv, uint8_t *data, int len)
 {
     mbedtls_aes_context aes;
@@ -96,7 +96,7 @@ static int decrypt(const uint8_t *key, const uint8_t *iv, uint8_t *data, int len
     uint8_t tmp_iv[IV_SIZE];
     size_t iv_offset = 0;
     memcpy(tmp_iv, iv, IV_SIZE);
-    int r = mbedtls_aes_setkey_enc (&aes, key, 256);
+    int r = mbedtls_aes_setkey_dec(&aes, key, 256);
     if (r != 0)
         return HSM_EXEC_ERROR;
     return mbedtls_aes_crypt_cfb128(&aes, MBEDTLS_AES_DECRYPT, len, &iv_offset, tmp_iv, data, data);
