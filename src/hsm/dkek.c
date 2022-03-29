@@ -122,7 +122,7 @@ int dkek_encode_key(void *key_ctx, int key_type, uint8_t *out, size_t *out_len) 
     if (!(key_type & HSM_KEY_RSA) && !(key_type & HSM_KEY_EC) && !(key_type & HSM_KEY_AES))
         return HSM_WRONG_DATA;
         
-    uint8_t kb[2*4096/8+3+8+5]; //worst case: RSA-4096 (ECC is 596 max) (plus, 5 bytes padding)
+    uint8_t kb[8+2*4+2*4096/8+3+13]; //worst case: RSA-4096  (plus, 13 bytes padding)
     memset(kb, 0, sizeof(kb));
     int kb_len = 0;
     uint8_t *algo = NULL;
@@ -152,7 +152,7 @@ int dkek_encode_key(void *key_ctx, int key_type, uint8_t *out, size_t *out_len) 
             
         if (kb_len != 16 && kb_len != 24 && kb_len != 32)
             return HSM_WRONG_DATA;
-        if (*out_len < 8+1+10+6+4+48+16)
+        if (*out_len < 8+1+10+6+4+(2+32+14)+16)
             return HSM_WRONG_LENGTH;
         
         memcpy(kb+10, key_ctx, kb_len);
@@ -165,6 +165,8 @@ int dkek_encode_key(void *key_ctx, int key_type, uint8_t *out, size_t *out_len) 
         allowed_len = 6;
     }
     else if (key_type & HSM_KEY_RSA) {
+        if (*out_len < 8+1+12+6+(8+2*4+2*4096/8+3+13)+16) //13 bytes pading 
+            return HSM_WRONG_LENGTH;
         mbedtls_rsa_context *rsa = (mbedtls_rsa_context *)key_ctx;
         kb_len = 0;
         put_uint16_t(mbedtls_rsa_get_len(rsa)*8, kb+8+kb_len); kb_len += 2;
@@ -180,7 +182,7 @@ int dkek_encode_key(void *key_ctx, int key_type, uint8_t *out, size_t *out_len) 
         algo_len = 12;
     }
     else if (key_type & HSM_KEY_EC) {
-        if (*out_len < 8+1+10+6+4+48+16)
+        if (*out_len < 8+1+12+6+(8+2*8+9*66+2+4)+16) //4 bytes pading 
             return HSM_WRONG_LENGTH;
         mbedtls_ecdsa_context *ecdsa = (mbedtls_ecdsa_context *)key_ctx;
         kb_len = 0;
