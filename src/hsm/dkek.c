@@ -272,7 +272,7 @@ int dkek_type_key(const uint8_t *in) {
     return 0x0;
 }
 
-int dkek_decode_key(void *key_ctx, const uint8_t *in, size_t in_len) {
+int dkek_decode_key(void *key_ctx, const uint8_t *in, size_t in_len, int *key_size_out) {
     uint8_t kcv[8];
     memset(kcv, 0, sizeof(kcv));
     dkek_kcv(kcv);
@@ -336,6 +336,8 @@ int dkek_decode_key(void *key_ctx, const uint8_t *in, size_t in_len) {
         return r;
     
     int key_size = get_uint16_t(kb, 8);
+    if (key_size_out)
+        *key_size_out = key_size;
     ofs = 10;
     if (key_type == 5 || key_type == 6) {
         mbedtls_rsa_context *rsa = (mbedtls_rsa_context *)key_ctx;

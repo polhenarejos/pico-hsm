@@ -28,7 +28,7 @@ extern int dkek_encrypt(uint8_t *data, size_t len);
 extern int dkek_decrypt(uint8_t *data, size_t len);
 extern int dkek_encode_key(void *key_ctx, int key_type, uint8_t *out, size_t *out_len);
 extern int dkek_type_key(const uint8_t *in);
-extern int dkek_decode_key(void *key_ctx, const uint8_t *in, size_t in_len);
+extern int dkek_decode_key(void *key_ctx, const uint8_t *in, size_t in_len, int *key_size_out);
 
 #define MAX_DKEK_ENCODE_KEY_BUFFER (8+1+12+6+(8+2*4+2*4096/8+3+13)+16)
 

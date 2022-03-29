@@ -232,7 +232,7 @@ int cvc_prepare_signatures(sc_pkcs15_card_t *p15card, sc_cvc_t *cvc, size_t sig_
 }
 
 int parse_token_info(const file_t *f, int mode) {
-    char *label = "SmartCard-HSM";
+    char *label = "Pico-HSM";
     char *manu = "Pol Henarejos";
     sc_pkcs15_tokeninfo_t *ti = (sc_pkcs15_tokeninfo_t *)calloc(1, sizeof(sc_pkcs15_tokeninfo_t));
     ti->version = HSM_VERSION_MAJOR;
@@ -589,7 +589,7 @@ static int cmd_import_dkek() {
 //Stores the private and public keys in flash
 int store_keys(void *key_ctx, int type, uint8_t key_id, sc_context_t *ctx) {
     int r, key_size;
-    uint8_t *asn1bin;
+    uint8_t *asn1bin = NULL;
     size_t asn1len = 0;
     uint8_t kdata[4096/8]; //worst case
     if (type == SC_PKCS15_TYPE_PRKEY_RSA) {
@@ -598,50 +598,64 @@ int store_keys(void *key_ctx, int type, uint8_t key_id, sc_context_t *ctx) {
         mbedtls_mpi_write_binary(&rsa->P, kdata, key_size/2);
         mbedtls_mpi_write_binary(&rsa->Q, kdata+key_size/2, key_size/2);
     }
-    else {
+    else if (type == SC_PKCS15_TYPE_PRKEY_EC) {
         mbedtls_ecdsa_context *ecdsa = (mbedtls_ecdsa_context *)key_ctx;
         key_size = mbedtls_mpi_size(&ecdsa->d);
         kdata[0] = ecdsa->grp.id & 0xff;
         mbedtls_mpi_write_binary(&ecdsa->d, kdata+1, key_size);
         key_size++;
     }
+    else if (type & HSM_KEY_AES) {
+        if (type == HSM_KEY_AES_128)
+            key_size = 16;
+        else if (type == HSM_KEY_AES_192)
+            key_size = 24;
+        else if (type == HSM_KEY_AES_256)
+            key_size = 32;
+        memcpy(kdata, key_ctx, key_size);
+    }
     r = dkek_encrypt(kdata, key_size);
     if (r != HSM_OK) {
         return r;
     }
     file_t *fpk = file_new((KEY_PREFIX << 8) | key_id);
+    if (!fpk)
+        return SW_MEMORY_FAILURE();
     r = flash_write_data_to_file(fpk, kdata, key_size);
     if (r != HSM_OK)
         return r;
     //add_file_to_chain(fpk, &ef_kf);
+    if (type == SC_PKCS15_TYPE_PRKEY_RSA || type == SC_PKCS15_TYPE_PRKEY_EC) {
+        struct sc_pkcs15_object *p15o = (struct sc_pkcs15_object *)calloc(1,sizeof (struct sc_pkcs15_object));
         
-    struct sc_pkcs15_object *p15o = (struct sc_pkcs15_object *)calloc(1,sizeof (struct sc_pkcs15_object));
+        sc_pkcs15_prkey_info_t *prkd = (sc_pkcs15_prkey_info_t *)calloc(1, sizeof (sc_pkcs15_prkey_info_t));
+        memset(prkd, 0, sizeof(sc_pkcs15_prkey_info_t));
+        prkd->id.len = 1;
+        prkd->id.value[0] = key_id;
+        prkd->usage = SC_PKCS15_PRKEY_USAGE_DECRYPT | SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_SIGNRECOVER | SC_PKCS15_PRKEY_USAGE_UNWRAP;
+        prkd->access_flags = SC_PKCS15_PRKEY_ACCESS_SENSITIVE | SC_PKCS15_PRKEY_ACCESS_NEVEREXTRACTABLE | SC_PKCS15_PRKEY_ACCESS_ALWAYSSENSITIVE | SC_PKCS15_PRKEY_ACCESS_LOCAL;
+        prkd->native = 1;
+        prkd->key_reference = key_id;
+        prkd->path.value[0] = PRKD_PREFIX;
+        prkd->path.value[1] = key_id;
+        prkd->path.len = 2;
+        if (type == SC_PKCS15_TYPE_PRKEY_RSA)
+            prkd->modulus_length = key_size;
+        else
+            prkd->field_length = key_size-1; //contains 1 byte for the grp id
+        
+        p15o->data = prkd;
+        p15o->type = SC_PKCS15_TYPE_PRKEY | (type & 0xff);
+        
+        r = sc_pkcs15_encode_prkdf_entry(ctx, p15o, &asn1bin, &asn1len);
+        free(prkd);
+        //sc_asn1_print_tags(asn1bin, asn1len);
+    }
     
-    sc_pkcs15_prkey_info_t *prkd = (sc_pkcs15_prkey_info_t *)calloc(1, sizeof (sc_pkcs15_prkey_info_t));
-    memset(prkd, 0, sizeof(sc_pkcs15_prkey_info_t));
-    prkd->id.len = 1;
-    prkd->id.value[0] = key_id;
-    prkd->usage = SC_PKCS15_PRKEY_USAGE_DECRYPT | SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_SIGNRECOVER | SC_PKCS15_PRKEY_USAGE_UNWRAP;
-    prkd->access_flags = SC_PKCS15_PRKEY_ACCESS_SENSITIVE | SC_PKCS15_PRKEY_ACCESS_NEVEREXTRACTABLE | SC_PKCS15_PRKEY_ACCESS_ALWAYSSENSITIVE | SC_PKCS15_PRKEY_ACCESS_LOCAL;
-    prkd->native = 1;
-    prkd->key_reference = key_id;
-    prkd->path.value[0] = PRKD_PREFIX;
-    prkd->path.value[1] = key_id;
-    prkd->path.len = 2;
-    if (type == SC_PKCS15_TYPE_PRKEY_RSA)
-        prkd->modulus_length = key_size;
-    else
-        prkd->field_length = key_size-1; //contains 1 byte for the grp id
-    
-    p15o->data = prkd;
-    p15o->type = SC_PKCS15_TYPE_PRKEY | (type & 0xff);
-    
-    r = sc_pkcs15_encode_prkdf_entry(ctx, p15o, &asn1bin, &asn1len);
-    free(prkd);
-    //sc_asn1_print_tags(asn1bin, asn1len);
     fpk = file_new((PRKD_PREFIX << 8) | key_id);
     r = flash_write_data_to_file(fpk, asn1bin, asn1len);
-    free(asn1bin);
+    if (asn1bin)
+        free(asn1bin);
     if (r != HSM_OK)
         return r;
     //add_file_to_chain(fpk, &ef_prkdf);
@@ -1083,19 +1097,16 @@ static int cmd_key_gen() {
     //at this moment, we do not use the template, as only CBC is supported by the driver (encrypt, decrypt and CMAC)
     uint8_t aes_key[32]; //maximum AES key size
     memcpy(aes_key, random_bytes_get(key_size), key_size);
-    r = dkek_encrypt(aes_key, key_size);
-    if (r != HSM_OK)
-        return SW_EXEC_ERROR();
-    file_t *fpk = file_new((KEY_PREFIX << 8) | key_id);
-    if (!fpk)
-        return SW_MEMORY_FAILURE();
-    r = flash_write_data_to_file(fpk, aes_key, key_size);
-    if (r != HSM_OK)
-        return SW_MEMORY_FAILURE();
-    fpk = file_new((PRKD_PREFIX << 8) | key_id);
-    if (!fpk)
-        return SW_MEMORY_FAILURE();
-    r = flash_write_data_to_file(fpk, NULL, 0);
+    int aes_type = 0x0;
+    if (key_size == 16)
+        aes_type = HSM_KEY_AES_128;
+    else if (key_size == 24)
+        aes_type = HSM_KEY_AES_192;
+    else if (key_size == 32)
+        aes_type = HSM_KEY_AES_256;
+    sc_context_t *card_ctx = create_context();
+    r = store_keys(aes_key, aes_type, key_id, card_ctx);
+    free(card_ctx);
     if (r != HSM_OK)
         return SW_MEMORY_FAILURE();
     low_flash_available();
@@ -1327,6 +1338,21 @@ static int cmd_key_wrap() {
         r = dkek_encode_key(&ctx, HSM_KEY_EC, res_APDU, &wrap_len);
         mbedtls_ecdsa_free(&ctx);
     }
+    else if (*dprkd == P15_KEYTYPE_AES) {
+        uint8_t kdata[32]; //maximum AES key size
+        int key_size = file_read_uint16(ef->data), aes_type = HSM_KEY_AES;
+        memcpy(kdata, file_read(ef->data+2), key_size);
+        if (dkek_decrypt(kdata, key_size) != 0) {
+            return SW_EXEC_ERROR();
+        }
+        if (key_size == 32)
+            aes_type = HSM_KEY_AES_256;
+        else if (key_size == 24)
+            aes_type = HSM_KEY_AES_192;
+        else if (key_size == 16)
+            aes_type = HSM_KEY_AES_128;
+        r = dkek_encode_key(kdata, aes_type, res_APDU, &wrap_len);
+    }
     if (r != HSM_OK)
         return SW_EXEC_ERROR();
     res_APDU_size = wrap_len;
@@ -1345,8 +1371,7 @@ static int cmd_key_unwrap() {
     if (key_type == HSM_KEY_RSA) {
         mbedtls_rsa_context ctx;
         mbedtls_rsa_init(&ctx);
-        r = dkek_decode_key(&ctx, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
-        printf("r %d\r\n",r);
+        r = dkek_decode_key(&ctx, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, NULL);
         if (r != HSM_OK) {
             mbedtls_rsa_free(&ctx);
             return SW_EXEC_ERROR();
@@ -1359,7 +1384,7 @@ static int cmd_key_unwrap() {
     else if (key_type == HSM_KEY_EC) {
         mbedtls_ecdsa_context ctx;
         mbedtls_ecdsa_init(&ctx);
-        r = dkek_decode_key(&ctx, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
+        r = dkek_decode_key(&ctx, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, NULL);
         if (r != HSM_OK) {
             mbedtls_ecdsa_free(&ctx);
             return SW_EXEC_ERROR();
@@ -1368,6 +1393,23 @@ static int cmd_key_unwrap() {
         r = store_keys(&ctx, SC_PKCS15_TYPE_PRKEY_EC, key_id, card_ctx);
         free(card_ctx);
         mbedtls_ecdsa_free(&ctx);
+    }
+    else if (key_type == HSM_KEY_AES) {
+        uint8_t aes_key[32];
+        int key_size = 0, aes_type;
+        r = dkek_decode_key(aes_key, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, &key_size);
+        if (r != HSM_OK) {
+            return SW_EXEC_ERROR();
+        }
+        if (key_size == 32)
+            aes_type = HSM_KEY_AES_256;
+        else if (key_size == 24)
+            aes_type = HSM_KEY_AES_192;
+        else if (key_size == 16)
+            aes_type = HSM_KEY_AES_128;
+        sc_context_t *card_ctx = create_context();
+        r = store_keys(aes_key, aes_type, key_id, card_ctx);
+        free(card_ctx);
     }
     return SW_OK();
 }
