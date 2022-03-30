@@ -97,7 +97,7 @@ int dkek_kenc(uint8_t *kenc) { //kenc 32 bytes
         return r;
     memcpy(buf, dkek+IV_SIZE, 32);
     release_dkek();
-    memcpy(buf, "\x0\x0\x0\x1", 4);
+    memcpy(buf+32, "\x0\x0\x0\x1", 4);
     hash256(buf, sizeof(buf), kenc);
     memset(buf, 0, sizeof(buf));
     return HSM_OK;
@@ -110,7 +110,7 @@ int dkek_kmac(uint8_t *kmac) { //kmac 32 bytes
         return r;
     memcpy(buf, dkek+IV_SIZE, 32);
     release_dkek();
-    memcpy(buf, "\x0\x0\x0\x2", 4);
+    memcpy(buf+32, "\x0\x0\x0\x2", 4);
     hash256(buf, sizeof(buf), kmac);
     memset(buf, 0, sizeof(buf));
     return HSM_OK;
