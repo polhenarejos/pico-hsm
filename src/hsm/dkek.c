@@ -279,7 +279,7 @@ int dkek_encode_key(void *key_ctx, int key_type, uint8_t *out, size_t *out_len) 
 }
 
 int dkek_type_key(const uint8_t *in) {
-    if (in[8] == 5)
+    if (in[8] == 5 || in[8] == 6)
         return HSM_KEY_RSA;
     else if (in[8] == 12)
         return HSM_KEY_EC;
@@ -365,6 +365,13 @@ int dkek_decode_key(void *key_ctx, const uint8_t *in, size_t in_len, int *key_si
                 mbedtls_rsa_free(rsa);
                 return HSM_WRONG_DATA;
             }
+            
+            len = get_uint16_t(kb, ofs); ofs += 2;
+            r = mbedtls_mpi_read_binary(&rsa->N, kb+ofs, len); ofs += len;
+            if (r != 0) {
+                mbedtls_rsa_free(rsa);
+                return HSM_WRONG_DATA;
+            }
         }
         else if (key_type == 6) {
             //DP-1
@@ -373,6 +380,7 @@ int dkek_decode_key(void *key_ctx, const uint8_t *in, size_t in_len, int *key_si
             //DQ-1
             len = get_uint16_t(kb, ofs); ofs += len+2;
             
+            len = get_uint16_t(kb, ofs); ofs += 2;
             r = mbedtls_mpi_read_binary(&rsa->P, kb+ofs, len); ofs += len;
             if (r != 0) {
                 mbedtls_rsa_free(rsa);
@@ -382,17 +390,14 @@ int dkek_decode_key(void *key_ctx, const uint8_t *in, size_t in_len, int *key_si
             //PQ
             len = get_uint16_t(kb, ofs); ofs += len+2;
             
+            len = get_uint16_t(kb, ofs); ofs += 2;
             r = mbedtls_mpi_read_binary(&rsa->Q, kb+ofs, len); ofs += len;
             if (r != 0) {
                 mbedtls_rsa_free(rsa);
                 return HSM_WRONG_DATA;
             }
-        }
-        len = get_uint16_t(kb, ofs); ofs += 2;
-        r = mbedtls_mpi_read_binary(&rsa->N, kb+ofs, len); ofs += len;
-        if (r != 0) {
-            mbedtls_rsa_free(rsa);
-            return HSM_WRONG_DATA;
+            //N
+            len = get_uint16_t(kb, ofs); ofs += len+2;
         }
         
         len = get_uint16_t(kb, ofs); ofs += 2;
@@ -417,11 +422,13 @@ int dkek_decode_key(void *key_ctx, const uint8_t *in, size_t in_len, int *key_si
             }
         }
         
-        if (mbedtls_rsa_complete(rsa) != 0) {
+        r = mbedtls_rsa_complete(rsa);
+        if (r != 0) {
             mbedtls_rsa_free(rsa);
             return HSM_EXEC_ERROR;
         }
-        if (mbedtls_rsa_check_privkey(rsa) != 0) {
+        r = mbedtls_rsa_check_privkey(rsa);
+        if (r != 0) {
             mbedtls_rsa_free(rsa);
             return HSM_EXEC_ERROR;
         }
