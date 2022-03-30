@@ -543,6 +543,8 @@ static int cmd_initialize() {
             if (r != HSM_OK)
                 return SW_EXEC_ERROR();
         }
+        else
+            init_dkek();
     }
     else { //free memory bytes request
         int heap_left = heapLeft();
@@ -1014,9 +1016,9 @@ static int cmd_update_ef() {
             if (!ef->data)
                 return SW_DATA_INVALID();
             uint8_t *data_merge = (uint8_t *)calloc(1, offset+data_len);
-            memcpy(data_merge, file_read(ef->data), offset);
+            memcpy(data_merge, file_read(ef->data+2), offset);
             memcpy(data_merge+offset, data, data_len);
-            int r = flash_write_data_to_file(ef, data_merge, data_len);
+            int r = flash_write_data_to_file(ef, data_merge, offset+data_len);
             free(data_merge);
             if (r != HSM_OK)
                 return SW_MEMORY_FAILURE();
@@ -1380,6 +1382,9 @@ static int cmd_key_unwrap() {
         r = store_keys(&ctx, SC_PKCS15_TYPE_PRKEY_RSA, key_id, card_ctx);
         free(card_ctx);
         mbedtls_rsa_free(&ctx);
+        if (r != HSM_OK) {
+            return SW_EXEC_ERROR();
+        }
     }
     else if (key_type == HSM_KEY_EC) {
         mbedtls_ecdsa_context ctx;
@@ -1393,6 +1398,9 @@ static int cmd_key_unwrap() {
         r = store_keys(&ctx, SC_PKCS15_TYPE_PRKEY_EC, key_id, card_ctx);
         free(card_ctx);
         mbedtls_ecdsa_free(&ctx);
+        if (r != HSM_OK) {
+            return SW_EXEC_ERROR();
+        }
     }
     else if (key_type == HSM_KEY_AES) {
         uint8_t aes_key[32];
@@ -1410,6 +1418,9 @@ static int cmd_key_unwrap() {
         sc_context_t *card_ctx = create_context();
         r = store_keys(aes_key, aes_type, key_id, card_ctx);
         free(card_ctx);
+        if (r != HSM_OK) {
+            return SW_EXEC_ERROR();
+        }
     }
     return SW_OK();
 }
