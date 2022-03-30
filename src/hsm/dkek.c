@@ -80,24 +80,40 @@ void import_dkek_share(const uint8_t *share) {
         tmp_dkek[i] ^= share[i];
 }
 
-void dkek_kcv(uint8_t *kcv) { //kcv 8 bytes
+int dkek_kcv(uint8_t *kcv) { //kcv 8 bytes
     uint8_t hsh[32];
-    hash256(dkek, sizeof(dkek), hsh);
+    int r = load_dkek();
+    if (r != HSM_OK)
+        return r;
+    hash256(dkek+IV_SIZE, 32, hsh);
+    release_dkek();
     memcpy(kcv, hsh, 8);
 }
 
-void dkek_kenc(uint8_t *kenc) { //kenc 32 bytes
+int dkek_kenc(uint8_t *kenc) { //kenc 32 bytes
     uint8_t buf[32+4];
-    memcpy(buf, dkek, sizeof(dkek));
+    int r = load_dkek();
+    if (r != HSM_OK)
+        return r;
+    memcpy(buf, dkek+IV_SIZE, 32);
+    release_dkek();
     memcpy(buf, "\x0\x0\x0\x1", 4);
-    hash256(dkek, sizeof(dkek), kenc);
+    hash256(buf, sizeof(buf), kenc);
+    memset(buf, 0, sizeof(buf));
+    return HSM_OK;
 }
 
-void dkek_kmac(uint8_t *kmac) { //kmac 32 bytes
+int dkek_kmac(uint8_t *kmac) { //kmac 32 bytes
     uint8_t buf[32+4];
-    memcpy(buf, dkek, sizeof(dkek));
+    int r = load_dkek();
+    if (r != HSM_OK)
+        return r;
+    memcpy(buf, dkek+IV_SIZE, 32);
+    release_dkek();
     memcpy(buf, "\x0\x0\x0\x2", 4);
-    hash256(dkek, sizeof(dkek), kmac);
+    hash256(buf, sizeof(buf), kmac);
+    memset(buf, 0, sizeof(buf));
+    return HSM_OK;
 }
 
 int dkek_encrypt(uint8_t *data, size_t len) {

@@ -21,9 +21,10 @@
 extern int load_dkek();
 extern int save_dkek_key(const uint8_t *key);
 extern int store_dkek_key();
+extern void init_dkek();
 extern void release_dkek();
 extern void import_dkek_share(const uint8_t *share);
-extern void dkek_kcv(uint8_t *kcv);
+extern int dkek_kcv(uint8_t *kcv);
 extern int dkek_encrypt(uint8_t *data, size_t len);
 extern int dkek_decrypt(uint8_t *data, size_t len);
 extern int dkek_encode_key(void *key_ctx, int key_type, uint8_t *out, size_t *out_len);
