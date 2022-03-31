@@ -18,7 +18,7 @@
 #
 
 VERSION_MAJOR="1"
-VERSION_MINOR="6"
+VERSION_MINOR="8"
 
 echo "----------------------------"
 echo "VID/PID patcher for Pico HSM"
