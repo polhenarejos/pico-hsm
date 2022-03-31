@@ -26,7 +26,6 @@ extern const uint8_t sc_hsm_aid[];
 
 #define SW_BYTES_REMAINING_00()             set_res_sw (0x61, 0x00)
 #define SW_WARNING_STATE_UNCHANGED()        set_res_sw (0x62, 0x00)
-#define SW_PIN_BLOCKED()                    set_res_sw (0x63, 0x00)
 #define SW_EXEC_ERROR()                     set_res_sw (0x64, 0x00)
 #define SW_MEMORY_FAILURE()                 set_res_sw (0x65, 0x81)
 #define SW_WRONG_LENGTH()                   set_res_sw (0x67, 0x00)
@@ -34,7 +33,7 @@ extern const uint8_t sc_hsm_aid[];
 #define SW_LOGICAL_CHANNEL_NOT_SUPPORTED()  set_res_sw (0x68, 0x81)
 #define SW_SECURE_MESSAGING_NOT_SUPPORTED() set_res_sw (0x68, 0x82)
 #define SW_SECURITY_STATUS_NOT_SATISFIED()  set_res_sw (0x69, 0x82)
-#define SW_FILE_INVALID()                   set_res_sw (0x69, 0x83)
+#define SW_PIN_BLOCKED()                    set_res_sw (0x69, 0x83)
 #define SW_DATA_INVALID()                   set_res_sw (0x69, 0x84)
 #define SW_CONDITIONS_NOT_SATISFIED()       set_res_sw (0x69, 0x85)
 #define SW_COMMAND_NOT_ALLOWED()            set_res_sw (0x69, 0x86)

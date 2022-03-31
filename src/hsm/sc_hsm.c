@@ -1046,7 +1046,7 @@ static int cmd_delete_file() {
     if (apdu.cmd_apdu_data_len == 0) {
         ef = currentEF;
         if (!(ef = search_dynamic_file(ef->fid)))
-            return SW_FILE_INVALID();
+            return SW_FILE_NOT_FOUND();
     }
     else {
         uint16_t fid = (apdu.cmd_apdu_data[0] << 8) | apdu.cmd_apdu_data[1];
