@@ -607,6 +607,7 @@ static int cmd_import_dkek() {
             
         }
     }
+    memset(res_APDU,0,10);
     res_APDU[0] = dkeks;
     res_APDU[1] = dkeks-current_dkeks;
     dkek_kcv(res_APDU+2);
