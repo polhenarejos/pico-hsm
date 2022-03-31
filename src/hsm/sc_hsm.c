@@ -92,6 +92,14 @@ void select_file(file_t *pe) {
         //sc_hsm_unload(); //reset auth status
     }
 }
+
+uint16_t get_device_options() {
+    file_t *ef = search_by_fid(EF_DEVOPS, NULL, SPECIFY_EF);
+    if (ef && ef->data)
+        return file_read_uint16(ef->data+2);
+    return 0x0;
+}
+
 static int cmd_select() {
     uint8_t p1 = P1(apdu);
     uint8_t p2 = P2(apdu);
@@ -169,18 +177,11 @@ static int cmd_select() {
     if ((p2 & 0xfc) == 0x00 || (p2 & 0xfc) == 0x04) {
         process_fci(pe);
         if (pe == file_sc_hsm) {
-            file_t *ef = search_by_fid(EF_DEVOPS, NULL, SPECIFY_EF);
             res_APDU[res_APDU_size++] = 0x85;
             res_APDU[res_APDU_size++] = 4;
-            if (ef && ef->data) {
-                uint16_t opts = file_read_uint16(ef->data+2);
-                res_APDU[res_APDU_size++] = opts >> 8; //options
-                res_APDU[res_APDU_size++] = opts & 0xff;
-            }
-            else {
-                res_APDU[res_APDU_size++] = 0x0;
-                res_APDU[res_APDU_size++] = 0x0;
-            }
+            uint16_t opts = get_device_options();
+            res_APDU[res_APDU_size++] = opts >> 8;
+            res_APDU[res_APDU_size++] = opts & 0xff;
             res_APDU[res_APDU_size++] = HSM_VERSION_MAJOR;
             res_APDU[res_APDU_size++] = HSM_VERSION_MINOR;
             res_APDU[1] = res_APDU_size-2;
@@ -442,6 +443,11 @@ static int cmd_verify() {
         return SW_WRONG_P1P2();
     uint8_t qualifier = p2&0x1f;
     if (p2 == 0x81) { //UserPin
+        uint16_t opts = get_device_options();
+        if (opts & HSM_OPT_TRANSPORT_PIN)
+            return SW_DATA_INVALID();
+        if (file_read_uint8(file_pin1->data+2) == 0) //not initialized
+            return SW_REFERENCE_NOT_FOUND();
         if (apdu.cmd_apdu_data_len > 0) {
             return check_pin(file_pin1, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
         }
@@ -450,6 +456,8 @@ static int cmd_verify() {
         return set_res_sw(0x63, 0xc0 | file_read_uint8(file_retries_pin1->data+2));
     }
     else if (p2 == 0x88) { //SOPin
+        if (file_read_uint8(file_sopin->data+2) == 0) //not initialized
+            return SW_REFERENCE_NOT_FOUND();
         if (apdu.cmd_apdu_data_len > 0) {
             return check_pin(file_sopin, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
         }
