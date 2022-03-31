@@ -169,10 +169,18 @@ static int cmd_select() {
     if ((p2 & 0xfc) == 0x00 || (p2 & 0xfc) == 0x04) {
         process_fci(pe);
         if (pe == file_sc_hsm) {
+            file_t *ef = search_by_fid(EF_DEVOPS, NULL, SPECIFY_EF);
             res_APDU[res_APDU_size++] = 0x85;
             res_APDU[res_APDU_size++] = 4;
-            res_APDU[res_APDU_size++] = 0xff; //options
-            res_APDU[res_APDU_size++] = 0xff;
+            if (ef && ef->data) {
+                uint16_t opts = file_read_uint16(ef->data+2);
+                res_APDU[res_APDU_size++] = opts >> 8; //options
+                res_APDU[res_APDU_size++] = opts & 0xff;
+            }
+            else {
+                res_APDU[res_APDU_size++] = 0x0;
+                res_APDU[res_APDU_size++] = 0x0;
+            }
             res_APDU[res_APDU_size++] = HSM_VERSION_MAJOR;
             res_APDU[res_APDU_size++] = HSM_VERSION_MINOR;
             res_APDU[1] = res_APDU_size-2;
@@ -503,6 +511,8 @@ static int cmd_initialize() {
             uint8_t tag = *p++;
             uint8_t tag_len = *p++;
             if (tag == 0x80) { //options
+                file_t *tf = search_by_fid(EF_DEVOPS, NULL, SPECIFY_EF);
+                flash_write_data_to_file(tf, p, tag_len);
             }
             else if (tag == 0x81) { //user pin
                 if (file_pin1 && file_pin1->data) {

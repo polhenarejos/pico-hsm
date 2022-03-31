@@ -60,6 +60,7 @@
 #define EF_AODFS    0x6043
 #define EF_DODFS    0x6044
 #define EF_SKDFS    0x6045
+#define EF_DEVOPS   0x100E
 
 #define MAX_DEPTH 4
 
