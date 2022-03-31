@@ -409,11 +409,12 @@ int pin_wrong_retry(const file_t *pin) {
 
 int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
     if (!pin)
-        return SW_FILE_NOT_FOUND();
+        return SW_REFERENCE_NOT_FOUND();
     if (!pin->data) {
         return SW_REFERENCE_NOT_FOUND();
     }
     isUserAuthenticated = false;
+    has_session_pin = has_session_sopin = false;
     uint8_t dhash[32];
     double_hash_pin(data, len, dhash);
     if (sizeof(dhash) != file_read_uint16(pin->data)-1) //1 byte for pin len
@@ -431,7 +432,10 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
         return SW_MEMORY_FAILURE();
     isUserAuthenticated = true;
     hash_multi(data, len, session_pin);
-    has_session_pin = true;
+    if (pin == file_pin1)
+        has_session_pin = true;
+    else if (pin == file_sopin)
+        has_session_sopin = true;
     return SW_OK();
 }
 
@@ -453,6 +457,8 @@ static int cmd_verify() {
         }
         if (file_read_uint8(file_retries_pin1->data+2) == 0)
             return SW_PIN_BLOCKED();
+        if (has_session_pin)
+            return SW_OK();
         return set_res_sw(0x63, 0xc0 | file_read_uint8(file_retries_pin1->data+2));
     }
     else if (p2 == 0x88) { //SOPin
@@ -463,6 +469,8 @@ static int cmd_verify() {
         }
         if (file_read_uint8(file_retries_sopin->data+2) == 0)
             return SW_PIN_BLOCKED();
+        if (has_session_sopin)
+            return SW_OK();
         return set_res_sw(0x63, 0xc0 | file_read_uint8(file_retries_sopin->data+2));
     }
     return SW_REFERENCE_NOT_FOUND();
