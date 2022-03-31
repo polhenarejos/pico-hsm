@@ -449,6 +449,8 @@ static int cmd_verify() {
         }
         if (file_read_uint8(file_retries_sopin->data+2) == 0)
             return SW_PIN_BLOCKED();
+        if (isUserAuthenticated && has_session_pin)
+            return SW_OK();
         return set_res_sw(0x63, 0xc0 | file_read_uint8(file_retries_sopin->data+2));
     }
     return SW_REFERENCE_NOT_FOUND();
