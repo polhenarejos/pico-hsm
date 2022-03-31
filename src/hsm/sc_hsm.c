@@ -30,7 +30,7 @@
 #include "mbedtls/hkdf.h"
 #include "version.h"
 #include "cvcerts.h"
-#include "hash_utils.h"
+#include "crypto_utils.h"
 #include "dkek.h"
 
 const uint8_t sc_hsm_aid[] = {

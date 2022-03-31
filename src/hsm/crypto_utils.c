@@ -19,7 +19,7 @@
 #include "mbedtls/md.h"
 #include "mbedtls/sha256.h"
 #include "mbedtls/aes.h"
-#include "hash_utils.h"
+#include "crypto_utils.h"
 #include "sc_hsm.h"
 #include "libopensc/card-sc-hsm.h"
 
