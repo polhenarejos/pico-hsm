@@ -15,13 +15,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __VERSION_H_
-#define __VERSION_H_
+#ifndef _DKEK_H_
+#define _DKEK_H_
 
-#define HSM_VERSION 0x0108
+extern int load_dkek();
+extern int save_dkek_key(const uint8_t *key);
+extern int store_dkek_key();
+extern void init_dkek();
+extern void release_dkek();
+extern void import_dkek_share(const uint8_t *share);
+extern int dkek_kcv(uint8_t *kcv);
+extern int dkek_encrypt(uint8_t *data, size_t len);
+extern int dkek_decrypt(uint8_t *data, size_t len);
+extern int dkek_encode_key(void *key_ctx, int key_type, uint8_t *out, size_t *out_len);
+extern int dkek_type_key(const uint8_t *in);
+extern int dkek_decode_key(void *key_ctx, const uint8_t *in, size_t in_len, int *key_size_out);
 
-#define HSM_VERSION_MAJOR ((HSM_VERSION >> 8) & 0xff)
-#define HSM_VERSION_MINOR (HSM_VERSION & 0xff)
+#define MAX_DKEK_ENCODE_KEY_BUFFER (8+1+12+6+(8+2*4+2*4096/8+3+13)+16)
 
 #endif
-

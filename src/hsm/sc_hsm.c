@@ -30,6 +30,8 @@
 #include "mbedtls/hkdf.h"
 #include "version.h"
 #include "cvcerts.h"
+#include "hash_utils.h"
+#include "dkek.h"
 
 const uint8_t sc_hsm_aid[] = {
     11, 
@@ -39,7 +41,6 @@ const uint8_t sc_hsm_aid[] = {
 uint8_t session_pin[32], session_sopin[32];
 bool has_session_pin = false, has_session_sopin = false;
 static uint8_t dkeks = 0, current_dkeks = 0;
-static uint8_t tmp_dkek[IV_SIZE+32];
 
 static int sc_hsm_process_apdu();
 
@@ -71,49 +72,6 @@ int sc_hsm_unload() {
     has_session_pin = has_session_sopin = false;
     isUserAuthenticated = false;
     return HSM_OK;
-}
-
-static int encrypt(const uint8_t *key, const uint8_t *iv, uint8_t *data, int len)
-{
-    mbedtls_aes_context aes;
-    mbedtls_aes_init(&aes);
-    uint8_t tmp_iv[IV_SIZE];
-    size_t iv_offset = 0;
-    memcpy(tmp_iv, iv, IV_SIZE);
-    int r = mbedtls_aes_setkey_enc (&aes, key, 256);
-    if (r != 0)
-        return HSM_EXEC_ERROR;
-    return mbedtls_aes_crypt_cfb128(&aes, MBEDTLS_AES_ENCRYPT, len, &iv_offset, tmp_iv, data, data);
-}
-
-static int decrypt(const uint8_t *key, const uint8_t *iv, uint8_t *data, int len)
-{
-    mbedtls_aes_context aes;
-    mbedtls_aes_init(&aes);
-    uint8_t tmp_iv[IV_SIZE];
-    size_t iv_offset = 0;
-    memcpy(tmp_iv, iv, IV_SIZE);
-    int r = mbedtls_aes_setkey_enc (&aes, key, 256);
-    if (r != 0)
-        return HSM_EXEC_ERROR;
-    return mbedtls_aes_crypt_cfb128(&aes, MBEDTLS_AES_DECRYPT, len, &iv_offset, tmp_iv, data, data);
-}
-
-int load_dkek() {
-    if (has_session_pin == false)
-        return HSM_NO_LOGIN;
-    file_t *tf = search_by_fid(EF_DKEK, NULL, SPECIFY_EF);
-    if (!tf)
-        return HSM_ERR_FILE_NOT_FOUND;
-    memcpy(tmp_dkek, file_read(tf->data+sizeof(uint16_t)), IV_SIZE+32);
-    int ret = decrypt(session_pin, tmp_dkek, tmp_dkek+IV_SIZE, 32);
-    if (ret != 0)
-        return HSM_EXEC_ERROR;
-    return HSM_OK;
-}
-
-void release_dkek() {
-    memset(tmp_dkek, 0, sizeof(tmp_dkek));
 }
 
 void select_file(file_t *pe) {
@@ -268,7 +226,7 @@ int cvc_prepare_signatures(sc_pkcs15_card_t *p15card, sc_cvc_t *cvc, size_t sig_
             free(cvcbin);
         return r;
     }
-    hash(cvcbin, cvclen, hsh);
+    hash256(cvcbin, cvclen, hsh);
     free(cvcbin);
     return HSM_OK;
 }
@@ -580,17 +538,13 @@ static int cmd_initialize() {
             }
             p += tag_len;
         }
-        p = random_bytes_get(32);
-        memset(tmp_dkek, 0, sizeof(tmp_dkek));
-        memcpy(tmp_dkek, p, IV_SIZE);
         if (dkeks == 0) {
-            p = random_bytes_get(32);
-            memcpy(tmp_dkek+IV_SIZE, p, 32);
-            encrypt(session_pin, tmp_dkek, tmp_dkek+IV_SIZE, 32);
-            file_t *tf = search_by_fid(EF_DKEK, NULL, SPECIFY_EF);
-            flash_write_data_to_file(tf, tmp_dkek, sizeof(tmp_dkek));
+            int r = save_dkek_key(random_bytes_get(32));
+            if (r != HSM_OK)
+                return SW_EXEC_ERROR();
         }
-        low_flash_available();
+        else
+            init_dkek();
     }
     else { //free memory bytes request
         int heap_left = heapLeft();
@@ -606,59 +560,6 @@ static int cmd_initialize() {
     return SW_OK();
 }
 
-void double_hash_pin(const uint8_t *pin, size_t len, uint8_t output[32]) {
-    uint8_t o1[32];
-    hash_multi(pin, len, o1);
-    for (int i = 0; i < sizeof(o1); i++)
-        o1[i] ^= pin[i%len];
-    hash_multi(o1, sizeof(o1), output);
-}
-
-void hash_multi(const uint8_t *input, size_t len, uint8_t output[32])
-{
-    mbedtls_sha256_context ctx;
-    mbedtls_sha256_init(&ctx);
-    int iters = 256;
-    
-    pico_get_unique_board_id(&unique_id);
-    
-    mbedtls_sha256_starts (&ctx, 0);
-    mbedtls_sha256_update (&ctx, unique_id.id, sizeof(unique_id.id));
-    
-    while (iters > len)
-    {
-        mbedtls_sha256_update (&ctx, input, len);
-        iters -= len;
-    }
-    if (iters > 0) // remaining iterations
-        mbedtls_sha256_update (&ctx, input, iters);
-    mbedtls_sha256_finish (&ctx, output);
-    mbedtls_sha256_free (&ctx);
-}
-
-void hash(const uint8_t *input, size_t len, uint8_t output[32])
-{
-    mbedtls_sha256_context ctx;
-    mbedtls_sha256_init(&ctx);
-    
-    mbedtls_sha256_starts (&ctx, 0);
-    mbedtls_sha256_update (&ctx, input, len);
-
-    mbedtls_sha256_finish (&ctx, output);
-    mbedtls_sha256_free (&ctx);
-}
-
-void generic_hash(mbedtls_md_type_t md, const uint8_t *input, size_t len, uint8_t *output) {
-    mbedtls_md_context_t ctx;
-    mbedtls_md_init(&ctx);
-    const mbedtls_md_info_t *md_info = mbedtls_md_info_from_type(md);
-    mbedtls_md_setup(&ctx, md_info, 0);
-    mbedtls_md_starts(&ctx);
-    mbedtls_md_update(&ctx, input, len);
-    mbedtls_md_finish(&ctx, output);
-    mbedtls_md_free(&ctx);   
-}
-
 static int cmd_import_dkek() {
     //if (dkeks == 0)
     //    return SW_COMMAND_NOT_ALLOWED();
@@ -671,107 +572,92 @@ static int cmd_import_dkek() {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
     if (apdu.cmd_apdu_data_len > 0) {
-        for (int i = 0; i < apdu.cmd_apdu_data_len; i++)
-            tmp_dkek[IV_SIZE+i] ^= apdu.cmd_apdu_data[i];
+        if (apdu.cmd_apdu_data_len < 32)
+            return SW_WRONG_LENGTH();
+        import_dkek_share(apdu.cmd_apdu_data);
         if (++current_dkeks == dkeks) {
-            encrypt(session_pin, tmp_dkek, tmp_dkek+IV_SIZE, 32);
-            flash_write_data_to_file(tf, tmp_dkek, sizeof(tmp_dkek));
-            memset(tmp_dkek, 0, sizeof(tmp_dkek));
-            low_flash_available();
+            if (save_dkek_key(NULL) != HSM_OK)
+                return SW_FILE_NOT_FOUND();
+            
         }
     }
     res_APDU[0] = dkeks;
     res_APDU[1] = dkeks-current_dkeks;
-    //FNV hash
-    uint64_t hash = 0xcbf29ce484222325;
-    memcpy(tmp_dkek, file_read(tf->data+sizeof(uint16_t)), IV_SIZE+32);
-    decrypt(session_pin, tmp_dkek, tmp_dkek+IV_SIZE, 32);
-    for (int i = 0; i < 32; i++) {
-        hash ^= tmp_dkek[IV_SIZE+i];
-        hash *= 0x00000100000001B3;
-    }
-    memset(tmp_dkek, 0, sizeof(tmp_dkek));
-    memcpy(res_APDU+2,&hash,sizeof(hash));
-    res_APDU_size = 2+sizeof(hash);
+    dkek_kcv(res_APDU+2);
+    res_APDU_size = 2+8;
     return SW_OK();
 }
-
-struct ec_curve_mbed_id {
-    struct sc_lv_data curve;
-    mbedtls_ecp_group_id id;
-};
-struct ec_curve_mbed_id ec_curves_mbed[] = {
-    {   { (unsigned char *) "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFE\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF", 24}, MBEDTLS_ECP_DP_SECP192R1 },
-    {   { (unsigned char *) "\xFF\xFF\xFF\xFF\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF", 32}, MBEDTLS_ECP_DP_SECP256R1 },
-    {   { (unsigned char *) "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFE\xFF\xFF\xFF\xFF\x00\x00\x00\x00\x00\x00\x00\x00\xFF\xFF\xFF\xFF", 48}, MBEDTLS_ECP_DP_SECP384R1 },
-    {   { (unsigned char *) "\x01\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF", 66}, MBEDTLS_ECP_DP_SECP521R1 },
-    {   { (unsigned char *) "\xA9\xFB\x57\xDB\xA1\xEE\xA9\xBC\x3E\x66\x0A\x90\x9D\x83\x8D\x72\x6E\x3B\xF6\x23\xD5\x26\x20\x28\x20\x13\x48\x1D\x1F\x6E\x53\x77", 32}, MBEDTLS_ECP_DP_BP256R1 },
-    {   { (unsigned char *) "\x8C\xB9\x1E\x82\xA3\x38\x6D\x28\x0F\x5D\x6F\x7E\x50\xE6\x41\xDF\x15\x2F\x71\x09\xED\x54\x56\xB4\x12\xB1\xDA\x19\x7F\xB7\x11\x23\xAC\xD3\xA7\x29\x90\x1D\x1A\x71\x87\x47\x00\x13\x31\x07\xEC\x53", 48}, MBEDTLS_ECP_DP_BP384R1 },
-    {   { (unsigned char *) "\xAA\xDD\x9D\xB8\xDB\xE9\xC4\x8B\x3F\xD4\xE6\xAE\x33\xC9\xFC\x07\xCB\x30\x8D\xB3\xB3\xC9\xD2\x0E\xD6\x63\x9C\xCA\x70\x33\x08\x71\x7D\x4D\x9B\x00\x9B\xC6\x68\x42\xAE\xCD\xA1\x2A\xE6\xA3\x80\xE6\x28\x81\xFF\x2F\x2D\x82\xC6\x85\x28\xAA\x60\x56\x58\x3A\x48\xF3", 64}, MBEDTLS_ECP_DP_BP512R1 },
-    {   { (unsigned char *) "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFE\xFF\xFF\xEE\x37", 24}, MBEDTLS_ECP_DP_SECP192K1 },
-    {   { (unsigned char *) "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFE\xFF\xFF\xFC\x2F", 32}, MBEDTLS_ECP_DP_SECP256K1 },
-    {   { NULL, 0 }, MBEDTLS_ECP_DP_NONE }
-};
 
 //Stores the private and public keys in flash
 int store_keys(void *key_ctx, int type, uint8_t key_id, sc_context_t *ctx) {
     int r, key_size;
-    uint8_t *asn1bin, *kdata;
+    uint8_t *asn1bin = NULL;
     size_t asn1len = 0;
+    uint8_t kdata[4096/8]; //worst case
     if (type == SC_PKCS15_TYPE_PRKEY_RSA) {
         mbedtls_rsa_context *rsa = (mbedtls_rsa_context *)key_ctx;
         key_size = mbedtls_mpi_size(&rsa->P)+mbedtls_mpi_size(&rsa->Q);
-        kdata = (uint8_t *)calloc(1, key_size);
         mbedtls_mpi_write_binary(&rsa->P, kdata, key_size/2);
         mbedtls_mpi_write_binary(&rsa->Q, kdata+key_size/2, key_size/2);
     }
-    else {
+    else if (type == SC_PKCS15_TYPE_PRKEY_EC) {
         mbedtls_ecdsa_context *ecdsa = (mbedtls_ecdsa_context *)key_ctx;
         key_size = mbedtls_mpi_size(&ecdsa->d);
-        kdata = (uint8_t *)calloc(1, key_size+1);
         kdata[0] = ecdsa->grp.id & 0xff;
         mbedtls_mpi_write_binary(&ecdsa->d, kdata+1, key_size);
         key_size++;
     }
-    if ((r = load_dkek()) != HSM_OK)
+    else if (type & HSM_KEY_AES) {
+        if (type == HSM_KEY_AES_128)
+            key_size = 16;
+        else if (type == HSM_KEY_AES_192)
+            key_size = 24;
+        else if (type == HSM_KEY_AES_256)
+            key_size = 32;
+        memcpy(kdata, key_ctx, key_size);
+    }
+    r = dkek_encrypt(kdata, key_size);
+    if (r != HSM_OK) {
         return r;
-    if ((r = encrypt(tmp_dkek+IV_SIZE, tmp_dkek, kdata, key_size)) != 0)
-        return r;
-    release_dkek();
+    }
     file_t *fpk = file_new((KEY_PREFIX << 8) | key_id);
+    if (!fpk)
+        return SW_MEMORY_FAILURE();
     r = flash_write_data_to_file(fpk, kdata, key_size);
-    free(kdata); 
     if (r != HSM_OK)
         return r;
     //add_file_to_chain(fpk, &ef_kf);
+    if (type == SC_PKCS15_TYPE_PRKEY_RSA || type == SC_PKCS15_TYPE_PRKEY_EC) {
+        struct sc_pkcs15_object *p15o = (struct sc_pkcs15_object *)calloc(1,sizeof (struct sc_pkcs15_object));
         
-    struct sc_pkcs15_object *p15o = (struct sc_pkcs15_object *)calloc(1,sizeof (struct sc_pkcs15_object));
+        sc_pkcs15_prkey_info_t *prkd = (sc_pkcs15_prkey_info_t *)calloc(1, sizeof (sc_pkcs15_prkey_info_t));
+        memset(prkd, 0, sizeof(sc_pkcs15_prkey_info_t));
+        prkd->id.len = 1;
+        prkd->id.value[0] = key_id;
+        prkd->usage = SC_PKCS15_PRKEY_USAGE_DECRYPT | SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_SIGNRECOVER | SC_PKCS15_PRKEY_USAGE_UNWRAP;
+        prkd->access_flags = SC_PKCS15_PRKEY_ACCESS_SENSITIVE | SC_PKCS15_PRKEY_ACCESS_NEVEREXTRACTABLE | SC_PKCS15_PRKEY_ACCESS_ALWAYSSENSITIVE | SC_PKCS15_PRKEY_ACCESS_LOCAL;
+        prkd->native = 1;
+        prkd->key_reference = key_id;
+        prkd->path.value[0] = PRKD_PREFIX;
+        prkd->path.value[1] = key_id;
+        prkd->path.len = 2;
+        if (type == SC_PKCS15_TYPE_PRKEY_RSA)
+            prkd->modulus_length = key_size;
+        else
+            prkd->field_length = key_size-1; //contains 1 byte for the grp id
+        
+        p15o->data = prkd;
+        p15o->type = SC_PKCS15_TYPE_PRKEY | (type & 0xff);
+        
+        r = sc_pkcs15_encode_prkdf_entry(ctx, p15o, &asn1bin, &asn1len);
+        free(prkd);
+        //sc_asn1_print_tags(asn1bin, asn1len);
+    }
     
-    sc_pkcs15_prkey_info_t *prkd = (sc_pkcs15_prkey_info_t *)calloc(1, sizeof (sc_pkcs15_prkey_info_t));
-    memset(prkd, 0, sizeof(sc_pkcs15_prkey_info_t));
-    prkd->id.len = 1;
-    prkd->id.value[0] = key_id;
-    prkd->usage = SC_PKCS15_PRKEY_USAGE_DECRYPT | SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_SIGNRECOVER | SC_PKCS15_PRKEY_USAGE_UNWRAP;
-    prkd->access_flags = SC_PKCS15_PRKEY_ACCESS_SENSITIVE | SC_PKCS15_PRKEY_ACCESS_NEVEREXTRACTABLE | SC_PKCS15_PRKEY_ACCESS_ALWAYSSENSITIVE | SC_PKCS15_PRKEY_ACCESS_LOCAL;
-    prkd->native = 1;
-    prkd->key_reference = key_id;
-    prkd->path.value[0] = PRKD_PREFIX;
-    prkd->path.value[1] = key_id;
-    prkd->path.len = 2;
-    if (type == SC_PKCS15_TYPE_PRKEY_RSA)
-        prkd->modulus_length = key_size;
-    else
-        prkd->field_length = key_size-1; //contains 1 byte for the grp id
-    
-    p15o->data = prkd;
-    p15o->type = SC_PKCS15_TYPE_PRKEY | (type & 0xff);
-    
-    r = sc_pkcs15_encode_prkdf_entry(ctx, p15o, &asn1bin, &asn1len);
-    free(prkd);
-    //sc_asn1_print_tags(asn1bin, asn1len);
     fpk = file_new((PRKD_PREFIX << 8) | key_id);
     r = flash_write_data_to_file(fpk, asn1bin, asn1len);
-    free(asn1bin);
+    if (asn1bin)
+        free(asn1bin);
     if (r != HSM_OK)
         return r;
     //add_file_to_chain(fpk, &ef_prkdf);
@@ -903,13 +789,7 @@ static int cmd_keypair_gen() {
             else if (memcmp(oid, "\x4\x0\x7F\x0\x7\x2\x2\x2\x2\x3",MIN(oid_len,10)) == 0) { //ECC
                 size_t prime_len;
                 const uint8_t *prime = sc_asn1_find_tag(ctx, p, tout, 0x81, &prime_len);
-                mbedtls_ecp_group_id ec_id = MBEDTLS_ECP_DP_NONE;
-                for (struct ec_curve_mbed_id *ec = ec_curves_mbed; ec->id != MBEDTLS_ECP_DP_NONE; ec++) {
-                    if (prime_len == ec->curve.len && memcmp(prime, ec->curve.value, prime_len) == 0) {
-                        ec_id = ec->id;
-                        break;
-                    }
-                }
+                mbedtls_ecp_group_id ec_id = ec_get_curve_from_prime(prime, prime_len);
                 printf("KEYPAIR ECC %d\r\n",ec_id);
                 if (ec_id == MBEDTLS_ECP_DP_NONE) {
                     sc_pkcs15emu_sc_hsm_free_cvc(&cvc);
@@ -1136,9 +1016,9 @@ static int cmd_update_ef() {
             if (!ef->data)
                 return SW_DATA_INVALID();
             uint8_t *data_merge = (uint8_t *)calloc(1, offset+data_len);
-            memcpy(data_merge, file_read(ef->data), offset);
+            memcpy(data_merge, file_read(ef->data+2), offset);
             memcpy(data_merge+offset, data, data_len);
-            int r = flash_write_data_to_file(ef, data_merge, data_len);
+            int r = flash_write_data_to_file(ef, data_merge, offset+data_len);
             free(data_merge);
             if (r != HSM_OK)
                 return SW_MEMORY_FAILURE();
@@ -1191,10 +1071,8 @@ static int cmd_change_pin() {
             //encrypt DKEK with new pin
             hash_multi(apdu.cmd_apdu_data+pin_len, apdu.cmd_apdu_data_len-pin_len, session_pin);
             has_session_pin = true;
-            encrypt(session_pin, tmp_dkek, tmp_dkek+IV_SIZE, 32);
-            file_t *tf = search_by_fid(EF_DKEK, NULL, SPECIFY_EF);
-            flash_write_data_to_file(tf, tmp_dkek, sizeof(tmp_dkek));
-            release_dkek();
+            if (store_dkek_key() != HSM_OK)
+                return SW_EXEC_ERROR();
             uint8_t dhash[33];
             dhash[0] = apdu.cmd_apdu_data_len-pin_len;
             double_hash_pin(apdu.cmd_apdu_data+pin_len, apdu.cmd_apdu_data_len-pin_len, dhash+1);
@@ -1221,21 +1099,16 @@ static int cmd_key_gen() {
     //at this moment, we do not use the template, as only CBC is supported by the driver (encrypt, decrypt and CMAC)
     uint8_t aes_key[32]; //maximum AES key size
     memcpy(aes_key, random_bytes_get(key_size), key_size);
-    if ((r = load_dkek()) != HSM_OK)
-        return SW_EXEC_ERROR() ;
-    if ((r = encrypt(tmp_dkek+IV_SIZE, tmp_dkek, aes_key, key_size)) != 0)
-        return SW_EXEC_ERROR() ;
-    release_dkek();
-    file_t *fpk = file_new((KEY_PREFIX << 8) | key_id);
-    if (!fpk)
-        return SW_MEMORY_FAILURE();
-    r = flash_write_data_to_file(fpk, aes_key, key_size);
-    if (r != HSM_OK)
-        return SW_MEMORY_FAILURE();
-    fpk = file_new((PRKD_PREFIX << 8) | key_id);
-    if (!fpk)
-        return SW_MEMORY_FAILURE();
-    r = flash_write_data_to_file(fpk, NULL, 0);
+    int aes_type = 0x0;
+    if (key_size == 16)
+        aes_type = HSM_KEY_AES_128;
+    else if (key_size == 24)
+        aes_type = HSM_KEY_AES_192;
+    else if (key_size == 32)
+        aes_type = HSM_KEY_AES_256;
+    sc_context_t *card_ctx = create_context();
+    r = store_keys(aes_key, aes_type, key_id, card_ctx);
+    free(card_ctx);
     if (r != HSM_OK)
         return SW_MEMORY_FAILURE();
     low_flash_available();
@@ -1244,26 +1117,19 @@ static int cmd_key_gen() {
 
 int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
     int key_size = file_read_uint16(fkey->data);
-    if (load_dkek() != HSM_OK)
-        return SW_EXEC_ERROR();
-    uint8_t *kdata = (uint8_t *)calloc(1,key_size);
+    uint8_t kdata[4096/8];
     memcpy(kdata, file_read(fkey->data+2), key_size);
-    if (decrypt(tmp_dkek+IV_SIZE, tmp_dkek, kdata, key_size) != 0) {
-        free(kdata);
+    if (dkek_decrypt(kdata, key_size) != 0) {
         return SW_EXEC_ERROR();
     }
-    release_dkek();
     if (mbedtls_mpi_read_binary(&ctx->P, kdata, key_size/2) != 0) {
         mbedtls_rsa_free(ctx);
-        free(kdata);
         return SW_DATA_INVALID();
     }
     if (mbedtls_mpi_read_binary(&ctx->Q, kdata+key_size/2, key_size/2) != 0) {
         mbedtls_rsa_free(ctx);
-        free(kdata);
         return SW_DATA_INVALID();
     }
-    free(kdata);
     if (mbedtls_mpi_lset(&ctx->E, 0x10001) != 0) {
         mbedtls_rsa_free(ctx);
         return SW_EXEC_ERROR();
@@ -1285,23 +1151,17 @@ int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
 
 int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey) {
     int key_size = file_read_uint16(fkey->data);
-    if (load_dkek() != HSM_OK)
-        return HSM_EXEC_ERROR;
-    uint8_t *kdata = (uint8_t *)calloc(1,key_size);
+    uint8_t kdata[67]; //Worst case, 521 bit + 1byte
     memcpy(kdata, file_read(fkey->data+2), key_size);
-    if (decrypt(tmp_dkek+IV_SIZE, tmp_dkek, kdata, key_size) != 0) {
-        free(kdata);
+    if (dkek_decrypt(kdata, key_size) != 0) {
         return HSM_EXEC_ERROR;
     }
-    release_dkek();
     mbedtls_ecp_group_id gid = kdata[0];
     int r = mbedtls_ecp_read_key(gid, ctx, kdata+1, key_size-1);
     if (r != 0) {
-        free(kdata);
         mbedtls_ecdsa_free(ctx);
         return HSM_EXEC_ERROR;
     }
-    free(kdata);
     return HSM_OK;
 }
 
@@ -1445,7 +1305,7 @@ static int cmd_signature() {
 }
 
 static int cmd_key_wrap() {
-    int key_id = P1(apdu);
+    int key_id = P1(apdu), r = 0, key_type = 0x0;
     if (P2(apdu) != 0x92)
         return SW_WRONG_P1P2();
     if (!isUserAuthenticated)
@@ -1453,23 +1313,115 @@ static int cmd_key_wrap() {
     file_t *ef = search_dynamic_file((KEY_PREFIX << 8) | key_id);
     if (!ef)
         return SW_FILE_NOT_FOUND();
-    int key_len = file_read_uint16(ef->data);
-    memcpy(res_APDU, file_read(ef->data+2), key_len);
-    res_APDU_size = key_len;
+    file_t *prkd = search_dynamic_file((PRKD_PREFIX << 8) | key_id);
+    if (!prkd)
+        return SW_FILE_NOT_FOUND();
+    const uint8_t *dprkd = file_read(prkd->data+2);
+    size_t wrap_len = MAX_DKEK_ENCODE_KEY_BUFFER;
+    if (*dprkd == P15_KEYTYPE_RSA) {
+        mbedtls_rsa_context ctx;
+        mbedtls_rsa_init(&ctx);
+        r = load_private_key_rsa(&ctx, ef);
+        if (r != HSM_OK) {
+            mbedtls_rsa_free(&ctx);
+            return SW_EXEC_ERROR();
+        }
+        r = dkek_encode_key(&ctx, HSM_KEY_RSA, res_APDU, &wrap_len);
+        mbedtls_rsa_free(&ctx);
+    }
+    else if (*dprkd == P15_KEYTYPE_ECC) {
+        mbedtls_ecdsa_context ctx;
+        mbedtls_ecdsa_init(&ctx);
+        r = load_private_key_ecdsa(&ctx, ef);
+        if (r != HSM_OK) {
+            mbedtls_ecdsa_free(&ctx);
+            return SW_EXEC_ERROR();
+        }
+        r = dkek_encode_key(&ctx, HSM_KEY_EC, res_APDU, &wrap_len);
+        mbedtls_ecdsa_free(&ctx);
+    }
+    else if (*dprkd == P15_KEYTYPE_AES) {
+        uint8_t kdata[32]; //maximum AES key size
+        int key_size = file_read_uint16(ef->data), aes_type = HSM_KEY_AES;
+        memcpy(kdata, file_read(ef->data+2), key_size);
+        if (dkek_decrypt(kdata, key_size) != 0) {
+            return SW_EXEC_ERROR();
+        }
+        if (key_size == 32)
+            aes_type = HSM_KEY_AES_256;
+        else if (key_size == 24)
+            aes_type = HSM_KEY_AES_192;
+        else if (key_size == 16)
+            aes_type = HSM_KEY_AES_128;
+        r = dkek_encode_key(kdata, aes_type, res_APDU, &wrap_len);
+    }
+    if (r != HSM_OK)
+        return SW_EXEC_ERROR();
+    res_APDU_size = wrap_len;
     return SW_OK();
 }
 
 static int cmd_key_unwrap() {
-    int key_id = P1(apdu);
+    int key_id = P1(apdu), r = 0;
     if (P2(apdu) != 0x93)
         return SW_WRONG_P1P2();
     if (!isUserAuthenticated)
         return SW_SECURITY_STATUS_NOT_SATISFIED();
-    file_t *ef = search_dynamic_file((KEY_PREFIX << 8) | key_id);
-    if (!ef)
-        ef = file_new((KEY_PREFIX << 8) | key_id);
-    flash_write_data_to_file(ef, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
-    low_flash_available();
+    int key_type = dkek_type_key(apdu.cmd_apdu_data);
+    if (key_type == 0x0)
+        return SW_DATA_INVALID();
+    if (key_type == HSM_KEY_RSA) {
+        mbedtls_rsa_context ctx;
+        mbedtls_rsa_init(&ctx);
+        r = dkek_decode_key(&ctx, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, NULL);
+        if (r != HSM_OK) {
+            mbedtls_rsa_free(&ctx);
+            return SW_EXEC_ERROR();
+        }
+        sc_context_t *card_ctx = create_context();
+        r = store_keys(&ctx, SC_PKCS15_TYPE_PRKEY_RSA, key_id, card_ctx);
+        free(card_ctx);
+        mbedtls_rsa_free(&ctx);
+        if (r != HSM_OK) {
+            return SW_EXEC_ERROR();
+        }
+    }
+    else if (key_type == HSM_KEY_EC) {
+        mbedtls_ecdsa_context ctx;
+        mbedtls_ecdsa_init(&ctx);
+        r = dkek_decode_key(&ctx, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, NULL);
+        if (r != HSM_OK) {
+            mbedtls_ecdsa_free(&ctx);
+            return SW_EXEC_ERROR();
+        }
+        sc_context_t *card_ctx = create_context();
+        r = store_keys(&ctx, SC_PKCS15_TYPE_PRKEY_EC, key_id, card_ctx);
+        free(card_ctx);
+        mbedtls_ecdsa_free(&ctx);
+        if (r != HSM_OK) {
+            return SW_EXEC_ERROR();
+        }
+    }
+    else if (key_type == HSM_KEY_AES) {
+        uint8_t aes_key[32];
+        int key_size = 0, aes_type;
+        r = dkek_decode_key(aes_key, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, &key_size);
+        if (r != HSM_OK) {
+            return SW_EXEC_ERROR();
+        }
+        if (key_size == 32)
+            aes_type = HSM_KEY_AES_256;
+        else if (key_size == 24)
+            aes_type = HSM_KEY_AES_192;
+        else if (key_size == 16)
+            aes_type = HSM_KEY_AES_128;
+        sc_context_t *card_ctx = create_context();
+        r = store_keys(aes_key, aes_type, key_id, card_ctx);
+        free(card_ctx);
+        if (r != HSM_OK) {
+            return SW_EXEC_ERROR();
+        }
+    }
     return SW_OK();
 }
 
@@ -1500,15 +1452,12 @@ static int cmd_decrypt_asym() {
     else if (P2(apdu) == ALGO_EC_DH) {
         mbedtls_ecdh_context ctx;
         int key_size = file_read_uint16(ef->data);
-        if (load_dkek() != HSM_OK)
-            return SW_EXEC_ERROR();
         uint8_t *kdata = (uint8_t *)calloc(1,key_size);
         memcpy(kdata, file_read(ef->data+2), key_size);
-        if (decrypt(tmp_dkek+IV_SIZE, tmp_dkek, kdata, key_size) != 0) {
+        if (dkek_decrypt(kdata, key_size) != 0) {
             free(kdata);
             return SW_EXEC_ERROR();
         }
-        release_dkek();
         mbedtls_ecdh_init(&ctx);
         mbedtls_ecp_group_id gid = kdata[0];
         int r = 0;
@@ -1557,14 +1506,11 @@ static int cmd_cipher_sym() {
         return SW_WRONG_LENGTH();
     }
     int key_size = file_read_uint16(ef->data);
-    if (load_dkek() != HSM_OK)
-        return SW_EXEC_ERROR();
     uint8_t kdata[32]; //maximum AES key size
     memcpy(kdata, file_read(ef->data+2), key_size);
-    if (decrypt(tmp_dkek+IV_SIZE, tmp_dkek, kdata, key_size) != 0) {
+    if (dkek_decrypt(kdata, key_size) != 0) {
         return SW_EXEC_ERROR();
     }
-    release_dkek();
     if (algo == ALGO_AES_CBC_ENCRYPT || algo == ALGO_AES_CBC_DECRYPT) {
         mbedtls_aes_context aes;
         mbedtls_aes_init(&aes);
@@ -1610,7 +1556,7 @@ static int cmd_cipher_sym() {
         int r = mbedtls_cipher_cmac(cipher_info, kdata, key_size*8, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, res_APDU);
         if (r != 0)
             return SW_EXEC_ERROR();
-        res_APDU_size = apdu.cmd_apdu_data_len;
+        res_APDU_size = 16;
     }
     else if (algo == ALGO_AES_DERIVE) {
         int r = mbedtls_hkdf(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), NULL, 0, file_read(ef->data+2), key_size, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, res_APDU, apdu.cmd_apdu_data_len);

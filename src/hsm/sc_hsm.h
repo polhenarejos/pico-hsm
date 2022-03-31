@@ -60,6 +60,11 @@ extern const uint8_t sc_hsm_aid[];
 #define HSM_ERR_BLOCKED                     -1004
 #define HSM_NO_LOGIN                        -1005
 #define HSM_EXEC_ERROR                      -1006
+#define HSM_WRONG_LENGTH                    -1007
+#define HSM_WRONG_DATA                      -1008
+#define HSM_WRONG_DKEK                      -1009
+#define HSM_WRONG_SIGNATURE                 -1010
+#define HSM_WRONG_PADDING                   -1011
 
 #define ALGO_RSA_RAW			0x20		/* RSA signature with external padding */
 #define ALGO_RSA_DECRYPT		0x21		/* RSA decrypt */
@@ -91,6 +96,10 @@ extern const uint8_t sc_hsm_aid[];
 #define HSM_OPT_REPLACE_PKA         0x8
 #define HSM_OPT_COMBINED_AUTH       0x10
 #define HSM_OPT_RRC_RESET_ONLY      0x20
+
+#define P15_KEYTYPE_RSA     0x30
+#define P15_KEYTYPE_ECC     0xA0
+#define P15_KEYTYPE_AES     0xA8
 
 extern int pin_reset_retries(const file_t *pin, bool);
 extern int pin_wrong_retry(const file_t *pin);
