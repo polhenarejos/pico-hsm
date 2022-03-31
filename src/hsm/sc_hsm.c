@@ -96,7 +96,7 @@ void select_file(file_t *pe) {
 uint16_t get_device_options() {
     file_t *ef = search_by_fid(EF_DEVOPS, NULL, SPECIFY_EF);
     if (ef && ef->data)
-        return file_read_uint16(ef->data+2);
+        return (file_read_uint8(ef->data+2) << 8) | file_read_uint8(ef->data+3);
     return 0x0;
 }
 
@@ -180,8 +180,8 @@ static int cmd_select() {
             res_APDU[res_APDU_size++] = 0x85;
             res_APDU[res_APDU_size++] = 4;
             uint16_t opts = get_device_options();
-            res_APDU[res_APDU_size++] = opts >> 8;
             res_APDU[res_APDU_size++] = opts & 0xff;
+            res_APDU[res_APDU_size++] = opts >> 8;
             res_APDU[res_APDU_size++] = HSM_VERSION_MAJOR;
             res_APDU[res_APDU_size++] = HSM_VERSION_MINOR;
             res_APDU[1] = res_APDU_size-2;
