@@ -478,6 +478,7 @@ static int cmd_verify() {
 }
 
 static int cmd_reset_retry() {
+    uint16_t opts = get_device_options();
     if (P1(apdu) == 0x0) {
         if (P2(apdu) == 0x81) {
             if (!file_sopin || !file_pin1) {
@@ -488,6 +489,8 @@ static int cmd_reset_retry() {
             }
             if (apdu.cmd_apdu_data_len <= 8)
                 return SW_WRONG_LENGTH();
+            if (!(opts & HSM_OPT_RRC))
+                return SW_COMMAND_NOT_ALLOWED();
             uint16_t r = check_pin(file_sopin, apdu.cmd_apdu_data, 8);
             if (r != 0x9000)
                 return r;
@@ -513,6 +516,8 @@ static int cmd_reset_retry() {
             }
             if (apdu.cmd_apdu_data_len != 8)
                 return SW_WRONG_LENGTH();
+            if (!(opts & HSM_OPT_RRC) || !(opts & HSM_OPT_RRC_RESET_ONLY))
+                return SW_COMMAND_NOT_ALLOWED();
             uint16_t r = check_pin(file_sopin, apdu.cmd_apdu_data, 8);
             if (r != 0x9000)
                 return r;
