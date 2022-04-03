@@ -486,6 +486,8 @@ static int cmd_reset_retry() {
             if (!file_sopin->data) {
                 return SW_REFERENCE_NOT_FOUND();
             }
+            if (apdu.cmd_apdu_data_len <= 8)
+                return SW_WRONG_LENGTH();
             uint16_t r = check_pin(file_sopin, apdu.cmd_apdu_data, 8);
             if (r != 0x9000)
                 return r;
@@ -498,7 +500,31 @@ static int cmd_reset_retry() {
             low_flash_available();
             return SW_OK();
         }
+        else
+            return SW_REFERENCE_NOT_FOUND();
     }
+    else if (P1(apdu) == 0x1) {
+        if (P2(apdu) == 0x81) {
+            if (!file_sopin || !file_pin1) {
+                return SW_FILE_NOT_FOUND();
+            }
+            if (!file_sopin->data) {
+                return SW_REFERENCE_NOT_FOUND();
+            }
+            if (apdu.cmd_apdu_data_len != 8)
+                return SW_WRONG_LENGTH();
+            uint16_t r = check_pin(file_sopin, apdu.cmd_apdu_data, 8);
+            if (r != 0x9000)
+                return r;
+            if (pin_reset_retries(file_pin1, true) != HSM_OK)
+                return SW_MEMORY_FAILURE();
+            low_flash_available();
+            return SW_OK();
+        }
+        else
+            return SW_REFERENCE_NOT_FOUND();
+    }
+    return SW_INCORRECT_P1P2();
 }
 
 static int cmd_challenge() {
