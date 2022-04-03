@@ -33,6 +33,7 @@
 #include "pico/multicore.h"
 #include "random.h"
 #include "hsm2040.h"
+#include "hardware/rtc.h"
 
 extern void do_flash();
 extern void low_flash_init();
@@ -1628,6 +1629,7 @@ int main(void)
     gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
 #endif
 #endif
+    
 
     led_off_all();
 
@@ -1638,6 +1640,8 @@ int main(void)
     random_init();
     
     low_flash_init();
+    
+    rtc_init();
       
     while (1)
     {

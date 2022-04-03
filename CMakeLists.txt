@@ -119,7 +119,7 @@ pico_add_extra_outputs(pico_hsm)
 
 #target_compile_definitions(pico_hsm PRIVATE MBEDTLS_ECDSA_DETERMINISTIC=1)
 
-target_link_libraries(pico_hsm PRIVATE pico_stdlib tinyusb_device tinyusb_board pico_multicore hardware_flash hardware_sync hardware_adc pico_unique_id)
+target_link_libraries(pico_hsm PRIVATE pico_stdlib tinyusb_device tinyusb_board pico_multicore hardware_flash hardware_sync hardware_adc pico_unique_id hardware_rtc)
 
 #
 #project(flash_nuke C CXX ASM)
