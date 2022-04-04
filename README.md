@@ -86,8 +86,9 @@ For AES key generation, encryption and decryption, check [doc/aes.md](/doc/aes.m
 
 For 4096 bits RSA support, check [doc/rsa_4096_support.md](/doc/rsa_4096.md).
 
-## Key generation time
-Generating EC keys is almost instant. RSA keypair generation takes some time, specially for `2048` and `4096` bits. 
+## Operation time
+### Keypair generation
+Generating EC keys is almost instant. RSA keypair generation takes some time, specially for `3072` and `4096` bits. 
 
 | RSA key length (bits) | Average time (seconds) |
 | :---: | :---: |
@@ -95,6 +96,14 @@ Generating EC keys is almost instant. RSA keypair generation takes some time, sp
 | 2048 | 124 |
 | 3072 | 600 |
 | 4096 | ~1000 |
+
+### Signature and decrypt
+| RSA key length (bits) | Average time (seconds) |
+| :---: | :---: |
+| 1024 | 1 |
+| 2048 | 3 |
+| 3072 | 7 |
+| 4096 | 15 |
 
 ## Driver
 
