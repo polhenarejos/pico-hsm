@@ -23,10 +23,12 @@ This is a project to create a Hardware Security Module (HSM) with a Raspberry Pi
 - DKEK n-of-m threshold scheme.
 - USB/CCID support with OpenSC, openssl, etc.
 - Extended APDU support.
-- Private keys and certificates import from WKY or PKCS#12 files.[^2]
+- Private keys and certificates import from WKY or PKCS#12 files.[^2][^3]
+- Transport PIN for provisioning and forcing to set a new PIN.[^2]
 
 [^1]: PKCS11 modules (`pkcs11-tool` and `sc-tool`) do not support CMAC and key derivation. It must be processed through raw APDU command (`opensc-tool -s`).
-[^2]: Imports are available via SCS3 tool, and only if the Pico HSM is previously initialized with a DKEK and the DKEK shares are available during the import process. See [SCS3](/doc/rsa_4096_support.md "SCS3") for more information.
+[^2]: Available via SCS3 tool. See [SCS3](/doc/rsa_4096_support.md "SCS3") for more information.
+[^3]: Imports are available only if the Pico HSM is previously initialized with a DKEK and the DKEK shares are available during the import process. 
 
 ## Security considerations
 All secret keys (asymmetric and symmetric) are stored encrypted in the flash memory of the Raspberry Pico. DKEK is used as a 256 bit AES key to protect private and secret keys. Keys are never stored in RAM except for signature and decryption operations and only during the process. All keys (including DKEK) are loaded and cleared every time to avoid potential security flaws. 
