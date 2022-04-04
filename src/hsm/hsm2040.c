@@ -1605,6 +1605,21 @@ void led_off_all()
 #endif
 }
 
+void init_rtc() {
+    
+    rtc_init();
+    datetime_t dt = {
+            .year  = 2020,
+            .month = 1,
+            .day   = 1,
+            .dotw  = 3, // 0 is Sunday, so 5 is Friday
+            .hour  = 00,
+            .min   = 00,
+            .sec   = 00
+    };
+    rtc_set_datetime(&dt);
+}
+
 extern void neug_task();
 
 pico_unique_board_id_t unique_id;
@@ -1641,7 +1656,7 @@ int main(void)
     
     low_flash_init();
     
-    rtc_init();
+    init_rtc();
       
     while (1)
     {
