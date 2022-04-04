@@ -93,8 +93,8 @@ Generating EC keys is almost instant. RSA keypair generation takes some time, sp
 | :---: | :---: |
 | 1024 | 16 |
 | 2048 | 124 |
-| 3072 | N/A |
-| 4096 | N/A |
+| 3072 | 600 |
+| 4096 | ~1000 |
 
 ## Driver
 
