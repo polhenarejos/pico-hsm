@@ -20,7 +20,7 @@
 #include "stdlib.h"
 #include "pico/stdlib.h"
 #include "dkek.h"
-#include "hash_utils.h"
+#include "crypto_utils.h"
 #include "random.h"
 #include "sc_hsm.h"
 #include "mbedtls/md.h"
@@ -88,6 +88,7 @@ int dkek_kcv(uint8_t *kcv) { //kcv 8 bytes
     hash256(dkek+IV_SIZE, 32, hsh);
     release_dkek();
     memcpy(kcv, hsh, 8);
+    return HSM_OK;
 }
 
 int dkek_kenc(uint8_t *kenc) { //kenc 32 bytes

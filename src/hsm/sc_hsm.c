@@ -30,8 +30,9 @@
 #include "mbedtls/hkdf.h"
 #include "version.h"
 #include "cvcerts.h"
-#include "hash_utils.h"
+#include "crypto_utils.h"
 #include "dkek.h"
+#include "hardware/rtc.h"
 
 const uint8_t sc_hsm_aid[] = {
     11, 
@@ -92,6 +93,14 @@ void select_file(file_t *pe) {
         //sc_hsm_unload(); //reset auth status
     }
 }
+
+uint16_t get_device_options() {
+    file_t *ef = search_by_fid(EF_DEVOPS, NULL, SPECIFY_EF);
+    if (ef && ef->data)
+        return (file_read_uint8(ef->data+2) << 8) | file_read_uint8(ef->data+3);
+    return 0x0;
+}
+
 static int cmd_select() {
     uint8_t p1 = P1(apdu);
     uint8_t p2 = P2(apdu);
@@ -171,8 +180,9 @@ static int cmd_select() {
         if (pe == file_sc_hsm) {
             res_APDU[res_APDU_size++] = 0x85;
             res_APDU[res_APDU_size++] = 4;
-            res_APDU[res_APDU_size++] = 0xff; //options
-            res_APDU[res_APDU_size++] = 0xff;
+            uint16_t opts = get_device_options();
+            res_APDU[res_APDU_size++] = opts & 0xff;
+            res_APDU[res_APDU_size++] = opts >> 8;
             res_APDU[res_APDU_size++] = HSM_VERSION_MAJOR;
             res_APDU[res_APDU_size++] = HSM_VERSION_MINOR;
             res_APDU[1] = res_APDU_size-2;
@@ -400,11 +410,12 @@ int pin_wrong_retry(const file_t *pin) {
 
 int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
     if (!pin)
-        return SW_FILE_NOT_FOUND();
+        return SW_REFERENCE_NOT_FOUND();
     if (!pin->data) {
         return SW_REFERENCE_NOT_FOUND();
     }
     isUserAuthenticated = false;
+    has_session_pin = has_session_sopin = false;
     uint8_t dhash[32];
     double_hash_pin(data, len, dhash);
     if (sizeof(dhash) != file_read_uint16(pin->data)-1) //1 byte for pin len
@@ -422,7 +433,10 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
         return SW_MEMORY_FAILURE();
     isUserAuthenticated = true;
     hash_multi(data, len, session_pin);
-    has_session_pin = true;
+    if (pin == file_pin1)
+        has_session_pin = true;
+    else if (pin == file_sopin)
+        has_session_sopin = true;
     return SW_OK();
 }
 
@@ -434,46 +448,94 @@ static int cmd_verify() {
         return SW_WRONG_P1P2();
     uint8_t qualifier = p2&0x1f;
     if (p2 == 0x81) { //UserPin
+        uint16_t opts = get_device_options();
+        if (opts & HSM_OPT_TRANSPORT_PIN)
+            return SW_DATA_INVALID();
+        if (file_read_uint8(file_pin1->data+2) == 0) //not initialized
+            return SW_REFERENCE_NOT_FOUND();
         if (apdu.cmd_apdu_data_len > 0) {
             return check_pin(file_pin1, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
         }
         if (file_read_uint8(file_retries_pin1->data+2) == 0)
             return SW_PIN_BLOCKED();
+        if (has_session_pin)
+            return SW_OK();
         return set_res_sw(0x63, 0xc0 | file_read_uint8(file_retries_pin1->data+2));
     }
     else if (p2 == 0x88) { //SOPin
+        if (file_read_uint8(file_sopin->data+2) == 0) //not initialized
+            return SW_REFERENCE_NOT_FOUND();
         if (apdu.cmd_apdu_data_len > 0) {
             return check_pin(file_sopin, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
         }
         if (file_read_uint8(file_retries_sopin->data+2) == 0)
             return SW_PIN_BLOCKED();
+        if (has_session_sopin)
+            return SW_OK();
         return set_res_sw(0x63, 0xc0 | file_read_uint8(file_retries_sopin->data+2));
     }
     return SW_REFERENCE_NOT_FOUND();
 }
 
 static int cmd_reset_retry() {
-    if (P1(apdu) == 0x0) {
-        if (P2(apdu) == 0x81) {
-            if (!file_sopin || !file_pin1) {
-                return SW_FILE_NOT_FOUND();
-            }
-            if (!file_sopin->data) {
-                return SW_REFERENCE_NOT_FOUND();
-            }
+    if (P2(apdu) != 0x81)
+        return SW_REFERENCE_NOT_FOUND();        
+    if (!file_sopin || !file_pin1) {
+        return SW_FILE_NOT_FOUND();
+    }
+    if (!file_sopin->data) {
+        return SW_REFERENCE_NOT_FOUND();
+    }
+    uint16_t opts = get_device_options();
+    if (!(opts & HSM_OPT_RRC))
+        return SW_COMMAND_NOT_ALLOWED();
+    if (P1(apdu) == 0x0 || P1(apdu) == 0x2) {
+        int newpin_len = 0;
+        if (P1(apdu) == 0x0) {
+            if (apdu.cmd_apdu_data_len <= 8)
+                return SW_WRONG_LENGTH();
             uint16_t r = check_pin(file_sopin, apdu.cmd_apdu_data, 8);
             if (r != 0x9000)
                 return r;
-            uint8_t dhash[33];
-            dhash[0] = apdu.cmd_apdu_data_len-8;
-            double_hash_pin(apdu.cmd_apdu_data+8, apdu.cmd_apdu_data_len-8, dhash+1);
-            flash_write_data_to_file(file_pin1, dhash, sizeof(dhash));
-            if (pin_reset_retries(file_pin1, true) != HSM_OK)
-                return SW_MEMORY_FAILURE();
-            low_flash_available();
-            return SW_OK();
+            newpin_len = apdu.cmd_apdu_data_len-8;
         }
+        else if (P1(apdu) == 0x2) {    
+            if (!has_session_sopin)
+                return SW_CONDITIONS_NOT_SATISFIED();
+            if (apdu.cmd_apdu_data_len > 16)
+                return SW_WRONG_LENGTH();
+            newpin_len = apdu.cmd_apdu_data_len;
+        }
+        uint8_t dhash[33];
+        dhash[0] = newpin_len;
+        double_hash_pin(apdu.cmd_apdu_data+(apdu.cmd_apdu_data_len-newpin_len), newpin_len, dhash+1);
+        flash_write_data_to_file(file_pin1, dhash, sizeof(dhash));
+        if (pin_reset_retries(file_pin1, true) != HSM_OK)
+            return SW_MEMORY_FAILURE();
+        low_flash_available();
+        return SW_OK();
     }
+    else if (P1(apdu) == 0x1 || P1(apdu) == 0x3) {        
+        if (!(opts & HSM_OPT_RRC_RESET_ONLY))
+            return SW_COMMAND_NOT_ALLOWED();
+        if (P1(apdu) == 0x1) {
+            if (apdu.cmd_apdu_data_len != 8)
+                return SW_WRONG_LENGTH();
+            uint16_t r = check_pin(file_sopin, apdu.cmd_apdu_data, 8);
+            if (r != 0x9000)
+                return r;
+        }
+        else if (P1(apdu) == 0x3) {
+            if (!has_session_sopin)
+                return SW_CONDITIONS_NOT_SATISFIED();
+            if (apdu.cmd_apdu_data_len != 0)
+                return SW_WRONG_LENGTH();
+        }
+        if (pin_reset_retries(file_pin1, true) != HSM_OK)
+            return SW_MEMORY_FAILURE();
+        return SW_OK();
+    }
+    return SW_INCORRECT_P1P2();
 }
 
 static int cmd_challenge() {
@@ -503,6 +565,8 @@ static int cmd_initialize() {
             uint8_t tag = *p++;
             uint8_t tag_len = *p++;
             if (tag == 0x80) { //options
+                file_t *tf = search_by_fid(EF_DEVOPS, NULL, SPECIFY_EF);
+                flash_write_data_to_file(tf, p, tag_len);
             }
             else if (tag == 0x81) { //user pin
                 if (file_pin1 && file_pin1->data) {
@@ -581,6 +645,7 @@ static int cmd_import_dkek() {
             
         }
     }
+    memset(res_APDU,0,10);
     res_APDU[0] = dkeks;
     res_APDU[1] = dkeks-current_dkeks;
     dkek_kcv(res_APDU+2);
@@ -1036,7 +1101,7 @@ static int cmd_delete_file() {
     if (apdu.cmd_apdu_data_len == 0) {
         ef = currentEF;
         if (!(ef = search_dynamic_file(ef->fid)))
-            return SW_FILE_INVALID();
+            return SW_FILE_NOT_FOUND();
     }
     else {
         uint16_t fid = (apdu.cmd_apdu_data[0] << 8) | apdu.cmd_apdu_data[1];
@@ -1649,6 +1714,24 @@ static int cmd_derive_asym() {
     return SW_OK();
 }
 
+static int cmd_datetime() {
+    if (P1(apdu) != 0x0 || P2(apdu) != 0x0)
+        return SW_INCORRECT_P1P2();
+    if (apdu.cmd_apdu_data_len != 8)
+        return SW_WRONG_LENGTH();
+    datetime_t dt;
+    dt.year = (apdu.cmd_apdu_data[0] << 8) | (apdu.cmd_apdu_data[1]);
+    dt.month = apdu.cmd_apdu_data[2];
+    dt.day = apdu.cmd_apdu_data[3];
+    dt.dotw = apdu.cmd_apdu_data[4];
+    dt.hour = apdu.cmd_apdu_data[5];
+    dt.min = apdu.cmd_apdu_data[6];
+    dt.sec = apdu.cmd_apdu_data[7];
+    if (!rtc_set_datetime(&dt))
+        return SW_WRONG_DATA();
+    return SW_OK();
+}
+
 typedef struct cmd
 {
   uint8_t ins;
@@ -1670,6 +1753,7 @@ typedef struct cmd
 #define INS_DERIVE_ASYM             0x76
 #define INS_CIPHER_SYM              0x78
 #define INS_CHALLENGE               0x84
+#define INS_DATETIME                0x88
 #define INS_SELECT_FILE				0xA4
 #define INS_READ_BINARY				0xB0
 #define INS_READ_BINARY_ODD         0xB1
@@ -1697,6 +1781,7 @@ static const cmd_t cmds[] = {
     { INS_DECRYPT_ASYM, cmd_decrypt_asym },
     { INS_CIPHER_SYM, cmd_cipher_sym },
     { INS_DERIVE_ASYM, cmd_derive_asym },
+    { INS_DATETIME, cmd_datetime },
     { 0x00, 0x0}
 };
 

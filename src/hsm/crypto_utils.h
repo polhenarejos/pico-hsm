@@ -15,8 +15,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _HASH_UTILS_H_
-#define _HASH_UTILS_H_
+#ifndef _CRYPTO_UTILS_H_
+#define _CRYPTO_UTILS_H_
 
 #include "stdlib.h"
 #include "pico/stdlib.h"
