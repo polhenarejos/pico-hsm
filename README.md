@@ -27,7 +27,7 @@ This is a project to create a Hardware Security Module (HSM) with a Raspberry Pi
 - Transport PIN for provisioning and forcing to set a new PIN.[^2]
 
 [^1]: PKCS11 modules (`pkcs11-tool` and `sc-tool`) do not support CMAC and key derivation. It must be processed through raw APDU command (`opensc-tool -s`).
-[^2]: Available via SCS3 tool. See [SCS3](/doc/rsa_4096_support.md "SCS3") for more information.
+[^2]: Available via SCS3 tool. See [SCS3](/doc/rsa_4096.md "SCS3") for more information.
 [^3]: Imports are available only if the Pico HSM is previously initialized with a DKEK and the DKEK shares are available during the import process. 
 
 ## Security considerations
@@ -84,7 +84,7 @@ For backup, restore and DKEK share management, check [doc/backup-and-restore.md]
 
 For AES key generation, encryption and decryption, check [doc/aes.md](/doc/aes.md).
 
-For 4096 bits RSA support, check [doc/rsa_4096_support.md](/doc/rsa_4096_support.md).
+For 4096 bits RSA support, check [doc/rsa_4096_support.md](/doc/rsa_4096.md).
 
 ## Key generation time
 Generating EC keys is almost instant. RSA keypair generation takes some time, specially for `2048` and `4096` bits. 
@@ -106,7 +106,7 @@ The way to communicate is exactly the same as with other cards, such as OpenPGP 
 
 For an advanced usage, see the docs and examples.
 
-Pico HSM also supports SCS3 tool. See [SCS3](/doc/rsa_4096_support.md "SCS3") for more information.
+Pico HSM also supports SCS3 tool. See [SCS3](/doc/rsa_4096.md "SCS3") for more information.
 
 ### Important
 OpenSC relies on PCSC driver, which reads a list (`Info.plist`) that contains a pair of VID/PID of supported readers. In order to be detectable, you must patch the UF2 binary (if you just downloaded from the [Release section](https://github.com/polhenarejos/pico-hsm/releases "Release section")) or configure the project with the proper VID/PID with `USB_VID` and `USB_PID` parameters in `CMake` (see [Build section](#build "Build section")). Note that you cannot distribute the patched/compiled binary if you do not own the VID/PID or have an explicit authorization.
