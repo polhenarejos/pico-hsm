@@ -994,15 +994,19 @@ static int cmd_keypair_gen() {
     
     res_APDU[0] = 0x67;
     int outer_len = strlen(cvc.outer_car)+2+2+1+4;
-    int bytes_length = (cvclen+outer_len)/256;
-    if (cvclen%256 > 0)
-        bytes_length++;
-    if (cvclen < 128)
+    int bytes_length = 0;
+    if (cvclen+outer_len < 128)
         res_APDU[1] = cvclen+outer_len;
+    else if (cvclen+outer_len < 256) {
+        res_APDU[1] = 0x81;
+        res_APDU[2] = cvclen+outer_len;
+        bytes_length = 1;
+    }
     else {
-        res_APDU[1] = 0x80|bytes_length;
-        for (int b = 1; b <= bytes_length; b++) 
-            res_APDU[1+b] = ((cvclen+outer_len)>>((bytes_length-b)*8))&0xff;
+        res_APDU[1] = 0x82;
+        res_APDU[2] = (cvclen+outer_len) >> 8;
+        res_APDU[3] = (cvclen+outer_len) & 0xff;
+        bytes_length = 2;
     }
     memcpy(res_APDU+bytes_length+2, cvcbin, cvclen);
     res_APDU[bytes_length+2+cvclen] = 0x42;
