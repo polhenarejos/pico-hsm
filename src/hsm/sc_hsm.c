@@ -1717,18 +1717,33 @@ static int cmd_derive_asym() {
 static int cmd_datetime() {
     if (P1(apdu) != 0x0 || P2(apdu) != 0x0)
         return SW_INCORRECT_P1P2();
-    if (apdu.cmd_apdu_data_len != 8)
-        return SW_WRONG_LENGTH();
-    datetime_t dt;
-    dt.year = (apdu.cmd_apdu_data[0] << 8) | (apdu.cmd_apdu_data[1]);
-    dt.month = apdu.cmd_apdu_data[2];
-    dt.day = apdu.cmd_apdu_data[3];
-    dt.dotw = apdu.cmd_apdu_data[4];
-    dt.hour = apdu.cmd_apdu_data[5];
-    dt.min = apdu.cmd_apdu_data[6];
-    dt.sec = apdu.cmd_apdu_data[7];
-    if (!rtc_set_datetime(&dt))
-        return SW_WRONG_DATA();
+    if (apdu.cmd_apdu_data_len == 0) {
+        datetime_t dt;
+        if (!rtc_get_datetime(&dt))
+            return SW_EXEC_ERROR();
+        res_APDU[res_APDU_size++] = dt.year >> 8;
+        res_APDU[res_APDU_size++] = dt.year & 0xff;
+        res_APDU[res_APDU_size++] = dt.month;
+        res_APDU[res_APDU_size++] = dt.day;
+        res_APDU[res_APDU_size++] = dt.dotw;
+        res_APDU[res_APDU_size++] = dt.hour;
+        res_APDU[res_APDU_size++] = dt.min;
+        res_APDU[res_APDU_size++] = dt.sec;
+    }
+    else {
+        if (apdu.cmd_apdu_data_len != 8)
+            return SW_WRONG_LENGTH();
+        datetime_t dt;
+        dt.year = (apdu.cmd_apdu_data[0] << 8) | (apdu.cmd_apdu_data[1]);
+        dt.month = apdu.cmd_apdu_data[2];
+        dt.day = apdu.cmd_apdu_data[3];
+        dt.dotw = apdu.cmd_apdu_data[4];
+        dt.hour = apdu.cmd_apdu_data[5];
+        dt.min = apdu.cmd_apdu_data[6];
+        dt.sec = apdu.cmd_apdu_data[7];
+        if (!rtc_set_datetime(&dt))
+            return SW_WRONG_DATA();
+    }
     return SW_OK();
 }
 
