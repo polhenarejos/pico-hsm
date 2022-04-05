@@ -1036,7 +1036,7 @@ static int cmd_update_ef() {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     if (fid == 0x0)
         ef = currentEF;
-    else if (p1 != EE_CERTIFICATE_PREFIX && p1 != PRKD_PREFIX && p1 != CA_CERTIFICATE_PREFIX && p1 != CD_PREFIX)
+    else if (p1 != EE_CERTIFICATE_PREFIX && p1 != PRKD_PREFIX && p1 != CA_CERTIFICATE_PREFIX && p1 != CD_PREFIX && p1 != DATA_PREFIX && p1 != DCOD_PREFIX && p1 != PROT_DATA_PREFIX)
         return SW_INCORRECT_P1P2();
         
     if (ef && !authenticate_action(ef, ACL_OP_UPDATE_ERASE))
