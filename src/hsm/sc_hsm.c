@@ -117,16 +117,14 @@ static int cmd_select() {
         
     //if ((fid & 0xff00) == (KEY_PREFIX << 8))
     //    fid = (PRKD_PREFIX << 8) | (fid & 0xff);
-
-    if ((fid & 0xff00) == (PRKD_PREFIX << 8)) {
-        if (!(pe = search_dynamic_file(fid)))
-            return SW_FILE_NOT_FOUND();
-    }
-    else if ((fid & 0xff00) == (CD_PREFIX << 8)) {
-        if (!(pe = search_dynamic_file(fid)))
-            return SW_FILE_NOT_FOUND();
-    }
-    else if ((fid & 0xff00) == (EE_CERTIFICATE_PREFIX << 8)) {
+    
+    uint8_t pfx = fid >> 8;
+    if (pfx == PRKD_PREFIX || 
+        pfx == CD_PREFIX || 
+        pfx == EE_CERTIFICATE_PREFIX || 
+        pfx == DCOD_PREFIX || 
+        pfx == DATA_PREFIX || 
+        pfx == PROT_DATA_PREFIX) {
         if (!(pe = search_dynamic_file(fid)))
             return SW_FILE_NOT_FOUND();
     }
@@ -294,6 +292,14 @@ static int cmd_list_keys()
         file_t *f = &dynamic_file[i];
         if ((f->fid & 0xff00) == (CD_PREFIX << 8)) {
             res_APDU[res_APDU_size++] = CD_PREFIX;
+            res_APDU[res_APDU_size++] = f->fid & 0xff;
+        }
+    }
+    
+    for (int i = 0; i < dynamic_files; i++) {
+        file_t *f = &dynamic_file[i];
+        if ((f->fid & 0xff00) == (DCOD_PREFIX << 8)) {
+            res_APDU[res_APDU_size++] = DCOD_PREFIX;
             res_APDU[res_APDU_size++] = f->fid & 0xff;
         }
     }

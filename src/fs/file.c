@@ -262,19 +262,8 @@ void scan_flash() {
         file_t *file = (file_t *)search_by_fid(fid, NULL, SPECIFY_EF);
         if (!file) {
             file = file_new(fid);
-            if ((fid & 0xff00) == (KEY_PREFIX << 8)) {
-                //add_file_to_chain(file, &ef_kf);
-            }
-            else if ((fid & 0xff00) == (PRKD_PREFIX << 8)) {
-                //add_file_to_chain(file, &ef_prkdf);
-            }
-            else if ((fid & 0xff00) == (CD_PREFIX << 8)) {
-                //add_file_to_chain(file, &ef_cdf);
-            }
-            else if ((fid & 0xff00) == (EE_CERTIFICATE_PREFIX << 8)) {
-                //add_file_to_chain(file, &ef_pukdf);
-            }
-            else {
+            uint8_t pfx = fid >> 8;
+            if (pfx != KEY_PREFIX && pfx != PRKD_PREFIX && pfx != CD_PREFIX && pfx != EE_CERTIFICATE_PREFIX && pfx != DCOD_PREFIX && pfx != PROT_DATA_PREFIX && pfx != DATA_PREFIX) {
                 TU_LOG1("SCAN FOUND ORPHAN FILE: %x\r\n",fid);
                 continue;
             }
