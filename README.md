@@ -25,6 +25,9 @@ This is a project to create a Hardware Security Module (HSM) with a Raspberry Pi
 - Extended APDU support.
 - Private keys and certificates import from WKY or PKCS#12 files.[^2][^3]
 - Transport PIN for provisioning and forcing to set a new PIN.[^2]
+- Press-to-confirm button optional feature to authorize operations with private/secret keys.
+- Store and retrieve binary data.
+- Real time clock with external datetime setting and getting. 
 
 [^1]: PKCS11 modules (`pkcs11-tool` and `sc-tool`) do not support CMAC and key derivation. It must be processed through raw APDU command (`opensc-tool -s`).
 [^2]: Available via SCS3 tool. See [SCS3](/doc/rsa_4096.md "SCS3") for more information.
@@ -86,6 +89,10 @@ For AES key generation, encryption and decryption, check [doc/aes.md](/doc/aes.m
 
 For 4096 bits RSA support, check [doc/rsa_4096_support.md](/doc/rsa_4096.md).
 
+For storing and retrieving arbitrary data, check [doc/store_data.md](/doc/store_data.md).
+
+For extra options, such as set/get real datetime or enable/disable press-to-confirm button, check [doc/extra_command.md](/doc/extra_command.md).
+
 ## Operation time
 ### Keypair generation
 Generating EC keys is almost instant. RSA keypair generation takes some time, specially for `3072` and `4096` bits. 
@@ -104,6 +111,13 @@ Generating EC keys is almost instant. RSA keypair generation takes some time, sp
 | 2048 | 3 |
 | 3072 | 7 |
 | 4096 | 15 |
+
+## Press-to-confirm button
+Raspberry Pico comes with the BOOTSEL button to load the firmware. When this firmware is running, the button can be used for other purposes. Pico HSM uses this button to confirm private/secret operations. This feature is optional and it shall be enabled. For more information, see [doc/extra_command.md](/doc/extra_command.md).
+
+With this feature enabled, everytime that a private/secret key is loaded, the Pico HSM awaits for the user confirmation by pressing the BOOTSEL button. The Led of the Pico HSM will remain almost illuminated, turning off quickly once a second, indicating that the user must press the button to confirm the operation. Otherwise, the Pico HSM waits indefinitely. See [Led blink](#press-to-confirm) for a picture of the blinking sequence. When in this mode, the Pico HSM sends periodic timeout commands to the host to do not trigger the timeout operation.
+
+This feature is an extra layer of security, as it requires the user intervention to sign or decrypt and it ensures that any application will use the Pico HSM without user awareness. However, it is not recommended for servers or other environments where operations are authomatized, since it requires a physical access to the Pico HSM to push the button.
 
 ## Led blink
 Pico HSM uses the led to indicate the current status. Four states are available:
