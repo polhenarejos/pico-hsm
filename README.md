@@ -105,6 +105,28 @@ Generating EC keys is almost instant. RSA keypair generation takes some time, sp
 | 3072 | 7 |
 | 4096 | 15 |
 
+## Led blink
+Pico HSM uses the led to indicate the current status. Four states are available:
+### Press to confirm
+The Led is almost on all the time. It goes off for 100 miliseconds every second.
+
+![Press to confirm](https://user-images.githubusercontent.com/55573252/162008917-6a730eac-396c-44cc-890e-802294be30a3.gif)
+
+### Idle mode
+In idle mode, the Pico HSM goes to sleep. It waits for a command and it is awaken by the driver. The Led is almost off all the time. It goes on for 500 milliseconds every second.
+
+![Idle mode](https://user-images.githubusercontent.com/55573252/162008980-d5a5caad-072e-400c-98e3-2c606b4b2af9.gif)
+
+### Active mode
+In active mode, the Pico HSM is awaken and ready to receive a command. It blinks four times in a second.
+
+![Active](https://user-images.githubusercontent.com/55573252/162008997-1ea8cd7e-5384-4893-9dcb-b473153fc375.gif)
+
+### Processing
+While processing, the Pico HSM is busy and cannot receive additional commands until the current is processed. In this state, the Led blinks 20 times in a second.
+
+![Processing](https://user-images.githubusercontent.com/55573252/162009007-df45111e-2473-4a92-97c5-15c3cd19babd.gif)
+
 ## Driver
 
 Pico HSM uses the `sc-hsm` driver provided by [OpenSC](https://github.com/OpenSC/OpenSC/ "OpenSC") or the `sc-hsm-embedded` driver provided by [CardContact](https://github.com/CardContact/sc-hsm-embedded "CardContact"). This driver utilizes the standardized PKCS#11 interface to communicate with the user and it can be used with many engines that accept PKCS#11 interface, such as OpenSSL, P11 library or pkcs11-tool. 
