@@ -6,7 +6,7 @@ This is a project to create a Hardware Security Module (HSM) with a Raspberry Pi
 - RSA key generation from 1024 to 4096 bits.
 - ECDSA key generation from 192 to 521 bits.
 - ECC curves secp192r1, secp256r1, secp384r1, secp521r1, brainpoolP256r1, brainpoolP384r1, brainpoolP512r1, secp192k1 (insecure), secp256k1.
-- SHA1, SHA224, SHA256, SHA384, SHA256 digests.
+- SHA1, SHA224, SHA256, SHA384, SHA512 digests.
 - RSA-PSS, RSA-PKCS and raw RSA signature.
 - ECDSA raw and hash signature.
 - ECDH key derivation.
