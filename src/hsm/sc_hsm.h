@@ -88,13 +88,14 @@ extern const uint8_t sc_hsm_aid[];
 #define ALGO_AES_CMAC		    0x18
 #define ALGO_AES_DERIVE		    0x99
 
-#define HSM_OPT_RRC                 0x1
-#define HSM_OPT_TRANSPORT_PIN       0x2
-#define HSM_OPT_SESSION_PIN         0x4
-#define HSM_OPT_SESSION_PIN_EXPL    0xC
-#define HSM_OPT_REPLACE_PKA         0x8
-#define HSM_OPT_COMBINED_AUTH       0x10
-#define HSM_OPT_RRC_RESET_ONLY      0x20
+#define HSM_OPT_RRC                 0x0001
+#define HSM_OPT_TRANSPORT_PIN       0x0002
+#define HSM_OPT_SESSION_PIN         0x0004
+#define HSM_OPT_SESSION_PIN_EXPL    0x000C
+#define HSM_OPT_REPLACE_PKA         0x0008
+#define HSM_OPT_COMBINED_AUTH       0x0010
+#define HSM_OPT_RRC_RESET_ONLY      0x0020
+#define HSM_OPT_BOOTSEL_BUTTON      0x0100
 
 #define P15_KEYTYPE_RSA     0x30
 #define P15_KEYTYPE_ECC     0xA0

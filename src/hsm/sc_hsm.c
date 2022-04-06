@@ -104,12 +104,15 @@ uint16_t get_device_options() {
 extern uint32_t board_button_read(void);
 
 static void wait_button() {
-    uint32_t val = EV_PRESS_BUTTON;
-    queue_try_add(ccid_comm, &val);
-    do {
-        queue_remove_blocking(card_comm, &val);
+    uint16_t opts = get_device_options();
+    if (opts & HSM_OPT_BOOTSEL_BUTTON) {
+        uint32_t val = EV_PRESS_BUTTON;
+        queue_try_add(ccid_comm, &val);
+        do {
+            queue_remove_blocking(card_comm, &val);
+        }
+        while (val != EV_BUTTON_PRESSED);
     }
-    while (val != EV_BUTTON_PRESSED);
 }
 
 static int cmd_select() {
