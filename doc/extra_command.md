@@ -54,3 +54,33 @@ Received (SW1=0x90, SW2=0x00)
 ```
 
 will set the reference datetime to `Wednesday, 2022 April 6th, 19:41:23`.
+
+## Dynamic options
+Pico HSM support initialize options, such as setting Transport PIN or reset retry counter options. However, once it is initialized, these options cannot be modified anymore, without a new initialization (loosing all stored keys). Pico HSM offers the chance to define a set of dynamic options that can be enabled/disabled dynamically without initializing the device at every moment.
+
+To specify a set of options, the `XX` parameter shall be set to `06`. The data parameter shall be 1 byte, where the options are combined with the or operand `|`. The length `YY` shall be set to `01`.
+
+### Press-to-confirm button
+Press-to-confirm button offers an extra security layer by requiring the user confirmation everytime that a private/secret key is loaded. This avoids ghost applications thay may perform hidden opperations without noticing the user, such as signing or decrypting. Pico HSM will inform the user that is awaiting for a confirmation by making almost a fixed Led blink.
+
+This feature is disabled by default but can be enabled rapidly by setting the LSB bit to 1:
+
+```
+$ opensc-tool -s 808806000101
+Using reader with a card: Free Software Initiative of Japan Gnuk
+Sending: 80 88 06 00 01 01 
+Received (SW1=0x90, SW2=0x00)
+```
+
+At this moment, when a private/secret key is loaded, the Pico HSM will wait for the pressed BOOTSEL button to confirm the operation.
+
+To disable, the LSB bit must be set to 0:
+
+```
+$ opensc-tool -s 808806000100
+Using reader with a card: Free Software Initiative of Japan Gnuk
+Sending: 80 88 06 00 01 00
+Received (SW1=0x90, SW2=0x00)
+```
+
+
