@@ -1740,38 +1740,58 @@ static int cmd_derive_asym() {
     return SW_OK();
 }
 
-static int cmd_datetime() {
-    if (P1(apdu) != 0x0 || P2(apdu) != 0x0)
+static int cmd_extras() {
+    if (P2(apdu) != 0x0)
         return SW_INCORRECT_P1P2();
-    if (apdu.cmd_apdu_data_len == 0) {
-        datetime_t dt;
-        if (!rtc_get_datetime(&dt))
-            return SW_EXEC_ERROR();
-        res_APDU[res_APDU_size++] = dt.year >> 8;
-        res_APDU[res_APDU_size++] = dt.year & 0xff;
-        res_APDU[res_APDU_size++] = dt.month;
-        res_APDU[res_APDU_size++] = dt.day;
-        res_APDU[res_APDU_size++] = dt.dotw;
-        res_APDU[res_APDU_size++] = dt.hour;
-        res_APDU[res_APDU_size++] = dt.min;
-        res_APDU[res_APDU_size++] = dt.sec;
+    if (P1(apdu) == 0xA) { //datetime operations
+        if (apdu.cmd_apdu_data_len == 0) {
+            datetime_t dt;
+            if (!rtc_get_datetime(&dt))
+                return SW_EXEC_ERROR();
+            res_APDU[res_APDU_size++] = dt.year >> 8;
+            res_APDU[res_APDU_size++] = dt.year & 0xff;
+            res_APDU[res_APDU_size++] = dt.month;
+            res_APDU[res_APDU_size++] = dt.day;
+            res_APDU[res_APDU_size++] = dt.dotw;
+            res_APDU[res_APDU_size++] = dt.hour;
+            res_APDU[res_APDU_size++] = dt.min;
+            res_APDU[res_APDU_size++] = dt.sec;
+        }
+        else {
+            if (apdu.cmd_apdu_data_len != 8)
+                return SW_WRONG_LENGTH();
+            datetime_t dt;
+            dt.year = (apdu.cmd_apdu_data[0] << 8) | (apdu.cmd_apdu_data[1]);
+            dt.month = apdu.cmd_apdu_data[2];
+            dt.day = apdu.cmd_apdu_data[3];
+            dt.dotw = apdu.cmd_apdu_data[4];
+            dt.hour = apdu.cmd_apdu_data[5];
+            dt.min = apdu.cmd_apdu_data[6];
+            dt.sec = apdu.cmd_apdu_data[7];
+            if (!rtc_set_datetime(&dt))
+                return SW_WRONG_DATA();
+        }
     }
-    else {
-        if (apdu.cmd_apdu_data_len != 8)
+    else if (P1(apdu) == 0x6) { //dynamic options
+        if (apdu.cmd_apdu_data_len > sizeof(uint8_t))
             return SW_WRONG_LENGTH();
-        datetime_t dt;
-        dt.year = (apdu.cmd_apdu_data[0] << 8) | (apdu.cmd_apdu_data[1]);
-        dt.month = apdu.cmd_apdu_data[2];
-        dt.day = apdu.cmd_apdu_data[3];
-        dt.dotw = apdu.cmd_apdu_data[4];
-        dt.hour = apdu.cmd_apdu_data[5];
-        dt.min = apdu.cmd_apdu_data[6];
-        dt.sec = apdu.cmd_apdu_data[7];
-        if (!rtc_set_datetime(&dt))
-            return SW_WRONG_DATA();
+        uint16_t opts = get_device_options();
+        if (apdu.cmd_apdu_data_len == 0) {
+            res_APDU[res_APDU_size++] = opts >> 8;
+            res_APDU[res_APDU_size++] = opts & 0xff;
+        }
+        else {
+            uint8_t newopts[] = { apdu.cmd_apdu_data[0], (opts & 0xff) };
+            file_t *tf = search_by_fid(EF_DEVOPS, NULL, SPECIFY_EF);
+            flash_write_data_to_file(tf, newopts, sizeof(newopts));
+            low_flash_available();
+        }
     }
+    else
+        return SW_INCORRECT_P1P2();
     return SW_OK();
 }
+
 
 typedef struct cmd
 {
@@ -1794,7 +1814,7 @@ typedef struct cmd
 #define INS_DERIVE_ASYM             0x76
 #define INS_CIPHER_SYM              0x78
 #define INS_CHALLENGE               0x84
-#define INS_DATETIME                0x88
+#define INS_EXTRAS                  0x88
 #define INS_SELECT_FILE				0xA4
 #define INS_READ_BINARY				0xB0
 #define INS_READ_BINARY_ODD         0xB1
@@ -1822,7 +1842,7 @@ static const cmd_t cmds[] = {
     { INS_DECRYPT_ASYM, cmd_decrypt_asym },
     { INS_CIPHER_SYM, cmd_cipher_sym },
     { INS_DERIVE_ASYM, cmd_derive_asym },
-    { INS_DATETIME, cmd_datetime },
+    { INS_EXTRAS, cmd_extras },
     { 0x00, 0x0}
 };
 
