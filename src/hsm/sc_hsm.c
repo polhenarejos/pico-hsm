@@ -101,6 +101,17 @@ uint16_t get_device_options() {
     return 0x0;
 }
 
+extern uint32_t board_button_read(void);
+
+static void wait_button() {
+    uint32_t val = EV_PRESS_BUTTON;
+    queue_try_add(ccid_comm, &val);
+    do {
+        queue_remove_blocking(card_comm, &val);
+    }
+    while (val != EV_BUTTON_PRESSED);
+}
+
 static int cmd_select() {
     uint8_t p1 = P1(apdu);
     uint8_t p2 = P2(apdu);
@@ -1191,6 +1202,7 @@ static int cmd_key_gen() {
 }
 
 int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
+    wait_button();
     int key_size = file_read_uint16(fkey->data);
     uint8_t kdata[4096/8];
     memcpy(kdata, file_read(fkey->data+2), key_size);
@@ -1225,6 +1237,7 @@ int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
 }
 
 int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey) {
+    wait_button();
     int key_size = file_read_uint16(fkey->data);
     uint8_t kdata[67]; //Worst case, 521 bit + 1byte
     memcpy(kdata, file_read(fkey->data+2), key_size);
@@ -1417,6 +1430,7 @@ static int cmd_key_wrap() {
     }
     else if (*dprkd == P15_KEYTYPE_AES) {
         uint8_t kdata[32]; //maximum AES key size
+        wait_button();
         int key_size = file_read_uint16(ef->data), aes_type = HSM_KEY_AES;
         memcpy(kdata, file_read(ef->data+2), key_size);
         if (dkek_decrypt(kdata, key_size) != 0) {
@@ -1526,6 +1540,7 @@ static int cmd_decrypt_asym() {
     }
     else if (P2(apdu) == ALGO_EC_DH) {
         mbedtls_ecdh_context ctx;
+        wait_button();
         int key_size = file_read_uint16(ef->data);
         uint8_t *kdata = (uint8_t *)calloc(1,key_size);
         memcpy(kdata, file_read(ef->data+2), key_size);
@@ -1580,6 +1595,7 @@ static int cmd_cipher_sym() {
     if ((apdu.cmd_apdu_data_len % 16) != 0) {
         return SW_WRONG_LENGTH();
     }
+    wait_button();
     int key_size = file_read_uint16(ef->data);
     uint8_t kdata[32]; //maximum AES key size
     memcpy(kdata, file_read(ef->data+2), key_size);

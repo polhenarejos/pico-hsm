@@ -29,7 +29,6 @@
 #include "tusb.h"
 #include "usb_descriptors.h"
 #include "device/usbd_pvt.h"
-#include "pico/util/queue.h"
 #include "pico/multicore.h"
 #include "random.h"
 #include "hsm2040.h"
@@ -94,7 +93,8 @@ app_t *current_app = NULL;
 
 extern void card_thread();
 
-static queue_t *card_comm;
+queue_t *card_comm = NULL;
+queue_t *ccid_comm = NULL;
 extern void low_flash_init_core1();
 
 int register_app(app_t * (*select_aid)()) {
@@ -374,17 +374,27 @@ usbd_class_driver_t const *usbd_app_driver_get_cb(uint8_t *driver_count) {
     return &ccid_driver;
 }
 
-enum  {
-    BLINK_NOT_MOUNTED = (250 << 16) | 250,
-    BLINK_MOUNTED     = (250 << 16) | 250,
-    BLINK_SUSPENDED   = (500 << 16) | 1000,
-    BLINK_PROCESSING  = (50 << 16) | 50,
-
-    BLINK_ALWAYS_ON   = UINT32_MAX,
-    BLINK_ALWAYS_OFF  = 0
-};
 
 static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
+
+void led_set_blink(uint32_t mode) {
+    blink_interval_ms = mode;
+}
+
+void execute_tasks();
+
+static void wait_button() {
+    led_set_blink((1000 << 16) | 100);
+    while (board_button_read() == false) {
+        execute_tasks();
+        //sleep_ms(10);
+    }
+    while (board_button_read() == true) {
+        execute_tasks();
+        //sleep_ms(10);
+    }
+    led_set_blink(BLINK_PROCESSING);
+}
 
 void usb_tx_enable(const uint8_t *buf, uint32_t len) 
 {
@@ -485,7 +495,7 @@ static enum ccid_state ccid_power_on(struct ccid *c)
 
     DEBUG_INFO("ON\r\n");
     c->tx_busy = 1;
-    blink_interval_ms = BLINK_MOUNTED;
+    led_set_blink(BLINK_MOUNTED);
     return CCID_STATE_WAIT;
 }
 
@@ -532,7 +542,7 @@ static enum ccid_state ccid_power_off(struct ccid *c)
     ccid_send_status (c);
     DEBUG_INFO ("OFF\r\n");
     c->tx_busy = 1;
-    blink_interval_ms = BLINK_SUSPENDED;
+    led_set_blink(BLINK_SUSPENDED);
     return CCID_STATE_START;
 }
 
@@ -1376,7 +1386,7 @@ void prepare_ccid()
 }
 
 int process_apdu() {
-    blink_interval_ms = BLINK_PROCESSING;
+    led_set_blink(BLINK_PROCESSING);
     if (!current_app) {
         if (INS(apdu) == 0xA4 && P1(apdu) == 0x04 && (P2(apdu) == 0x00 || P2(apdu) == 0x4)) { //select by AID
             for (int a = 0; a < num_apps; a++) {
@@ -1406,7 +1416,7 @@ static void card_init (void)
 
 void card_thread()
 {
-    queue_t *ccid_comm = (queue_t *)multicore_fifo_pop_blocking();
+    ccid_comm = (queue_t *)multicore_fifo_pop_blocking();
     card_comm = (queue_t *)multicore_fifo_pop_blocking();
 
     card_init ();
@@ -1531,7 +1541,7 @@ void ccid_task(void)
         	    {
         	        DEBUG_INFO ("ERR05\r\n");
         	    }
-        	    blink_interval_ms = BLINK_MOUNTED;
+        	    led_set_blink(BLINK_MOUNTED);
             }
             else if (m == EV_TX_FINISHED)
         	{
@@ -1541,6 +1551,11 @@ void ccid_task(void)
         	        c->tx_busy = 0;
         	    if (c->state == APDU_STATE_WAIT_COMMAND || c->state == APDU_STATE_COMMAND_CHAINING || c->state == APDU_STATE_RESULT_GET_RESPONSE)
         	        ccid_prepare_receive(c);
+        	}
+        	else if (m == EV_PRESS_BUTTON) {
+        	    wait_button();
+        	    uint32_t flag = EV_BUTTON_PRESSED;
+        	    queue_try_add(&c->card_comm, &flag);
         	}
         }
         else			/* Timeout */
@@ -1624,6 +1639,13 @@ extern void neug_task();
 
 pico_unique_board_id_t unique_id;
 
+void execute_tasks() {
+    prev_millis = board_millis();
+    ccid_task();
+    tud_task(); // tinyusb device task
+    led_blinking_task();
+}
+
 int main(void)
 {
     struct apdu *a = &apdu;
@@ -1660,10 +1682,7 @@ int main(void)
       
     while (1)
     {
-        prev_millis = board_millis();
-        ccid_task();
-        tud_task(); // tinyusb device task
-        led_blinking_task();
+        execute_tasks();
         neug_task();
         do_flash();
     }

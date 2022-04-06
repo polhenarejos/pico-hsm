@@ -22,6 +22,7 @@
 #include "tusb.h"
 #include "file.h"
 #include "pico/unique_id.h"
+#include "pico/util/queue.h"
 
 #define USB_REQ_CCID        0xA1
 
@@ -79,13 +80,18 @@ struct apdu {
 #define EV_EXEC_ACK_REQUIRED  4 /* OpenPGPcard Execution ACK required */
 #define EV_EXEC_FINISHED      8 /* OpenPGPcard Execution finished */
 #define EV_RX_DATA_READY     16 /* USB Rx data available  */
+#define EV_PRESS_BUTTON      32
 
-/* OpenPGPcard thread */
+/* SC HSM thread */
 #define EV_MODIFY_CMD_AVAILABLE   1
 #define EV_VERIFY_CMD_AVAILABLE   2
 #define EV_CMD_AVAILABLE          4
 #define EV_EXIT                   8
-#define EV_PINPAD_INPUT_DONE     16
+#define EV_BUTTON_PRESSED        16
+
+//Variables set by core1
+extern queue_t *ccid_comm;
+extern queue_t *card_comm;
 
 enum ccid_state {
     CCID_STATE_NOCARD,		/* No card available */
@@ -157,4 +163,16 @@ extern void low_flash_available();
 extern int flash_clear_file(file_t *file);
 
 extern pico_unique_board_id_t unique_id;
+
+enum  {
+    BLINK_NOT_MOUNTED = (250 << 16) | 250,
+    BLINK_MOUNTED     = (250 << 16) | 250,
+    BLINK_SUSPENDED   = (500 << 16) | 1000,
+    BLINK_PROCESSING  = (50 << 16) | 50,
+
+    BLINK_ALWAYS_ON   = UINT32_MAX,
+    BLINK_ALWAYS_OFF  = 0
+};
+extern void led_set_blink(uint32_t mode);
+
 #endif
