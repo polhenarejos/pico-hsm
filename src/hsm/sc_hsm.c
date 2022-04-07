@@ -47,6 +47,7 @@ static int sc_hsm_process_apdu();
 
 static void init_sc_hsm();
 static int sc_hsm_unload();
+static int cmd_select();
 
 app_t *sc_hsm_select_aid(app_t *a) {
     if (!memcmp(apdu.cmd_apdu_data, sc_hsm_aid+1, MIN(apdu.cmd_apdu_data_len,sc_hsm_aid[0]))) {
@@ -67,6 +68,7 @@ void init_sc_hsm() {
     scan_flash();
     has_session_pin = has_session_sopin = false;
     isUserAuthenticated = false;
+    cmd_select();
 }
 
 int sc_hsm_unload() {
