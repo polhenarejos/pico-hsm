@@ -1809,6 +1809,7 @@ typedef struct cmd
 #define INS_KEY_GEN                 0x48
 #define INS_INITIALIZE              0x50
 #define INS_IMPORT_DKEK             0x52
+#define INS_EXTRAS                  0x54
 #define INS_LIST_KEYS               0x58
 #define INS_DECRYPT_ASYM            0x62
 #define INS_SIGNATURE               0x68
@@ -1817,7 +1818,6 @@ typedef struct cmd
 #define INS_DERIVE_ASYM             0x76
 #define INS_CIPHER_SYM              0x78
 #define INS_CHALLENGE               0x84
-#define INS_EXTRAS                  0x88
 #define INS_SELECT_FILE				0xA4
 #define INS_READ_BINARY				0xB0
 #define INS_READ_BINARY_ODD         0xB1
