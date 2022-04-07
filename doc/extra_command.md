@@ -4,12 +4,12 @@ Pico HSM supports a customized extra command to use with different options. Sinc
 
 To send a raw APDU command, `opensc-tool -s <APDU>` can be used. The `APDU` parameter is a string of hexadecimal numbers and it takes the following form:
 ```
-8054XX00YYZZZZRR
+8064XX00YYZZZZRR
 ```
 
 It composed by the following fields:
 - `80` to indicate that it is a custom vendor type command.
-- `54` is the `INS` custom command.
+- `64` is the `INS` custom command.
 - `XX` is the command to execute. It varies depending on the targeted command.
 - `00` is the parameter of the command. At this moment, no commands support parameters.
 - `YY` is the length of the data. If no data is provided, this field is absent.
@@ -25,9 +25,9 @@ To obtain the current datetime (referenced to 00:00:00 2020/01/01), the `XX` par
 For example, to obtain the current datetime:
 
 ```
-$ opensc-tool -s 80540A0008
+$ opensc-tool -s 80640A0008
 Using reader with a card: Free Software Initiative of Japan Gnuk
-Sending: 80 54 0A 00 08 
+Sending: 80 64 0A 00 08 
 Received (SW1=0x90, SW2=0x00):
 07 E6 04 06 03 13 29 1E ......).
 ```
@@ -47,9 +47,9 @@ If the command is correctly received, `SW1=0x90` and `SW2=0x00`. Other values me
 To set the reference datetime, a datetime string must be provided. For example:
 
 ```
-$ opensc-tool -s 80540A000807E6040603132917
+$ opensc-tool -s 80640A000807E6040603132917
 Using reader with a card: Free Software Initiative of Japan Gnuk
-Sending: 80 54 0A 00 08 07 E6 04 06 03 13 29 17 
+Sending: 80 64 0A 00 08 07 E6 04 06 03 13 29 17 
 Received (SW1=0x90, SW2=0x00)
 ```
 
@@ -66,9 +66,9 @@ Press-to-confirm button offers an extra security layer by requiring the user con
 This feature is disabled by default but can be enabled rapidly by setting the LSB bit to 1:
 
 ```
-$ opensc-tool -s 805406000101
+$ opensc-tool -s 806406000101
 Using reader with a card: Free Software Initiative of Japan Gnuk
-Sending: 80 54 06 00 01 01 
+Sending: 80 64 06 00 01 01 
 Received (SW1=0x90, SW2=0x00)
 ```
 
@@ -77,9 +77,9 @@ At this moment, when a private/secret key is loaded, the Pico HSM will wait for 
 To disable, the LSB bit must be set to 0:
 
 ```
-$ opensc-tool -s 805406000100
+$ opensc-tool -s 806406000100
 Using reader with a card: Free Software Initiative of Japan Gnuk
-Sending: 80 54 06 00 01 00
+Sending: 80 64 06 00 01 00
 Received (SW1=0x90, SW2=0x00)
 ```
 
