@@ -191,10 +191,11 @@ static int cmd_select() {
         process_fci(pe);
         if (pe == file_sc_hsm) {
             res_APDU[res_APDU_size++] = 0x85;
-            res_APDU[res_APDU_size++] = 4;
+            res_APDU[res_APDU_size++] = 5;
             uint16_t opts = get_device_options();
-            res_APDU[res_APDU_size++] = opts & 0xff;
             res_APDU[res_APDU_size++] = opts >> 8;
+            res_APDU[res_APDU_size++] = opts & 0xff;
+            res_APDU[res_APDU_size++] = 0xFF;
             res_APDU[res_APDU_size++] = HSM_VERSION_MAJOR;
             res_APDU[res_APDU_size++] = HSM_VERSION_MINOR;
             res_APDU[1] = res_APDU_size-2;
