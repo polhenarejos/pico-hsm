@@ -497,6 +497,9 @@ static int cmd_verify() {
             return SW_OK();
         return set_res_sw(0x63, 0xc0 | file_read_uint8(file_retries_sopin->data+2));
     }
+    else if (p2 == 0x85) {
+        return SW_OK();
+    }
     return SW_REFERENCE_NOT_FOUND();
 }
 
@@ -1798,6 +1801,39 @@ static int cmd_extras() {
     return SW_OK();
 }
 
+enum MSE_protocol {
+    MSE_AES = 0,
+    MSE_3DES,
+    MSE_NONE
+} mse_protocol;
+
+static int cmd_mse() {
+    int p1 = P1(apdu);
+    int p2 = P2(apdu);
+    if (p1 & 0x1) { //SET
+        if (p2 == 0xA4) { //AT
+            const uint8_t *p = apdu.cmd_apdu_data;
+            while (p-apdu.cmd_apdu_data < apdu.cmd_apdu_data_len) {
+                uint8_t tag = *p++;
+                uint8_t tag_len = *p++;
+                if (tag == 0x80) {
+                    if (tag_len == 10 && memcmp(p, "\x04\x00\x7F\x00\x07\x02\x02\x03\x02\x02", tag_len) == 0)
+                        mse_protocol = MSE_AES;
+                    else if (tag_len == 10 && memcmp(p, "\x04\x00\x7F\x00\x07\x02\x02\x03\x02\x01", tag_len) == 0)
+                        mse_protocol = MSE_3DES;
+                    else
+                        return SW_REFERENCE_NOT_FOUND();
+                }
+            }
+        }
+        else
+            return SW_INCORRECT_P1P2();
+    }
+    else
+        return SW_INCORRECT_P1P2();
+    return SW_OK();
+}
+
 
 typedef struct cmd
 {
@@ -1806,6 +1842,7 @@ typedef struct cmd
 } cmd_t;
 
 #define INS_VERIFY                  0x20
+#define INS_MSE                     0x22
 #define INS_CHANGE_PIN              0x24
 #define INS_RESET_RETRY             0x2C
 #define INS_KEYPAIR_GEN             0x46
@@ -1849,6 +1886,7 @@ static const cmd_t cmds[] = {
     { INS_CIPHER_SYM, cmd_cipher_sym },
     { INS_DERIVE_ASYM, cmd_derive_asym },
     { INS_EXTRAS, cmd_extras },
+    { INS_MSE, cmd_mse },
     { 0x00, 0x0}
 };
 

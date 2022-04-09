@@ -39,6 +39,8 @@ extern const uint8_t sc_hsm_aid[];
 
 #define SW_MEMORY_FAILURE()                 set_res_sw (0x65, 0x81)
 
+#define SW_SECURE_MESSAGE_EXEC_ERROR()      set_res_sw (0x66, 0x00)
+
 #define SW_WRONG_LENGTH()                   set_res_sw (0x67, 0x00)
 #define SW_WRONG_DATA()                     set_res_sw (0x67, 0x00)
 
