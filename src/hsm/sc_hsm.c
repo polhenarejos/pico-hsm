@@ -1806,6 +1806,8 @@ enum MSE_protocol {
     MSE_3DES,
     MSE_NONE
 } mse_protocol;
+uint8_t nonce[8];
+uint8_t auth_token[8];
 
 static int cmd_mse() {
     int p1 = P1(apdu);
@@ -1834,6 +1836,33 @@ static int cmd_mse() {
     return SW_OK();
 }
 
+int cmd_general_authenticate() {
+    if (P1(apdu) == 0x0 && P2(apdu) == 0x0) {
+        if (apdu.cmd_apdu_data[0] == 0x7C) {
+            const uint8_t *p = &apdu.cmd_apdu_data[2];
+            int r = 0;
+            mbedtls_ecp_point P;
+            mbedtls_ecp_point_init(&P);
+            mbedtls_ecp_group grp;
+            mbedtls_ecp_group_init(&grp);
+            r = mbedtls_ecp_group_load(&grp, MBEDTLS_ECP_DP_SECP192R1);
+            if (r != 0)
+                return SW_EXEC_ERROR();
+            while (p-apdu.cmd_apdu_data < apdu.cmd_apdu_data[1]) {
+                uint8_t tag = *p++;
+                uint8_t tag_len = *p++;
+                if (tag == 0x80) {
+                    int r = mbedtls_ecp_point_read_binary(&grp, &P, p, tag_len);
+                    if (r != 0)
+                        return SW_WRONG_DATA();
+                }
+            }
+            memcpy(nonce, random_bytes_get(8), 8);
+        }
+    }
+    return SW_OK();
+}
+
 
 typedef struct cmd
 {
@@ -1858,6 +1887,7 @@ typedef struct cmd
 #define INS_DERIVE_ASYM             0x76
 #define INS_CIPHER_SYM              0x78
 #define INS_CHALLENGE               0x84
+#define INS_GENERAL_AUTHENTICATE    0x86
 #define INS_SELECT_FILE				0xA4
 #define INS_READ_BINARY				0xB0
 #define INS_READ_BINARY_ODD         0xB1
@@ -1887,6 +1917,7 @@ static const cmd_t cmds[] = {
     { INS_DERIVE_ASYM, cmd_derive_asym },
     { INS_EXTRAS, cmd_extras },
     { INS_MSE, cmd_mse },
+    { INS_GENERAL_AUTHENTICATE, cmd_general_authenticate },
     { 0x00, 0x0}
 };
 
