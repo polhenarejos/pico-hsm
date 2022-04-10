@@ -1965,8 +1965,11 @@ static const cmd_t cmds[] = {
 int sc_hsm_process_apdu() {
     int r = sm_unwrap();
     for (const cmd_t *cmd = cmds; cmd->ins != 0x00; cmd++) {
-        if (cmd->ins == INS(apdu))
-            return cmd->cmd_handler();
+        if (cmd->ins == INS(apdu)) {
+            int r = cmd->cmd_handler();
+            sm_wrap();
+            return r;
+        }
     }
     return SW_INS_NOT_SUPPORTED();
 }

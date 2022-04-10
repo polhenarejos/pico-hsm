@@ -116,6 +116,61 @@ int sm_unwrap() {
     return HSM_OK;
 }
 
+int sm_wrap() {
+    uint8_t sm_indicator = (CLA(apdu) >> 2) & 0x3;
+    if (sm_indicator == 0)
+        return HSM_OK;
+    uint8_t wrap[1024], input[1024];
+    size_t input_len = 0;
+    memset(input, 0, sizeof(input));
+    mbedtls_mpi ssc;
+    mbedtls_mpi_init(&ssc);
+    mbedtls_mpi_add_int(&ssc, &sm_mSSC, 1);
+    mbedtls_mpi_copy(&sm_mSSC, &ssc);
+    int r = mbedtls_mpi_write_binary(&ssc, input, sm_blocksize);
+    input_len += sm_blocksize;
+    mbedtls_mpi_free(&ssc);
+    if (res_APDU_size > 0) {
+        res_APDU[res_APDU_size++] = 0x80;
+        memset(res_APDU+res_APDU_size, 0, (sm_blocksize - (res_APDU_size%sm_blocksize)));
+        res_APDU_size += (sm_blocksize - (res_APDU_size%sm_blocksize));
+        sm_update_iv();
+        aes_encrypt(sm_kenc, sm_iv, 128, HSM_AES_MODE_CBC, res_APDU, res_APDU_size);
+        memmove(res_APDU+1, res_APDU, res_APDU_size);
+        res_APDU[0] = 0x1;
+        res_APDU_size++;
+        if (res_APDU_size < 128) {
+            memmove(res_APDU+2, res_APDU, res_APDU_size);
+            res_APDU[1] = res_APDU_size;
+        }
+        else if (res_APDU_size < 256) {
+            memmove(res_APDU+3, res_APDU, res_APDU_size);
+            res_APDU[1] = 0x81;
+            res_APDU[2] = res_APDU_size;
+        }
+        else {
+            memmove(res_APDU+4, res_APDU, res_APDU_size);
+            res_APDU[1] = 0x82;
+            res_APDU[2] = res_APDU_size >> 8;
+            res_APDU[3] = res_APDU_size & 0xff;
+        }
+        res_APDU[0] = 0x87;
+    }
+    res_APDU[res_APDU_size++] = 0x99;
+    res_APDU[res_APDU_size++] = 2;
+    res_APDU[res_APDU_size++] = apdu.sw >> 8;
+    res_APDU[res_APDU_size++] = apdu.sw & 0xff;
+    memcpy(input+input_len, res_APDU, res_APDU_size);
+    input_len += res_APDU_size;
+    input[input_len++] = 0x80;
+    input_len += (sm_blocksize - (input_len%sm_blocksize));
+    r = sm_sign(input, input_len, res_APDU+res_APDU_size+2);
+    res_APDU[res_APDU_size++] = 0x8E;
+    res_APDU[res_APDU_size++] = 8;
+    res_APDU_size += 8;
+    return HSM_OK;
+}
+
 int sm_get_le() {
     const uint8_t *p = apdu.cmd_apdu_data;
     while (p-apdu.cmd_apdu_data < apdu.cmd_apdu_data_len) {
