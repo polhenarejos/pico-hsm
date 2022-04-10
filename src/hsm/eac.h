@@ -39,5 +39,6 @@ int sm_get_le();
 extern int sm_unwrap();
 int sm_remove_padding(const uint8_t *data, size_t data_len);
 extern int sm_wrap();
+extern bool is_secured_apdu();
 
 #endif

@@ -93,7 +93,14 @@ int sm_unwrap() {
     bool is87 = false;
     while (p-apdu.cmd_apdu_data < apdu.cmd_apdu_data_len) {
         uint8_t tag = *p++;
-        uint8_t tag_len = *p++;
+        uint16_t tag_len = *p++;
+        if (tag_len == 0x82) {
+            tag_len = *p++ << 8;
+            tag_len |= *p++;
+        }
+        else if (tag_len == 0x81) {
+            tag_len = *p++;
+        }
         if (tag == 0x87 || tag == 0x85) {
             body = (uint8_t *)p;
             body_size = tag_len;
@@ -180,7 +187,14 @@ int sm_get_le() {
     const uint8_t *p = apdu.cmd_apdu_data;
     while (p-apdu.cmd_apdu_data < apdu.cmd_apdu_data_len) {
         uint8_t tag = *p++;
-        uint8_t tag_len = *p++;
+        uint16_t tag_len = *p++;
+        if (tag_len == 0x82) {
+            tag_len = *p++ << 8;
+            tag_len |= *p++;
+        }
+        else if (tag_len == 0x81) {
+            tag_len = *p++;
+        }
         if (tag == 0x97) {
             uint32_t le = 0;
             for (int t = 1; t <= tag_len; t++)
@@ -228,14 +242,22 @@ int sm_verify() {
         input_len += sm_blocksize-5;
     }
     bool some_added = false;
-    const uint8_t *p = apdu.cmd_apdu_data, *mac = NULL;
+    const uint8_t *p = apdu.cmd_apdu_data, *mac = NULL, *initag = NULL;
     size_t mac_len = 0;
     while (p-apdu.cmd_apdu_data < apdu.cmd_apdu_data_len) {
+        initag = p;
         uint8_t tag = *p++;
-        uint8_t tag_len = *p++;
+        uint16_t tag_len = *p++;
+        if (tag_len == 0x82) {
+            tag_len = *p++ << 8;
+            tag_len |= *p++;
+        }
+        else if (tag_len == 0x81) {
+            tag_len = *p++;
+        }
         if (tag & 0x1) {
-            memcpy(input+input_len, p-2, tag_len+2);
-            input_len += tag_len+2;
+            memcpy(input+input_len, initag, tag_len+(p-initag));
+            input_len += tag_len+(p-initag);
             some_added = true;
         }
         if (tag == 0x8E) {
