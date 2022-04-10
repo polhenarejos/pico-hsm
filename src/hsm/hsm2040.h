@@ -106,7 +106,7 @@ enum ccid_state {
     CCID_STATE_EXEC_REQUESTED,	/* Exec requested */
 };
 
-#define CLS(a) a.cmd_apdu_head[0]
+#define CLA(a) a.cmd_apdu_head[0]
 #define INS(a) a.cmd_apdu_head[1]
 #define P1(a) a.cmd_apdu_head[2]
 #define P2(a) a.cmd_apdu_head[3]

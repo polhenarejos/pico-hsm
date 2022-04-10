@@ -33,6 +33,7 @@
 #include "crypto_utils.h"
 #include "dkek.h"
 #include "hardware/rtc.h"
+#include "eac.h"
 
 const uint8_t sc_hsm_aid[] = {
     11, 
@@ -1801,14 +1802,6 @@ static int cmd_extras() {
     return SW_OK();
 }
 
-enum MSE_protocol {
-    MSE_AES = 0,
-    MSE_3DES,
-    MSE_NONE
-} mse_protocol;
-uint8_t nonce[8];
-uint8_t auth_token[8];
-
 static int cmd_mse() {
     int p1 = P1(apdu);
     int p2 = P2(apdu);
@@ -1820,12 +1813,13 @@ static int cmd_mse() {
                 uint8_t tag_len = *p++;
                 if (tag == 0x80) {
                     if (tag_len == 10 && memcmp(p, "\x04\x00\x7F\x00\x07\x02\x02\x03\x02\x02", tag_len) == 0)
-                        mse_protocol = MSE_AES;
+                        sm_set_protocol(MSE_AES);
                     else if (tag_len == 10 && memcmp(p, "\x04\x00\x7F\x00\x07\x02\x02\x03\x02\x01", tag_len) == 0)
-                        mse_protocol = MSE_3DES;
+                        sm_set_protocol(MSE_3DES);
                     else
                         return SW_REFERENCE_NOT_FOUND();
                 }
+                p += tag_len;
             }
         }
         else
@@ -1841,23 +1835,70 @@ int cmd_general_authenticate() {
         if (apdu.cmd_apdu_data[0] == 0x7C) {
             const uint8_t *p = &apdu.cmd_apdu_data[2];
             int r = 0;
-            mbedtls_ecp_point P;
-            mbedtls_ecp_point_init(&P);
-            mbedtls_ecp_group grp;
-            mbedtls_ecp_group_init(&grp);
-            r = mbedtls_ecp_group_load(&grp, MBEDTLS_ECP_DP_SECP192R1);
-            if (r != 0)
-                return SW_EXEC_ERROR();
+            size_t pubkey_len = 0;
+            const uint8_t *pubkey = NULL;
             while (p-apdu.cmd_apdu_data < apdu.cmd_apdu_data[1]) {
                 uint8_t tag = *p++;
                 uint8_t tag_len = *p++;
                 if (tag == 0x80) {
-                    int r = mbedtls_ecp_point_read_binary(&grp, &P, p, tag_len);
-                    if (r != 0)
-                        return SW_WRONG_DATA();
+                    pubkey = p-1; //mbedtls ecdh starts reading one pos before
+                    pubkey_len = tag_len+1;
                 }
+                p += tag_len;
             }
-            memcpy(nonce, random_bytes_get(8), 8);
+            mbedtls_ecdh_context ctx;
+            int key_size = file_read_uint16(termca_pk);
+            mbedtls_ecdh_init(&ctx);
+            mbedtls_ecp_group_id gid = MBEDTLS_ECP_DP_SECP192R1;
+            r = mbedtls_ecdh_setup(&ctx, gid);
+            if (r != 0) {
+                mbedtls_ecdh_free(&ctx);
+                return SW_DATA_INVALID();
+            }
+            r = mbedtls_mpi_read_binary(&ctx.ctx.mbed_ecdh.d, termca_pk+2, key_size);
+            if (r != 0) {
+                mbedtls_ecdh_free(&ctx);
+                return SW_DATA_INVALID();
+            }
+            r = mbedtls_ecdh_read_public(&ctx, pubkey, pubkey_len);
+            if (r != 0) {
+                mbedtls_ecdh_free(&ctx);
+                return SW_DATA_INVALID();
+            }
+            size_t olen = 0;
+            uint8_t derived[MBEDTLS_ECP_MAX_BYTES];
+            r = mbedtls_ecdh_calc_secret(&ctx, &olen, derived, MBEDTLS_ECP_MAX_BYTES, random_gen, NULL);
+            mbedtls_ecdh_free(&ctx);
+            if (r != 0) {
+                return SW_EXEC_ERROR();
+            }
+
+            sm_derive_all_keys(derived, olen);
+            
+            uint8_t *t = (uint8_t *)calloc(1, pubkey_len+16);
+            memcpy(t, "\x7F\x49\x3F\x06\x0A", 5);
+            if (sm_get_protocol() == MSE_AES)
+                memcpy(t+5, "\x04\x00\x7F\x00\x07\x02\x02\x03\x02\x02", 10);
+            else if (sm_get_protocol() == MSE_3DES)
+                memcpy(t+5, "\x04\x00\x7F\x00\x07\x02\x02\x03\x02\x01", 10);
+            t[15] = 0x86;
+            memcpy(t+16, pubkey, pubkey_len);
+            
+            res_APDU[res_APDU_size++] = 0x7C;
+            res_APDU[res_APDU_size++] = 20;
+            res_APDU[res_APDU_size++] = 0x81;
+            res_APDU[res_APDU_size++] = 8;
+            memcpy(res_APDU+res_APDU_size, sm_get_nonce(), 8);
+            res_APDU_size += 8;
+            res_APDU[res_APDU_size++] = 0x82;
+            res_APDU[res_APDU_size++] = 8;
+            
+            r = sm_sign(t, pubkey_len+16, res_APDU+res_APDU_size);
+            
+            free(t);
+            if (r != HSM_OK) 
+                return SW_EXEC_ERROR();
+            res_APDU_size += 8;
         }
     }
     return SW_OK();
