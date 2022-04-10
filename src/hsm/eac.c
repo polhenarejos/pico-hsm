@@ -131,11 +131,11 @@ int sm_wrap() {
     int r = mbedtls_mpi_write_binary(&ssc, input, sm_blocksize);
     input_len += sm_blocksize;
     mbedtls_mpi_free(&ssc);
-    DEBUG_PAYLOAD(res_APDU, res_APDU_size);
     if (res_APDU_size > 0) {
         res_APDU[res_APDU_size++] = 0x80;
         memset(res_APDU+res_APDU_size, 0, (sm_blocksize - (res_APDU_size%sm_blocksize)));
         res_APDU_size += (sm_blocksize - (res_APDU_size%sm_blocksize));
+        DEBUG_PAYLOAD(res_APDU, res_APDU_size);
         sm_update_iv();
         aes_encrypt(sm_kenc, sm_iv, 128, HSM_AES_MODE_CBC, res_APDU, res_APDU_size);
         memmove(res_APDU+1, res_APDU, res_APDU_size);
@@ -144,17 +144,20 @@ int sm_wrap() {
         if (res_APDU_size < 128) {
             memmove(res_APDU+2, res_APDU, res_APDU_size);
             res_APDU[1] = res_APDU_size;
+            res_APDU_size += 2;
         }
         else if (res_APDU_size < 256) {
             memmove(res_APDU+3, res_APDU, res_APDU_size);
             res_APDU[1] = 0x81;
             res_APDU[2] = res_APDU_size;
+            res_APDU_size += 3;
         }
         else {
             memmove(res_APDU+4, res_APDU, res_APDU_size);
             res_APDU[1] = 0x82;
             res_APDU[2] = res_APDU_size >> 8;
             res_APDU[3] = res_APDU_size & 0xff;
+            res_APDU_size += 4;
         }
         res_APDU[0] = 0x87;
     }
