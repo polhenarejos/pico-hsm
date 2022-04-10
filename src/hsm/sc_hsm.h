@@ -93,6 +93,7 @@ extern const uint8_t sc_hsm_aid[];
 #define HSM_WRONG_DKEK                      -1009
 #define HSM_WRONG_SIGNATURE                 -1010
 #define HSM_WRONG_PADDING                   -1011
+#define HSM_VERIFICATION_FAILED             -1012
 
 #define ALGO_RSA_RAW			0x20		/* RSA signature with external padding */
 #define ALGO_RSA_DECRYPT		0x21		/* RSA decrypt */
