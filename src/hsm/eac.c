@@ -113,6 +113,7 @@ int sm_unwrap() {
     aes_decrypt(sm_kenc, sm_iv, 128, HSM_AES_MODE_CBC, body, body_size);
     memmove(apdu.cmd_apdu_data, body, body_size);
     apdu.cmd_apdu_data_len = sm_remove_padding(apdu.cmd_apdu_data, body_size);
+    DEBUG_PAYLOAD(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
     return HSM_OK;
 }
 
@@ -120,7 +121,7 @@ int sm_wrap() {
     uint8_t sm_indicator = (CLA(apdu) >> 2) & 0x3;
     if (sm_indicator == 0)
         return HSM_OK;
-    uint8_t wrap[1024], input[1024];
+    uint8_t input[1024];
     size_t input_len = 0;
     memset(input, 0, sizeof(input));
     mbedtls_mpi ssc;
@@ -130,6 +131,7 @@ int sm_wrap() {
     int r = mbedtls_mpi_write_binary(&ssc, input, sm_blocksize);
     input_len += sm_blocksize;
     mbedtls_mpi_free(&ssc);
+    DEBUG_PAYLOAD(res_APDU, res_APDU_size);
     if (res_APDU_size > 0) {
         res_APDU[res_APDU_size++] = 0x80;
         memset(res_APDU+res_APDU_size, 0, (sm_blocksize - (res_APDU_size%sm_blocksize)));
@@ -188,10 +190,11 @@ int sm_get_le() {
 }
 
 void sm_update_iv() {
-    uint8_t tmp_iv[16];
-    mbedtls_mpi_write_binary(&sm_mSSC, tmp_iv, sizeof(tmp_iv));
-    aes_encrypt(sm_kenc, sm_iv, 128, HSM_AES_MODE_CBC, tmp_iv, sizeof(tmp_iv));
-    memcpy(sm_iv, tmp_iv, sizeof(tmp_iv));
+    uint8_t tmp_iv[16], sc_counter[16];
+    memset(tmp_iv, 0, sizeof(tmp_iv)); //IV is always 0 for encryption of IV based on counter
+    mbedtls_mpi_write_binary(&sm_mSSC, sc_counter, sizeof(sc_counter));
+    aes_encrypt(sm_kenc, tmp_iv, 128, HSM_AES_MODE_CBC, sc_counter, sizeof(sc_counter));
+    memcpy(sm_iv, sc_counter, sizeof(sc_counter));
 }
 
 int sm_verify() {
