@@ -35,11 +35,12 @@
  */
 #define FLASH_TARGET_OFFSET (PICO_FLASH_SIZE_BYTES >> 1) // DATA starts at the mid of flash
 #define FLASH_DATA_HEADER_SIZE (sizeof(uintptr_t)+sizeof(uint32_t))
+#define FLASH_PERMANENT_REGION (4*FLASH_SECTOR_SIZE) // 4 sectors (16kb) of permanent memory
 
 //To avoid possible future allocations, data region starts at the end of flash and goes upwards to the center region
 
 const uintptr_t start_data_pool = (XIP_BASE + FLASH_TARGET_OFFSET);
-const uintptr_t end_data_pool = (XIP_BASE + PICO_FLASH_SIZE_BYTES)-FLASH_DATA_HEADER_SIZE; //This is a fixed value. DO NOT CHANGE
+const uintptr_t end_data_pool = (XIP_BASE + PICO_FLASH_SIZE_BYTES)-FLASH_DATA_HEADER_SIZE-FLASH_PERMANENT_REGION; //This is a fixed value. DO NOT CHANGE
 #define FLASH_ADDR_DATA_STORAGE_START start_data_pool
 
 extern int flash_program_block(uintptr_t addr, const uint8_t *data, size_t len);
