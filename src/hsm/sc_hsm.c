@@ -1049,6 +1049,7 @@ static int cmd_keypair_gen() {
     ret = flash_write_data_to_file(fpk, res_APDU, res_APDU_size);
     if (ret != 0)
         return SW_EXEC_ERROR();
+    low_flash_available();
     return SW_OK();
 }
 
