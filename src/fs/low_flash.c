@@ -153,8 +153,8 @@ int flash_program_block(uintptr_t addr, const uint8_t *data, size_t len) {
     }
     if (!(p = find_free_page(addr)))
     {
-        DEBUG_INFO("ERROR: FLASH CANNOT FIND A PAGE (rare error)\r\n");
         mutex_exit(&mtx_flash);
+        DEBUG_INFO("ERROR: FLASH CANNOT FIND A PAGE (rare error)\r\n");
         return HSM_ERR_MEMORY_FATAL;
     }
     memcpy(&p->page[addr&(FLASH_SECTOR_SIZE-1)], data, len);
@@ -177,19 +177,19 @@ int flash_program_uintptr (uintptr_t addr, uintptr_t data) {
 
 uint8_t *flash_read(uintptr_t addr) {
     uintptr_t addr_alg = addr & -FLASH_SECTOR_SIZE;   
-    //mutex_enter_blocking(&mtx_flash);
+    mutex_enter_blocking(&mtx_flash);
     if (ready_pages > 0) {
         for (int r = 0; r < TOTAL_FLASH_PAGES; r++)
         {
             if (flash_pages[r].ready && flash_pages[r].address == addr_alg) {
                 uint8_t *v = &flash_pages[r].page[addr&(FLASH_SECTOR_SIZE-1)];
-                //mutex_exit(&mtx_flash);
+                mutex_exit(&mtx_flash);
                 return v;
             }
         }
     }
     uint8_t *v = (uint8_t *)addr;
-    //mutex_exit(&mtx_flash);
+    mutex_exit(&mtx_flash);
     return v;
 }
 
