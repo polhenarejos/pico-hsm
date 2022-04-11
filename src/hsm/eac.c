@@ -29,6 +29,8 @@ static MSE_protocol sm_protocol = MSE_NONE;
 static mbedtls_mpi sm_mSSC;
 static uint8_t sm_blocksize = 0;
 static uint8_t sm_iv[16];
+size_t sm_session_pin_len = 0;
+uint8_t sm_session_pin[16];
 
 bool is_secured_apdu() {
     return (CLA(apdu) & 0xC);
@@ -180,6 +182,8 @@ int sm_wrap() {
     res_APDU[res_APDU_size++] = 0x8E;
     res_APDU[res_APDU_size++] = 8;
     res_APDU_size += 8;
+    if (apdu.expected_res_size > 0)
+        apdu.expected_res_size = res_APDU_size;
     return HSM_OK;
 }
 

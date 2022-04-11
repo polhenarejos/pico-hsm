@@ -440,15 +440,25 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
     }
     isUserAuthenticated = false;
     has_session_pin = has_session_sopin = false;
-    uint8_t dhash[32];
-    double_hash_pin(data, len, dhash);
-    if (sizeof(dhash) != file_read_uint16(pin->data)-1) //1 byte for pin len
-        return SW_CONDITIONS_NOT_SATISFIED();
-    if (memcmp(file_read(pin->data+3), dhash, sizeof(dhash)) != 0) {
-        uint8_t retries;
-        if ((retries = pin_wrong_retry(pin)) < HSM_OK)
-            return SW_PIN_BLOCKED();
-        return set_res_sw(0x63, 0xc0 | retries);
+    if (is_secured_apdu() && sm_session_pin_len > 0 && pin == file_pin1) {
+        if (len == sm_session_pin_len && memcmp(data, sm_session_pin, len) != 0) {
+            uint8_t retries;
+            if ((retries = pin_wrong_retry(pin)) < HSM_OK)
+                return SW_PIN_BLOCKED();
+            return set_res_sw(0x63, 0xc0 | retries);
+        }
+    }
+    else {
+        uint8_t dhash[32];
+        double_hash_pin(data, len, dhash);
+        if (sizeof(dhash) != file_read_uint16(pin->data)-1) //1 byte for pin len
+            return SW_CONDITIONS_NOT_SATISFIED();
+        if (memcmp(file_read(pin->data+3), dhash, sizeof(dhash)) != 0) {
+            uint8_t retries;
+            if ((retries = pin_wrong_retry(pin)) < HSM_OK)
+                return SW_PIN_BLOCKED();
+            return set_res_sw(0x63, 0xc0 | retries);
+        }
     }
     int r = pin_reset_retries(pin, false);
     if (r == HSM_ERR_BLOCKED)
@@ -1905,6 +1915,19 @@ int cmd_general_authenticate() {
     return SW_OK();
 }
 
+int cmd_session_pin() {
+    if (P1(apdu) == 0x01 && P2(apdu) == 0x81) {
+        memcpy(sm_session_pin, "\x30\x31\x32\x33\x34\x35", 6);
+        sm_session_pin_len = 6;
+        
+        memcpy(res_APDU, sm_session_pin, sm_session_pin_len);
+        res_APDU_size = sm_session_pin_len;
+        apdu.expected_res_size = sm_session_pin_len;
+    }
+    else
+        return SW_INCORRECT_P1P2();
+    return SW_OK();
+}
 
 typedef struct cmd
 {
@@ -1921,6 +1944,7 @@ typedef struct cmd
 #define INS_INITIALIZE              0x50
 #define INS_IMPORT_DKEK             0x52
 #define INS_LIST_KEYS               0x58
+#define INS_SESSION_PIN             0x5A
 #define INS_DECRYPT_ASYM            0x62
 #define INS_EXTRAS                  0x64
 #define INS_SIGNATURE               0x68
@@ -1960,6 +1984,7 @@ static const cmd_t cmds[] = {
     { INS_EXTRAS, cmd_extras },
     { INS_MSE, cmd_mse },
     { INS_GENERAL_AUTHENTICATE, cmd_general_authenticate },
+    { INS_SESSION_PIN, cmd_session_pin },
     { 0x00, 0x0}
 };
 
