@@ -388,7 +388,7 @@ static int cmd_read_binary()
             uint16_t maxle = data_len-offset;
             if (apdu.expected_res_size > maxle)
                 apdu.expected_res_size = maxle;
-            res_APDU = file_read(ef->data+2+offset);
+            memcpy(res_APDU, file_read(ef->data+2+offset), data_len-offset);
             res_APDU_size = data_len-offset;
         }
     }
@@ -569,7 +569,7 @@ static int cmd_challenge() {
     uint8_t *rb = (uint8_t *)random_bytes_get(apdu.expected_res_size);
     if (!rb)
         return SW_WRONG_LENGTH();
-    res_APDU = rb;
+    memcpy(res_APDU, rb, apdu.expected_res_size);
     res_APDU_size = apdu.expected_res_size;
     return SW_OK();
 }
