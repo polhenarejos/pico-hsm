@@ -90,29 +90,20 @@ int sm_unwrap() {
     int le = sm_get_le();
     if (le >= 0)
         apdu.expected_res_size = le;
-    const uint8_t *p = apdu.cmd_apdu_data;
     uint8_t *body = NULL;
     size_t body_size = 0;
     bool is87 = false;
-    while (p-apdu.cmd_apdu_data < apdu.cmd_apdu_data_len) {
-        uint8_t tag = *p++;
-        uint16_t tag_len = *p++;
-        if (tag_len == 0x82) {
-            tag_len = *p++ << 8;
-            tag_len |= *p++;
-        }
-        else if (tag_len == 0x81) {
-            tag_len = *p++;
-        }
+    uint8_t tag = 0x0, *tag_data = NULL, *p = NULL;
+    size_t tag_len = 0;    
+    while (walk_tlv(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, &p, &tag, &tag_len, &tag_data)) {
         if (tag == 0x87 || tag == 0x85) {
-            body = (uint8_t *)p;
+            body = tag_data;
             body_size = tag_len;
             if (tag == 0x87) {
                 is87 = true;
                 body_size--;
             }
         }
-        p += tag_len;
     }
     if (!body)
         return HSM_WRONG_DATA;
@@ -189,24 +180,15 @@ int sm_wrap() {
 }
 
 int sm_get_le() {
-    const uint8_t *p = apdu.cmd_apdu_data;
-    while (p-apdu.cmd_apdu_data < apdu.cmd_apdu_data_len) {
-        uint8_t tag = *p++;
-        uint16_t tag_len = *p++;
-        if (tag_len == 0x82) {
-            tag_len = *p++ << 8;
-            tag_len |= *p++;
-        }
-        else if (tag_len == 0x81) {
-            tag_len = *p++;
-        }
+    uint8_t tag = 0x0, *tag_data = NULL, *p = NULL;
+    size_t tag_len = 0;    
+    while (walk_tlv(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, &p, &tag, &tag_len, &tag_data)) {
         if (tag == 0x97) {
             uint32_t le = 0;
             for (int t = 1; t <= tag_len; t++)
-                le |= (*p++) << (tag_len-t);
+                le |= (*tag_data++) << (tag_len-t);
             return le;
         }
-        p += tag_len;
     }
     return -1;
 }
@@ -247,29 +229,23 @@ int sm_verify() {
         input_len += sm_blocksize-5;
     }
     bool some_added = false;
-    const uint8_t *p = apdu.cmd_apdu_data, *mac = NULL, *initag = NULL;
+    const uint8_t *mac = NULL;
     size_t mac_len = 0;
-    while (p-apdu.cmd_apdu_data < apdu.cmd_apdu_data_len) {
-        initag = p;
-        uint8_t tag = *p++;
-        uint16_t tag_len = *p++;
-        if (tag_len == 0x82) {
-            tag_len = *p++ << 8;
-            tag_len |= *p++;
-        }
-        else if (tag_len == 0x81) {
-            tag_len = *p++;
-        }
+    uint8_t tag = 0x0, *tag_data = NULL, *p = NULL;
+    size_t tag_len = 0;    
+    while (walk_tlv(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, &p, &tag, &tag_len, &tag_data)) {
         if (tag & 0x1) {
-            memcpy(input+input_len, initag, tag_len+(p-initag));
-            input_len += tag_len+(p-initag);
+            input[input_len++] = tag;
+            int tlen = format_tlv_len(tag_len, input+input_len);
+            input_len += tlen;
+            memcpy(input+input_len, tag_data, tag_len);
+            input_len += tag_len;
             some_added = true;
         }
         if (tag == 0x8E) {
-            mac = p;
+            mac = tag_data;
             mac_len = tag_len;
         }
-        p += tag_len;
     }
     if (!mac)
         return HSM_WRONG_DATA;

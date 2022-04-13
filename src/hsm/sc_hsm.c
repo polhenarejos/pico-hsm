@@ -119,6 +119,53 @@ static void wait_button() {
     }
 }
 
+int format_tlv_len(size_t len, uint8_t *out) {
+    if (len < 128) {
+        *out = len;
+        return 1;
+    }
+    else if (len < 256) {
+        *out++ = 0x81;
+        *out++ = len;
+        return 2;
+    }
+    else {
+        *out++ = 0x82;
+        *out++ = (len >> 8) & 0xff;
+        *out++ = len & 0xff;
+        return 3;
+    }
+    return 0;
+}
+
+int walk_tlv(const uint8_t *cdata, size_t cdata_len, uint8_t **p, uint8_t *tag, size_t *tag_len, uint8_t **data) {
+    if (!p)
+        return 0;
+    if (!*p)
+        *p = (uint8_t *)cdata;
+    if (*p-cdata >= cdata_len)
+        return 0;
+    uint8_t tg = 0x0;
+    size_t tgl = 0;
+    tg = *(*p)++;
+    tgl = *(*p)++;
+    if (tgl == 0x82) {
+        tgl = *(*p)++ << 8;
+        tgl |= *(*p)++;
+    }
+    else if (tgl == 0x81) {
+        tgl = *(*p)++;
+    }
+    if (tag)
+        *tag = tg;
+    if (tag_len)
+        *tag_len = tgl;
+    if (data)
+        *data = *p;
+    *p = *p+tgl;
+    return 1;
+}
+
 static int cmd_select() {
     uint8_t p1 = P1(apdu);
     uint8_t p2 = P2(apdu);
@@ -598,28 +645,20 @@ static int cmd_initialize() {
         initialize_flash(true);
         scan_flash();
         dkeks = current_dkeks = 0;
-        const uint8_t *p = apdu.cmd_apdu_data;
-        while (p-apdu.cmd_apdu_data < apdu.cmd_apdu_data_len) {
-            uint8_t tag = *p++;
-            uint8_t tag_len = *p++;
-            if (tag_len == 0x82) {
-                tag_len = *p++ << 8;
-                tag_len |= *p++;
-            }
-            else if (tag_len == 0x81) {
-                tag_len = *p++;
-            }
+        uint8_t tag = 0x0, *tag_data = NULL, *p = NULL;
+        size_t tag_len = 0;    
+        while (walk_tlv(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, &p, &tag, &tag_len, &tag_data)) {
             if (tag == 0x80) { //options
                 file_t *tf = search_by_fid(EF_DEVOPS, NULL, SPECIFY_EF);
-                flash_write_data_to_file(tf, p, tag_len);
+                flash_write_data_to_file(tf, tag_data, tag_len);
             }
             else if (tag == 0x81) { //user pin
                 if (file_pin1 && file_pin1->data) {
                     uint8_t dhash[33];
                     dhash[0] = tag_len;
-                    double_hash_pin(p, tag_len, dhash+1);
+                    double_hash_pin(tag_data, tag_len, dhash+1);
                     flash_write_data_to_file(file_pin1, dhash, sizeof(dhash));
-                    hash_multi(p, tag_len, session_pin);
+                    hash_multi(tag_data, tag_len, session_pin);
                     has_session_pin = true;
                 } 
             }
@@ -627,25 +666,24 @@ static int cmd_initialize() {
                 if (file_sopin && file_sopin->data) {
                     uint8_t dhash[33];
                     dhash[0] = tag_len;
-                    double_hash_pin(p, tag_len, dhash+1);
+                    double_hash_pin(tag_data, tag_len, dhash+1);
                     flash_write_data_to_file(file_sopin, dhash, sizeof(dhash));
-                    hash_multi(p, tag_len, session_sopin);
+                    hash_multi(tag_data, tag_len, session_sopin);
                     has_session_sopin = true;
                 } 
             }
             else if (tag == 0x91) { //retries user pin
                 file_t *tf = search_by_fid(0x1082, NULL, SPECIFY_EF);
                 if (tf && tf->data) {
-                    flash_write_data_to_file(tf, p, tag_len);
+                    flash_write_data_to_file(tf, tag_data, tag_len);
                 }
                 if (file_retries_pin1 && file_retries_pin1->data) {
-                    flash_write_data_to_file(file_retries_pin1, p, tag_len);
+                    flash_write_data_to_file(file_retries_pin1, tag_data, tag_len);
                 }
             }
             else if (tag == 0x92) {
-                dkeks = *p;
+                dkeks = *tag_data;
             }
-            p += tag_len;
         }
         if (dkeks == 0) {
             int r = save_dkek_key(random_bytes_get(32));
@@ -1074,7 +1112,7 @@ static int cmd_keypair_gen() {
 static int cmd_update_ef() {
     uint8_t p1 = P1(apdu), p2 = P2(apdu);
     uint16_t fid = (p1 << 8) | p2;
-    uint8_t *p = apdu.cmd_apdu_data, *data;
+    uint8_t *data;
     uint16_t offset = 0;
     uint16_t data_len = 0;
     file_t *ef = NULL;
@@ -1088,25 +1126,16 @@ static int cmd_update_ef() {
     if (ef && !authenticate_action(ef, ACL_OP_UPDATE_ERASE))
         return SW_SECURITY_STATUS_NOT_SATISFIED();
         
-    while (p-apdu.cmd_apdu_data < apdu.cmd_apdu_data_len) {
-        uint8_t tag = *p++;
-        uint8_t taglen = *p++;
+    uint8_t tag = 0x0, *tag_data = NULL, *p = NULL;
+    size_t tag_len = 0;    
+    while (walk_tlv(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, &p, &tag, &tag_len, &tag_data)) {
         if (tag == 0x54) { //ofset tag
-            for (int i = 0; i < taglen; i++)
-                offset |= (*p++ << (8*(taglen-i-1)));
+            for (int i = 1; i <= tag_len; i++)
+                offset |= (*tag_data++ << (8*(tag_len-i)));
         }
         else if (tag == 0x53) { //data 
-            if (taglen == 0x82) {
-                data_len = *p++ << 8;
-                data_len |= *p++;
-            }
-            else if (taglen == 0x81) {
-                data_len = *p++;
-            }
-            else 
-                data_len = taglen;
-            data = p;
-            p += data_len;
+            data_len = tag_len;
+            data = tag_data;
         }
     }
     if (data_len == 0 && offset == 0) { //new file
@@ -1826,33 +1855,17 @@ static int cmd_mse() {
     int p2 = P2(apdu);
     if (p1 & 0x1) { //SET
         if (p2 == 0xA4) { //AT
-            const uint8_t *p = apdu.cmd_apdu_data;
-            while (p-apdu.cmd_apdu_data < apdu.cmd_apdu_data_len) {
-                uint8_t tag = *p++;
-                uint8_t tag_len = *p++;
-                if (tag_len == 0x82) {
-                    tag_len = *p++ << 8;
-                    tag_len |= *p++;
-                }
-                else if (tag_len == 0x81) {
-                    tag_len = *p++;
-                }
-                if (tag_len == 0x82) {
-                    tag_len = *p++ << 8;
-                    tag_len |= *p++;
-                }
-                else if (tag_len == 0x81) {
-                    tag_len = *p++;
-                }
+            uint8_t tag = 0x0, *tag_data = NULL, *p = NULL;
+            size_t tag_len = 0;    
+            while (walk_tlv(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, &p, &tag, &tag_len, &tag_data)) {
                 if (tag == 0x80) {
-                    if (tag_len == 10 && memcmp(p, "\x04\x00\x7F\x00\x07\x02\x02\x03\x02\x02", tag_len) == 0)
+                    if (tag_len == 10 && memcmp(tag_data, "\x04\x00\x7F\x00\x07\x02\x02\x03\x02\x02", tag_len) == 0)
                         sm_set_protocol(MSE_AES);
-                    else if (tag_len == 10 && memcmp(p, "\x04\x00\x7F\x00\x07\x02\x02\x03\x02\x01", tag_len) == 0)
+                    else if (tag_len == 10 && memcmp(tag_data, "\x04\x00\x7F\x00\x07\x02\x02\x03\x02\x01", tag_len) == 0)
                         sm_set_protocol(MSE_3DES);
                     else
                         return SW_REFERENCE_NOT_FOUND();
                 }
-                p += tag_len;
             }
         }
         else
@@ -1866,25 +1879,16 @@ static int cmd_mse() {
 int cmd_general_authenticate() {
     if (P1(apdu) == 0x0 && P2(apdu) == 0x0) {
         if (apdu.cmd_apdu_data[0] == 0x7C) {
-            const uint8_t *p = &apdu.cmd_apdu_data[2];
             int r = 0;
             size_t pubkey_len = 0;
             const uint8_t *pubkey = NULL;
-            while (p-apdu.cmd_apdu_data < apdu.cmd_apdu_data[1]) {
-                uint8_t tag = *p++;
-                uint8_t tag_len = *p++;
-                if (tag_len == 0x82) {
-                    tag_len = *p++ << 8;
-                    tag_len |= *p++;
-                }
-                else if (tag_len == 0x81) {
-                    tag_len = *p++;
-                }
+            uint8_t tag = 0x0, *tag_data = NULL, *p = NULL;
+            size_t tag_len = 0;    
+            while (walk_tlv(apdu.cmd_apdu_data+2, apdu.cmd_apdu_data_len-2, &p, &tag, &tag_len, &tag_data)) {
                 if (tag == 0x80) {
-                    pubkey = p-1; //mbedtls ecdh starts reading one pos before
+                    pubkey = tag_data-1; //mbedtls ecdh starts reading one pos before
                     pubkey_len = tag_len+1;
                 }
-                p += tag_len;
             }
             mbedtls_ecdh_context ctx;
             int key_size = file_read_uint16(termca_pk);
