@@ -1917,8 +1917,8 @@ int cmd_general_authenticate() {
 
 int cmd_session_pin() {
     if (P1(apdu) == 0x01 && P2(apdu) == 0x81) {
-        memcpy(sm_session_pin, "\x30\x31\x32\x33\x34\x35", 6);
-        sm_session_pin_len = 6;
+        memcpy(sm_session_pin, random_bytes_get(8), 8);
+        sm_session_pin_len = 8;
         
         memcpy(res_APDU, sm_session_pin, sm_session_pin_len);
         res_APDU_size = sm_session_pin_len;
