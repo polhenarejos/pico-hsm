@@ -1063,6 +1063,8 @@ static int cmd_keypair_gen() {
             
         }
     }
+    else
+        return SW_WRONG_DATA();
     uint8_t *cvcbin;
     size_t cvclen;
     ret = sc_pkcs15emu_sc_hsm_encode_cvc(&p15card, &cvc, &cvcbin, &cvclen);
