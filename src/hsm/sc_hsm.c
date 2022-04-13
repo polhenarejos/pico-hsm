@@ -1077,29 +1077,22 @@ static int cmd_keypair_gen() {
         return SW_EXEC_ERROR();
     }
     
-    res_APDU[0] = 0x67;
-    int outer_len = strlen(cvc.outer_car)+2+2+1+4;
-    int bytes_length = 0;
-    if (cvclen+outer_len < 128)
-        res_APDU[1] = cvclen+outer_len;
-    else if (cvclen+outer_len < 256) {
-        res_APDU[1] = 0x81;
-        res_APDU[2] = cvclen+outer_len;
-        bytes_length = 1;
-    }
-    else {
-        res_APDU[1] = 0x82;
-        res_APDU[2] = (cvclen+outer_len) >> 8;
-        res_APDU[3] = (cvclen+outer_len) & 0xff;
-        bytes_length = 2;
-    }
-    memcpy(res_APDU+bytes_length+2, cvcbin, cvclen);
-    res_APDU[bytes_length+2+cvclen] = 0x42;
-    res_APDU[bytes_length+2+cvclen+1] = strlen(cvc.outer_car);
-    memcpy(res_APDU+bytes_length+2+cvclen+2, cvc.outer_car, strlen(cvc.outer_car));
-    memcpy(res_APDU+bytes_length+2+cvclen+2+strlen(cvc.outer_car), "\x5F\x37\x04",3);
+    res_APDU[res_APDU_size++] = 0x67;
+    int outer_len = 2+strlen(cvc.outer_car)+3+4;
+    int bytes_length = format_tlv_len(cvclen+outer_len, res_APDU+res_APDU_size);
+    res_APDU_size += bytes_length;
+    memcpy(res_APDU+res_APDU_size, cvcbin, cvclen);
+    res_APDU_size += cvclen;
+    res_APDU[res_APDU_size++] = 0x42;
+    res_APDU[res_APDU_size++] = strlen(cvc.outer_car);
+    memcpy(res_APDU+res_APDU_size, cvc.outer_car, strlen(cvc.outer_car));
+    res_APDU_size += strlen(cvc.outer_car);
+    memcpy(res_APDU+res_APDU_size, "\x5F\x37\x04",3);
+    res_APDU_size += 3;
+    memset(res_APDU+res_APDU_size, 0, 4);
+    res_APDU_size += 4;
     free(cvcbin);
-    res_APDU_size = cvclen+bytes_length+2+outer_len;
+    //res_APDU_size = cvclen+bytes_length+1+outer_len;
     apdu.expected_res_size = res_APDU_size;
 
     //sc_asn1_print_tags(res_APDU, res_APDU_size);
