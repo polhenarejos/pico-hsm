@@ -57,6 +57,7 @@ void sm_derive_all_keys(const uint8_t *derived, size_t derived_len) {
     mbedtls_mpi_grow(&sm_mSSC, sm_blocksize);
     mbedtls_mpi_lset(&sm_mSSC, 0);
     memset(sm_iv, 0, sizeof(sm_iv));
+    sm_session_pin_len = 0;
 }
 
 void sm_set_protocol(MSE_protocol proto) {

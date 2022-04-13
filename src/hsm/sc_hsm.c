@@ -75,6 +75,7 @@ void init_sc_hsm() {
 int sc_hsm_unload() {
     has_session_pin = has_session_sopin = false;
     isUserAuthenticated = false;
+    sm_session_pin_len = 0;
     return HSM_OK;
 }
 
