@@ -601,6 +601,13 @@ static int cmd_initialize() {
         while (p-apdu.cmd_apdu_data < apdu.cmd_apdu_data_len) {
             uint8_t tag = *p++;
             uint8_t tag_len = *p++;
+            if (tag_len == 0x82) {
+                tag_len = *p++ << 8;
+                tag_len |= *p++;
+            }
+            else if (tag_len == 0x81) {
+                tag_len = *p++;
+            }
             if (tag == 0x80) { //options
                 file_t *tf = search_by_fid(EF_DEVOPS, NULL, SPECIFY_EF);
                 flash_write_data_to_file(tf, p, tag_len);
@@ -1822,6 +1829,20 @@ static int cmd_mse() {
             while (p-apdu.cmd_apdu_data < apdu.cmd_apdu_data_len) {
                 uint8_t tag = *p++;
                 uint8_t tag_len = *p++;
+                if (tag_len == 0x82) {
+                    tag_len = *p++ << 8;
+                    tag_len |= *p++;
+                }
+                else if (tag_len == 0x81) {
+                    tag_len = *p++;
+                }
+                if (tag_len == 0x82) {
+                    tag_len = *p++ << 8;
+                    tag_len |= *p++;
+                }
+                else if (tag_len == 0x81) {
+                    tag_len = *p++;
+                }
                 if (tag == 0x80) {
                     if (tag_len == 10 && memcmp(p, "\x04\x00\x7F\x00\x07\x02\x02\x03\x02\x02", tag_len) == 0)
                         sm_set_protocol(MSE_AES);
@@ -1851,6 +1872,13 @@ int cmd_general_authenticate() {
             while (p-apdu.cmd_apdu_data < apdu.cmd_apdu_data[1]) {
                 uint8_t tag = *p++;
                 uint8_t tag_len = *p++;
+                if (tag_len == 0x82) {
+                    tag_len = *p++ << 8;
+                    tag_len |= *p++;
+                }
+                else if (tag_len == 0x81) {
+                    tag_len = *p++;
+                }
                 if (tag == 0x80) {
                     pubkey = p-1; //mbedtls ecdh starts reading one pos before
                     pubkey_len = tag_len+1;
