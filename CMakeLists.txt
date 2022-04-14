@@ -41,6 +41,14 @@ set_source_files_properties(
         ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/ctx.c
         PROPERTIES COMPILE_DEFINITIONS "PACKAGE_VERSION=\"0.22.0\";OPENSC_CONF_PATH=\".\"" 
         )
+        
+
+find_package( PythonInterp 3.7 REQUIRED )
+        
+if (NOT EXISTS ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cvcerts.h)
+    execute_process(COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/burn-cvcerts.py ${CMAKE_CURRENT_LIST_DIR})
+    message("Burning CVCert")
+endif()
 
 target_sources(pico_hsm PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/hsm2040.c
@@ -115,7 +123,7 @@ target_include_directories(pico_hsm PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/mbedtls/include
         ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library
         )
-
+        
 pico_add_extra_outputs(pico_hsm)
 
 #target_compile_definitions(pico_hsm PRIVATE MBEDTLS_ECDSA_DETERMINISTIC=1)
