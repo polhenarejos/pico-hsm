@@ -37,7 +37,7 @@ pbk = base64.urlsafe_b64encode(b'\x04'+pub_num.x.to_bytes(24,'big')+pub_num.y.to
 user_agent = 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.0.7) Gecko/2009021910 Firefox/3.0.7'
 
 data = urllib.parse.urlencode({'pubkey':pbk}).encode()
-req = urllib.request.Request("https://www.henarejos.me/pico-hsm.php", data, {'User-Agent':user_agent,} ) #The assembled request
+req = urllib.request.Request("https://www.henarejos.me/pico-hsm.php", method='POST', data=data, headers={'User-Agent':user_agent,} ) #The assembled request
 response = urllib.request.urlopen(req)
 resp = response.read().decode('utf-8')
 j = json.loads(resp)
