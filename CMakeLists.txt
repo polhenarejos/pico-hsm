@@ -60,9 +60,9 @@ target_sources(pico_hsm PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/rng/random.c
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/rng/neug.c
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/files.c
-        ${CMAKE_CURRENT_LIST_DIR}/src/hsm/crypto_utils.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/ccid/crypto_utils.c
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/dkek.c
-        ${CMAKE_CURRENT_LIST_DIR}/src/hsm/eac.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/ccid/eac.c
         
         ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/sha256.c
         ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/aes.c

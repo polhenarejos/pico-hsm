@@ -40,6 +40,11 @@ const uint8_t sc_hsm_aid[] = {
     0xE8,0x2B,0x06,0x01,0x04,0x01,0x81,0xC3,0x1F,0x02,0x01
 };
 
+char atr_sc_hsm[] = { 
+    24,
+    0x3B,0xFE,0x18,0x00,0x00,0x81,0x31,0xFE,0x45,0x80,0x31,0x81,0x54,0x48,0x53,0x4D,0x31,0x73,0x80,0x21,0x40,0x81,0x07,0xFA 
+};
+
 uint8_t session_pin[32], session_sopin[32];
 bool has_session_pin = false, has_session_sopin = false;
 static uint8_t dkeks = 0, current_dkeks = 0;
@@ -62,6 +67,7 @@ app_t *sc_hsm_select_aid(app_t *a) {
 }
 
 void __attribute__ ((constructor)) sc_hsm_ctor() { 
+    ccid_atr = atr_sc_hsm;
     register_app(sc_hsm_select_aid);
 }
 
@@ -194,53 +200,6 @@ static void wait_button() {
         }
         while (val != EV_BUTTON_PRESSED);
     }
-}
-
-int format_tlv_len(size_t len, uint8_t *out) {
-    if (len < 128) {
-        *out = len;
-        return 1;
-    }
-    else if (len < 256) {
-        *out++ = 0x81;
-        *out++ = len;
-        return 2;
-    }
-    else {
-        *out++ = 0x82;
-        *out++ = (len >> 8) & 0xff;
-        *out++ = len & 0xff;
-        return 3;
-    }
-    return 0;
-}
-
-int walk_tlv(const uint8_t *cdata, size_t cdata_len, uint8_t **p, uint8_t *tag, size_t *tag_len, uint8_t **data) {
-    if (!p)
-        return 0;
-    if (!*p)
-        *p = (uint8_t *)cdata;
-    if (*p-cdata >= cdata_len)
-        return 0;
-    uint8_t tg = 0x0;
-    size_t tgl = 0;
-    tg = *(*p)++;
-    tgl = *(*p)++;
-    if (tgl == 0x82) {
-        tgl = *(*p)++ << 8;
-        tgl |= *(*p)++;
-    }
-    else if (tgl == 0x81) {
-        tgl = *(*p)++;
-    }
-    if (tag)
-        *tag = tg;
-    if (tag_len)
-        *tag_len = tgl;
-    if (data)
-        *data = *p;
-    *p = *p+tgl;
-    return 1;
 }
 
 static int cmd_select() {
