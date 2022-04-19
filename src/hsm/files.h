@@ -15,15 +15,24 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _NEUG_H_
-#define _NEUG_H_
 
-#define NEUG_PRE_LOOP 32
+#ifndef _FILES_H_
+#define _FILES_H_
 
-void neug_init(uint32_t *buf, uint8_t size);
-uint32_t neug_get();
-void neug_flush(void);
-void neug_wait_full(void);
-void neug_fini(void);
+#include "file.h"
+
+#define EF_DKEK     0x108F
+#define EF_PRKDFS   0x6040
+#define EF_PUKDFS   0x6041
+#define EF_CDFS     0x6042
+#define EF_AODFS    0x6043
+#define EF_DODFS    0x6044
+#define EF_SKDFS    0x6045
+#define EF_DEVOPS   0x100E
+
+extern file_t *file_pin1;
+extern file_t *file_retries_pin1;
+extern file_t *file_sopin;
+extern file_t *file_retries_sopin;
 
 #endif

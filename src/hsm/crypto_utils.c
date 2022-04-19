@@ -85,7 +85,7 @@ int aes_encrypt(const uint8_t *key, const uint8_t *iv, int key_size, int mode, u
         memcpy(tmp_iv, iv, IV_SIZE);
     int r = mbedtls_aes_setkey_enc(&aes, key, key_size);
     if (r != 0)
-        return HSM_EXEC_ERROR;
+        return CCID_EXEC_ERROR;
     if (mode == HSM_AES_MODE_CBC)
         return mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_ENCRYPT, len, tmp_iv, data, data);
     return mbedtls_aes_crypt_cfb128(&aes, MBEDTLS_AES_ENCRYPT, len, &iv_offset, tmp_iv, data, data);
@@ -101,7 +101,7 @@ int aes_decrypt(const uint8_t *key, const uint8_t *iv, int key_size, int mode, u
         memcpy(tmp_iv, iv, IV_SIZE);
     int r = mbedtls_aes_setkey_dec(&aes, key, key_size);
     if (r != 0)
-        return HSM_EXEC_ERROR;
+        return CCID_EXEC_ERROR;
     if (mode == HSM_AES_MODE_CBC)
         return mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_DECRYPT, len, tmp_iv, data, data);
     r = mbedtls_aes_setkey_enc(&aes, key, key_size); //CFB requires set_enc instead set_dec

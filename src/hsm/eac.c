@@ -83,9 +83,9 @@ int sm_sign(uint8_t *in, size_t in_len, uint8_t *out) {
 int sm_unwrap() {
     uint8_t sm_indicator = (CLA(apdu) >> 2) & 0x3;
     if (sm_indicator == 0)
-        return HSM_OK;
+        return CCID_OK;
     int r = sm_verify();
-    if (r != HSM_OK)
+    if (r != CCID_OK)
         return r;
     int le = sm_get_le();
     if (le >= 0)
@@ -106,22 +106,22 @@ int sm_unwrap() {
         }
     }
     if (!body)
-        return HSM_WRONG_DATA;
+        return CCID_WRONG_DATA;
     if (is87 && *body++ != 0x1) {
-        return HSM_WRONG_PADDING;
+        return CCID_WRONG_PADDING;
     }
     sm_update_iv();
     aes_decrypt(sm_kenc, sm_iv, 128, HSM_AES_MODE_CBC, body, body_size);
     memmove(apdu.cmd_apdu_data, body, body_size);
     apdu.cmd_apdu_data_len = sm_remove_padding(apdu.cmd_apdu_data, body_size);
     DEBUG_PAYLOAD(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
-    return HSM_OK;
+    return CCID_OK;
 }
 
 int sm_wrap() {
     uint8_t sm_indicator = (CLA(apdu) >> 2) & 0x3;
     if (sm_indicator == 0)
-        return HSM_OK;
+        return CCID_OK;
     uint8_t input[1024];
     size_t input_len = 0;
     memset(input, 0, sizeof(input));
@@ -176,7 +176,7 @@ int sm_wrap() {
     res_APDU_size += 8;
     if (apdu.expected_res_size > 0)
         apdu.expected_res_size = res_APDU_size;
-    return HSM_OK;
+    return CCID_OK;
 }
 
 int sm_get_le() {
@@ -210,7 +210,7 @@ int sm_verify() {
     if (data_len % sm_blocksize)
         data_len += sm_blocksize;
     if (data_len+(add_header ? sm_blocksize : 0) > 1024)
-        return HSM_WRONG_LENGTH;
+        return CCID_WRONG_LENGTH;
     mbedtls_mpi ssc;
     mbedtls_mpi_init(&ssc);
     mbedtls_mpi_add_int(&ssc, &sm_mSSC, 1);
@@ -219,7 +219,7 @@ int sm_verify() {
     input_len += sm_blocksize;
     mbedtls_mpi_free(&ssc);
     if (r != 0)
-        return HSM_EXEC_ERROR;
+        return CCID_EXEC_ERROR;
     if (add_header) {
         input[input_len++] = CLA(apdu);
         input[input_len++] = INS(apdu);
@@ -248,7 +248,7 @@ int sm_verify() {
         }
     }
     if (!mac)
-        return HSM_WRONG_DATA;
+        return CCID_WRONG_DATA;
     if (some_added) {
         input[input_len++] = 0x80;
         input_len += (sm_blocksize - (input_len%sm_blocksize));
@@ -256,10 +256,10 @@ int sm_verify() {
     uint8_t signature[16];
     r = sm_sign(input, input_len, signature);
     if (r != 0)
-        return HSM_EXEC_ERROR;
+        return CCID_EXEC_ERROR;
     if (memcmp(signature, mac, mac_len) == 0)
-        return HSM_OK;
-    return HSM_VERIFICATION_FAILED;
+        return CCID_OK;
+    return CCID_VERIFICATION_FAILED;
 }
 
 int sm_remove_padding(const uint8_t *data, size_t data_len) {

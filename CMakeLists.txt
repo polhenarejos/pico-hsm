@@ -51,14 +51,15 @@ if (NOT EXISTS ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cvcerts.h)
 endif()
 
 target_sources(pico_hsm PUBLIC
-        ${CMAKE_CURRENT_LIST_DIR}/src/hsm/hsm2040.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/ccid/ccid2040.c
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/sc_hsm.c
-        ${CMAKE_CURRENT_LIST_DIR}/src/usb/usb_descriptors.c
-        ${CMAKE_CURRENT_LIST_DIR}/src/fs/file.c
-        ${CMAKE_CURRENT_LIST_DIR}/src/fs/flash.c
-        ${CMAKE_CURRENT_LIST_DIR}/src/fs/low_flash.c
-        ${CMAKE_CURRENT_LIST_DIR}/src/rng/random.c
-        ${CMAKE_CURRENT_LIST_DIR}/src/rng/neug.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/usb/usb_descriptors.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/fs/file.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/fs/flash.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/fs/low_flash.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/rng/random.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/rng/neug.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/hsm/files.c
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/crypto_utils.c
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/dkek.c
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/eac.c
@@ -115,10 +116,11 @@ target_sources(pico_hsm PUBLIC
         )
 
 target_include_directories(pico_hsm PUBLIC
-        ${CMAKE_CURRENT_LIST_DIR}/src/fs
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/fs
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm
-        ${CMAKE_CURRENT_LIST_DIR}/src/rng
-        ${CMAKE_CURRENT_LIST_DIR}/src/usb
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/ccid
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/rng
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/usb
         ${CMAKE_CURRENT_LIST_DIR}/opensc/src
         ${CMAKE_CURRENT_LIST_DIR}/mbedtls/include
         ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library

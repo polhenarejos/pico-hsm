@@ -20,7 +20,7 @@
 
 #include <stdlib.h>
 #include "pico/stdlib.h"
-#include "hsm2040.h"
+#include "ccid2040.h"
 
 typedef enum MSE_protocol {
     MSE_AES = 0,

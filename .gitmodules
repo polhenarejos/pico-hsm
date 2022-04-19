@@ -4,3 +4,6 @@
 [submodule "mbedtls"]
 	path = mbedtls
 	url = https://github.com/ARMmbed/mbedtls
+[submodule "pico-ccid"]
+	path = pico-ccid
+	url = git@github.com-polhenarejos:polhenarejos/pico-ccid
