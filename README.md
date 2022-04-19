@@ -28,6 +28,9 @@ This is a project to create a Hardware Security Module (HSM) with a Raspberry Pi
 - Press-to-confirm button optional feature to authorize operations with private/secret keys.
 - Store and retrieve binary data.
 - Real time clock with external datetime setting and getting. 
+- Secure Messaging (secure channel).
+- Session PIN.
+- PKI CVCert remote issuing for Secure Message.
 
 [^1]: PKCS11 modules (`pkcs11-tool` and `sc-tool`) do not support CMAC and key derivation. It must be processed through raw APDU command (`opensc-tool -s`).
 [^2]: Available via SCS3 tool. See [SCS3](/doc/rsa_4096.md "SCS3") for more information.
