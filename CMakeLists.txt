@@ -64,38 +64,38 @@ target_sources(pico_hsm PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/dkek.c
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/ccid/eac.c
         
-        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/sha256.c
-        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/aes.c
-        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/sha512.c
-        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/rsa.c
-        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/bignum.c
-        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/platform_util.c
-        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/md.c
-        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/oid.c
-        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/rsa_alt_helpers.c
-        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/constant_time.c
-        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/ecdsa.c
-        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/ecp.c
-        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/ecp_curves.c
-        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/asn1write.c
-        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/hmac_drbg.c
-        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/md5.c
-        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/ripemd160.c
-        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/sha1.c
-        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/ecdh.c
-        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/cmac.c
-        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/cipher.c
-        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/cipher_wrap.c
-        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/chachapoly.c
-        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/camellia.c
-        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/chacha20.c
-        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/aria.c
-        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/poly1305.c
-        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/gcm.c
-        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/ccm.c
-        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/des.c
-        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/nist_kw.c
-        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library/hkdf.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/sha256.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/aes.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/sha512.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/rsa.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/bignum.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/platform_util.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/md.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/oid.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/rsa_alt_helpers.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/constant_time.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/ecdsa.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/ecp.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/ecp_curves.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/asn1write.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/hmac_drbg.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/md5.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/ripemd160.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/sha1.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/ecdh.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/cmac.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/cipher.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/cipher_wrap.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/chachapoly.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/camellia.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/chacha20.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/aria.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/poly1305.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/gcm.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/ccm.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/des.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/nist_kw.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/hkdf.c
         
         ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/pkcs15.c
         ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/pkcs15-prkey.c
@@ -122,8 +122,8 @@ target_include_directories(pico_hsm PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/rng
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/usb
         ${CMAKE_CURRENT_LIST_DIR}/opensc/src
-        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/include
-        ${CMAKE_CURRENT_LIST_DIR}/mbedtls/library
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/include
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library
         )
         
 pico_add_extra_outputs(pico_hsm)
