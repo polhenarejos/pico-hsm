@@ -27,6 +27,7 @@
 #include "mbedtls/cmac.h"
 #include "mbedtls/rsa.h"
 #include "mbedtls/ecdsa.h"
+#include "files.h"
 
 static uint8_t dkek[IV_SIZE+32];
 static uint8_t tmp_dkek[32];
@@ -35,15 +36,15 @@ extern uint8_t session_pin[32];
 
 int load_dkek() {
     if (has_session_pin == false)
-        return HSM_NO_LOGIN;
+        return CCID_NO_LOGIN;
     file_t *tf = search_by_fid(EF_DKEK, NULL, SPECIFY_EF);
     if (!tf)
-        return HSM_ERR_FILE_NOT_FOUND;
+        return CCID_ERR_FILE_NOT_FOUND;
     memcpy(dkek, file_read(tf->data+sizeof(uint16_t)), IV_SIZE+32);
     int ret = aes_decrypt_cfb_256(session_pin, dkek, dkek+IV_SIZE, 32);
     if (ret != 0)
-        return HSM_EXEC_ERROR;
-    return HSM_OK;
+        return CCID_EXEC_ERROR;
+    return CCID_OK;
 }
 
 void release_dkek() {
@@ -59,11 +60,11 @@ int store_dkek_key() {
     aes_encrypt_cfb_256(session_pin, dkek, dkek+IV_SIZE, 32);
     file_t *tf = search_by_fid(EF_DKEK, NULL, SPECIFY_EF);
     if (!tf)
-        return HSM_ERR_FILE_NOT_FOUND;
+        return CCID_ERR_FILE_NOT_FOUND;
     flash_write_data_to_file(tf, dkek, sizeof(dkek));
     low_flash_available();
     release_dkek();
-    return HSM_OK;
+    return CCID_OK;
 }
 
 int save_dkek_key(const uint8_t *key) {
@@ -83,43 +84,43 @@ void import_dkek_share(const uint8_t *share) {
 int dkek_kcv(uint8_t *kcv) { //kcv 8 bytes
     uint8_t hsh[32];
     int r = load_dkek();
-    if (r != HSM_OK)
+    if (r != CCID_OK)
         return r;
     hash256(dkek+IV_SIZE, 32, hsh);
     release_dkek();
     memcpy(kcv, hsh, 8);
-    return HSM_OK;
+    return CCID_OK;
 }
 
 int dkek_kenc(uint8_t *kenc) { //kenc 32 bytes
     uint8_t buf[32+4];
     int r = load_dkek();
-    if (r != HSM_OK)
+    if (r != CCID_OK)
         return r;
     memcpy(buf, dkek+IV_SIZE, 32);
     release_dkek();
     memcpy(buf+32, "\x0\x0\x0\x1", 4);
     hash256(buf, sizeof(buf), kenc);
     memset(buf, 0, sizeof(buf));
-    return HSM_OK;
+    return CCID_OK;
 }
 
 int dkek_kmac(uint8_t *kmac) { //kmac 32 bytes
     uint8_t buf[32+4];
     int r = load_dkek();
-    if (r != HSM_OK)
+    if (r != CCID_OK)
         return r;
     memcpy(buf, dkek+IV_SIZE, 32);
     release_dkek();
     memcpy(buf+32, "\x0\x0\x0\x2", 4);
     hash256(buf, sizeof(buf), kmac);
     memset(buf, 0, sizeof(buf));
-    return HSM_OK;
+    return CCID_OK;
 }
 
 int dkek_encrypt(uint8_t *data, size_t len) {
     int r;
-    if ((r = load_dkek()) != HSM_OK)
+    if ((r = load_dkek()) != CCID_OK)
         return r;
     r = aes_encrypt_cfb_256(dkek+IV_SIZE, dkek, data, len);
     release_dkek();
@@ -128,7 +129,7 @@ int dkek_encrypt(uint8_t *data, size_t len) {
 
 int dkek_decrypt(uint8_t *data, size_t len) {
     int r;
-    if ((r = load_dkek()) != HSM_OK)
+    if ((r = load_dkek()) != CCID_OK)
         return r;
     r = aes_decrypt_cfb_256(dkek+IV_SIZE, dkek, data, len);
     release_dkek();
@@ -137,7 +138,7 @@ int dkek_decrypt(uint8_t *data, size_t len) {
 
 int dkek_encode_key(void *key_ctx, int key_type, uint8_t *out, size_t *out_len) {
     if (!(key_type & HSM_KEY_RSA) && !(key_type & HSM_KEY_EC) && !(key_type & HSM_KEY_AES))
-        return HSM_WRONG_DATA;
+        return CCID_WRONG_DATA;
         
     uint8_t kb[8+2*4+2*4096/8+3+13]; //worst case: RSA-4096  (plus, 13 bytes padding)
     memset(kb, 0, sizeof(kb));
@@ -167,9 +168,9 @@ int dkek_encode_key(void *key_ctx, int key_type, uint8_t *out, size_t *out_len) 
             kb_len = 32;
             
         if (kb_len != 16 && kb_len != 24 && kb_len != 32)
-            return HSM_WRONG_DATA;
+            return CCID_WRONG_DATA;
         if (*out_len < 8+1+10+6+4+(2+32+14)+16)
-            return HSM_WRONG_LENGTH;
+            return CCID_WRONG_LENGTH;
         
         put_uint16_t(kb_len, kb+8);
         memcpy(kb+10, key_ctx, kb_len);
@@ -182,7 +183,7 @@ int dkek_encode_key(void *key_ctx, int key_type, uint8_t *out, size_t *out_len) 
     }
     else if (key_type & HSM_KEY_RSA) {
         if (*out_len < 8+1+12+6+(8+2*4+2*4096/8+3+13)+16) //13 bytes pading 
-            return HSM_WRONG_LENGTH;
+            return CCID_WRONG_LENGTH;
         mbedtls_rsa_context *rsa = (mbedtls_rsa_context *)key_ctx;
         kb_len = 0;
         put_uint16_t(mbedtls_rsa_get_len(rsa)*8, kb+8+kb_len); kb_len += 2;
@@ -199,7 +200,7 @@ int dkek_encode_key(void *key_ctx, int key_type, uint8_t *out, size_t *out_len) 
     }
     else if (key_type & HSM_KEY_EC) {
         if (*out_len < 8+1+12+6+(8+2*8+9*66+2+4)+16) //4 bytes pading 
-            return HSM_WRONG_LENGTH;
+            return CCID_WRONG_LENGTH;
         mbedtls_ecdsa_context *ecdsa = (mbedtls_ecdsa_context *)key_ctx;
         kb_len = 0;
         put_uint16_t(mbedtls_mpi_size(&ecdsa->grp.P)*8, kb+8+kb_len); kb_len += 2;
@@ -265,7 +266,7 @@ int dkek_encode_key(void *key_ctx, int key_type, uint8_t *out, size_t *out_len) 
         kb[kb_len] = 0x80;
     }
     int r = aes_encrypt(kenc, NULL, 256, HSM_AES_MODE_CBC, kb, kb_len_pad);
-    if (r != HSM_OK)
+    if (r != CCID_OK)
         return r;
     
     memcpy(out+*out_len, kb, kb_len_pad);
@@ -276,7 +277,7 @@ int dkek_encode_key(void *key_ctx, int key_type, uint8_t *out, size_t *out_len) 
     *out_len += 16;
     if (r != 0)
         return r;
-    return HSM_OK;
+    return CCID_OK;
 }
 
 int dkek_type_key(const uint8_t *in) {
@@ -303,27 +304,27 @@ int dkek_decode_key(void *key_ctx, const uint8_t *in, size_t in_len, int *key_si
     dkek_kenc(kenc);
     
     if (memcmp(kcv, in, 8) != 0)
-        return HSM_WRONG_DKEK;
+        return CCID_WRONG_DKEK;
         
     uint8_t signature[16];
     int r = mbedtls_cipher_cmac(mbedtls_cipher_info_from_type(MBEDTLS_CIPHER_AES_256_ECB), kmac, 256, in, in_len-16, signature);
     if (r != 0)
-        return HSM_WRONG_SIGNATURE;
+        return CCID_WRONG_SIGNATURE;
     if (memcmp(signature, in+in_len-16, 16) != 0)
-        return HSM_WRONG_SIGNATURE;
+        return CCID_WRONG_SIGNATURE;
         
     int key_type = in[8];
     if (key_type != 5 && key_type != 6 && key_type != 12 && key_type != 15)
-        return HSM_WRONG_DATA;
+        return CCID_WRONG_DATA;
     
     if ((key_type == 5 || key_type == 6) && memcmp(in+9, "\x00\x0A\x04\x00\x7F\x00\x07\x02\x02\x02\x01\x02", 12) != 0)
-        return HSM_WRONG_DATA;
+        return CCID_WRONG_DATA;
         
     if (key_type == 12 && memcmp(in+9, "\x00\x0A\x04\x00\x7F\x00\x07\x02\x02\x02\x02\x03", 12) != 0)
-        return HSM_WRONG_DATA;
+        return CCID_WRONG_DATA;
         
     if (key_type == 15 && memcmp(in+9, "\x00\x08\x60\x86\x48\x01\x65\x03\x04\x01", 10) != 0)
-        return HSM_WRONG_DATA;
+        return CCID_WRONG_DATA;
         
     size_t ofs = 9;
     
@@ -344,12 +345,12 @@ int dkek_decode_key(void *key_ctx, const uint8_t *in, size_t in_len, int *key_si
     ofs += len+2;
     
     if ((in_len-16-ofs) % 16 != 0)
-        return HSM_WRONG_PADDING;
+        return CCID_WRONG_PADDING;
     uint8_t kb[8+2*4+2*4096/8+3+13]; //worst case: RSA-4096  (plus, 13 bytes padding)
     memset(kb, 0, sizeof(kb));
     memcpy(kb, in+ofs, in_len-16-ofs);
     r = aes_decrypt(kenc, NULL, 256, HSM_AES_MODE_CBC, kb, in_len-16-ofs);
-    if (r != HSM_OK)
+    if (r != CCID_OK)
         return r;
     
     int key_size = get_uint16_t(kb, 8);
@@ -364,14 +365,14 @@ int dkek_decode_key(void *key_ctx, const uint8_t *in, size_t in_len, int *key_si
             r = mbedtls_mpi_read_binary(&rsa->D, kb+ofs, len); ofs += len;
             if (r != 0) {
                 mbedtls_rsa_free(rsa);
-                return HSM_WRONG_DATA;
+                return CCID_WRONG_DATA;
             }
             
             len = get_uint16_t(kb, ofs); ofs += 2;
             r = mbedtls_mpi_read_binary(&rsa->N, kb+ofs, len); ofs += len;
             if (r != 0) {
                 mbedtls_rsa_free(rsa);
-                return HSM_WRONG_DATA;
+                return CCID_WRONG_DATA;
             }
         }
         else if (key_type == 6) {
@@ -385,7 +386,7 @@ int dkek_decode_key(void *key_ctx, const uint8_t *in, size_t in_len, int *key_si
             r = mbedtls_mpi_read_binary(&rsa->P, kb+ofs, len); ofs += len;
             if (r != 0) {
                 mbedtls_rsa_free(rsa);
-                return HSM_WRONG_DATA;
+                return CCID_WRONG_DATA;
             }
             
             //PQ
@@ -395,7 +396,7 @@ int dkek_decode_key(void *key_ctx, const uint8_t *in, size_t in_len, int *key_si
             r = mbedtls_mpi_read_binary(&rsa->Q, kb+ofs, len); ofs += len;
             if (r != 0) {
                 mbedtls_rsa_free(rsa);
-                return HSM_WRONG_DATA;
+                return CCID_WRONG_DATA;
             }
             //N
             len = get_uint16_t(kb, ofs); ofs += len+2;
@@ -405,33 +406,33 @@ int dkek_decode_key(void *key_ctx, const uint8_t *in, size_t in_len, int *key_si
         r = mbedtls_mpi_read_binary(&rsa->E, kb+ofs, len); ofs += len;
         if (r != 0) {
             mbedtls_rsa_free(rsa);
-            return HSM_WRONG_DATA;
+            return CCID_WRONG_DATA;
         }
         
         if (key_type == 5) {
             r = mbedtls_rsa_import(rsa, &rsa->N, NULL, NULL, &rsa->D, &rsa->E);
             if (r != 0) {
                 mbedtls_rsa_free(rsa);
-                return HSM_EXEC_ERROR;
+                return CCID_EXEC_ERROR;
             }
         }
         else if (key_type == 6) {
             r = mbedtls_rsa_import(rsa, NULL, &rsa->P, &rsa->Q, NULL, &rsa->E);
             if (r != 0) {
                 mbedtls_rsa_free(rsa);
-                return HSM_EXEC_ERROR;
+                return CCID_EXEC_ERROR;
             }
         }
         
         r = mbedtls_rsa_complete(rsa);
         if (r != 0) {
             mbedtls_rsa_free(rsa);
-            return HSM_EXEC_ERROR;
+            return CCID_EXEC_ERROR;
         }
         r = mbedtls_rsa_check_privkey(rsa);
         if (r != 0) {
             mbedtls_rsa_free(rsa);
-            return HSM_EXEC_ERROR;
+            return CCID_EXEC_ERROR;
         }
     }
     else if (key_type == 12) {
@@ -449,7 +450,7 @@ int dkek_decode_key(void *key_ctx, const uint8_t *in, size_t in_len, int *key_si
         mbedtls_ecp_group_id ec_id = ec_get_curve_from_prime(kb+ofs, len);
         if (ec_id == MBEDTLS_ECP_DP_NONE) {
             mbedtls_ecdsa_free(ecdsa);
-            return HSM_WRONG_DATA;
+            return CCID_WRONG_DATA;
         }
         ofs += len;
         
@@ -464,11 +465,11 @@ int dkek_decode_key(void *key_ctx, const uint8_t *in, size_t in_len, int *key_si
         r = mbedtls_ecp_read_key(ec_id, ecdsa, kb+ofs, len);
         if (r != 0) {
             mbedtls_ecdsa_free(ecdsa);
-            return HSM_EXEC_ERROR;
+            return CCID_EXEC_ERROR;
         }
     }
     else if (key_type == 15) {
         memcpy(key_ctx, kb+ofs, key_size);
     }
-    return HSM_OK;
+    return CCID_OK;
 }

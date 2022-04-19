@@ -1,6 +1,6 @@
 [submodule "OpenSC"]
 	path = OpenSC
 	url = https://github.com/polhenarejos/OpenSC
-[submodule "mbedtls"]
-	path = mbedtls
-	url = https://github.com/ARMmbed/mbedtls
+[submodule "pico-ccid"]
+	path = pico-ccid
+	url = https://github.com/polhenarejos/pico-ccid

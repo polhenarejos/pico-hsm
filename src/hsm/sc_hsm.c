@@ -16,7 +16,7 @@
  */
 
 #include "sc_hsm.h"
-#include "file.h"
+#include "files.h"
 #include "libopensc/card-sc-hsm.h"
 #include "random.h"
 #include "common.h"
@@ -33,10 +33,16 @@
 #include "crypto_utils.h"
 #include "dkek.h"
 #include "hardware/rtc.h"
+#include "eac.h"
 
 const uint8_t sc_hsm_aid[] = {
     11, 
     0xE8,0x2B,0x06,0x01,0x04,0x01,0x81,0xC3,0x1F,0x02,0x01
+};
+
+char atr_sc_hsm[] = { 
+    24,
+    0x3B,0xFE,0x18,0x00,0x00,0x81,0x31,0xFE,0x45,0x80,0x31,0x81,0x54,0x48,0x53,0x4D,0x31,0x73,0x80,0x21,0x40,0x81,0x07,0xFA 
 };
 
 uint8_t session_pin[32], session_sopin[32];
@@ -47,6 +53,7 @@ static int sc_hsm_process_apdu();
 
 static void init_sc_hsm();
 static int sc_hsm_unload();
+static int cmd_select();
 
 app_t *sc_hsm_select_aid(app_t *a) {
     if (!memcmp(apdu.cmd_apdu_data, sc_hsm_aid+1, MIN(apdu.cmd_apdu_data_len,sc_hsm_aid[0]))) {
@@ -60,19 +67,99 @@ app_t *sc_hsm_select_aid(app_t *a) {
 }
 
 void __attribute__ ((constructor)) sc_hsm_ctor() { 
+    ccid_atr = atr_sc_hsm;
     register_app(sc_hsm_select_aid);
 }
 
-void init_sc_hsm() {
+void scan_files() {
+    file_pin1 = search_by_fid(0x1081, NULL, SPECIFY_EF);
+    if (file_pin1) {
+        if (!file_pin1->data) {
+            TU_LOG1("PIN1 is empty. Initializing with default password\r\n");
+            const uint8_t empty[33] = { 0 };
+            flash_write_data_to_file(file_pin1, empty, sizeof(empty));
+        }
+    }
+    else {
+        TU_LOG1("FATAL ERROR: PIN1 not found in memory!\r\n");
+    }
+    file_sopin = search_by_fid(0x1088, NULL, SPECIFY_EF);
+    if (file_sopin) {
+        if (!file_sopin->data) {
+            TU_LOG1("SOPIN is empty. Initializing with default password\r\n");
+            const uint8_t empty[33] = { 0 };
+            flash_write_data_to_file(file_sopin, empty, sizeof(empty));
+        }
+    }
+    else {
+        TU_LOG1("FATAL ERROR: SOPIN not found in memory!\r\n");
+    }
+    file_retries_pin1 = search_by_fid(0x1083, NULL, SPECIFY_EF);
+    if (file_retries_pin1) {
+        if (!file_retries_pin1->data) {
+            TU_LOG1("Retries PIN1 is empty. Initializing with default retriesr\n");
+            const uint8_t retries = 3;
+            flash_write_data_to_file(file_retries_pin1, &retries, sizeof(uint8_t));
+        }
+    }
+    else {
+        TU_LOG1("FATAL ERROR: Retries PIN1 not found in memory!\r\n");
+    }
+    file_retries_sopin = search_by_fid(0x108A, NULL, SPECIFY_EF);
+    if (file_retries_sopin) {
+        if (!file_retries_sopin->data) {
+            TU_LOG1("Retries SOPIN is empty. Initializing with default retries\r\n");
+            const uint8_t retries = 15;
+            flash_write_data_to_file(file_retries_sopin, &retries, sizeof(uint8_t));
+        }
+    }
+    else {
+        TU_LOG1("FATAL ERROR: Retries SOPIN not found in memory!\r\n");
+    }
+    file_t *tf = NULL;
+    
+    tf = search_by_fid(0x1082, NULL, SPECIFY_EF);
+    if (tf) {
+        if (!tf->data) {
+            TU_LOG1("Max retries PIN1 is empty. Initializing with default max retriesr\n");
+            const uint8_t retries = 3;
+            flash_write_data_to_file(tf, &retries, sizeof(uint8_t));
+        }
+    }
+    else {
+        TU_LOG1("FATAL ERROR: Max Retries PIN1 not found in memory!\r\n");
+    }
+    tf = search_by_fid(0x1089, NULL, SPECIFY_EF);
+    if (tf) {
+        if (!tf->data) {
+            TU_LOG1("Max Retries SOPIN is empty. Initializing with default max retries\r\n");
+            const uint8_t retries = 15;
+            flash_write_data_to_file(tf, &retries, sizeof(uint8_t));
+        }
+    }
+    else {
+        TU_LOG1("FATAL ERROR: Retries SOPIN not found in memory!\r\n");
+    }
+    low_flash_available();
+}
+
+void scan_all() {
     scan_flash();
+    scan_files();
+}
+
+void init_sc_hsm() {
+    scan_all();
     has_session_pin = has_session_sopin = false;
     isUserAuthenticated = false;
+    cmd_select();
 }
 
 int sc_hsm_unload() {
     has_session_pin = has_session_sopin = false;
     isUserAuthenticated = false;
-    return HSM_OK;
+    sm_session_pin_len = 0;
+    return CCID_OK;
 }
 
 void select_file(file_t *pe) {
@@ -191,10 +278,11 @@ static int cmd_select() {
         process_fci(pe);
         if (pe == file_sc_hsm) {
             res_APDU[res_APDU_size++] = 0x85;
-            res_APDU[res_APDU_size++] = 4;
+            res_APDU[res_APDU_size++] = 5;
             uint16_t opts = get_device_options();
-            res_APDU[res_APDU_size++] = opts & 0xff;
             res_APDU[res_APDU_size++] = opts >> 8;
+            res_APDU[res_APDU_size++] = opts & 0xff;
+            res_APDU[res_APDU_size++] = 0xFF;
             res_APDU[res_APDU_size++] = HSM_VERSION_MAJOR;
             res_APDU[res_APDU_size++] = HSM_VERSION_MINOR;
             res_APDU[1] = res_APDU_size-2;
@@ -250,7 +338,7 @@ int cvc_prepare_signatures(sc_pkcs15_card_t *p15card, sc_cvc_t *cvc, size_t sig_
     }
     hash256(cvcbin, cvclen, hsh);
     free(cvcbin);
-    return HSM_OK;
+    return CCID_OK;
 }
 
 int parse_token_info(const file_t *f, int mode) {
@@ -384,7 +472,7 @@ static int cmd_read_binary()
             uint16_t maxle = data_len-offset;
             if (apdu.expected_res_size > maxle)
                 apdu.expected_res_size = maxle;
-            res_APDU = file_read(ef->data+2+offset);
+            memcpy(res_APDU, file_read(ef->data+2+offset), data_len-offset);
             res_APDU_size = data_len-offset;
         }
     }
@@ -394,14 +482,14 @@ static int cmd_read_binary()
 
 int pin_reset_retries(const file_t *pin, bool force) {
     if (!pin)
-        return HSM_ERR_NULL_PARAM; 
+        return CCID_ERR_NULL_PARAM; 
     const file_t *max = search_by_fid(pin->fid+1, NULL, SPECIFY_EF);
     const file_t *act = search_by_fid(pin->fid+2, NULL, SPECIFY_EF);
     if (!max || !act)
-        return HSM_ERR_FILE_NOT_FOUND;
+        return CCID_ERR_FILE_NOT_FOUND;
     uint8_t retries = file_read_uint8(act->data+2);
     if (retries == 0 && force == false) //blocked
-        return HSM_ERR_BLOCKED;
+        return CCID_ERR_BLOCKED;
     retries = file_read_uint8(max->data+2);
     int r = flash_write_data_to_file((file_t *)act, &retries, sizeof(retries));
     low_flash_available();
@@ -410,22 +498,22 @@ int pin_reset_retries(const file_t *pin, bool force) {
 
 int pin_wrong_retry(const file_t *pin) {
     if (!pin)
-        return HSM_ERR_NULL_PARAM; 
+        return CCID_ERR_NULL_PARAM; 
     const file_t *act = search_by_fid(pin->fid+2, NULL, SPECIFY_EF);
     if (!act)
-        return HSM_ERR_FILE_NOT_FOUND;
+        return CCID_ERR_FILE_NOT_FOUND;
     uint8_t retries = file_read_uint8(act->data+2);
     if (retries > 0) {
         retries -= 1;
         int r = flash_write_data_to_file((file_t *)act, &retries, sizeof(retries));
-        if (r != HSM_OK)
+        if (r != CCID_OK)
             return r;
         low_flash_available();
         if (retries == 0)
-            return HSM_ERR_BLOCKED;
+            return CCID_ERR_BLOCKED;
         return retries;
     }
-    return HSM_ERR_BLOCKED;
+    return CCID_ERR_BLOCKED;
 }
 
 int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
@@ -436,20 +524,30 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
     }
     isUserAuthenticated = false;
     has_session_pin = has_session_sopin = false;
-    uint8_t dhash[32];
-    double_hash_pin(data, len, dhash);
-    if (sizeof(dhash) != file_read_uint16(pin->data)-1) //1 byte for pin len
-        return SW_CONDITIONS_NOT_SATISFIED();
-    if (memcmp(file_read(pin->data+3), dhash, sizeof(dhash)) != 0) {
-        uint8_t retries;
-        if ((retries = pin_wrong_retry(pin)) < HSM_OK)
-            return SW_PIN_BLOCKED();
-        return set_res_sw(0x63, 0xc0 | retries);
+    if (is_secured_apdu() && sm_session_pin_len > 0 && pin == file_pin1) {
+        if (len == sm_session_pin_len && memcmp(data, sm_session_pin, len) != 0) {
+            uint8_t retries;
+            if ((retries = pin_wrong_retry(pin)) < CCID_OK)
+                return SW_PIN_BLOCKED();
+            return set_res_sw(0x63, 0xc0 | retries);
+        }
+    }
+    else {
+        uint8_t dhash[32];
+        double_hash_pin(data, len, dhash);
+        if (sizeof(dhash) != file_read_uint16(pin->data)-1) //1 byte for pin len
+            return SW_CONDITIONS_NOT_SATISFIED();
+        if (memcmp(file_read(pin->data+3), dhash, sizeof(dhash)) != 0) {
+            uint8_t retries;
+            if ((retries = pin_wrong_retry(pin)) < CCID_OK)
+                return SW_PIN_BLOCKED();
+            return set_res_sw(0x63, 0xc0 | retries);
+        }
     }
     int r = pin_reset_retries(pin, false);
-    if (r == HSM_ERR_BLOCKED)
+    if (r == CCID_ERR_BLOCKED)
         return SW_PIN_BLOCKED();
-    if (r != HSM_OK)
+    if (r != CCID_OK)
         return SW_MEMORY_FAILURE();
     isUserAuthenticated = true;
     hash_multi(data, len, session_pin);
@@ -494,6 +592,9 @@ static int cmd_verify() {
             return SW_OK();
         return set_res_sw(0x63, 0xc0 | file_read_uint8(file_retries_sopin->data+2));
     }
+    else if (p2 == 0x85) {
+        return SW_OK();
+    }
     return SW_REFERENCE_NOT_FOUND();
 }
 
@@ -530,7 +631,7 @@ static int cmd_reset_retry() {
         dhash[0] = newpin_len;
         double_hash_pin(apdu.cmd_apdu_data+(apdu.cmd_apdu_data_len-newpin_len), newpin_len, dhash+1);
         flash_write_data_to_file(file_pin1, dhash, sizeof(dhash));
-        if (pin_reset_retries(file_pin1, true) != HSM_OK)
+        if (pin_reset_retries(file_pin1, true) != CCID_OK)
             return SW_MEMORY_FAILURE();
         low_flash_available();
         return SW_OK();
@@ -551,7 +652,7 @@ static int cmd_reset_retry() {
             if (apdu.cmd_apdu_data_len != 0)
                 return SW_WRONG_LENGTH();
         }
-        if (pin_reset_retries(file_pin1, true) != HSM_OK)
+        if (pin_reset_retries(file_pin1, true) != CCID_OK)
             return SW_MEMORY_FAILURE();
         return SW_OK();
     }
@@ -562,7 +663,7 @@ static int cmd_challenge() {
     uint8_t *rb = (uint8_t *)random_bytes_get(apdu.expected_res_size);
     if (!rb)
         return SW_WRONG_LENGTH();
-    res_APDU = rb;
+    memcpy(res_APDU, rb, apdu.expected_res_size);
     res_APDU_size = apdu.expected_res_size;
     return SW_OK();
 }
@@ -578,23 +679,22 @@ int heapLeft() {
 static int cmd_initialize() {
     if (apdu.cmd_apdu_data_len > 0) {
         initialize_flash(true);
-        scan_flash();
+        scan_all();
         dkeks = current_dkeks = 0;
-        const uint8_t *p = apdu.cmd_apdu_data;
-        while (p-apdu.cmd_apdu_data < apdu.cmd_apdu_data_len) {
-            uint8_t tag = *p++;
-            uint8_t tag_len = *p++;
+        uint8_t tag = 0x0, *tag_data = NULL, *p = NULL;
+        size_t tag_len = 0;    
+        while (walk_tlv(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, &p, &tag, &tag_len, &tag_data)) {
             if (tag == 0x80) { //options
                 file_t *tf = search_by_fid(EF_DEVOPS, NULL, SPECIFY_EF);
-                flash_write_data_to_file(tf, p, tag_len);
+                flash_write_data_to_file(tf, tag_data, tag_len);
             }
             else if (tag == 0x81) { //user pin
                 if (file_pin1 && file_pin1->data) {
                     uint8_t dhash[33];
                     dhash[0] = tag_len;
-                    double_hash_pin(p, tag_len, dhash+1);
+                    double_hash_pin(tag_data, tag_len, dhash+1);
                     flash_write_data_to_file(file_pin1, dhash, sizeof(dhash));
-                    hash_multi(p, tag_len, session_pin);
+                    hash_multi(tag_data, tag_len, session_pin);
                     has_session_pin = true;
                 } 
             }
@@ -602,29 +702,28 @@ static int cmd_initialize() {
                 if (file_sopin && file_sopin->data) {
                     uint8_t dhash[33];
                     dhash[0] = tag_len;
-                    double_hash_pin(p, tag_len, dhash+1);
+                    double_hash_pin(tag_data, tag_len, dhash+1);
                     flash_write_data_to_file(file_sopin, dhash, sizeof(dhash));
-                    hash_multi(p, tag_len, session_sopin);
+                    hash_multi(tag_data, tag_len, session_sopin);
                     has_session_sopin = true;
                 } 
             }
             else if (tag == 0x91) { //retries user pin
                 file_t *tf = search_by_fid(0x1082, NULL, SPECIFY_EF);
                 if (tf && tf->data) {
-                    flash_write_data_to_file(tf, p, tag_len);
+                    flash_write_data_to_file(tf, tag_data, tag_len);
                 }
                 if (file_retries_pin1 && file_retries_pin1->data) {
-                    flash_write_data_to_file(file_retries_pin1, p, tag_len);
+                    flash_write_data_to_file(file_retries_pin1, tag_data, tag_len);
                 }
             }
             else if (tag == 0x92) {
-                dkeks = *p;
+                dkeks = *tag_data;
             }
-            p += tag_len;
         }
         if (dkeks == 0) {
             int r = save_dkek_key(random_bytes_get(32));
-            if (r != HSM_OK)
+            if (r != CCID_OK)
                 return SW_EXEC_ERROR();
         }
         else
@@ -660,7 +759,7 @@ static int cmd_import_dkek() {
             return SW_WRONG_LENGTH();
         import_dkek_share(apdu.cmd_apdu_data);
         if (++current_dkeks == dkeks) {
-            if (save_dkek_key(NULL) != HSM_OK)
+            if (save_dkek_key(NULL) != CCID_OK)
                 return SW_FILE_NOT_FOUND();
             
         }
@@ -702,14 +801,14 @@ int store_keys(void *key_ctx, int type, uint8_t key_id, sc_context_t *ctx) {
         memcpy(kdata, key_ctx, key_size);
     }
     r = dkek_encrypt(kdata, key_size);
-    if (r != HSM_OK) {
+    if (r != CCID_OK) {
         return r;
     }
     file_t *fpk = file_new((KEY_PREFIX << 8) | key_id);
     if (!fpk)
         return SW_MEMORY_FAILURE();
     r = flash_write_data_to_file(fpk, kdata, key_size);
-    if (r != HSM_OK)
+    if (r != CCID_OK)
         return r;
     //add_file_to_chain(fpk, &ef_kf);
     if (type == SC_PKCS15_TYPE_PRKEY_RSA || type == SC_PKCS15_TYPE_PRKEY_EC) {
@@ -743,7 +842,7 @@ int store_keys(void *key_ctx, int type, uint8_t key_id, sc_context_t *ctx) {
     r = flash_write_data_to_file(fpk, asn1bin, asn1len);
     if (asn1bin)
         free(asn1bin);
-    if (r != HSM_OK)
+    if (r != CCID_OK)
         return r;
     //add_file_to_chain(fpk, &ef_prkdf);
     /*
@@ -774,12 +873,12 @@ int store_keys(void *key_ctx, int type, uint8_t key_id, sc_context_t *ctx) {
     fpk = file_new((EE_CERTIFICATE_PREFIX << 8) | key_id);
     r = flash_write_data_to_file(fpk, asn1bin, asn1len);
     free(asn1bin);
-    if (r != HSM_OK)
+    if (r != CCID_OK)
         return r;
     //add_file_to_chain(fpk, &ef_cdf);
     */
     low_flash_available();
-    return HSM_OK;
+    return CCID_OK;
 }
 
 static int cmd_keypair_gen() {
@@ -846,7 +945,7 @@ static int cmd_keypair_gen() {
 	            
                 uint8_t hsh[32];
 	            ret = cvc_prepare_signatures(&p15card, &cvc, key_size/8, hsh);
-	            if (ret != HSM_OK) {
+	            if (ret != CCID_OK) {
 	                sc_pkcs15emu_sc_hsm_free_cvc(&cvc);
                     mbedtls_rsa_free(&rsa);
                     free(ctx);
@@ -862,7 +961,7 @@ static int cmd_keypair_gen() {
                     return SW_EXEC_ERROR();
                 }
 	            ret = store_keys(&rsa, SC_PKCS15_TYPE_PRKEY_RSA, key_id, ctx);
-	            if (ret != HSM_OK) {
+	            if (ret != CCID_OK) {
 	                sc_pkcs15emu_sc_hsm_free_cvc(&cvc);
                     mbedtls_rsa_free(&rsa);
                     free(ctx);
@@ -971,7 +1070,7 @@ static int cmd_keypair_gen() {
 	            
                 uint8_t hsh[32];
 	            ret = cvc_prepare_signatures(&p15card, &cvc, ecdsa.grp.pbits*2/8+9, hsh);
-	            if (ret != HSM_OK) {
+	            if (ret != CCID_OK) {
 	                sc_pkcs15emu_sc_hsm_free_cvc(&cvc);
                     mbedtls_ecdsa_free(&ecdsa);
                     free(ctx);
@@ -988,7 +1087,7 @@ static int cmd_keypair_gen() {
                 }
                 
 	            ret = store_keys(&ecdsa, SC_PKCS15_TYPE_PRKEY_EC, key_id, ctx);
-	            if (ret != HSM_OK) {
+	            if (ret != CCID_OK) {
 	                sc_pkcs15emu_sc_hsm_free_cvc(&cvc);
                     mbedtls_ecdsa_free(&ecdsa);
                     free(ctx);
@@ -1000,6 +1099,8 @@ static int cmd_keypair_gen() {
             
         }
     }
+    else
+        return SW_WRONG_DATA();
     uint8_t *cvcbin;
     size_t cvclen;
     ret = sc_pkcs15emu_sc_hsm_encode_cvc(&p15card, &cvc, &cvcbin, &cvclen);
@@ -1012,29 +1113,22 @@ static int cmd_keypair_gen() {
         return SW_EXEC_ERROR();
     }
     
-    res_APDU[0] = 0x67;
-    int outer_len = strlen(cvc.outer_car)+2+2+1+4;
-    int bytes_length = 0;
-    if (cvclen+outer_len < 128)
-        res_APDU[1] = cvclen+outer_len;
-    else if (cvclen+outer_len < 256) {
-        res_APDU[1] = 0x81;
-        res_APDU[2] = cvclen+outer_len;
-        bytes_length = 1;
-    }
-    else {
-        res_APDU[1] = 0x82;
-        res_APDU[2] = (cvclen+outer_len) >> 8;
-        res_APDU[3] = (cvclen+outer_len) & 0xff;
-        bytes_length = 2;
-    }
-    memcpy(res_APDU+bytes_length+2, cvcbin, cvclen);
-    res_APDU[bytes_length+2+cvclen] = 0x42;
-    res_APDU[bytes_length+2+cvclen+1] = strlen(cvc.outer_car);
-    memcpy(res_APDU+bytes_length+2+cvclen+2, cvc.outer_car, strlen(cvc.outer_car));
-    memcpy(res_APDU+bytes_length+2+cvclen+2+strlen(cvc.outer_car), "\x5F\x37\x04",3);
+    res_APDU[res_APDU_size++] = 0x67;
+    int outer_len = 2+strlen(cvc.outer_car)+3+4;
+    int bytes_length = format_tlv_len(cvclen+outer_len, res_APDU+res_APDU_size);
+    res_APDU_size += bytes_length;
+    memcpy(res_APDU+res_APDU_size, cvcbin, cvclen);
+    res_APDU_size += cvclen;
+    res_APDU[res_APDU_size++] = 0x42;
+    res_APDU[res_APDU_size++] = strlen(cvc.outer_car);
+    memcpy(res_APDU+res_APDU_size, cvc.outer_car, strlen(cvc.outer_car));
+    res_APDU_size += strlen(cvc.outer_car);
+    memcpy(res_APDU+res_APDU_size, "\x5F\x37\x04",3);
+    res_APDU_size += 3;
+    memset(res_APDU+res_APDU_size, 0, 4);
+    res_APDU_size += 4;
     free(cvcbin);
-    res_APDU_size = cvclen+bytes_length+2+outer_len;
+    //res_APDU_size = cvclen+bytes_length+1+outer_len;
     apdu.expected_res_size = res_APDU_size;
 
     //sc_asn1_print_tags(res_APDU, res_APDU_size);
@@ -1049,7 +1143,7 @@ static int cmd_keypair_gen() {
 static int cmd_update_ef() {
     uint8_t p1 = P1(apdu), p2 = P2(apdu);
     uint16_t fid = (p1 << 8) | p2;
-    uint8_t *p = apdu.cmd_apdu_data, *data;
+    uint8_t *data;
     uint16_t offset = 0;
     uint16_t data_len = 0;
     file_t *ef = NULL;
@@ -1063,25 +1157,16 @@ static int cmd_update_ef() {
     if (ef && !authenticate_action(ef, ACL_OP_UPDATE_ERASE))
         return SW_SECURITY_STATUS_NOT_SATISFIED();
         
-    while (p-apdu.cmd_apdu_data < apdu.cmd_apdu_data_len) {
-        uint8_t tag = *p++;
-        uint8_t taglen = *p++;
+    uint8_t tag = 0x0, *tag_data = NULL, *p = NULL;
+    size_t tag_len = 0;    
+    while (walk_tlv(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, &p, &tag, &tag_len, &tag_data)) {
         if (tag == 0x54) { //ofset tag
-            for (int i = 0; i < taglen; i++)
-                offset |= (*p++ << (8*(taglen-i-1)));
+            for (int i = 1; i <= tag_len; i++)
+                offset |= (*tag_data++ << (8*(tag_len-i)));
         }
         else if (tag == 0x53) { //data 
-            if (taglen == 0x82) {
-                data_len = *p++ << 8;
-                data_len |= *p++;
-            }
-            else if (taglen == 0x81) {
-                data_len = *p++;
-            }
-            else 
-                data_len = taglen;
-            data = p;
-            p += data_len;
+            data_len = tag_len;
+            data = tag_data;
         }
     }
     if (data_len == 0 && offset == 0) { //new file
@@ -1099,7 +1184,7 @@ static int cmd_update_ef() {
         }
         if (offset == 0) {
             int r = flash_write_data_to_file(ef, data, data_len);
-            if (r != HSM_OK)
+            if (r != CCID_OK)
                 return SW_MEMORY_FAILURE();
         }
         else {
@@ -1110,7 +1195,7 @@ static int cmd_update_ef() {
             memcpy(data_merge+offset, data, data_len);
             int r = flash_write_data_to_file(ef, data_merge, offset+data_len);
             free(data_merge);
-            if (r != HSM_OK)
+            if (r != CCID_OK)
                 return SW_MEMORY_FAILURE();
         }
         low_flash_available();
@@ -1135,9 +1220,9 @@ static int cmd_delete_file() {
     }
     if (!authenticate_action(ef, ACL_OP_DELETE_SELF))
         return SW_SECURITY_STATUS_NOT_SATISFIED();
-    if (flash_clear_file(ef) != HSM_OK)
+    if (flash_clear_file(ef) != CCID_OK)
         return SW_EXEC_ERROR();
-    if (delete_dynamic_file(ef) != HSM_OK)
+    if (delete_dynamic_file(ef) != CCID_OK)
         return SW_EXEC_ERROR();
     low_flash_available();
     return SW_OK();
@@ -1156,12 +1241,12 @@ static int cmd_change_pin() {
             uint16_t r = check_pin(file_pin1, apdu.cmd_apdu_data, pin_len);
             if (r != 0x9000)
                 return r;
-            if (load_dkek() != HSM_OK) //loads the DKEK with old pin
+            if (load_dkek() != CCID_OK) //loads the DKEK with old pin
                 return SW_EXEC_ERROR();
             //encrypt DKEK with new pin
             hash_multi(apdu.cmd_apdu_data+pin_len, apdu.cmd_apdu_data_len-pin_len, session_pin);
             has_session_pin = true;
-            if (store_dkek_key() != HSM_OK)
+            if (store_dkek_key() != CCID_OK)
                 return SW_EXEC_ERROR();
             uint8_t dhash[33];
             dhash[0] = apdu.cmd_apdu_data_len-pin_len;
@@ -1199,7 +1284,7 @@ static int cmd_key_gen() {
     sc_context_t *card_ctx = create_context();
     r = store_keys(aes_key, aes_type, key_id, card_ctx);
     free(card_ctx);
-    if (r != HSM_OK)
+    if (r != CCID_OK)
         return SW_MEMORY_FAILURE();
     low_flash_available();
     return SW_OK();
@@ -1237,7 +1322,7 @@ int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
         mbedtls_rsa_free(ctx);
         return SW_DATA_INVALID();
     }
-    return HSM_OK;
+    return CCID_OK;
 }
 
 int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey) {
@@ -1246,15 +1331,15 @@ int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey) {
     uint8_t kdata[67]; //Worst case, 521 bit + 1byte
     memcpy(kdata, file_read(fkey->data+2), key_size);
     if (dkek_decrypt(kdata, key_size) != 0) {
-        return HSM_EXEC_ERROR;
+        return CCID_EXEC_ERROR;
     }
     mbedtls_ecp_group_id gid = kdata[0];
     int r = mbedtls_ecp_read_key(gid, ctx, kdata+1, key_size-1);
     if (r != 0) {
         mbedtls_ecdsa_free(ctx);
-        return HSM_EXEC_ERROR;
+        return CCID_EXEC_ERROR;
     }
-    return HSM_OK;
+    return CCID_OK;
 }
 
 static int cmd_signature() {
@@ -1283,7 +1368,7 @@ static int cmd_signature() {
         
         int r;
         r = load_private_key_rsa(&ctx, fkey);
-        if (r != HSM_OK)
+        if (r != CCID_OK)
             return SW_EXEC_ERROR();
         const uint8_t *hash = apdu.cmd_apdu_data;
         size_t hash_len = apdu.cmd_apdu_data_len;
@@ -1379,7 +1464,7 @@ static int cmd_signature() {
             md = MBEDTLS_MD_SHA256;
         int r;
         r = load_private_key_ecdsa(&ctx, fkey);
-        if (r != HSM_OK)
+        if (r != CCID_OK)
             return SW_CONDITIONS_NOT_SATISFIED();
         size_t olen = 0;
         uint8_t buf[MBEDTLS_ECDSA_MAX_LEN];
@@ -1414,7 +1499,7 @@ static int cmd_key_wrap() {
         mbedtls_rsa_context ctx;
         mbedtls_rsa_init(&ctx);
         r = load_private_key_rsa(&ctx, ef);
-        if (r != HSM_OK) {
+        if (r != CCID_OK) {
             mbedtls_rsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
@@ -1425,7 +1510,7 @@ static int cmd_key_wrap() {
         mbedtls_ecdsa_context ctx;
         mbedtls_ecdsa_init(&ctx);
         r = load_private_key_ecdsa(&ctx, ef);
-        if (r != HSM_OK) {
+        if (r != CCID_OK) {
             mbedtls_ecdsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
@@ -1448,7 +1533,7 @@ static int cmd_key_wrap() {
             aes_type = HSM_KEY_AES_128;
         r = dkek_encode_key(kdata, aes_type, res_APDU, &wrap_len);
     }
-    if (r != HSM_OK)
+    if (r != CCID_OK)
         return SW_EXEC_ERROR();
     res_APDU_size = wrap_len;
     return SW_OK();
@@ -1467,7 +1552,7 @@ static int cmd_key_unwrap() {
         mbedtls_rsa_context ctx;
         mbedtls_rsa_init(&ctx);
         r = dkek_decode_key(&ctx, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, NULL);
-        if (r != HSM_OK) {
+        if (r != CCID_OK) {
             mbedtls_rsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
@@ -1475,7 +1560,7 @@ static int cmd_key_unwrap() {
         r = store_keys(&ctx, SC_PKCS15_TYPE_PRKEY_RSA, key_id, card_ctx);
         free(card_ctx);
         mbedtls_rsa_free(&ctx);
-        if (r != HSM_OK) {
+        if (r != CCID_OK) {
             return SW_EXEC_ERROR();
         }
     }
@@ -1483,7 +1568,7 @@ static int cmd_key_unwrap() {
         mbedtls_ecdsa_context ctx;
         mbedtls_ecdsa_init(&ctx);
         r = dkek_decode_key(&ctx, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, NULL);
-        if (r != HSM_OK) {
+        if (r != CCID_OK) {
             mbedtls_ecdsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
@@ -1491,7 +1576,7 @@ static int cmd_key_unwrap() {
         r = store_keys(&ctx, SC_PKCS15_TYPE_PRKEY_EC, key_id, card_ctx);
         free(card_ctx);
         mbedtls_ecdsa_free(&ctx);
-        if (r != HSM_OK) {
+        if (r != CCID_OK) {
             return SW_EXEC_ERROR();
         }
     }
@@ -1499,7 +1584,7 @@ static int cmd_key_unwrap() {
         uint8_t aes_key[32];
         int key_size = 0, aes_type;
         r = dkek_decode_key(aes_key, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, &key_size);
-        if (r != HSM_OK) {
+        if (r != CCID_OK) {
             return SW_EXEC_ERROR();
         }
         if (key_size == 32)
@@ -1511,7 +1596,7 @@ static int cmd_key_unwrap() {
         sc_context_t *card_ctx = create_context();
         r = store_keys(aes_key, aes_type, key_id, card_ctx);
         free(card_ctx);
-        if (r != HSM_OK) {
+        if (r != CCID_OK) {
             return SW_EXEC_ERROR();
         }
     }
@@ -1529,7 +1614,7 @@ static int cmd_decrypt_asym() {
         mbedtls_rsa_context ctx;
         mbedtls_rsa_init(&ctx);
         int r = load_private_key_rsa(&ctx, ef);
-        if (r != HSM_OK)
+        if (r != CCID_OK)
             return SW_EXEC_ERROR();
         int key_size = file_read_uint16(ef->data);
         if (apdu.cmd_apdu_data_len < key_size) //needs padding
@@ -1698,7 +1783,7 @@ static int cmd_derive_asym() {
         
         int r;
         r = load_private_key_ecdsa(&ctx, fkey);
-        if (r != HSM_OK) {
+        if (r != CCID_OK) {
             mbedtls_ecdsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
@@ -1729,7 +1814,7 @@ static int cmd_derive_asym() {
         sc_context_t *card_ctx = create_context();
         r = store_keys(&ctx, SC_PKCS15_TYPE_PRKEY_EC, dest_id, card_ctx);
         free(card_ctx);
-        if (r != HSM_OK) {
+        if (r != CCID_OK) {
             mbedtls_ecdsa_free(&ctx);
             mbedtls_mpi_free(&a);
             mbedtls_mpi_free(&nd);
@@ -1796,6 +1881,117 @@ static int cmd_extras() {
     return SW_OK();
 }
 
+static int cmd_mse() {
+    int p1 = P1(apdu);
+    int p2 = P2(apdu);
+    if (p1 & 0x1) { //SET
+        if (p2 == 0xA4) { //AT
+            uint8_t tag = 0x0, *tag_data = NULL, *p = NULL;
+            size_t tag_len = 0;    
+            while (walk_tlv(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, &p, &tag, &tag_len, &tag_data)) {
+                if (tag == 0x80) {
+                    if (tag_len == 10 && memcmp(tag_data, "\x04\x00\x7F\x00\x07\x02\x02\x03\x02\x02", tag_len) == 0)
+                        sm_set_protocol(MSE_AES);
+                    else if (tag_len == 10 && memcmp(tag_data, "\x04\x00\x7F\x00\x07\x02\x02\x03\x02\x01", tag_len) == 0)
+                        sm_set_protocol(MSE_3DES);
+                    else
+                        return SW_REFERENCE_NOT_FOUND();
+                }
+            }
+        }
+        else
+            return SW_INCORRECT_P1P2();
+    }
+    else
+        return SW_INCORRECT_P1P2();
+    return SW_OK();
+}
+
+int cmd_general_authenticate() {
+    if (P1(apdu) == 0x0 && P2(apdu) == 0x0) {
+        if (apdu.cmd_apdu_data[0] == 0x7C) {
+            int r = 0;
+            size_t pubkey_len = 0;
+            const uint8_t *pubkey = NULL;
+            uint8_t tag = 0x0, *tag_data = NULL, *p = NULL;
+            size_t tag_len = 0;    
+            while (walk_tlv(apdu.cmd_apdu_data+2, apdu.cmd_apdu_data_len-2, &p, &tag, &tag_len, &tag_data)) {
+                if (tag == 0x80) {
+                    pubkey = tag_data-1; //mbedtls ecdh starts reading one pos before
+                    pubkey_len = tag_len+1;
+                }
+            }
+            mbedtls_ecdh_context ctx;
+            int key_size = file_read_uint16(termca_pk);
+            mbedtls_ecdh_init(&ctx);
+            mbedtls_ecp_group_id gid = MBEDTLS_ECP_DP_SECP192R1;
+            r = mbedtls_ecdh_setup(&ctx, gid);
+            if (r != 0) {
+                mbedtls_ecdh_free(&ctx);
+                return SW_DATA_INVALID();
+            }
+            r = mbedtls_mpi_read_binary(&ctx.ctx.mbed_ecdh.d, termca_pk+2, key_size);
+            if (r != 0) {
+                mbedtls_ecdh_free(&ctx);
+                return SW_DATA_INVALID();
+            }
+            r = mbedtls_ecdh_read_public(&ctx, pubkey, pubkey_len);
+            if (r != 0) {
+                mbedtls_ecdh_free(&ctx);
+                return SW_DATA_INVALID();
+            }
+            size_t olen = 0;
+            uint8_t derived[MBEDTLS_ECP_MAX_BYTES];
+            r = mbedtls_ecdh_calc_secret(&ctx, &olen, derived, MBEDTLS_ECP_MAX_BYTES, random_gen, NULL);
+            mbedtls_ecdh_free(&ctx);
+            if (r != 0) {
+                return SW_EXEC_ERROR();
+            }
+
+            sm_derive_all_keys(derived, olen);
+            
+            uint8_t *t = (uint8_t *)calloc(1, pubkey_len+16);
+            memcpy(t, "\x7F\x49\x3F\x06\x0A", 5);
+            if (sm_get_protocol() == MSE_AES)
+                memcpy(t+5, "\x04\x00\x7F\x00\x07\x02\x02\x03\x02\x02", 10);
+            else if (sm_get_protocol() == MSE_3DES)
+                memcpy(t+5, "\x04\x00\x7F\x00\x07\x02\x02\x03\x02\x01", 10);
+            t[15] = 0x86;
+            memcpy(t+16, pubkey, pubkey_len);
+            
+            res_APDU[res_APDU_size++] = 0x7C;
+            res_APDU[res_APDU_size++] = 20;
+            res_APDU[res_APDU_size++] = 0x81;
+            res_APDU[res_APDU_size++] = 8;
+            memcpy(res_APDU+res_APDU_size, sm_get_nonce(), 8);
+            res_APDU_size += 8;
+            res_APDU[res_APDU_size++] = 0x82;
+            res_APDU[res_APDU_size++] = 8;
+            
+            r = sm_sign(t, pubkey_len+16, res_APDU+res_APDU_size);
+            
+            free(t);
+            if (r != CCID_OK) 
+                return SW_EXEC_ERROR();
+            res_APDU_size += 8;
+        }
+    }
+    return SW_OK();
+}
+
+int cmd_session_pin() {
+    if (P1(apdu) == 0x01 && P2(apdu) == 0x81) {
+        memcpy(sm_session_pin, random_bytes_get(8), 8);
+        sm_session_pin_len = 8;
+        
+        memcpy(res_APDU, sm_session_pin, sm_session_pin_len);
+        res_APDU_size = sm_session_pin_len;
+        apdu.expected_res_size = sm_session_pin_len;
+    }
+    else
+        return SW_INCORRECT_P1P2();
+    return SW_OK();
+}
 
 typedef struct cmd
 {
@@ -1804,21 +2000,24 @@ typedef struct cmd
 } cmd_t;
 
 #define INS_VERIFY                  0x20
+#define INS_MSE                     0x22
 #define INS_CHANGE_PIN              0x24
 #define INS_RESET_RETRY             0x2C
 #define INS_KEYPAIR_GEN             0x46
 #define INS_KEY_GEN                 0x48
 #define INS_INITIALIZE              0x50
 #define INS_IMPORT_DKEK             0x52
-#define INS_EXTRAS                  0x54
 #define INS_LIST_KEYS               0x58
+#define INS_SESSION_PIN             0x5A
 #define INS_DECRYPT_ASYM            0x62
+#define INS_EXTRAS                  0x64
 #define INS_SIGNATURE               0x68
 #define INS_WRAP                    0x72
 #define INS_UNWRAP                  0x74
 #define INS_DERIVE_ASYM             0x76
 #define INS_CIPHER_SYM              0x78
 #define INS_CHALLENGE               0x84
+#define INS_GENERAL_AUTHENTICATE    0x86
 #define INS_SELECT_FILE				0xA4
 #define INS_READ_BINARY				0xB0
 #define INS_READ_BINARY_ODD         0xB1
@@ -1847,13 +2046,20 @@ static const cmd_t cmds[] = {
     { INS_CIPHER_SYM, cmd_cipher_sym },
     { INS_DERIVE_ASYM, cmd_derive_asym },
     { INS_EXTRAS, cmd_extras },
+    { INS_MSE, cmd_mse },
+    { INS_GENERAL_AUTHENTICATE, cmd_general_authenticate },
+    { INS_SESSION_PIN, cmd_session_pin },
     { 0x00, 0x0}
 };
 
 int sc_hsm_process_apdu() {
+    int r = sm_unwrap();
     for (const cmd_t *cmd = cmds; cmd->ins != 0x00; cmd++) {
-        if (cmd->ins == INS(apdu))
-            return cmd->cmd_handler();
+        if (cmd->ins == INS(apdu)) {
+            int r = cmd->cmd_handler();
+            sm_wrap();
+            return r;
+        }
     }
     return SW_INS_NOT_SUPPORTED();
 }
