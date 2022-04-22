@@ -526,7 +526,7 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
     has_session_pin = has_session_sopin = false;
     if (is_secured_apdu() && sm_session_pin_len > 0 && pin == file_pin1) {
         if (len == sm_session_pin_len && memcmp(data, sm_session_pin, len) != 0) {
-            uint8_t retries;
+            int retries;
             if ((retries = pin_wrong_retry(pin)) < CCID_OK)
                 return SW_PIN_BLOCKED();
             return set_res_sw(0x63, 0xc0 | retries);
@@ -538,7 +538,7 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
         if (sizeof(dhash) != file_read_uint16(pin->data)-1) //1 byte for pin len
             return SW_CONDITIONS_NOT_SATISFIED();
         if (memcmp(file_read(pin->data+3), dhash, sizeof(dhash)) != 0) {
-            uint8_t retries;
+            int retries;
             if ((retries = pin_wrong_retry(pin)) < CCID_OK)
                 return SW_PIN_BLOCKED();
             return set_res_sw(0x63, 0xc0 | retries);
