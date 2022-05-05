@@ -1373,8 +1373,12 @@ static int cmd_signature() {
         
         int r;
         r = load_private_key_rsa(&ctx, fkey);
-        if (r != CCID_OK)
+        if (r != CCID_OK) {
+            mbedtls_rsa_free(&ctx);
+            if (r == CCID_VERIFICATION_FAILED)
+                return SW_SECURE_MESSAGE_EXEC_ERROR();
             return SW_EXEC_ERROR();
+        }
         const uint8_t *hash = apdu.cmd_apdu_data;
         size_t hash_len = apdu.cmd_apdu_data_len;
         if (p2 == ALGO_RSA_PKCS1) { //DigestInfo attached
@@ -1469,8 +1473,12 @@ static int cmd_signature() {
             md = MBEDTLS_MD_SHA256;
         int r;
         r = load_private_key_ecdsa(&ctx, fkey);
-        if (r != CCID_OK)
-            return SW_CONDITIONS_NOT_SATISFIED();
+        if (r != CCID_OK) {
+            mbedtls_ecdsa_free(&ctx);
+            if (r == CCID_VERIFICATION_FAILED)
+                return SW_SECURE_MESSAGE_EXEC_ERROR();
+            return SW_EXEC_ERROR();
+        }
         size_t olen = 0;
         uint8_t buf[MBEDTLS_ECDSA_MAX_LEN];
         if (mbedtls_ecdsa_write_signature(&ctx, md, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, buf, MBEDTLS_ECDSA_MAX_LEN, &olen, random_gen, NULL) != 0) {
@@ -1506,6 +1514,8 @@ static int cmd_key_wrap() {
         r = load_private_key_rsa(&ctx, ef);
         if (r != CCID_OK) {
             mbedtls_rsa_free(&ctx);
+            if (r == CCID_VERIFICATION_FAILED)
+                return SW_SECURE_MESSAGE_EXEC_ERROR();
             return SW_EXEC_ERROR();
         }
         r = dkek_encode_key(&ctx, HSM_KEY_RSA, res_APDU, &wrap_len);
@@ -1517,6 +1527,8 @@ static int cmd_key_wrap() {
         r = load_private_key_ecdsa(&ctx, ef);
         if (r != CCID_OK) {
             mbedtls_ecdsa_free(&ctx);
+            if (r == CCID_VERIFICATION_FAILED)
+                return SW_SECURE_MESSAGE_EXEC_ERROR();
             return SW_EXEC_ERROR();
         }
         r = dkek_encode_key(&ctx, HSM_KEY_EC, res_APDU, &wrap_len);
@@ -1621,8 +1633,12 @@ static int cmd_decrypt_asym() {
         mbedtls_rsa_context ctx;
         mbedtls_rsa_init(&ctx);
         int r = load_private_key_rsa(&ctx, ef);
-        if (r != CCID_OK)
+        if (r != CCID_OK) {
+            mbedtls_rsa_free(&ctx);
+            if (r == CCID_VERIFICATION_FAILED)
+                return SW_SECURE_MESSAGE_EXEC_ERROR();
             return SW_EXEC_ERROR();
+        }
         int key_size = file_read_uint16(ef->data);
         if (apdu.cmd_apdu_data_len < key_size) //needs padding
             memset(apdu.cmd_apdu_data+apdu.cmd_apdu_data_len, 0, key_size-apdu.cmd_apdu_data_len);
@@ -1794,6 +1810,8 @@ static int cmd_derive_asym() {
         r = load_private_key_ecdsa(&ctx, fkey);
         if (r != CCID_OK) {
             mbedtls_ecdsa_free(&ctx);
+            if (r == CCID_VERIFICATION_FAILED)
+                return SW_SECURE_MESSAGE_EXEC_ERROR();
             return SW_EXEC_ERROR();
         }
         mbedtls_mpi a, nd;
