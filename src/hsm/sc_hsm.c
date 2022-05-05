@@ -190,16 +190,17 @@ uint16_t get_device_options() {
 
 extern uint32_t board_button_read(void);
 
-static void wait_button() {
+static bool wait_button() {
     uint16_t opts = get_device_options();
+    uint32_t val = EV_PRESS_BUTTON;
     if (opts & HSM_OPT_BOOTSEL_BUTTON) {
-        uint32_t val = EV_PRESS_BUTTON;
         queue_try_add(ccid_comm, &val);
         do {
             queue_remove_blocking(card_comm, &val);
         }
-        while (val != EV_BUTTON_PRESSED);
+        while (val != EV_BUTTON_PRESSED && val != EV_BUTTON_TIMEOUT);
     }
+    return val == EV_BUTTON_TIMEOUT;
 }
 
 static int cmd_select() {
@@ -1291,42 +1292,46 @@ static int cmd_key_gen() {
 }
 
 int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
-    wait_button();
+    if (wait_button() == true) //timeout
+        return CCID_VERIFICATION_FAILED;
+        
     int key_size = file_read_uint16(fkey->data);
     uint8_t kdata[4096/8];
     memcpy(kdata, file_read(fkey->data+2), key_size);
     if (dkek_decrypt(kdata, key_size) != 0) {
-        return SW_EXEC_ERROR();
+        return CCID_EXEC_ERROR;
     }
     if (mbedtls_mpi_read_binary(&ctx->P, kdata, key_size/2) != 0) {
         mbedtls_rsa_free(ctx);
-        return SW_DATA_INVALID();
+        return CCID_WRONG_DATA;
     }
     if (mbedtls_mpi_read_binary(&ctx->Q, kdata+key_size/2, key_size/2) != 0) {
         mbedtls_rsa_free(ctx);
-        return SW_DATA_INVALID();
+        return CCID_WRONG_DATA;
     }
     if (mbedtls_mpi_lset(&ctx->E, 0x10001) != 0) {
         mbedtls_rsa_free(ctx);
-        return SW_EXEC_ERROR();
+        return CCID_EXEC_ERROR;
     }
     if (mbedtls_rsa_import(ctx, NULL, &ctx->P, &ctx->Q, NULL, &ctx->E) != 0) {
         mbedtls_rsa_free(ctx);
-        return SW_DATA_INVALID();
+        return CCID_WRONG_DATA;
     }
     if (mbedtls_rsa_complete(ctx) != 0) {
         mbedtls_rsa_free(ctx);
-        return SW_DATA_INVALID();
+        return CCID_WRONG_DATA;
     }
     if (mbedtls_rsa_check_privkey(ctx) != 0) {
         mbedtls_rsa_free(ctx);
-        return SW_DATA_INVALID();
+        return CCID_WRONG_DATA;
     }
     return CCID_OK;
 }
 
 int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey) {
-    wait_button();
+    if (wait_button() == true) //timeout
+        return CCID_VERIFICATION_FAILED;
+        
     int key_size = file_read_uint16(fkey->data);
     uint8_t kdata[67]; //Worst case, 521 bit + 1byte
     memcpy(kdata, file_read(fkey->data+2), key_size);
@@ -1519,7 +1524,9 @@ static int cmd_key_wrap() {
     }
     else if (*dprkd == P15_KEYTYPE_AES) {
         uint8_t kdata[32]; //maximum AES key size
-        wait_button();
+        if (wait_button() == true) //timeout
+            return SW_SECURE_MESSAGE_EXEC_ERROR();
+        
         int key_size = file_read_uint16(ef->data), aes_type = HSM_KEY_AES;
         memcpy(kdata, file_read(ef->data+2), key_size);
         if (dkek_decrypt(kdata, key_size) != 0) {
@@ -1629,7 +1636,8 @@ static int cmd_decrypt_asym() {
     }
     else if (P2(apdu) == ALGO_EC_DH) {
         mbedtls_ecdh_context ctx;
-        wait_button();
+        if (wait_button() == true) //timeout
+            return SW_SECURE_MESSAGE_EXEC_ERROR();
         int key_size = file_read_uint16(ef->data);
         uint8_t *kdata = (uint8_t *)calloc(1,key_size);
         memcpy(kdata, file_read(ef->data+2), key_size);
@@ -1684,7 +1692,8 @@ static int cmd_cipher_sym() {
     if ((apdu.cmd_apdu_data_len % 16) != 0) {
         return SW_WRONG_LENGTH();
     }
-    wait_button();
+    if (wait_button() == true) //timeout
+        return SW_SECURE_MESSAGE_EXEC_ERROR();
     int key_size = file_read_uint16(ef->data);
     uint8_t kdata[32]; //maximum AES key size
     memcpy(kdata, file_read(ef->data+2), key_size);
