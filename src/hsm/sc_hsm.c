@@ -720,6 +720,19 @@ static int cmd_initialize() {
             }
             else if (tag == 0x92) {
                 dkeks = *tag_data;
+                file_t *tf = file_new(EF_DKEK);
+                if (!tf)
+                    return SW_MEMORY_FAILURE();
+                low_flash_available();
+            }
+            else if (tag == 0x97) {
+                for (int i = 0; i < MIN(*tag_data,16); i++) {
+                    file_t *tf = file_new(EF_DKEK+i);
+                    if (!tf)
+                        return SW_MEMORY_FAILURE();
+                    flash_write_data_to_file(tf, NULL, 0);
+                }
+                low_flash_available();
             }
         }
         if (dkeks == 0) {
@@ -747,29 +760,36 @@ static int cmd_initialize() {
 static int cmd_key_domain() {
     //if (dkeks == 0)
     //    return SW_COMMAND_NOT_ALLOWED();
-    if (P1(apdu) != 0x0 || P2(apdu) != 0x0)
-        return SW_INCORRECT_P1P2();
+    uint8_t p1 = P1(apdu), p2 = P2(apdu);
     if (has_session_pin == false && apdu.cmd_apdu_data_len > 0)
         return SW_CONDITIONS_NOT_SATISFIED();
-    file_t *tf = search_by_fid(EF_DKEK, NULL, SPECIFY_EF);
-    if (!authenticate_action(get_parent(tf), ACL_OP_CREATE_EF)) {
-        return SW_SECURITY_STATUS_NOT_SATISFIED();
-    }
-    if (apdu.cmd_apdu_data_len > 0) {
-        if (apdu.cmd_apdu_data_len < 32)
-            return SW_WRONG_LENGTH();
-        import_dkek_share(apdu.cmd_apdu_data);
-        if (++current_dkeks == dkeks) {
-            if (save_dkek_key(NULL) != CCID_OK)
-                return SW_FILE_NOT_FOUND();
-            
+    if (p1 == 0x0) { //dkek import
+        if (p2 > 0xF)
+            return SW_WRONG_P1P2();
+        if (apdu.cmd_apdu_data_len > 0) {
+            file_t *tf = file_new(EF_DKEK+p2);
+            if (!tf)
+                return SW_MEMORY_FAILURE();
+            if (apdu.cmd_apdu_data_len < 32)
+                return SW_WRONG_LENGTH();
+            import_dkek_share(apdu.cmd_apdu_data);
+            if (++current_dkeks == dkeks) {
+                if (save_dkek_key(NULL) != CCID_OK)
+                    return SW_FILE_NOT_FOUND();
+            }
+            low_flash_available();
         }
+        else {
+            file_t *tf = search_dynamic_file(EF_DKEK+p2);
+            if (!tf)
+                return SW_INCORRECT_P1P2();
+        }
+        memset(res_APDU,0,10);
+        res_APDU[0] = dkeks;
+        res_APDU[1] = dkeks-current_dkeks;
+        dkek_kcv(res_APDU+2);
+        res_APDU_size = 2+8;
     }
-    memset(res_APDU,0,10);
-    res_APDU[0] = dkeks;
-    res_APDU[1] = dkeks-current_dkeks;
-    dkek_kcv(res_APDU+2);
-    res_APDU_size = 2+8;
     return SW_OK();
 }
 
