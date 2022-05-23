@@ -682,7 +682,7 @@ static int cmd_initialize() {
         initialize_flash(true);
         scan_all();
         dkeks = current_dkeks = 0;
-        uint8_t tag = 0x0, *tag_data = NULL, *p = NULL;
+        uint8_t tag = 0x0, *tag_data = NULL, *p = NULL, kds = 1;
         size_t tag_len = 0;    
         while (walk_tlv(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, &p, &tag, &tag_len, &tag_data)) {
             if (tag == 0x80) { //options
@@ -723,10 +723,12 @@ static int cmd_initialize() {
                 file_t *tf = file_new(EF_DKEK);
                 if (!tf)
                     return SW_MEMORY_FAILURE();
+                flash_write_data_to_file(tf, NULL, 0);
                 low_flash_available();
             }
             else if (tag == 0x97) {
-                for (int i = 0; i < MIN(*tag_data,16); i++) {
+                kds = MIN(*tag_data,16);
+                for (int i = 0; i < kds; i++) {
                     file_t *tf = file_new(EF_DKEK+i);
                     if (!tf)
                         return SW_MEMORY_FAILURE();
@@ -736,12 +738,22 @@ static int cmd_initialize() {
             }
         }
         if (dkeks == 0) {
-            int r = save_dkek_key(random_bytes_get(32));
-            if (r != CCID_OK)
-                return SW_EXEC_ERROR();
+            //At least, the first DKEK shall exist
+            file_t *tf = search_dynamic_file(EF_DKEK);
+            if (!tf) {
+                file_t *tf = file_new(EF_DKEK);
+                if (!tf)
+                    return SW_MEMORY_FAILURE();
+                flash_write_data_to_file(tf, NULL, 0);
+                low_flash_available();
+            }
+            for (int kd = 0; kd < kds; kd++) {
+                int r = save_dkek_key(kd, random_bytes_get(32));
+                printf("r %d\r\n",r);
+                if (r != CCID_OK)
+                    return SW_EXEC_ERROR();
+            }
         }
-        else
-            init_dkek();
     }
     else { //free memory bytes request
         int heap_left = heapLeft();
@@ -764,7 +776,7 @@ static int cmd_key_domain() {
     if (has_session_pin == false && apdu.cmd_apdu_data_len > 0)
         return SW_CONDITIONS_NOT_SATISFIED();
     if (p1 == 0x0) { //dkek import
-        if (p2 > 0xF)
+        if (p2 > MAX_KEY_DOMAINS)
             return SW_WRONG_P1P2();
         if (apdu.cmd_apdu_data_len > 0) {
             file_t *tf = file_new(EF_DKEK+p2);
@@ -772,9 +784,9 @@ static int cmd_key_domain() {
                 return SW_MEMORY_FAILURE();
             if (apdu.cmd_apdu_data_len < 32)
                 return SW_WRONG_LENGTH();
-            import_dkek_share(apdu.cmd_apdu_data);
-            if (++current_dkeks == dkeks) {
-                if (save_dkek_key(NULL) != CCID_OK)
+            import_dkek_share(p2, apdu.cmd_apdu_data);
+            if (++current_dkeks >= dkeks) {
+                if (save_dkek_key(p2, NULL) != CCID_OK)
                     return SW_FILE_NOT_FOUND();
             }
             low_flash_available();
@@ -786,8 +798,8 @@ static int cmd_key_domain() {
         }
         memset(res_APDU,0,10);
         res_APDU[0] = dkeks;
-        res_APDU[1] = dkeks-current_dkeks;
-        dkek_kcv(res_APDU+2);
+        res_APDU[1] = dkeks > current_dkeks ? dkeks-current_dkeks : 0;
+        dkek_kcv(p2, res_APDU+2);
         res_APDU_size = 2+8;
     }
     return SW_OK();
@@ -821,7 +833,7 @@ int store_keys(void *key_ctx, int type, uint8_t key_id, sc_context_t *ctx) {
             key_size = 32;
         memcpy(kdata, key_ctx, key_size);
     }
-    r = dkek_encrypt(kdata, key_size);
+    r = dkek_encrypt(0, kdata, key_size);
     if (r != CCID_OK) {
         return r;
     }
@@ -1260,14 +1272,17 @@ static int cmd_change_pin() {
             }
             uint8_t pin_len = file_read_uint8(file_pin1->data+2);
             uint16_t r = check_pin(file_pin1, apdu.cmd_apdu_data, pin_len);
+            uint8_t dkek[DKEK_SIZE];
             if (r != 0x9000)
                 return r;
-            if (load_dkek() != CCID_OK) //loads the DKEK with old pin
+            if (load_dkek(0, dkek) != CCID_OK) //loads the DKEK with old pin
                 return SW_EXEC_ERROR();
             //encrypt DKEK with new pin
             hash_multi(apdu.cmd_apdu_data+pin_len, apdu.cmd_apdu_data_len-pin_len, session_pin);
             has_session_pin = true;
-            if (store_dkek_key() != CCID_OK)
+            r = store_dkek_key(0, dkek);
+            release_dkek(dkek);
+            if (r != CCID_OK)
                 return SW_EXEC_ERROR();
             uint8_t dhash[33];
             dhash[0] = apdu.cmd_apdu_data_len-pin_len;
@@ -1318,7 +1333,7 @@ int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
     int key_size = file_read_uint16(fkey->data);
     uint8_t kdata[4096/8];
     memcpy(kdata, file_read(fkey->data+2), key_size);
-    if (dkek_decrypt(kdata, key_size) != 0) {
+    if (dkek_decrypt(0, kdata, key_size) != 0) {
         return CCID_EXEC_ERROR;
     }
     if (mbedtls_mpi_read_binary(&ctx->P, kdata, key_size/2) != 0) {
@@ -1355,7 +1370,7 @@ int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey) {
     int key_size = file_read_uint16(fkey->data);
     uint8_t kdata[67]; //Worst case, 521 bit + 1byte
     memcpy(kdata, file_read(fkey->data+2), key_size);
-    if (dkek_decrypt(kdata, key_size) != 0) {
+    if (dkek_decrypt(0, kdata, key_size) != 0) {
         return CCID_EXEC_ERROR;
     }
     mbedtls_ecp_group_id gid = kdata[0];
@@ -1538,7 +1553,7 @@ static int cmd_key_wrap() {
                 return SW_SECURE_MESSAGE_EXEC_ERROR();
             return SW_EXEC_ERROR();
         }
-        r = dkek_encode_key(&ctx, HSM_KEY_RSA, res_APDU, &wrap_len);
+        r = dkek_encode_key(0, &ctx, HSM_KEY_RSA, res_APDU, &wrap_len);
         mbedtls_rsa_free(&ctx);
     }
     else if (*dprkd == P15_KEYTYPE_ECC) {
@@ -1551,7 +1566,7 @@ static int cmd_key_wrap() {
                 return SW_SECURE_MESSAGE_EXEC_ERROR();
             return SW_EXEC_ERROR();
         }
-        r = dkek_encode_key(&ctx, HSM_KEY_EC, res_APDU, &wrap_len);
+        r = dkek_encode_key(0, &ctx, HSM_KEY_EC, res_APDU, &wrap_len);
         mbedtls_ecdsa_free(&ctx);
     }
     else if (*dprkd == P15_KEYTYPE_AES) {
@@ -1561,7 +1576,7 @@ static int cmd_key_wrap() {
         
         int key_size = file_read_uint16(ef->data), aes_type = HSM_KEY_AES;
         memcpy(kdata, file_read(ef->data+2), key_size);
-        if (dkek_decrypt(kdata, key_size) != 0) {
+        if (dkek_decrypt(0, kdata, key_size) != 0) {
             return SW_EXEC_ERROR();
         }
         if (key_size == 32)
@@ -1570,7 +1585,7 @@ static int cmd_key_wrap() {
             aes_type = HSM_KEY_AES_192;
         else if (key_size == 16)
             aes_type = HSM_KEY_AES_128;
-        r = dkek_encode_key(kdata, aes_type, res_APDU, &wrap_len);
+        r = dkek_encode_key(0, kdata, aes_type, res_APDU, &wrap_len);
     }
     if (r != CCID_OK)
         return SW_EXEC_ERROR();
@@ -1590,7 +1605,7 @@ static int cmd_key_unwrap() {
     if (key_type == HSM_KEY_RSA) {
         mbedtls_rsa_context ctx;
         mbedtls_rsa_init(&ctx);
-        r = dkek_decode_key(&ctx, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, NULL);
+        r = dkek_decode_key(0, &ctx, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, NULL);
         if (r != CCID_OK) {
             mbedtls_rsa_free(&ctx);
             return SW_EXEC_ERROR();
@@ -1606,7 +1621,7 @@ static int cmd_key_unwrap() {
     else if (key_type == HSM_KEY_EC) {
         mbedtls_ecdsa_context ctx;
         mbedtls_ecdsa_init(&ctx);
-        r = dkek_decode_key(&ctx, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, NULL);
+        r = dkek_decode_key(0, &ctx, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, NULL);
         if (r != CCID_OK) {
             mbedtls_ecdsa_free(&ctx);
             return SW_EXEC_ERROR();
@@ -1622,7 +1637,7 @@ static int cmd_key_unwrap() {
     else if (key_type == HSM_KEY_AES) {
         uint8_t aes_key[32];
         int key_size = 0, aes_type;
-        r = dkek_decode_key(aes_key, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, &key_size);
+        r = dkek_decode_key(0, aes_key, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, &key_size);
         if (r != CCID_OK) {
             return SW_EXEC_ERROR();
         }
@@ -1677,7 +1692,7 @@ static int cmd_decrypt_asym() {
         int key_size = file_read_uint16(ef->data);
         uint8_t *kdata = (uint8_t *)calloc(1,key_size);
         memcpy(kdata, file_read(ef->data+2), key_size);
-        if (dkek_decrypt(kdata, key_size) != 0) {
+        if (dkek_decrypt(0, kdata, key_size) != 0) {
             free(kdata);
             return SW_EXEC_ERROR();
         }
@@ -1733,7 +1748,7 @@ static int cmd_cipher_sym() {
     int key_size = file_read_uint16(ef->data);
     uint8_t kdata[32]; //maximum AES key size
     memcpy(kdata, file_read(ef->data+2), key_size);
-    if (dkek_decrypt(kdata, key_size) != 0) {
+    if (dkek_decrypt(0, kdata, key_size) != 0) {
         return SW_EXEC_ERROR();
     }
     if (algo == ALGO_AES_CBC_ENCRYPT || algo == ALGO_AES_CBC_DECRYPT) {
