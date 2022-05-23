@@ -184,7 +184,7 @@ void select_file(file_t *pe) {
 uint16_t get_device_options() {
     file_t *ef = search_by_fid(EF_DEVOPS, NULL, SPECIFY_EF);
     if (ef && ef->data)
-        return (file_read_uint8(ef->data+2) << 8) | file_read_uint8(ef->data+3);
+        return (file_read_uint8(file_get_data(ef)) << 8) | file_read_uint8(file_get_data(ef)+1);
     return 0x0;
 }
 
@@ -466,14 +466,14 @@ static int cmd_read_binary()
             }
         }
         else {
-            uint16_t data_len = file_read_uint16(ef->data);
+            uint16_t data_len = file_get_size(ef);
             if (offset > data_len)
                 return SW_WRONG_P1P2();
         
             uint16_t maxle = data_len-offset;
             if (apdu.expected_res_size > maxle)
                 apdu.expected_res_size = maxle;
-            memcpy(res_APDU, file_read(ef->data+2+offset), data_len-offset);
+            memcpy(res_APDU, file_get_data(ef)+offset, data_len-offset);
             res_APDU_size = data_len-offset;
         }
     }
@@ -488,10 +488,10 @@ int pin_reset_retries(const file_t *pin, bool force) {
     const file_t *act = search_by_fid(pin->fid+2, NULL, SPECIFY_EF);
     if (!max || !act)
         return CCID_ERR_FILE_NOT_FOUND;
-    uint8_t retries = file_read_uint8(act->data+2);
+    uint8_t retries = file_read_uint8(file_get_data(act));
     if (retries == 0 && force == false) //blocked
         return CCID_ERR_BLOCKED;
-    retries = file_read_uint8(max->data+2);
+    retries = file_read_uint8(file_get_data(max));
     int r = flash_write_data_to_file((file_t *)act, &retries, sizeof(retries));
     low_flash_available();
     return r;
@@ -503,7 +503,7 @@ int pin_wrong_retry(const file_t *pin) {
     const file_t *act = search_by_fid(pin->fid+2, NULL, SPECIFY_EF);
     if (!act)
         return CCID_ERR_FILE_NOT_FOUND;
-    uint8_t retries = file_read_uint8(act->data+2);
+    uint8_t retries = file_read_uint8(file_get_data(act));
     if (retries > 0) {
         retries -= 1;
         int r = flash_write_data_to_file((file_t *)act, &retries, sizeof(retries));
@@ -536,9 +536,9 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
     else {
         uint8_t dhash[32];
         double_hash_pin(data, len, dhash);
-        if (sizeof(dhash) != file_read_uint16(pin->data)-1) //1 byte for pin len
+        if (sizeof(dhash) != file_get_size(pin)-1) //1 byte for pin len
             return SW_CONDITIONS_NOT_SATISFIED();
-        if (memcmp(file_read(pin->data+3), dhash, sizeof(dhash)) != 0) {
+        if (memcmp(file_get_data(pin)+1, dhash, sizeof(dhash)) != 0) {
             int retries;
             if ((retries = pin_wrong_retry(pin)) < CCID_OK)
                 return SW_PIN_BLOCKED();
@@ -570,28 +570,28 @@ static int cmd_verify() {
         uint16_t opts = get_device_options();
         if (opts & HSM_OPT_TRANSPORT_PIN)
             return SW_DATA_INVALID();
-        if (file_read_uint8(file_pin1->data+2) == 0) //not initialized
+        if (file_get_data(file_pin1) == 0) //not initialized
             return SW_REFERENCE_NOT_FOUND();
         if (apdu.cmd_apdu_data_len > 0) {
             return check_pin(file_pin1, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
         }
-        if (file_read_uint8(file_retries_pin1->data+2) == 0)
+        if (file_read_uint8(file_get_data(file_retries_pin1)) == 0)
             return SW_PIN_BLOCKED();
         if (has_session_pin)
             return SW_OK();
-        return set_res_sw(0x63, 0xc0 | file_read_uint8(file_retries_pin1->data+2));
+        return set_res_sw(0x63, 0xc0 | file_read_uint8(file_get_data(file_retries_pin1)));
     }
     else if (p2 == 0x88) { //SOPin
-        if (file_read_uint8(file_sopin->data+2) == 0) //not initialized
+        if (file_read_uint8(file_get_data(file_sopin)) == 0) //not initialized
             return SW_REFERENCE_NOT_FOUND();
         if (apdu.cmd_apdu_data_len > 0) {
             return check_pin(file_sopin, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
         }
-        if (file_read_uint8(file_retries_sopin->data+2) == 0)
+        if (file_read_uint8(file_get_data(file_retries_sopin)) == 0)
             return SW_PIN_BLOCKED();
         if (has_session_sopin)
             return SW_OK();
-        return set_res_sw(0x63, 0xc0 | file_read_uint8(file_retries_sopin->data+2));
+        return set_res_sw(0x63, 0xc0 | file_read_uint8(file_get_data(file_retries_sopin)));
     }
     else if (p2 == 0x85) {
         return SW_OK();
@@ -1224,7 +1224,7 @@ static int cmd_update_ef() {
             if (!ef->data)
                 return SW_DATA_INVALID();
             uint8_t *data_merge = (uint8_t *)calloc(1, offset+data_len);
-            memcpy(data_merge, file_read(ef->data+2), offset);
+            memcpy(data_merge, file_get_data(ef), offset);
             memcpy(data_merge+offset, data, data_len);
             int r = flash_write_data_to_file(ef, data_merge, offset+data_len);
             free(data_merge);
@@ -1270,7 +1270,7 @@ static int cmd_change_pin() {
             if (!file_pin1->data) {
                 return SW_REFERENCE_NOT_FOUND();
             }
-            uint8_t pin_len = file_read_uint8(file_pin1->data+2);
+            uint8_t pin_len = file_read_uint8(file_get_data(file_pin1));
             uint16_t r = check_pin(file_pin1, apdu.cmd_apdu_data, pin_len);
             uint8_t dkek[DKEK_SIZE];
             if (r != 0x9000)
@@ -1330,9 +1330,9 @@ int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
     if (wait_button() == true) //timeout
         return CCID_VERIFICATION_FAILED;
         
-    int key_size = file_read_uint16(fkey->data);
+    int key_size = file_get_size(fkey);
     uint8_t kdata[4096/8];
-    memcpy(kdata, file_read(fkey->data+2), key_size);
+    memcpy(kdata, file_get_data(fkey), key_size);
     if (dkek_decrypt(0, kdata, key_size) != 0) {
         return CCID_EXEC_ERROR;
     }
@@ -1367,9 +1367,9 @@ int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey) {
     if (wait_button() == true) //timeout
         return CCID_VERIFICATION_FAILED;
         
-    int key_size = file_read_uint16(fkey->data);
+    int key_size = file_get_size(fkey);
     uint8_t kdata[67]; //Worst case, 521 bit + 1byte
-    memcpy(kdata, file_read(fkey->data+2), key_size);
+    memcpy(kdata, file_get_data(fkey), key_size);
     if (dkek_decrypt(0, kdata, key_size) != 0) {
         return CCID_EXEC_ERROR;
     }
@@ -1391,7 +1391,7 @@ static int cmd_signature() {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     if (!(fkey = search_dynamic_file((KEY_PREFIX << 8) | key_id)) || !fkey->data) 
         return SW_FILE_NOT_FOUND();
-    int key_size = file_read_uint16(fkey->data);
+    int key_size = file_get_size(fkey);
     if (p2 == ALGO_RSA_PKCS1_SHA1 || p2 == ALGO_RSA_PSS_SHA1 || p2 == ALGO_EC_SHA1)
         md = MBEDTLS_MD_SHA1;
     else if (p2 == ALGO_RSA_PKCS1_SHA256 || p2 == ALGO_RSA_PSS_SHA256 || p2 == ALGO_EC_SHA256)
@@ -1541,7 +1541,7 @@ static int cmd_key_wrap() {
     file_t *prkd = search_dynamic_file((PRKD_PREFIX << 8) | key_id);
     if (!prkd)
         return SW_FILE_NOT_FOUND();
-    const uint8_t *dprkd = file_read(prkd->data+2);
+    const uint8_t *dprkd = file_get_data(prkd);
     size_t wrap_len = MAX_DKEK_ENCODE_KEY_BUFFER;
     if (*dprkd == P15_KEYTYPE_RSA) {
         mbedtls_rsa_context ctx;
@@ -1574,8 +1574,8 @@ static int cmd_key_wrap() {
         if (wait_button() == true) //timeout
             return SW_SECURE_MESSAGE_EXEC_ERROR();
         
-        int key_size = file_read_uint16(ef->data), aes_type = HSM_KEY_AES;
-        memcpy(kdata, file_read(ef->data+2), key_size);
+        int key_size = file_get_size(ef), aes_type = HSM_KEY_AES;
+        memcpy(kdata, file_get_data(ef), key_size);
         if (dkek_decrypt(0, kdata, key_size) != 0) {
             return SW_EXEC_ERROR();
         }
@@ -1674,7 +1674,7 @@ static int cmd_decrypt_asym() {
                 return SW_SECURE_MESSAGE_EXEC_ERROR();
             return SW_EXEC_ERROR();
         }
-        int key_size = file_read_uint16(ef->data);
+        int key_size = file_get_size(ef);
         if (apdu.cmd_apdu_data_len < key_size) //needs padding
             memset(apdu.cmd_apdu_data+apdu.cmd_apdu_data_len, 0, key_size-apdu.cmd_apdu_data_len);
         r = mbedtls_rsa_private(&ctx, random_gen, NULL, apdu.cmd_apdu_data, res_APDU);
@@ -1689,9 +1689,9 @@ static int cmd_decrypt_asym() {
         mbedtls_ecdh_context ctx;
         if (wait_button() == true) //timeout
             return SW_SECURE_MESSAGE_EXEC_ERROR();
-        int key_size = file_read_uint16(ef->data);
+        int key_size = file_get_size(ef);
         uint8_t *kdata = (uint8_t *)calloc(1,key_size);
-        memcpy(kdata, file_read(ef->data+2), key_size);
+        memcpy(kdata, file_get_data(ef), key_size);
         if (dkek_decrypt(0, kdata, key_size) != 0) {
             free(kdata);
             return SW_EXEC_ERROR();
@@ -1745,9 +1745,9 @@ static int cmd_cipher_sym() {
     }
     if (wait_button() == true) //timeout
         return SW_SECURE_MESSAGE_EXEC_ERROR();
-    int key_size = file_read_uint16(ef->data);
+    int key_size = file_get_size(ef);
     uint8_t kdata[32]; //maximum AES key size
-    memcpy(kdata, file_read(ef->data+2), key_size);
+    memcpy(kdata, file_get_data(ef), key_size);
     if (dkek_decrypt(0, kdata, key_size) != 0) {
         return SW_EXEC_ERROR();
     }
@@ -1799,7 +1799,7 @@ static int cmd_cipher_sym() {
         res_APDU_size = 16;
     }
     else if (algo == ALGO_AES_DERIVE) {
-        int r = mbedtls_hkdf(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), NULL, 0, file_read(ef->data+2), key_size, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, res_APDU, apdu.cmd_apdu_data_len);
+        int r = mbedtls_hkdf(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), NULL, 0, file_get_data(ef), key_size, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, res_APDU, apdu.cmd_apdu_data_len);
         if (r != 0)
             return SW_EXEC_ERROR();
         res_APDU_size = apdu.cmd_apdu_data_len;
@@ -1834,7 +1834,7 @@ static int cmd_derive_asym() {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     if (!(fkey = search_dynamic_file((KEY_PREFIX << 8) | key_id)) || !fkey->data) 
         return SW_FILE_NOT_FOUND();
-    int key_size = file_read_uint16(fkey->data);
+    int key_size = file_get_size(fkey);
     if (apdu.cmd_apdu_data_len == 0)
         return SW_WRONG_LENGTH();
     if (apdu.cmd_apdu_data[0] == ALGO_EC_DERIVE) {

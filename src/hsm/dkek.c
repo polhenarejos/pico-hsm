@@ -38,7 +38,7 @@ int load_dkek(uint8_t id, uint8_t *dkek) {
     file_t *tf = search_dynamic_file(EF_DKEK+id);
     if (!tf)
         return CCID_ERR_FILE_NOT_FOUND;
-    memcpy(dkek, file_read(tf->data+sizeof(uint16_t)), DKEK_SIZE);
+    memcpy(dkek, file_get_data(tf), DKEK_SIZE);
     int ret = aes_decrypt_cfb_256(session_pin, DKEK_IV(dkek), DKEK_KEY(dkek), DKEK_KEY_SIZE);
     if (ret != 0)
         return CCID_EXEC_ERROR;
@@ -68,7 +68,7 @@ int save_dkek_key(uint8_t id, const uint8_t *key) {
         file_t *tf = search_dynamic_file(EF_DKEK+id);
         if (!tf)
             return CCID_ERR_FILE_NOT_FOUND;
-        memcpy(DKEK_KEY(dkek), file_read(tf->data+sizeof(uint16_t)), DKEK_KEY_SIZE);
+        memcpy(DKEK_KEY(dkek), file_get_data(tf), DKEK_KEY_SIZE);
     }
     else
         memcpy(DKEK_KEY(dkek), key, DKEK_KEY_SIZE);
@@ -81,8 +81,8 @@ int import_dkek_share(uint8_t id, const uint8_t *share) {
     if (!tf)
         return CCID_ERR_FILE_NOT_FOUND;
     memset(tmp_dkek, 0, sizeof(tmp_dkek));
-    if (tf->data && file_read_uint16(tf->data) == DKEK_KEY_SIZE)
-        memcpy(tmp_dkek, file_read(tf->data+sizeof(uint16_t)),DKEK_KEY_SIZE);
+    if (file_get_size(tf) == DKEK_KEY_SIZE)
+        memcpy(tmp_dkek, file_get_data(tf),DKEK_KEY_SIZE);
     for (int i = 0; i < DKEK_KEY_SIZE; i++)
         tmp_dkek[i] ^= share[i];
     flash_write_data_to_file(tf, tmp_dkek, DKEK_KEY_SIZE);
