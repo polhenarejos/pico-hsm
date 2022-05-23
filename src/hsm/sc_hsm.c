@@ -744,7 +744,7 @@ static int cmd_initialize() {
     return SW_OK();
 }
 
-static int cmd_import_dkek() {
+static int cmd_key_domain() {
     //if (dkeks == 0)
     //    return SW_COMMAND_NOT_ALLOWED();
     if (P1(apdu) != 0x0 || P2(apdu) != 0x0)
@@ -2033,7 +2033,7 @@ typedef struct cmd
 #define INS_KEYPAIR_GEN             0x46
 #define INS_KEY_GEN                 0x48
 #define INS_INITIALIZE              0x50
-#define INS_IMPORT_DKEK             0x52
+#define INS_KEY_DOMAIN              0x52
 #define INS_LIST_KEYS               0x58
 #define INS_SESSION_PIN             0x5A
 #define INS_DECRYPT_ASYM            0x62
@@ -2060,7 +2060,7 @@ static const cmd_t cmds[] = {
     { INS_RESET_RETRY, cmd_reset_retry },
     { INS_CHALLENGE, cmd_challenge },
     { INS_INITIALIZE, cmd_initialize },
-    { INS_IMPORT_DKEK, cmd_import_dkek },
+    { INS_KEY_DOMAIN, cmd_key_domain },
     { INS_KEYPAIR_GEN, cmd_keypair_gen },
     { INS_UPDATE_EF, cmd_update_ef },
     { INS_DELETE_FILE, cmd_delete_file },
