@@ -744,8 +744,6 @@ static int cmd_initialize() {
             return SW_EXEC_ERROR();
         if (dkeks > 0)
             t[0] = dkeks;
-        else
-            memset(t, 1, 2*kds);
         if (flash_write_data_to_file(tf, t, 2*kds) != CCID_OK)
             return SW_EXEC_ERROR();
         if (dkeks == 0) {
@@ -762,7 +760,10 @@ static int cmd_initialize() {
                 int r = save_dkek_key(kd, random_bytes_get(32));
                 if (r != CCID_OK)
                     return SW_EXEC_ERROR();
+                t[2*kd] = 1;
             }
+            if (flash_write_data_to_file(tf, t, 2*kds) != CCID_OK)
+                return SW_EXEC_ERROR();
         }
         low_flash_available();
     }
@@ -810,6 +811,8 @@ static int cmd_key_domain() {
             file_t *tf = search_dynamic_file(EF_DKEK+p2);
             if (!tf)
                 return SW_INCORRECT_P1P2();
+            if (current_dkeks == 0)
+                return SW_REFERENCE_NOT_FOUND();
         }
         memset(res_APDU,0,10);
         res_APDU[0] = dkeks;
