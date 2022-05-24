@@ -276,7 +276,7 @@ static int cmd_select() {
         }
     }
     if ((p2 & 0xfc) == 0x00 || (p2 & 0xfc) == 0x04) {
-        process_fci(pe);
+        process_fci(pe,0);
         if (pe == file_sc_hsm) {
             res_APDU[res_APDU_size++] = 0x85;
             res_APDU[res_APDU_size++] = 5;
@@ -1202,7 +1202,7 @@ static int cmd_keypair_gen() {
             }
         }
         DEBUG_PAYLOAD(meta,meta_size);
-        //ret = meta_add((KEY_PREFIX << 8) | key_id, meta, meta_size);
+        ret = meta_add((KEY_PREFIX << 8) | key_id, meta, meta_size);
         free(meta);
         if (ret != 0)
             return SW_EXEC_ERROR();
