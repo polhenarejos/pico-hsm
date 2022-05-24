@@ -789,15 +789,16 @@ static int cmd_key_domain() {
     uint8_t p1 = P1(apdu), p2 = P2(apdu);
     if (has_session_pin == false && apdu.cmd_apdu_data_len > 0)
         return SW_CONDITIONS_NOT_SATISFIED();
+    if (p2 >= MAX_KEY_DOMAINS)
+        return SW_WRONG_P1P2();
+    file_t *tf_kd = search_by_fid(EF_KEY_DOMAIN, NULL, SPECIFY_EF);
+    if (!tf_kd)
+        return SW_EXEC_ERROR();
+    uint16_t tf_kd_size = file_get_size(tf_kd);
+    if (tf_kd_size == 0)
+        return SW_WRONG_P1P2();
+    uint8_t *kdata = file_get_data(tf_kd), dkeks = kdata ? *(kdata+2*p2) : 0, current_dkeks = kdata ? *(kdata+2*p2+1) : 0;
     if (p1 == 0x0) { //dkek import
-        if (p2 > MAX_KEY_DOMAINS)
-            return SW_WRONG_P1P2();
-        file_t *tf_kd = search_by_fid(EF_KEY_DOMAIN, NULL, SPECIFY_EF);
-        if (!tf_kd)
-            return SW_EXEC_ERROR();
-        if (file_get_size(tf_kd) == 0)
-            return SW_WRONG_P1P2();
-        uint8_t *kdata = file_get_data(tf_kd), dkeks = kdata ? *(kdata+2*p2) : 0, current_dkeks = kdata ? *(kdata+2*p2+1) : 0;
         if (apdu.cmd_apdu_data_len > 0) {
             file_t *tf = file_new(EF_DKEK+p2);
             if (!tf)
@@ -809,8 +810,10 @@ static int cmd_key_domain() {
                 if (save_dkek_key(p2, NULL) != CCID_OK)
                     return SW_FILE_NOT_FOUND();
             }
-            uint8_t t[2] = { dkeks, current_dkeks };
-            if (flash_write_data_to_file(tf_kd, t, sizeof(t)) != CCID_OK)
+            uint8_t t[MAX_KEY_DOMAINS*2];
+            memcpy(t, kdata, tf_kd_size);
+            t[2*p2+1] = current_dkeks;
+            if (flash_write_data_to_file(tf_kd, t, tf_kd_size) != CCID_OK)
                 return SW_EXEC_ERROR();
             low_flash_available();
         }
@@ -821,12 +824,23 @@ static int cmd_key_domain() {
             if (current_dkeks == 0xff)
                 return SW_REFERENCE_NOT_FOUND();
         }
-        memset(res_APDU,0,10);
-        res_APDU[0] = dkeks;
-        res_APDU[1] = dkeks > current_dkeks ? dkeks-current_dkeks : 0;
-        dkek_kcv(p2, res_APDU+2);
-        res_APDU_size = 2+8;
     }
+    else if (p1 == 0x1) { //key domain setup
+        if (apdu.cmd_apdu_data_len != 1)
+            return SW_WRONG_LENGTH();
+        uint8_t t[MAX_KEY_DOMAINS*2];
+        memcpy(t, kdata, tf_kd_size);
+        t[2*p2] = dkeks = apdu.cmd_apdu_data[0];
+        t[2*p2+1] = current_dkeks = 0;
+        if (flash_write_data_to_file(tf_kd, t, tf_kd_size) != CCID_OK)
+            return SW_EXEC_ERROR();
+        low_flash_available();
+    }
+    memset(res_APDU,0,10);
+    res_APDU[0] = dkeks;
+    res_APDU[1] = dkeks > current_dkeks ? dkeks-current_dkeks : 0;
+    dkek_kcv(p2, res_APDU+2);
+    res_APDU_size = 2+8;
     return SW_OK();
 }
 
