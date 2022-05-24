@@ -763,7 +763,7 @@ static int cmd_initialize() {
         }
         if (kds) {
             uint8_t t[MAX_KEY_DOMAINS*2], k = MIN(*kds,MAX_KEY_DOMAINS);
-            memset(t, 0, 2*k);
+            memset(t, 0xff, 2*k);
             if (flash_write_data_to_file(tf_kd, t, 2*k) != CCID_OK)
                 return SW_EXEC_ERROR();
         }
@@ -818,7 +818,7 @@ static int cmd_key_domain() {
             file_t *tf = search_dynamic_file(EF_DKEK+p2);
             if (!tf)
                 return SW_INCORRECT_P1P2();
-            if (current_dkeks == 0 && file_get_size(tf_kd) > 2)
+            if (current_dkeks == 0xff)
                 return SW_REFERENCE_NOT_FOUND();
         }
         memset(res_APDU,0,10);
