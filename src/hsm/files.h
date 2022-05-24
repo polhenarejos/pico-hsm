@@ -21,14 +21,15 @@
 
 #include "file.h"
 
-#define EF_DEVOPS   0x100E
-#define EF_DKEK     0x1090
-#define EF_PRKDFS   0x6040
-#define EF_PUKDFS   0x6041
-#define EF_CDFS     0x6042
-#define EF_AODFS    0x6043
-#define EF_DODFS    0x6044
-#define EF_SKDFS    0x6045
+#define EF_DEVOPS       0x100E
+#define EF_DKEK         0x1090
+#define EF_KEY_DOMAIN   0x10A0
+#define EF_PRKDFS       0x6040
+#define EF_PUKDFS       0x6041
+#define EF_CDFS         0x6042
+#define EF_AODFS        0x6043
+#define EF_DODFS        0x6044
+#define EF_SKDFS        0x6045
 
 extern file_t *file_pin1;
 extern file_t *file_retries_pin1;

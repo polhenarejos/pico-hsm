@@ -47,7 +47,6 @@ char atr_sc_hsm[] = {
 
 uint8_t session_pin[32], session_sopin[32];
 bool has_session_pin = false, has_session_sopin = false;
-static uint8_t dkeks = 0, current_dkeks = 0;
 
 static int sc_hsm_process_apdu();
 
@@ -681,8 +680,7 @@ static int cmd_initialize() {
     if (apdu.cmd_apdu_data_len > 0) {
         initialize_flash(true);
         scan_all();
-        dkeks = current_dkeks = 0;
-        uint8_t tag = 0x0, *tag_data = NULL, *p = NULL, kds = 1;
+        uint8_t tag = 0x0, *tag_data = NULL, *p = NULL, kds = 1, dkeks = 0;
         size_t tag_len = 0;    
         while (walk_tlv(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, &p, &tag, &tag_len, &tag_data)) {
             if (tag == 0x80) { //options
@@ -737,6 +735,19 @@ static int cmd_initialize() {
                 low_flash_available();
             }
         }
+        if (kds < 1)
+            return SW_WRONG_DATA();
+        uint8_t t[MAX_KEY_DOMAINS*2];
+        memset(t, 0, 2*kds);
+        file_t *tf = search_by_fid(EF_KEY_DOMAIN, NULL, SPECIFY_EF);
+        if (!tf)
+            return SW_EXEC_ERROR();
+        if (dkeks > 0)
+            t[0] = dkeks;
+        else
+            memset(t, 1, 2*kds);
+        if (flash_write_data_to_file(tf, t, 2*kds) != CCID_OK)
+            return SW_EXEC_ERROR();
         if (dkeks == 0) {
             //At least, the first DKEK shall exist
             file_t *tf = search_dynamic_file(EF_DKEK);
@@ -749,11 +760,11 @@ static int cmd_initialize() {
             }
             for (int kd = 0; kd < kds; kd++) {
                 int r = save_dkek_key(kd, random_bytes_get(32));
-                printf("r %d\r\n",r);
                 if (r != CCID_OK)
                     return SW_EXEC_ERROR();
             }
         }
+        low_flash_available();
     }
     else { //free memory bytes request
         int heap_left = heapLeft();
@@ -778,6 +789,10 @@ static int cmd_key_domain() {
     if (p1 == 0x0) { //dkek import
         if (p2 > MAX_KEY_DOMAINS)
             return SW_WRONG_P1P2();
+        file_t *tf = search_by_fid(EF_KEY_DOMAIN, NULL, SPECIFY_EF);
+        if (!tf)
+            return SW_EXEC_ERROR();
+        uint8_t *kdata = file_get_data(tf), dkeks = *(kdata+2*p2), current_dkeks = *(kdata+2*p2+1);
         if (apdu.cmd_apdu_data_len > 0) {
             file_t *tf = file_new(EF_DKEK+p2);
             if (!tf)
