@@ -1185,6 +1185,28 @@ static int cmd_keypair_gen() {
             free(cvcbin);
         return SW_EXEC_ERROR();
     }
+    size_t lt[4] = { 0 }, meta_size = 0;
+    const uint8_t *pt[4] = { NULL };
+    for (int t = 0; t < 4; t++) {
+        pt[t] = sc_asn1_find_tag(ctx, (const uint8_t *)apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, 0x90+t, &lt[t]);
+        if (pt[t] != NULL && lt[t] > 0)
+            meta_size += 1+format_tlv_len(lt[t], NULL)+lt[t];
+    }
+    if (meta_size) {
+        uint8_t *meta = (uint8_t *)calloc(1, meta_size), *m = meta;
+        for (int t = 0; t < 4; t++) {
+            if (lt[t] > 0 && pt[t] != NULL) {
+                *m++ = 0x90+t;
+                m += format_tlv_len(lt[t], m);
+                memcpy(m, pt[t], lt[t]);
+            }
+        }
+        DEBUG_PAYLOAD(meta,meta_size);
+        //ret = meta_add((KEY_PREFIX << 8) | key_id, meta, meta_size);
+        free(meta);
+        if (ret != 0)
+            return SW_EXEC_ERROR();
+    }
     
     res_APDU[res_APDU_size++] = 0x67;
     int outer_len = 2+strlen(cvc.outer_car)+3+4;
@@ -1209,6 +1231,7 @@ static int cmd_keypair_gen() {
     ret = flash_write_data_to_file(fpk, res_APDU, res_APDU_size);
     if (ret != 0)
         return SW_EXEC_ERROR();
+    
     low_flash_available();
     return SW_OK();
 }
