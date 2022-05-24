@@ -222,6 +222,7 @@ static int cmd_select() {
     uint8_t pfx = fid >> 8;
     if (pfx == PRKD_PREFIX || 
         pfx == CD_PREFIX || 
+        pfx == KEY_PREFIX || 
         pfx == EE_CERTIFICATE_PREFIX || 
         pfx == DCOD_PREFIX || 
         pfx == DATA_PREFIX || 
@@ -448,7 +449,7 @@ static int cmd_read_binary()
         }        
     }
     
-    if (!authenticate_action(ef, ACL_OP_READ_SEARCH)) {
+    if ((fid >> 8) == KEY_PREFIX || !authenticate_action(ef, ACL_OP_READ_SEARCH)) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
     if (ef->data) {
