@@ -55,7 +55,7 @@ static int sc_hsm_unload();
 static int cmd_select();
 
 app_t *sc_hsm_select_aid(app_t *a) {
-    if (!memcmp(apdu.cmd_apdu_data, sc_hsm_aid+1, MIN(apdu.cmd_apdu_data_len,sc_hsm_aid[0]))) {
+    if (!memcmp(apdu.data, sc_hsm_aid+1, MIN(apdu.nc,sc_hsm_aid[0]))) {
         a->aid = sc_hsm_aid;
         a->process_apdu = sc_hsm_process_apdu;
         a->unload = sc_hsm_unload;
@@ -193,9 +193,9 @@ static bool wait_button() {
     uint16_t opts = get_device_options();
     uint32_t val = EV_PRESS_BUTTON;
     if (opts & HSM_OPT_BOOTSEL_BUTTON) {
-        queue_try_add(ccid_comm, &val);
+        queue_try_add(&card_to_ccid_q, &val);
         do {
-            queue_remove_blocking(card_comm, &val);
+            queue_remove_blocking(&ccid_to_card_q, &val);
         }
         while (val != EV_BUTTON_PRESSED && val != EV_BUTTON_TIMEOUT);
     }
@@ -213,8 +213,8 @@ static int cmd_select() {
     //    return SW_INCORRECT_P1P2();
     //}
     
-    if (apdu.cmd_apdu_data_len >= 2)
-        fid = get_uint16_t(apdu.cmd_apdu_data, 0);
+    if (apdu.nc >= 2)
+        fid = get_uint16_t(apdu.data, 0);
         
     //if ((fid & 0xff00) == (KEY_PREFIX << 8))
     //    fid = (PRKD_PREFIX << 8) | (fid & 0xff);
@@ -232,11 +232,11 @@ static int cmd_select() {
     }
     if (!pe) {
         if (p1 == 0x0) { //Select MF, DF or EF - File identifier or absent
-            if (apdu.cmd_apdu_data_len == 0) {
+            if (apdu.nc == 0) {
             	pe = (file_t *)MF;
             	//ac_fini();
             }
-            else if (apdu.cmd_apdu_data_len == 2) {
+            else if (apdu.nc == 2) {
                 if (!(pe = search_by_fid(fid, NULL, SPECIFY_ANY))) {
                     return SW_FILE_NOT_FOUND();
                 }
@@ -253,11 +253,11 @@ static int cmd_select() {
             }
         }
         else if (p1 == 0x03) { //Select parent DF of the current DF - Absent
-            if (apdu.cmd_apdu_data_len != 0)
+            if (apdu.nc != 0)
                 return SW_FILE_NOT_FOUND();
         }
         else if (p1 == 0x04) { //Select by DF name - e.g., [truncated] application identifier
-            if (!(pe = search_by_name(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len))) {
+            if (!(pe = search_by_name(apdu.data, apdu.nc))) {
                 return SW_FILE_NOT_FOUND();
             }
             if (card_terminated) {
@@ -265,12 +265,12 @@ static int cmd_select() {
             }        
         }
         else if (p1 == 0x08) { //Select from the MF - Path without the MF identifier
-            if (!(pe = search_by_path(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, MF))) {
+            if (!(pe = search_by_path(apdu.data, apdu.nc, MF))) {
                 return SW_FILE_NOT_FOUND();
             }
         }
         else if (p1 == 0x09) { //Select from the current DF - Path without the current DF identifier
-            if (!(pe = search_by_path(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, currentDF))) {
+            if (!(pe = search_by_path(apdu.data, apdu.nc, currentDF))) {
                 return SW_FILE_NOT_FOUND();
             }
         }
@@ -311,8 +311,8 @@ void cvc_init_common(sc_cvc_t *cvc, sc_context_t *ctx) {
     memset(cvc, 0, sizeof(sc_cvc_t));
 
     size_t lencar = 0, lenchr = 0;
-    const unsigned char *car = sc_asn1_find_tag(ctx, (const uint8_t *)apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, 0x42, &lencar);
-    const unsigned char *chr = sc_asn1_find_tag(ctx, (const uint8_t *)apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, 0x5f20, &lenchr);
+    const unsigned char *car = sc_asn1_find_tag(ctx, (const uint8_t *)apdu.data, apdu.nc, 0x42, &lencar);
+    const unsigned char *chr = sc_asn1_find_tag(ctx, (const uint8_t *)apdu.data, apdu.nc, 0x5f20, &lenchr);
     if (car && lencar > 0)
         strlcpy(cvc->car, car, MIN(lencar,sizeof(cvc->car)));
     else
@@ -440,12 +440,12 @@ static int cmd_read_binary()
             else if (!(ef = search_by_fid(file_id, NULL, SPECIFY_EF)) && !(ef = search_dynamic_file(file_id)))
                 return SW_FILE_NOT_FOUND ();
             
-            if (apdu.cmd_apdu_data[0] != 0x54)
+            if (apdu.data[0] != 0x54)
                 return SW_WRONG_DATA();
                 
             offset = 0;
-            for (int d = 0; d < apdu.cmd_apdu_data[1]; d++)
-                offset |= apdu.cmd_apdu_data[2+d]<<(apdu.cmd_apdu_data[1]-1-d)*8;
+            for (int d = 0; d < apdu.data[1]; d++)
+                offset |= apdu.data[2+d]<<(apdu.data[1]-1-d)*8;
         }        
     }
     
@@ -458,8 +458,8 @@ static int cmd_read_binary()
             if (offset > data_len)
                 return SW_WRONG_P1P2();
             uint16_t maxle = data_len-offset;
-            if (apdu.expected_res_size > maxle)
-                apdu.expected_res_size = maxle;
+            if (apdu.ne > maxle)
+                apdu.ne = maxle;
             if (offset) {
                 res_APDU += offset;
                 res_APDU_size -= offset;
@@ -471,8 +471,8 @@ static int cmd_read_binary()
                 return SW_WRONG_P1P2();
         
             uint16_t maxle = data_len-offset;
-            if (apdu.expected_res_size > maxle)
-                apdu.expected_res_size = maxle;
+            if (apdu.ne > maxle)
+                apdu.ne = maxle;
             memcpy(res_APDU, file_get_data(ef)+offset, data_len-offset);
             res_APDU_size = data_len-offset;
         }
@@ -572,8 +572,8 @@ static int cmd_verify() {
             return SW_DATA_INVALID();
         if (file_get_data(file_pin1) == 0) //not initialized
             return SW_REFERENCE_NOT_FOUND();
-        if (apdu.cmd_apdu_data_len > 0) {
-            return check_pin(file_pin1, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
+        if (apdu.nc > 0) {
+            return check_pin(file_pin1, apdu.data, apdu.nc);
         }
         if (file_read_uint8(file_get_data(file_retries_pin1)) == 0)
             return SW_PIN_BLOCKED();
@@ -584,8 +584,8 @@ static int cmd_verify() {
     else if (p2 == 0x88) { //SOPin
         if (file_read_uint8(file_get_data(file_sopin)) == 0) //not initialized
             return SW_REFERENCE_NOT_FOUND();
-        if (apdu.cmd_apdu_data_len > 0) {
-            return check_pin(file_sopin, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
+        if (apdu.nc > 0) {
+            return check_pin(file_sopin, apdu.data, apdu.nc);
         }
         if (file_read_uint8(file_get_data(file_retries_sopin)) == 0)
             return SW_PIN_BLOCKED();
@@ -614,23 +614,23 @@ static int cmd_reset_retry() {
     if (P1(apdu) == 0x0 || P1(apdu) == 0x2) {
         int newpin_len = 0;
         if (P1(apdu) == 0x0) {
-            if (apdu.cmd_apdu_data_len <= 8)
+            if (apdu.nc <= 8)
                 return SW_WRONG_LENGTH();
-            uint16_t r = check_pin(file_sopin, apdu.cmd_apdu_data, 8);
+            uint16_t r = check_pin(file_sopin, apdu.data, 8);
             if (r != 0x9000)
                 return r;
-            newpin_len = apdu.cmd_apdu_data_len-8;
+            newpin_len = apdu.nc-8;
         }
         else if (P1(apdu) == 0x2) {    
             if (!has_session_sopin)
                 return SW_CONDITIONS_NOT_SATISFIED();
-            if (apdu.cmd_apdu_data_len > 16)
+            if (apdu.nc > 16)
                 return SW_WRONG_LENGTH();
-            newpin_len = apdu.cmd_apdu_data_len;
+            newpin_len = apdu.nc;
         }
         uint8_t dhash[33];
         dhash[0] = newpin_len;
-        double_hash_pin(apdu.cmd_apdu_data+(apdu.cmd_apdu_data_len-newpin_len), newpin_len, dhash+1);
+        double_hash_pin(apdu.data+(apdu.nc-newpin_len), newpin_len, dhash+1);
         flash_write_data_to_file(file_pin1, dhash, sizeof(dhash));
         if (pin_reset_retries(file_pin1, true) != CCID_OK)
             return SW_MEMORY_FAILURE();
@@ -641,16 +641,16 @@ static int cmd_reset_retry() {
         if (!(opts & HSM_OPT_RRC_RESET_ONLY))
             return SW_COMMAND_NOT_ALLOWED();
         if (P1(apdu) == 0x1) {
-            if (apdu.cmd_apdu_data_len != 8)
+            if (apdu.nc != 8)
                 return SW_WRONG_LENGTH();
-            uint16_t r = check_pin(file_sopin, apdu.cmd_apdu_data, 8);
+            uint16_t r = check_pin(file_sopin, apdu.data, 8);
             if (r != 0x9000)
                 return r;
         }
         else if (P1(apdu) == 0x3) {
             if (!has_session_sopin)
                 return SW_CONDITIONS_NOT_SATISFIED();
-            if (apdu.cmd_apdu_data_len != 0)
+            if (apdu.nc != 0)
                 return SW_WRONG_LENGTH();
         }
         if (pin_reset_retries(file_pin1, true) != CCID_OK)
@@ -661,11 +661,11 @@ static int cmd_reset_retry() {
 }
 
 static int cmd_challenge() {
-    uint8_t *rb = (uint8_t *)random_bytes_get(apdu.expected_res_size);
+    uint8_t *rb = (uint8_t *)random_bytes_get(apdu.ne);
     if (!rb)
         return SW_WRONG_LENGTH();
-    memcpy(res_APDU, rb, apdu.expected_res_size);
-    res_APDU_size = apdu.expected_res_size;
+    memcpy(res_APDU, rb, apdu.ne);
+    res_APDU_size = apdu.ne;
     return SW_OK();
 }
 
@@ -678,12 +678,12 @@ int heapLeft() {
 }
 
 static int cmd_initialize() {
-    if (apdu.cmd_apdu_data_len > 0) {
+    if (apdu.nc > 0) {
         initialize_flash(true);
         scan_all();
         uint8_t tag = 0x0, *tag_data = NULL, *p = NULL, *kds = NULL, *dkeks = NULL;
         size_t tag_len = 0;    
-        while (walk_tlv(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, &p, &tag, &tag_len, &tag_data)) {
+        while (walk_tlv(apdu.data, apdu.nc, &p, &tag, &tag_len, &tag_data)) {
             if (tag == 0x80) { //options
                 file_t *tf = search_by_fid(EF_DEVOPS, NULL, SPECIFY_EF);
                 flash_write_data_to_file(tf, tag_data, tag_len);
@@ -788,7 +788,7 @@ static int cmd_key_domain() {
     //if (dkeks == 0)
     //    return SW_COMMAND_NOT_ALLOWED();
     uint8_t p1 = P1(apdu), p2 = P2(apdu);
-    if (has_session_pin == false && apdu.cmd_apdu_data_len > 0)
+    if (has_session_pin == false && apdu.nc > 0)
         return SW_CONDITIONS_NOT_SATISFIED();
     if (p2 >= MAX_KEY_DOMAINS)
         return SW_WRONG_P1P2();
@@ -800,13 +800,13 @@ static int cmd_key_domain() {
         return SW_WRONG_P1P2();
     uint8_t *kdata = file_get_data(tf_kd), dkeks = kdata ? *(kdata+2*p2) : 0, current_dkeks = kdata ? *(kdata+2*p2+1) : 0;
     if (p1 == 0x0) { //dkek import
-        if (apdu.cmd_apdu_data_len > 0) {
+        if (apdu.nc > 0) {
             file_t *tf = file_new(EF_DKEK+p2);
             if (!tf)
                 return SW_MEMORY_FAILURE();
-            if (apdu.cmd_apdu_data_len < 32)
+            if (apdu.nc < 32)
                 return SW_WRONG_LENGTH();
-            import_dkek_share(p2, apdu.cmd_apdu_data);
+            import_dkek_share(p2, apdu.data);
             if (++current_dkeks >= dkeks) {
                 if (save_dkek_key(p2, NULL) != CCID_OK)
                     return SW_FILE_NOT_FOUND();
@@ -827,11 +827,11 @@ static int cmd_key_domain() {
         }
     }
     else if (p1 == 0x1) { //key domain setup
-        if (apdu.cmd_apdu_data_len != 1)
+        if (apdu.nc != 1)
             return SW_WRONG_LENGTH();
         uint8_t t[MAX_KEY_DOMAINS*2];
         memcpy(t, kdata, tf_kd_size);
-        t[2*p2] = dkeks = apdu.cmd_apdu_data[0];
+        t[2*p2] = dkeks = apdu.data[0];
         t[2*p2+1] = current_dkeks = 0;
         if (flash_write_data_to_file(tf_kd, t, tf_kd_size) != CCID_OK)
             return SW_EXEC_ERROR();
@@ -968,8 +968,8 @@ static int cmd_keypair_gen() {
     cvc_init_common(&cvc, ctx);
     
     size_t tout = 0;
-    //sc_asn1_print_tags(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
-    const uint8_t *p = sc_asn1_find_tag(ctx, (const uint8_t *)apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, 0x7f49, &tout);
+    //sc_asn1_print_tags(apdu.data, apdu.nc);
+    const uint8_t *p = sc_asn1_find_tag(ctx, (const uint8_t *)apdu.data, apdu.nc, 0x7f49, &tout);
     if (p) {
         size_t oid_len = 0;
         const uint8_t *oid = sc_asn1_find_tag(ctx, p, tout, 0x6, &oid_len);
@@ -1188,7 +1188,7 @@ static int cmd_keypair_gen() {
     size_t lt[4] = { 0 }, meta_size = 0;
     const uint8_t *pt[4] = { NULL };
     for (int t = 0; t < 4; t++) {
-        pt[t] = sc_asn1_find_tag(ctx, (const uint8_t *)apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, 0x90+t, &lt[t]);
+        pt[t] = sc_asn1_find_tag(ctx, (const uint8_t *)apdu.data, apdu.nc, 0x90+t, &lt[t]);
         if (pt[t] != NULL && lt[t] > 0)
             meta_size += 1+format_tlv_len(lt[t], NULL)+lt[t];
     }
@@ -1224,7 +1224,7 @@ static int cmd_keypair_gen() {
     res_APDU_size += 4;
     free(cvcbin);
     //res_APDU_size = cvclen+bytes_length+1+outer_len;
-    apdu.expected_res_size = res_APDU_size;
+    apdu.ne = res_APDU_size;
 
     //sc_asn1_print_tags(res_APDU, res_APDU_size);
     file_t *fpk = file_new((EE_CERTIFICATE_PREFIX << 8) | key_id);
@@ -1255,7 +1255,7 @@ static int cmd_update_ef() {
         
     uint8_t tag = 0x0, *tag_data = NULL, *p = NULL;
     size_t tag_len = 0;    
-    while (walk_tlv(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, &p, &tag, &tag_len, &tag_data)) {
+    while (walk_tlv(apdu.data, apdu.nc, &p, &tag, &tag_len, &tag_data)) {
         if (tag == 0x54) { //ofset tag
             for (int i = 1; i <= tag_len; i++)
                 offset |= (*tag_data++ << (8*(tag_len-i)));
@@ -1304,13 +1304,13 @@ static int cmd_delete_file() {
     if (!isUserAuthenticated)
         return SW_SECURITY_STATUS_NOT_SATISFIED();
         
-    if (apdu.cmd_apdu_data_len == 0) {
+    if (apdu.nc == 0) {
         ef = currentEF;
         if (!(ef = search_dynamic_file(ef->fid)))
             return SW_FILE_NOT_FOUND();
     }
     else {
-        uint16_t fid = (apdu.cmd_apdu_data[0] << 8) | apdu.cmd_apdu_data[1];
+        uint16_t fid = (apdu.data[0] << 8) | apdu.data[1];
         if (!(ef = search_dynamic_file(fid)))
             return SW_FILE_NOT_FOUND();
     }
@@ -1334,22 +1334,22 @@ static int cmd_change_pin() {
                 return SW_REFERENCE_NOT_FOUND();
             }
             uint8_t pin_len = file_read_uint8(file_get_data(file_pin1));
-            uint16_t r = check_pin(file_pin1, apdu.cmd_apdu_data, pin_len);
+            uint16_t r = check_pin(file_pin1, apdu.data, pin_len);
             uint8_t dkek[DKEK_SIZE];
             if (r != 0x9000)
                 return r;
             if (load_dkek(0, dkek) != CCID_OK) //loads the DKEK with old pin
                 return SW_EXEC_ERROR();
             //encrypt DKEK with new pin
-            hash_multi(apdu.cmd_apdu_data+pin_len, apdu.cmd_apdu_data_len-pin_len, session_pin);
+            hash_multi(apdu.data+pin_len, apdu.nc-pin_len, session_pin);
             has_session_pin = true;
             r = store_dkek_key(0, dkek);
             release_dkek(dkek);
             if (r != CCID_OK)
                 return SW_EXEC_ERROR();
             uint8_t dhash[33];
-            dhash[0] = apdu.cmd_apdu_data_len-pin_len;
-            double_hash_pin(apdu.cmd_apdu_data+pin_len, apdu.cmd_apdu_data_len-pin_len, dhash+1);
+            dhash[0] = apdu.nc-pin_len;
+            double_hash_pin(apdu.data+pin_len, apdu.nc-pin_len, dhash+1);
             flash_write_data_to_file(file_pin1, dhash, sizeof(dhash));
             low_flash_available();
             return SW_OK();
@@ -1462,8 +1462,8 @@ static int cmd_signature() {
     else if (p2 == ALGO_EC_SHA224)
         md = MBEDTLS_MD_SHA224;
     if (p2 == ALGO_RSA_PKCS1_SHA1 || p2 == ALGO_RSA_PSS_SHA1 || p2 == ALGO_EC_SHA1 || p2 == ALGO_RSA_PKCS1_SHA256 || p2 == ALGO_RSA_PSS_SHA256 || p2 == ALGO_EC_SHA256 || p2 == ALGO_EC_SHA224) {
-        generic_hash(md, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, apdu.cmd_apdu_data);
-        apdu.cmd_apdu_data_len = mbedtls_md_get_size(mbedtls_md_info_from_type(md));
+        generic_hash(md, apdu.data, apdu.nc, apdu.data);
+        apdu.nc = mbedtls_md_get_size(mbedtls_md_info_from_type(md));
     }
     if (p2 == ALGO_RSA_RAW || p2 == ALGO_RSA_PKCS1 || p2 == ALGO_RSA_PKCS1_SHA1 || p2 == ALGO_RSA_PKCS1_SHA256 || p2 == ALGO_RSA_PSS || p2 == ALGO_RSA_PSS_SHA1 || p2 == ALGO_RSA_PSS_SHA256) {
         mbedtls_rsa_context ctx;
@@ -1477,11 +1477,12 @@ static int cmd_signature() {
                 return SW_SECURE_MESSAGE_EXEC_ERROR();
             return SW_EXEC_ERROR();
         }
-        const uint8_t *hash = apdu.cmd_apdu_data;
-        size_t hash_len = apdu.cmd_apdu_data_len;
+        const uint8_t *hash = apdu.data;
+        size_t hash_len = apdu.nc;
         if (p2 == ALGO_RSA_PKCS1) { //DigestInfo attached
             unsigned int algo;
-            if (sc_pkcs1_strip_digest_info_prefix(&algo, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, apdu.cmd_apdu_data, &apdu.cmd_apdu_data_len) != SC_SUCCESS) //gets the MD algo id and strips it off
+            uint32_t nc = apdu.nc;
+            if (sc_pkcs1_strip_digest_info_prefix(&algo, apdu.data, apdu.nc, apdu.data, &nc) != SC_SUCCESS) //gets the MD algo id and strips it off
                 return SW_EXEC_ERROR();
             if (algo == SC_ALGORITHM_RSA_HASH_SHA1)
                 md = MBEDTLS_MD_SHA1;
@@ -1493,11 +1494,12 @@ static int cmd_signature() {
                 md = MBEDTLS_MD_SHA384;
             else if (algo == SC_ALGORITHM_RSA_HASH_SHA512)
                 md = MBEDTLS_MD_SHA512;
+            apdu.nc = nc;
         }
         else {
-            //sc_asn1_print_tags(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len);
+            //sc_asn1_print_tags(apdu.data, apdu.nc);
             size_t tout = 0, oid_len = 0;
-            const uint8_t *p = sc_asn1_find_tag(NULL, (const uint8_t *)apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, 0x30, &tout), *oid = NULL;
+            const uint8_t *p = sc_asn1_find_tag(NULL, (const uint8_t *)apdu.data, apdu.nc, 0x30, &tout), *oid = NULL;
             if (p) {
                 size_t tout30 = 0;
                 const uint8_t *c30 = sc_asn1_find_tag(NULL, p, tout, 0x30, &tout30);
@@ -1520,18 +1522,18 @@ static int cmd_signature() {
             }
             if (p2 == ALGO_RSA_PSS || p2 == ALGO_RSA_PSS_SHA1 || p2 == ALGO_RSA_PSS_SHA256) {
                 if (p2 == ALGO_RSA_PSS && !oid) {
-                    if (apdu.cmd_apdu_data_len == 20) //default is sha1
+                    if (apdu.nc == 20) //default is sha1
                         md = MBEDTLS_MD_SHA1;
-                    else if (apdu.cmd_apdu_data_len == 32) 
+                    else if (apdu.nc == 32) 
                         md = MBEDTLS_MD_SHA256;
                 }
                 mbedtls_rsa_set_padding(&ctx, MBEDTLS_RSA_PKCS_V21, md);
             }
         }
         if (md == MBEDTLS_MD_NONE) {
-            if (apdu.cmd_apdu_data_len < key_size) //needs padding
-                memset(apdu.cmd_apdu_data+apdu.cmd_apdu_data_len, 0, key_size-apdu.cmd_apdu_data_len);
-            r = mbedtls_rsa_private(&ctx, random_gen, NULL, apdu.cmd_apdu_data, res_APDU);
+            if (apdu.nc < key_size) //needs padding
+                memset(apdu.data+apdu.nc, 0, key_size-apdu.nc);
+            r = mbedtls_rsa_private(&ctx, random_gen, NULL, apdu.data, res_APDU);
         }
         else {
             uint8_t *signature = (uint8_t *)calloc(key_size, sizeof(uint8_t));
@@ -1544,7 +1546,7 @@ static int cmd_signature() {
             return SW_EXEC_ERROR();
         }
         res_APDU_size = key_size;
-        apdu.expected_res_size = key_size;
+        apdu.ne = key_size;
         mbedtls_rsa_free(&ctx);
     }
     else if (p2 == ALGO_EC_RAW || p2 == ALGO_EC_SHA1 || p2 == ALGO_EC_SHA224 || p2 == ALGO_EC_SHA256) {
@@ -1552,15 +1554,15 @@ static int cmd_signature() {
         mbedtls_ecdsa_init(&ctx);
         md = MBEDTLS_MD_SHA256;
         if (p2 == ALGO_EC_RAW) {
-            if (apdu.cmd_apdu_data_len == 32)
+            if (apdu.nc == 32)
                 md = MBEDTLS_MD_SHA256;
-            else if (apdu.cmd_apdu_data_len == 20)
+            else if (apdu.nc == 20)
                 md = MBEDTLS_MD_SHA1;
-            else if (apdu.cmd_apdu_data_len == 28)
+            else if (apdu.nc == 28)
                 md = MBEDTLS_MD_SHA224;
-            else if (apdu.cmd_apdu_data_len == 48)
+            else if (apdu.nc == 48)
                 md = MBEDTLS_MD_SHA384;
-            else if (apdu.cmd_apdu_data_len == 64)
+            else if (apdu.nc == 64)
                 md = MBEDTLS_MD_SHA512;
         }
         if (p2 == ALGO_EC_SHA1)
@@ -1579,7 +1581,7 @@ static int cmd_signature() {
         }
         size_t olen = 0;
         uint8_t buf[MBEDTLS_ECDSA_MAX_LEN];
-        if (mbedtls_ecdsa_write_signature(&ctx, md, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, buf, MBEDTLS_ECDSA_MAX_LEN, &olen, random_gen, NULL) != 0) {
+        if (mbedtls_ecdsa_write_signature(&ctx, md, apdu.data, apdu.nc, buf, MBEDTLS_ECDSA_MAX_LEN, &olen, random_gen, NULL) != 0) {
             mbedtls_ecdsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
@@ -1662,13 +1664,13 @@ static int cmd_key_unwrap() {
         return SW_WRONG_P1P2();
     if (!isUserAuthenticated)
         return SW_SECURITY_STATUS_NOT_SATISFIED();
-    int key_type = dkek_type_key(apdu.cmd_apdu_data);
+    int key_type = dkek_type_key(apdu.data);
     if (key_type == 0x0)
         return SW_DATA_INVALID();
     if (key_type == HSM_KEY_RSA) {
         mbedtls_rsa_context ctx;
         mbedtls_rsa_init(&ctx);
-        r = dkek_decode_key(0, &ctx, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, NULL);
+        r = dkek_decode_key(0, &ctx, apdu.data, apdu.nc, NULL);
         if (r != CCID_OK) {
             mbedtls_rsa_free(&ctx);
             return SW_EXEC_ERROR();
@@ -1684,7 +1686,7 @@ static int cmd_key_unwrap() {
     else if (key_type == HSM_KEY_EC) {
         mbedtls_ecdsa_context ctx;
         mbedtls_ecdsa_init(&ctx);
-        r = dkek_decode_key(0, &ctx, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, NULL);
+        r = dkek_decode_key(0, &ctx, apdu.data, apdu.nc, NULL);
         if (r != CCID_OK) {
             mbedtls_ecdsa_free(&ctx);
             return SW_EXEC_ERROR();
@@ -1700,7 +1702,7 @@ static int cmd_key_unwrap() {
     else if (key_type == HSM_KEY_AES) {
         uint8_t aes_key[32];
         int key_size = 0, aes_type;
-        r = dkek_decode_key(0, aes_key, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, &key_size);
+        r = dkek_decode_key(0, aes_key, apdu.data, apdu.nc, &key_size);
         if (r != CCID_OK) {
             return SW_EXEC_ERROR();
         }
@@ -1738,9 +1740,9 @@ static int cmd_decrypt_asym() {
             return SW_EXEC_ERROR();
         }
         int key_size = file_get_size(ef);
-        if (apdu.cmd_apdu_data_len < key_size) //needs padding
-            memset(apdu.cmd_apdu_data+apdu.cmd_apdu_data_len, 0, key_size-apdu.cmd_apdu_data_len);
-        r = mbedtls_rsa_private(&ctx, random_gen, NULL, apdu.cmd_apdu_data, res_APDU);
+        if (apdu.nc < key_size) //needs padding
+            memset(apdu.data+apdu.nc, 0, key_size-apdu.nc);
+        r = mbedtls_rsa_private(&ctx, random_gen, NULL, apdu.data, res_APDU);
         if (r != 0) {
             mbedtls_rsa_free(&ctx);
             return SW_EXEC_ERROR();
@@ -1775,7 +1777,7 @@ static int cmd_decrypt_asym() {
             return SW_DATA_INVALID();
         }
         free(kdata);
-        r = mbedtls_ecdh_read_public(&ctx, apdu.cmd_apdu_data-1, apdu.cmd_apdu_data_len+1);
+        r = mbedtls_ecdh_read_public(&ctx, apdu.data-1, apdu.nc+1);
         if (r != 0) {
             mbedtls_ecdh_free(&ctx);
             return SW_DATA_INVALID();
@@ -1803,7 +1805,7 @@ static int cmd_cipher_sym() {
     file_t *ef = search_dynamic_file((KEY_PREFIX << 8) | key_id);
     if (!ef)
         return SW_FILE_NOT_FOUND();
-    if ((apdu.cmd_apdu_data_len % 16) != 0) {
+    if ((apdu.nc % 16) != 0) {
         return SW_WRONG_LENGTH();
     }
     if (wait_button() == true) //timeout
@@ -1825,7 +1827,7 @@ static int cmd_cipher_sym() {
                 mbedtls_aes_free(&aes);
                 return SW_EXEC_ERROR();
             }
-            r = mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_ENCRYPT, apdu.cmd_apdu_data_len, tmp_iv, apdu.cmd_apdu_data, res_APDU);
+            r = mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_ENCRYPT, apdu.nc, tmp_iv, apdu.data, res_APDU);
             if (r != 0) {
                 mbedtls_aes_free(&aes);
                 return SW_EXEC_ERROR();
@@ -1837,13 +1839,13 @@ static int cmd_cipher_sym() {
                 mbedtls_aes_free(&aes);
                 return SW_EXEC_ERROR();
             }
-            r = mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_DECRYPT, apdu.cmd_apdu_data_len, tmp_iv, apdu.cmd_apdu_data, res_APDU);
+            r = mbedtls_aes_crypt_cbc(&aes, MBEDTLS_AES_DECRYPT, apdu.nc, tmp_iv, apdu.data, res_APDU);
             if (r != 0) {
                 mbedtls_aes_free(&aes);
                 return SW_EXEC_ERROR();
             }
         }
-        res_APDU_size = apdu.cmd_apdu_data_len;
+        res_APDU_size = apdu.nc;
         mbedtls_aes_free(&aes);
     }
     else if (algo == ALGO_AES_CMAC) {
@@ -1856,16 +1858,16 @@ static int cmd_cipher_sym() {
             cipher_info = mbedtls_cipher_info_from_type(MBEDTLS_CIPHER_AES_256_ECB);
         else
             return SW_WRONG_DATA();
-        int r = mbedtls_cipher_cmac(cipher_info, kdata, key_size*8, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, res_APDU);
+        int r = mbedtls_cipher_cmac(cipher_info, kdata, key_size*8, apdu.data, apdu.nc, res_APDU);
         if (r != 0)
             return SW_EXEC_ERROR();
         res_APDU_size = 16;
     }
     else if (algo == ALGO_AES_DERIVE) {
-        int r = mbedtls_hkdf(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), NULL, 0, file_get_data(ef), key_size, apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, res_APDU, apdu.cmd_apdu_data_len);
+        int r = mbedtls_hkdf(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), NULL, 0, file_get_data(ef), key_size, apdu.data, apdu.nc, res_APDU, apdu.nc);
         if (r != 0)
             return SW_EXEC_ERROR();
-        res_APDU_size = apdu.cmd_apdu_data_len;
+        res_APDU_size = apdu.nc;
     }
     else {
         return SW_WRONG_P1P2();
@@ -1898,9 +1900,9 @@ static int cmd_derive_asym() {
     if (!(fkey = search_dynamic_file((KEY_PREFIX << 8) | key_id)) || !fkey->data) 
         return SW_FILE_NOT_FOUND();
     int key_size = file_get_size(fkey);
-    if (apdu.cmd_apdu_data_len == 0)
+    if (apdu.nc == 0)
         return SW_WRONG_LENGTH();
-    if (apdu.cmd_apdu_data[0] == ALGO_EC_DERIVE) {
+    if (apdu.data[0] == ALGO_EC_DERIVE) {
         mbedtls_ecdsa_context ctx;
         mbedtls_ecdsa_init(&ctx);
         
@@ -1915,7 +1917,7 @@ static int cmd_derive_asym() {
         mbedtls_mpi a, nd;
         mbedtls_mpi_init(&a);
         mbedtls_mpi_init(&nd);
-        r = mbedtls_mpi_read_binary(&a, apdu.cmd_apdu_data+1, apdu.cmd_apdu_data_len-1);
+        r = mbedtls_mpi_read_binary(&a, apdu.data+1, apdu.nc-1);
         if (r != 0) {
             mbedtls_ecdsa_free(&ctx);
             mbedtls_mpi_free(&a);
@@ -1958,7 +1960,7 @@ static int cmd_extras() {
     if (P2(apdu) != 0x0)
         return SW_INCORRECT_P1P2();
     if (P1(apdu) == 0xA) { //datetime operations
-        if (apdu.cmd_apdu_data_len == 0) {
+        if (apdu.nc == 0) {
             datetime_t dt;
             if (!rtc_get_datetime(&dt))
                 return SW_EXEC_ERROR();
@@ -1972,30 +1974,30 @@ static int cmd_extras() {
             res_APDU[res_APDU_size++] = dt.sec;
         }
         else {
-            if (apdu.cmd_apdu_data_len != 8)
+            if (apdu.nc != 8)
                 return SW_WRONG_LENGTH();
             datetime_t dt;
-            dt.year = (apdu.cmd_apdu_data[0] << 8) | (apdu.cmd_apdu_data[1]);
-            dt.month = apdu.cmd_apdu_data[2];
-            dt.day = apdu.cmd_apdu_data[3];
-            dt.dotw = apdu.cmd_apdu_data[4];
-            dt.hour = apdu.cmd_apdu_data[5];
-            dt.min = apdu.cmd_apdu_data[6];
-            dt.sec = apdu.cmd_apdu_data[7];
+            dt.year = (apdu.data[0] << 8) | (apdu.data[1]);
+            dt.month = apdu.data[2];
+            dt.day = apdu.data[3];
+            dt.dotw = apdu.data[4];
+            dt.hour = apdu.data[5];
+            dt.min = apdu.data[6];
+            dt.sec = apdu.data[7];
             if (!rtc_set_datetime(&dt))
                 return SW_WRONG_DATA();
         }
     }
     else if (P1(apdu) == 0x6) { //dynamic options
-        if (apdu.cmd_apdu_data_len > sizeof(uint8_t))
+        if (apdu.nc > sizeof(uint8_t))
             return SW_WRONG_LENGTH();
         uint16_t opts = get_device_options();
-        if (apdu.cmd_apdu_data_len == 0) {
+        if (apdu.nc == 0) {
             res_APDU[res_APDU_size++] = opts >> 8;
             res_APDU[res_APDU_size++] = opts & 0xff;
         }
         else {
-            uint8_t newopts[] = { apdu.cmd_apdu_data[0], (opts & 0xff) };
+            uint8_t newopts[] = { apdu.data[0], (opts & 0xff) };
             file_t *tf = search_by_fid(EF_DEVOPS, NULL, SPECIFY_EF);
             flash_write_data_to_file(tf, newopts, sizeof(newopts));
             low_flash_available();
@@ -2013,7 +2015,7 @@ static int cmd_mse() {
         if (p2 == 0xA4) { //AT
             uint8_t tag = 0x0, *tag_data = NULL, *p = NULL;
             size_t tag_len = 0;    
-            while (walk_tlv(apdu.cmd_apdu_data, apdu.cmd_apdu_data_len, &p, &tag, &tag_len, &tag_data)) {
+            while (walk_tlv(apdu.data, apdu.nc, &p, &tag, &tag_len, &tag_data)) {
                 if (tag == 0x80) {
                     if (tag_len == 10 && memcmp(tag_data, "\x04\x00\x7F\x00\x07\x02\x02\x03\x02\x02", tag_len) == 0)
                         sm_set_protocol(MSE_AES);
@@ -2034,13 +2036,13 @@ static int cmd_mse() {
 
 int cmd_general_authenticate() {
     if (P1(apdu) == 0x0 && P2(apdu) == 0x0) {
-        if (apdu.cmd_apdu_data[0] == 0x7C) {
+        if (apdu.data[0] == 0x7C) {
             int r = 0;
             size_t pubkey_len = 0;
             const uint8_t *pubkey = NULL;
             uint8_t tag = 0x0, *tag_data = NULL, *p = NULL;
             size_t tag_len = 0;    
-            while (walk_tlv(apdu.cmd_apdu_data+2, apdu.cmd_apdu_data_len-2, &p, &tag, &tag_len, &tag_data)) {
+            while (walk_tlv(apdu.data+2, apdu.nc-2, &p, &tag, &tag_len, &tag_data)) {
                 if (tag == 0x80) {
                     pubkey = tag_data-1; //mbedtls ecdh starts reading one pos before
                     pubkey_len = tag_len+1;
@@ -2111,7 +2113,7 @@ int cmd_session_pin() {
         
         memcpy(res_APDU, sm_session_pin, sm_session_pin_len);
         res_APDU_size = sm_session_pin_len;
-        apdu.expected_res_size = sm_session_pin_len;
+        apdu.ne = sm_session_pin_len;
     }
     else
         return SW_INCORRECT_P1P2();
