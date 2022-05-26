@@ -53,7 +53,7 @@ endif()
 target_sources(pico_hsm PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/ccid/ccid2040.c
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/sc_hsm.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/usb/usb_descriptors.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/usb/usb.c
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/fs/file.c
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/fs/flash.c
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/fs/low_flash.c
@@ -121,7 +121,7 @@ target_include_directories(pico_hsm PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/ccid
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/rng
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/usb
-        ${CMAKE_CURRENT_LIST_DIR}/opensc/src
+        ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/include
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library
         )
@@ -130,7 +130,7 @@ pico_add_extra_outputs(pico_hsm)
 
 #target_compile_definitions(pico_hsm PRIVATE MBEDTLS_ECDSA_DETERMINISTIC=1)
 
-target_link_libraries(pico_hsm PRIVATE pico_stdlib tinyusb_device tinyusb_board pico_multicore hardware_flash hardware_sync hardware_adc pico_unique_id hardware_rtc)
+target_link_libraries(pico_hsm PRIVATE pico_stdlib pico_multicore hardware_flash hardware_sync hardware_adc pico_unique_id hardware_rtc)
 
 #
 #project(flash_nuke C CXX ASM)
