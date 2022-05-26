@@ -461,7 +461,8 @@ static int cmd_read_binary()
             if (apdu.ne > maxle)
                 apdu.ne = maxle;
             if (offset) {
-                res_APDU += offset;
+                memmove(res_APDU, res_APDU+offset, res_APDU_size-offset);
+                //res_APDU += offset;
                 res_APDU_size -= offset;
             }
         }
