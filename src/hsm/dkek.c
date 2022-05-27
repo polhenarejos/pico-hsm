@@ -183,9 +183,9 @@ int dkek_encode_key(uint8_t id, void *key_ctx, int key_type, uint8_t *out, size_
         memcpy(kb+10, key_ctx, kb_len);
         kb_len += 2;
         
-        algo = "\x00\x08\x60\x86\x48\x01\x65\x03\x04\x01"; //2.16.840.1.101.3.4.1 (2+8)
+        algo = (uint8_t *)"\x00\x08\x60\x86\x48\x01\x65\x03\x04\x01"; //2.16.840.1.101.3.4.1 (2+8)
         algo_len = 10;
-        allowed = "\x00\x04\x10\x11\x18\x99"; //(2+4)
+        allowed = (uint8_t *)"\x00\x04\x10\x11\x18\x99"; //(2+4)
         allowed_len = 6;
     }
     else if (key_type & HSM_KEY_RSA) {
@@ -202,7 +202,7 @@ int dkek_encode_key(uint8_t id, void *key_ctx, int key_type, uint8_t *out, size_
         put_uint16_t(mbedtls_mpi_size(&rsa->E), kb+8+kb_len); kb_len += 2;
         mbedtls_mpi_write_binary(&rsa->E, kb+8+kb_len, mbedtls_mpi_size(&rsa->E)); kb_len += mbedtls_mpi_size(&rsa->E);
         
-        algo = "\x00\x0A\x04\x00\x7F\x00\x07\x02\x02\x02\x01\x02";
+        algo = (uint8_t *)"\x00\x0A\x04\x00\x7F\x00\x07\x02\x02\x02\x01\x02";
         algo_len = 12;
     }
     else if (key_type & HSM_KEY_EC) {
@@ -230,7 +230,7 @@ int dkek_encode_key(uint8_t id, void *key_ctx, int key_type, uint8_t *out, size_
         mbedtls_mpi_write_binary(&ecdsa->Q.X, kb+8+kb_len, mbedtls_mpi_size(&ecdsa->Q.X)); kb_len += mbedtls_mpi_size(&ecdsa->Q.X);
         mbedtls_mpi_write_binary(&ecdsa->Q.Y, kb+8+kb_len, mbedtls_mpi_size(&ecdsa->Q.Y)); kb_len += mbedtls_mpi_size(&ecdsa->Q.Y);
         
-        algo = "\x00\x0A\x04\x00\x7F\x00\x07\x02\x02\x02\x02\x03";
+        algo = (uint8_t *)"\x00\x0A\x04\x00\x7F\x00\x07\x02\x02\x02\x02\x03";
         algo_len = 12;
     }
     memset(out, 0, *out_len);

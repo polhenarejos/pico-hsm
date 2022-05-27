@@ -40,7 +40,7 @@ const uint8_t sc_hsm_aid[] = {
     0xE8,0x2B,0x06,0x01,0x04,0x01,0x81,0xC3,0x1F,0x02,0x01
 };
 
-char atr_sc_hsm[] = { 
+const uint8_t atr_sc_hsm[] = { 
     24,
     0x3B,0xFE,0x18,0x00,0x00,0x81,0x31,0xFE,0x45,0x80,0x31,0x81,0x54,0x48,0x53,0x4D,0x31,0x73,0x80,0x21,0x40,0x81,0x07,0xFA 
 };
@@ -314,11 +314,11 @@ void cvc_init_common(sc_cvc_t *cvc, sc_context_t *ctx) {
     const unsigned char *car = sc_asn1_find_tag(ctx, (const uint8_t *)apdu.data, apdu.nc, 0x42, &lencar);
     const unsigned char *chr = sc_asn1_find_tag(ctx, (const uint8_t *)apdu.data, apdu.nc, 0x5f20, &lenchr);
     if (car && lencar > 0)
-        strlcpy(cvc->car, car, MIN(lencar,sizeof(cvc->car)));
+        strlcpy(cvc->car, (const char *)car, MIN(lencar,sizeof(cvc->car)));
     else
         strlcpy(cvc->car, "UTSRCACC100001", sizeof(cvc->car));
     if (chr && lenchr > 0)
-        strlcpy(cvc->chr, chr, MIN(lenchr, sizeof(cvc->chr)));
+        strlcpy(cvc->chr, (const char *)chr, MIN(lenchr, sizeof(cvc->chr)));
     else
 	    strlcpy(cvc->chr, "ESHSMCVCA00001", sizeof(cvc->chr));
 	strlcpy(cvc->outer_car, "ESHSM00001", sizeof(cvc->outer_car));	
@@ -357,7 +357,7 @@ int parse_token_info(const file_t *f, int mode) {
 
     uint8_t *b;
     size_t len;
-    int r = sc_pkcs15_encode_tokeninfo(NULL, ti, &b, &len);
+    sc_pkcs15_encode_tokeninfo(NULL, ti, &b, &len);
     if (mode == 1) {
         memcpy(res_APDU, b, len);
         res_APDU_size = len;
@@ -411,8 +411,8 @@ static int cmd_list_keys()
 
 static int cmd_read_binary()
 {
-    uint16_t fid;
-    uint32_t offset;
+    uint16_t fid = 0x0;
+    uint32_t offset = 0;
     uint8_t ins = INS(apdu), p1 = P1(apdu), p2 = P2(apdu);
     const file_t *ef = NULL;
     
@@ -566,7 +566,7 @@ static int cmd_verify() {
     
     if (p1 != 0x0 || (p2 & 0x60) != 0x0)
         return SW_WRONG_P1P2();
-    uint8_t qualifier = p2&0x1f;
+
     if (p2 == 0x81) { //UserPin
         uint16_t opts = get_device_options();
         if (opts & HSM_OPT_TRANSPORT_PIN)
@@ -848,7 +848,7 @@ static int cmd_key_domain() {
 
 //Stores the private and public keys in flash
 int store_keys(void *key_ctx, int type, uint8_t key_id, sc_context_t *ctx) {
-    int r, key_size;
+    int r, key_size = 0;
     uint8_t *asn1bin = NULL;
     size_t asn1len = 0;
     uint8_t kdata[4096/8]; //worst case
@@ -874,6 +874,8 @@ int store_keys(void *key_ctx, int type, uint8_t key_id, sc_context_t *ctx) {
             key_size = 32;
         memcpy(kdata, key_ctx, key_size);
     }
+    else
+        return CCID_WRONG_DATA;
     r = dkek_encrypt(0, kdata, key_size);
     if (r != CCID_OK) {
         return r;
@@ -957,7 +959,6 @@ int store_keys(void *key_ctx, int type, uint8_t key_id, sc_context_t *ctx) {
 
 static int cmd_keypair_gen() {
     uint8_t key_id = P1(apdu);
-    uint8_t auth_key_id = P2(apdu);
     if (!isUserAuthenticated)
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     sc_context_t *ctx = create_context();
@@ -1240,7 +1241,7 @@ static int cmd_keypair_gen() {
 static int cmd_update_ef() {
     uint8_t p1 = P1(apdu), p2 = P2(apdu);
     uint16_t fid = (p1 << 8) | p2;
-    uint8_t *data;
+    uint8_t *data = NULL;
     uint16_t offset = 0;
     uint16_t data_len = 0;
     file_t *ef = NULL;
@@ -1356,6 +1357,7 @@ static int cmd_change_pin() {
             return SW_OK();
         }
     }
+    return SW_WRONG_P1P2();
 }
 
 static int cmd_key_gen() {
@@ -1482,7 +1484,7 @@ static int cmd_signature() {
         size_t hash_len = apdu.nc;
         if (p2 == ALGO_RSA_PKCS1) { //DigestInfo attached
             unsigned int algo;
-            uint32_t nc = apdu.nc;
+            size_t nc = apdu.nc;
             if (sc_pkcs1_strip_digest_info_prefix(&algo, apdu.data, apdu.nc, apdu.data, &nc) != SC_SUCCESS) //gets the MD algo id and strips it off
                 return SW_EXEC_ERROR();
             if (algo == SC_ALGORITHM_RSA_HASH_SHA1)
@@ -1596,7 +1598,7 @@ static int cmd_signature() {
 }
 
 static int cmd_key_wrap() {
-    int key_id = P1(apdu), r = 0, key_type = 0x0;
+    int key_id = P1(apdu), r = 0;
     if (P2(apdu) != 0x92)
         return SW_WRONG_P1P2();
     if (!isUserAuthenticated)
@@ -1702,7 +1704,7 @@ static int cmd_key_unwrap() {
     }
     else if (key_type == HSM_KEY_AES) {
         uint8_t aes_key[32];
-        int key_size = 0, aes_type;
+        int key_size = 0, aes_type = 0;
         r = dkek_decode_key(0, aes_key, apdu.data, apdu.nc, &key_size);
         if (r != CCID_OK) {
             return SW_EXEC_ERROR();
@@ -1713,6 +1715,8 @@ static int cmd_key_unwrap() {
             aes_type = HSM_KEY_AES_192;
         else if (key_size == 16)
             aes_type = HSM_KEY_AES_128;
+        else
+            return SW_EXEC_ERROR();
         sc_context_t *card_ctx = create_context();
         r = store_keys(aes_key, aes_type, key_id, card_ctx);
         free(card_ctx);
@@ -1900,7 +1904,7 @@ static int cmd_derive_asym() {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     if (!(fkey = search_dynamic_file((KEY_PREFIX << 8) | key_id)) || !fkey->data) 
         return SW_FILE_NOT_FOUND();
-    int key_size = file_get_size(fkey);
+
     if (apdu.nc == 0)
         return SW_WRONG_LENGTH();
     if (apdu.data[0] == ALGO_EC_DERIVE) {
@@ -2181,7 +2185,7 @@ static const cmd_t cmds[] = {
 };
 
 int sc_hsm_process_apdu() {
-    int r = sm_unwrap();
+    sm_unwrap();
     for (const cmd_t *cmd = cmds; cmd->ins != 0x00; cmd++) {
         if (cmd->ins == INS(apdu)) {
             int r = cmd->cmd_handler();

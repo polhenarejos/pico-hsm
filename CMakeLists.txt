@@ -51,9 +51,9 @@ if (NOT EXISTS ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cvcerts.h)
 endif()
 
 target_sources(pico_hsm PUBLIC
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/usb/usb.c
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/ccid/ccid2040.c
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/sc_hsm.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/usb/usb.c
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/fs/file.c
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/fs/flash.c
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/fs/low_flash.c
@@ -125,7 +125,12 @@ target_include_directories(pico_hsm PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/include
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library
         )
-        
+
+target_compile_options(pico_hsm PUBLIC
+    -Wall
+    -Werror
+)
+
 pico_add_extra_outputs(pico_hsm)
 
 #target_compile_definitions(pico_hsm PRIVATE MBEDTLS_ECDSA_DETERMINISTIC=1)
