@@ -867,10 +867,8 @@ uint8_t get_key_domain(file_t *fkey) {
 }
 
 //Stores the private and public keys in flash
-int store_keys(void *key_ctx, int type, uint8_t key_id, sc_context_t *ctx, uint8_t kdom) {
+int store_keys(void *key_ctx, int type, uint8_t key_id, uint8_t kdom) {
     int r, key_size = 0;
-    uint8_t *asn1bin = NULL;
-    size_t asn1len = 0;
     uint8_t kdata[4096/8]; //worst case
     if (type == SC_PKCS15_TYPE_PRKEY_RSA) {
         mbedtls_rsa_context *rsa = (mbedtls_rsa_context *)key_ctx;
@@ -907,6 +905,7 @@ int store_keys(void *key_ctx, int type, uint8_t key_id, sc_context_t *ctx, uint8
     if (r != CCID_OK)
         return r;
     //add_file_to_chain(fpk, &ef_kf);
+    /*
     if (type == SC_PKCS15_TYPE_PRKEY_RSA || type == SC_PKCS15_TYPE_PRKEY_EC) {
         struct sc_pkcs15_object *p15o = (struct sc_pkcs15_object *)calloc(1,sizeof (struct sc_pkcs15_object));
         
@@ -940,6 +939,7 @@ int store_keys(void *key_ctx, int type, uint8_t key_id, sc_context_t *ctx, uint8
         free(asn1bin);
     if (r != CCID_OK)
         return r;
+        */
     //add_file_to_chain(fpk, &ef_prkdf);
     /*
     sc_pkcs15_pubkey_info_t *pukd = (sc_pkcs15_pubkey_info_t *)calloc(1, sizeof(sc_pkcs15_pubkey_info_t));
@@ -1061,7 +1061,7 @@ static int cmd_keypair_gen() {
                     free(p15card.card);
                     return SW_EXEC_ERROR();
                 }
-	            ret = store_keys(&rsa, SC_PKCS15_TYPE_PRKEY_RSA, key_id, ctx, kdom);
+	            ret = store_keys(&rsa, SC_PKCS15_TYPE_PRKEY_RSA, key_id, kdom);
 	            if (ret != CCID_OK) {
 	                sc_pkcs15emu_sc_hsm_free_cvc(&cvc);
                     mbedtls_rsa_free(&rsa);
@@ -1189,7 +1189,7 @@ static int cmd_keypair_gen() {
                     return SW_EXEC_ERROR();
                 }
                 
-	            ret = store_keys(&ecdsa, SC_PKCS15_TYPE_PRKEY_EC, key_id, ctx, kdom);
+	            ret = store_keys(&ecdsa, SC_PKCS15_TYPE_PRKEY_EC, key_id, kdom);
 	            if (ret != CCID_OK) {
 	                sc_pkcs15emu_sc_hsm_free_cvc(&cvc);
                     mbedtls_ecdsa_free(&ecdsa);
@@ -1417,9 +1417,7 @@ static int cmd_key_gen() {
         aes_type = HSM_KEY_AES_192;
     else if (key_size == 32)
         aes_type = HSM_KEY_AES_256;
-    sc_context_t *card_ctx = create_context();
-    r = store_keys(aes_key, aes_type, key_id, card_ctx, 0);
-    free(card_ctx);
+    r = store_keys(aes_key, aes_type, key_id, 0);
     if (r != CCID_OK)
         return SW_MEMORY_FAILURE();
     low_flash_available();
@@ -1716,9 +1714,7 @@ static int cmd_key_unwrap() {
             mbedtls_rsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
-        sc_context_t *card_ctx = create_context();
-        r = store_keys(&ctx, SC_PKCS15_TYPE_PRKEY_RSA, key_id, card_ctx, kdom);
-        free(card_ctx);
+        r = store_keys(&ctx, SC_PKCS15_TYPE_PRKEY_RSA, key_id, kdom);
         mbedtls_rsa_free(&ctx);
         if (r != CCID_OK) {
             return SW_EXEC_ERROR();
@@ -1734,9 +1730,7 @@ static int cmd_key_unwrap() {
             mbedtls_ecdsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
-        sc_context_t *card_ctx = create_context();
-        r = store_keys(&ctx, SC_PKCS15_TYPE_PRKEY_EC, key_id, card_ctx, kdom);
-        free(card_ctx);
+        r = store_keys(&ctx, SC_PKCS15_TYPE_PRKEY_EC, key_id, kdom);
         mbedtls_ecdsa_free(&ctx);
         if (r != CCID_OK) {
             return SW_EXEC_ERROR();
@@ -1759,9 +1753,7 @@ static int cmd_key_unwrap() {
             aes_type = HSM_KEY_AES_128;
         else
             return SW_EXEC_ERROR();
-        sc_context_t *card_ctx = create_context();
-        r = store_keys(aes_key, aes_type, key_id, card_ctx, kdom);
-        free(card_ctx);
+        r = store_keys(aes_key, aes_type, key_id, kdom);
         if (r != CCID_OK) {
             return SW_EXEC_ERROR();
         }
@@ -1992,10 +1984,8 @@ static int cmd_derive_asym() {
             mbedtls_mpi_free(&nd);
             return SW_EXEC_ERROR();
         }
-        sc_context_t *card_ctx = create_context();
         uint8_t kdom = get_key_domain(fkey);
-        r = store_keys(&ctx, SC_PKCS15_TYPE_PRKEY_EC, dest_id, card_ctx, kdom);
-        free(card_ctx);
+        r = store_keys(&ctx, SC_PKCS15_TYPE_PRKEY_EC, dest_id, kdom);
         if (r != CCID_OK) {
             mbedtls_ecdsa_free(&ctx);
             mbedtls_mpi_free(&a);
