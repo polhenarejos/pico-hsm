@@ -307,17 +307,17 @@ sc_context_t *create_context() {
     return ctx;
 }
 
-void cvc_init_common(sc_cvc_t *cvc, sc_context_t *ctx) {
+void cvc_init_common(sc_cvc_t *cvc) {
     memset(cvc, 0, sizeof(sc_cvc_t));
 
     size_t lencar = 0, lenchr = 0;
-    const unsigned char *car = sc_asn1_find_tag(ctx, (const uint8_t *)apdu.data, apdu.nc, 0x42, &lencar);
-    const unsigned char *chr = sc_asn1_find_tag(ctx, (const uint8_t *)apdu.data, apdu.nc, 0x5f20, &lenchr);
-    if (car && lencar > 0)
+    uint8_t *car = NULL, *chr = NULL;
+    
+    if (asn1_find_tag(apdu.data, apdu.nc, 0x42, &lencar, &car) && lencar > 0 && car != NULL)
         strlcpy(cvc->car, (const char *)car, MIN(lencar,sizeof(cvc->car)));
     else
         strlcpy(cvc->car, "UTSRCACC100001", sizeof(cvc->car));
-    if (chr && lenchr > 0)
+    if (asn1_find_tag(apdu.data, apdu.nc, 0x5f20, &lenchr, &chr) && lenchr > 0 && chr != NULL)
         strlcpy(cvc->chr, (const char *)chr, MIN(lenchr, sizeof(cvc->chr)));
     else
 	    strlcpy(cvc->chr, "ESHSMCVCA00001", sizeof(cvc->chr));
@@ -343,7 +343,7 @@ int cvc_prepare_signatures(sc_pkcs15_card_t *p15card, sc_cvc_t *cvc, size_t sig_
 }
 
 int parse_token_info(const file_t *f, int mode) {
-    char *label = "Pico-HSM";
+    char *label = "SmartCard-HSM";
     char *manu = "Pol Henarejos";
     sc_pkcs15_tokeninfo_t *ti = (sc_pkcs15_tokeninfo_t *)calloc(1, sizeof(sc_pkcs15_tokeninfo_t));
     ti->version = HSM_VERSION_MAJOR;
@@ -682,7 +682,8 @@ static int cmd_initialize() {
     if (apdu.nc > 0) {
         initialize_flash(true);
         scan_all();
-        uint8_t tag = 0x0, *tag_data = NULL, *p = NULL, *kds = NULL, *dkeks = NULL;
+        uint16_t tag = 0x0;
+        uint8_t *tag_data = NULL, *p = NULL, *kds = NULL, *dkeks = NULL;
         size_t tag_len = 0;    
         while (walk_tlv(apdu.data, apdu.nc, &p, &tag, &tag_len, &tag_data)) {
             if (tag == 0x80) { //options
@@ -853,7 +854,8 @@ uint8_t get_key_domain(file_t *fkey) {
     uint8_t meta_size = meta_find(fkey->fid, &meta_data);
     DEBUG_PAYLOAD(meta_data,meta_size);
     if (meta_size > 0 && meta_data != NULL) {
-        uint8_t tag = 0x0, *tag_data = NULL, *p = NULL;
+        uint16_t tag = 0x0;
+        uint8_t *tag_data = NULL, *p = NULL;
         size_t tag_len = 0;
         while (walk_tlv(meta_data, meta_size, &p, &tag, &tag_len, &tag_data)) {
             if (tag == 0x92) { //ofset tag
@@ -985,23 +987,25 @@ static int cmd_keypair_gen() {
     p15card.card->ctx = ctx;
     int ret = 0;
     sc_cvc_t cvc;
-    cvc_init_common(&cvc, ctx);
+    cvc_init_common(&cvc);
     
     size_t tout = 0;
     //sc_asn1_print_tags(apdu.data, apdu.nc);
-    const uint8_t *p = sc_asn1_find_tag(ctx, (const uint8_t *)apdu.data, apdu.nc, 0x7f49, &tout);
-    if (p) {
+    uint8_t *p = NULL;
+    if (asn1_find_tag(apdu.data, apdu.nc, 0x7f49, &tout, &p) && tout > 0 && p != NULL) {
         size_t oid_len = 0;
-        const uint8_t *oid = sc_asn1_find_tag(ctx, p, tout, 0x6, &oid_len);
-        if (oid) {
+        uint8_t *oid = NULL;
+        if (asn1_find_tag(p, tout, 0x6, &oid_len, &oid) && oid_len > 0 && oid != NULL) {
             size_t kdom_size = 0;
-            const uint8_t *kdomd = sc_asn1_find_tag(ctx, (const uint8_t *)apdu.data, apdu.nc, 0x92, &kdom_size);
-            if (kdomd && kdom_size > 0)
+            uint8_t *kdomd = NULL;
+            if (asn1_find_tag(apdu.data, apdu.nc, 0x92, &kdom_size, &kdomd) && kdom_size > 0 && kdomd != NULL)
                 kdom = *kdomd;
             if (memcmp(oid, "\x4\x0\x7F\x0\x7\x2\x2\x2\x1\x2",MIN(oid_len,10)) == 0) { //RSA
                 size_t ex_len, ks_len;
-                const uint8_t *ex = sc_asn1_find_tag(ctx, p, tout, 0x82, &ex_len);
-                const uint8_t *ks = sc_asn1_find_tag(ctx, p, tout, 0x2, &ks_len);
+                uint8_t *ex = NULL;
+                uint8_t *ks = NULL;
+                asn1_find_tag(p, tout, 0x82, &ex_len, &ex);
+                asn1_find_tag(p, tout, 0x2, &ks_len, &ks);
                 int exponent = 65537, key_size = 2048;
                 if (ex) {
                     sc_asn1_decode_integer(ex, ex_len, &exponent, 0);
@@ -1069,7 +1073,9 @@ static int cmd_keypair_gen() {
             }
             else if (memcmp(oid, "\x4\x0\x7F\x0\x7\x2\x2\x2\x2\x3",MIN(oid_len,10)) == 0) { //ECC
                 size_t prime_len;
-                const uint8_t *prime = sc_asn1_find_tag(ctx, p, tout, 0x81, &prime_len);
+                uint8_t *prime = NULL;
+                if (asn1_find_tag(p, tout, 0x81, &prime_len, &prime) != true)
+                    return SW_WRONG_DATA();
                 mbedtls_ecp_group_id ec_id = ec_get_curve_from_prime(prime, prime_len);
                 printf("KEYPAIR ECC %d\r\n",ec_id);
                 if (ec_id == MBEDTLS_ECP_DP_NONE) {
@@ -1210,10 +1216,9 @@ static int cmd_keypair_gen() {
         return SW_EXEC_ERROR();
     }
     size_t lt[4] = { 0 }, meta_size = 0;
-    const uint8_t *pt[4] = { NULL };
+    uint8_t *pt[4] = { NULL };
     for (int t = 0; t < 4; t++) {
-        pt[t] = sc_asn1_find_tag(ctx, (const uint8_t *)apdu.data, apdu.nc, 0x90+t, &lt[t]);
-        if (pt[t] != NULL && lt[t] > 0)
+        if (asn1_find_tag(apdu.data, apdu.nc, 0x90+t, &lt[t], &pt[t]) && pt[t] != NULL && lt[t] > 0)
             meta_size += 1+format_tlv_len(lt[t], NULL)+lt[t];
     }
     if (meta_size) {
@@ -1277,7 +1282,8 @@ static int cmd_update_ef() {
     if (ef && !authenticate_action(ef, ACL_OP_UPDATE_ERASE))
         return SW_SECURITY_STATUS_NOT_SATISFIED();
         
-    uint8_t tag = 0x0, *tag_data = NULL, *p = NULL;
+    uint16_t tag = 0x0;
+    uint8_t *tag_data = NULL, *p = NULL;
     size_t tag_len = 0;    
     while (walk_tlv(apdu.data, apdu.nc, &p, &tag, &tag_len, &tag_data)) {
         if (tag == 0x54) { //ofset tag
@@ -1508,7 +1514,7 @@ static int cmd_signature() {
                 return SW_SECURE_MESSAGE_EXEC_ERROR();
             return SW_EXEC_ERROR();
         }
-        const uint8_t *hash = apdu.data;
+        uint8_t *hash = apdu.data;
         size_t hash_len = apdu.nc;
         if (p2 == ALGO_RSA_PKCS1) { //DigestInfo attached
             unsigned int algo;
@@ -1530,14 +1536,14 @@ static int cmd_signature() {
         else {
             //sc_asn1_print_tags(apdu.data, apdu.nc);
             size_t tout = 0, oid_len = 0;
-            const uint8_t *p = sc_asn1_find_tag(NULL, (const uint8_t *)apdu.data, apdu.nc, 0x30, &tout), *oid = NULL;
-            if (p) {
+            uint8_t *p = NULL, *oid = NULL;
+            if (asn1_find_tag(apdu.data, apdu.nc, 0x30, &tout, &p) && tout > 0 && p != NULL) {
                 size_t tout30 = 0;
-                const uint8_t *c30 = sc_asn1_find_tag(NULL, p, tout, 0x30, &tout30);
-                if (c30) {
-                    oid = sc_asn1_find_tag(NULL, c30, tout30, 0x6, &oid_len);
+                uint8_t *c30 = NULL;
+                if (asn1_find_tag(p, tout, 0x30, &tout30, &c30) && tout30 > 0 && c30 != NULL) {
+                    asn1_find_tag(c30, tout30, 0x6, &oid_len, &oid);
                 }
-                hash = sc_asn1_find_tag(NULL, p, tout, 0x4, &hash_len);
+                asn1_find_tag(p, tout, 0x4, &hash_len, &hash);
             }
             if (oid && oid_len > 0) {
                 if (memcmp(oid, "\x2B\x0E\x03\x02\x1A", oid_len) == 0) 
@@ -1956,6 +1962,7 @@ static int cmd_derive_asym() {
         
         int r;
         r = load_private_key_ecdsa(&ctx, fkey);
+        printf("r %d\n",r);
         if (r != CCID_OK) {
             mbedtls_ecdsa_free(&ctx);
             if (r == CCID_VERIFICATION_FAILED)
@@ -1966,6 +1973,7 @@ static int cmd_derive_asym() {
         mbedtls_mpi_init(&a);
         mbedtls_mpi_init(&nd);
         r = mbedtls_mpi_read_binary(&a, apdu.data+1, apdu.nc-1);
+        printf("r %d\n",r);
         if (r != 0) {
             mbedtls_ecdsa_free(&ctx);
             mbedtls_mpi_free(&a);
@@ -1973,6 +1981,7 @@ static int cmd_derive_asym() {
             return SW_DATA_INVALID();
         }
         r = mbedtls_mpi_add_mod(&ctx.grp, &nd, &ctx.d, &a);
+        printf("r %d\n",r);
         if (r != 0) {
             mbedtls_ecdsa_free(&ctx);
             mbedtls_mpi_free(&a);
@@ -1980,6 +1989,7 @@ static int cmd_derive_asym() {
             return SW_EXEC_ERROR();
         }
         r = mbedtls_mpi_copy(&ctx.d, &nd);
+        printf("r %d\n",r);
         if (r != 0) {
             mbedtls_ecdsa_free(&ctx);
             mbedtls_mpi_free(&a);
@@ -1989,6 +1999,7 @@ static int cmd_derive_asym() {
         sc_context_t *card_ctx = create_context();
         uint8_t kdom = get_key_domain(fkey);
         r = store_keys(&ctx, SC_PKCS15_TYPE_PRKEY_EC, dest_id, card_ctx, kdom);
+        printf("r %d %d\n",r,kdom);
         free(card_ctx);
         if (r != CCID_OK) {
             mbedtls_ecdsa_free(&ctx);
@@ -2062,7 +2073,8 @@ static int cmd_mse() {
     int p2 = P2(apdu);
     if (p1 & 0x1) { //SET
         if (p2 == 0xA4) { //AT
-            uint8_t tag = 0x0, *tag_data = NULL, *p = NULL;
+            uint16_t tag = 0x0;
+            uint8_t *tag_data = NULL, *p = NULL;
             size_t tag_len = 0;    
             while (walk_tlv(apdu.data, apdu.nc, &p, &tag, &tag_len, &tag_data)) {
                 if (tag == 0x80) {
@@ -2089,7 +2101,8 @@ int cmd_general_authenticate() {
             int r = 0;
             size_t pubkey_len = 0;
             const uint8_t *pubkey = NULL;
-            uint8_t tag = 0x0, *tag_data = NULL, *p = NULL;
+            uint16_t tag = 0x0;
+            uint8_t *tag_data = NULL, *p = NULL;
             size_t tag_len = 0;    
             while (walk_tlv(apdu.data+2, apdu.nc-2, &p, &tag, &tag_len, &tag_data)) {
                 if (tag == 0x80) {
