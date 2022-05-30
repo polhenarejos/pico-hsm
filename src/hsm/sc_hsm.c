@@ -1480,6 +1480,72 @@ int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey) {
     return CCID_OK;
 }
 
+//-----
+/* From OpenSC */
+static const u8 hdr_md5[] = {
+	0x30, 0x20, 0x30, 0x0c, 0x06, 0x08, 0x2a, 0x86, 0x48, 0x86, 0xf7,
+	0x0d, 0x02, 0x05, 0x05, 0x00, 0x04, 0x10
+};
+static const u8 hdr_sha1[] = {
+	0x30, 0x21, 0x30, 0x09, 0x06, 0x05, 0x2b, 0x0e, 0x03, 0x02, 0x1a,
+	0x05, 0x00, 0x04, 0x14
+};
+static const u8 hdr_sha256[] = {
+	0x30, 0x31, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65,
+	0x03, 0x04, 0x02, 0x01, 0x05, 0x00, 0x04, 0x20
+};
+static const u8 hdr_sha384[] = {
+	0x30, 0x41, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65,
+	0x03, 0x04, 0x02, 0x02, 0x05, 0x00, 0x04, 0x30
+};
+static const u8 hdr_sha512[] = {
+	0x30, 0x51, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65,
+	0x03, 0x04, 0x02, 0x03, 0x05, 0x00, 0x04, 0x40
+};
+static const u8 hdr_sha224[] = {
+	0x30, 0x2d, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65,
+	0x03, 0x04, 0x02, 0x04, 0x05, 0x00, 0x04, 0x1c
+};
+static const u8 hdr_ripemd160[] = {
+	0x30, 0x21, 0x30, 0x09, 0x06, 0x05, 0x2b, 0x24, 0x03, 0x02, 0x01,
+	0x05, 0x00, 0x04, 0x14
+};
+static const struct digest_info_prefix {
+	mbedtls_md_type_t algorithm;
+	const uint8_t *	hdr;
+	size_t hdr_len;
+	size_t hash_len;
+} digest_info_prefix[] = {
+      {	MBEDTLS_MD_MD5,	hdr_md5, sizeof(hdr_md5), 16 },
+      { MBEDTLS_MD_SHA1, hdr_sha1, sizeof(hdr_sha1), 20	},
+      { MBEDTLS_MD_SHA256, hdr_sha256, sizeof(hdr_sha256), 32 },
+      { MBEDTLS_MD_SHA384, hdr_sha384, sizeof(hdr_sha384), 48 },
+      { MBEDTLS_MD_SHA512, hdr_sha512, sizeof(hdr_sha512), 64 },
+      { MBEDTLS_MD_SHA224, hdr_sha224, sizeof(hdr_sha224), 28 },
+      { MBEDTLS_MD_RIPEMD160,hdr_ripemd160,	sizeof(hdr_ripemd160), 20 },
+      {	0, NULL, 0,	0 }
+};
+int pkcs1_strip_digest_info_prefix(mbedtls_md_type_t *algorithm, const uint8_t *in_dat, size_t in_len, uint8_t *out_dat, size_t *out_len)
+{
+	for (int i = 0; digest_info_prefix[i].algorithm != 0; i++) {
+		size_t hdr_len = digest_info_prefix[i].hdr_len, hash_len = digest_info_prefix[i].hash_len;
+		const uint8_t *hdr = digest_info_prefix[i].hdr;
+		if (in_len == (hdr_len + hash_len) && !memcmp(in_dat, hdr, hdr_len)) {
+			if (algorithm)
+				*algorithm = digest_info_prefix[i].algorithm;
+			if (out_dat == NULL)
+				return CCID_OK;
+			if (*out_len < hash_len)
+				return CCID_WRONG_DATA;
+			memmove(out_dat, in_dat + hdr_len, hash_len);
+			*out_len = hash_len;
+			return CCID_OK;
+		}
+	}
+	return CCID_EXEC_ERROR;
+}
+//-------
+
 static int cmd_signature() {
     uint8_t key_id = P1(apdu);
     uint8_t p2 = P2(apdu);
@@ -1515,20 +1581,9 @@ static int cmd_signature() {
         uint8_t *hash = apdu.data;
         size_t hash_len = apdu.nc;
         if (p2 == ALGO_RSA_PKCS1) { //DigestInfo attached
-            unsigned int algo;
             size_t nc = apdu.nc;
-            if (sc_pkcs1_strip_digest_info_prefix(&algo, apdu.data, apdu.nc, apdu.data, &nc) != SC_SUCCESS) //gets the MD algo id and strips it off
+            if (pkcs1_strip_digest_info_prefix(&md, apdu.data, apdu.nc, apdu.data, &nc) != CCID_OK) //gets the MD algo id and strips it off
                 return SW_EXEC_ERROR();
-            if (algo == SC_ALGORITHM_RSA_HASH_SHA1)
-                md = MBEDTLS_MD_SHA1;
-            else if (algo == SC_ALGORITHM_RSA_HASH_SHA224)
-                md = MBEDTLS_MD_SHA224;
-            else if (algo == SC_ALGORITHM_RSA_HASH_SHA256)
-                md = MBEDTLS_MD_SHA256;
-            else if (algo == SC_ALGORITHM_RSA_HASH_SHA384)
-                md = MBEDTLS_MD_SHA384;
-            else if (algo == SC_ALGORITHM_RSA_HASH_SHA512)
-                md = MBEDTLS_MD_SHA512;
             apdu.nc = nc;
         }
         else {
