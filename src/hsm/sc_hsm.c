@@ -1008,10 +1008,16 @@ static int cmd_keypair_gen() {
                 asn1_find_tag(p, tout, 0x2, &ks_len, &ks);
                 int exponent = 65537, key_size = 2048;
                 if (ex) {
-                    sc_asn1_decode_integer(ex, ex_len, &exponent, 0);
+                    exponent = 0;
+                    while (ex_len-- > 0) {
+                        exponent = (exponent << 8) | *ex++;
+                    }
                 }
                 if (ks) {
-                    sc_asn1_decode_integer(ks, ks_len, &key_size, 0);
+                    key_size = 0;
+                    while (ks_len-- > 0) {
+                        key_size = (key_size << 8) | *ks++;
+                    }
                 }
                 printf("KEYPAIR RSA %d\r\n",key_size);
                 mbedtls_rsa_context rsa;
