@@ -52,6 +52,7 @@ endif()
 
 target_sources(pico_hsm PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/usb/usb.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/usb/usb_descriptors.c
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/ccid/ccid2040.c
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/sc_hsm.c
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/fs/file.c
