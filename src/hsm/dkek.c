@@ -149,22 +149,28 @@ int dkek_encode_key(uint8_t id, void *key_ctx, int key_type, uint8_t *out, size_
         
     uint8_t kb[8+2*4+2*4096/8+3+13]; //worst case: RSA-4096  (plus, 13 bytes padding)
     memset(kb, 0, sizeof(kb));
-    int kb_len = 0;
+    int kb_len = 0, r = 0;
     uint8_t *algo = NULL;
     uint8_t algo_len = 0;
     uint8_t *allowed = NULL;
     uint8_t allowed_len = 0;
     uint8_t kenc[32];
     memset(kenc, 0, sizeof(kenc));
-    dkek_kenc(id, kenc);
+    r = dkek_kenc(id, kenc);
+    if (r != CCID_OK)
+        return r;
     
     uint8_t kcv[8];
     memset(kcv, 0, sizeof(kcv));
-    dkek_kcv(id, kcv);
+    r = dkek_kcv(id, kcv);
+    if (r != CCID_OK)
+        return r;
     
     uint8_t kmac[32];
     memset(kmac, 0, sizeof(kmac));
-    dkek_kmac(id, kmac);
+    r = dkek_kmac(id, kmac);
+    if (r != CCID_OK)
+        return r;
     
     if (key_type & HSM_KEY_AES) {
         if (key_type & HSM_KEY_AES_128)
@@ -272,7 +278,7 @@ int dkek_encode_key(uint8_t id, void *key_ctx, int key_type, uint8_t *out, size_
     if (kb_len < kb_len_pad) {
         kb[kb_len] = 0x80;
     }
-    int r = aes_encrypt(kenc, NULL, 256, HSM_AES_MODE_CBC, kb, kb_len_pad);
+    r = aes_encrypt(kenc, NULL, 256, HSM_AES_MODE_CBC, kb, kb_len_pad);
     if (r != CCID_OK)
         return r;
     
@@ -299,22 +305,29 @@ int dkek_type_key(const uint8_t *in) {
 
 int dkek_decode_key(uint8_t id, void *key_ctx, const uint8_t *in, size_t in_len, int *key_size_out) {
     uint8_t kcv[8];
+    int r = 0;
     memset(kcv, 0, sizeof(kcv));
-    dkek_kcv(id, kcv);
+    r = dkek_kcv(id, kcv);
+    if (r != CCID_OK)
+        return r;
     
     uint8_t kmac[32];
     memset(kmac, 0, sizeof(kmac));
-    dkek_kmac(id, kmac);
+    r = dkek_kmac(id, kmac);
+    if (r != CCID_OK)
+        return r;
     
     uint8_t kenc[32];
     memset(kenc, 0, sizeof(kenc));
-    dkek_kenc(id, kenc);
+    r = dkek_kenc(id, kenc);
+    if (r != CCID_OK)
+        return r;
     
     if (memcmp(kcv, in, 8) != 0)
         return CCID_WRONG_DKEK;
         
     uint8_t signature[16];
-    int r = mbedtls_cipher_cmac(mbedtls_cipher_info_from_type(MBEDTLS_CIPHER_AES_256_ECB), kmac, 256, in, in_len-16, signature);
+    r = mbedtls_cipher_cmac(mbedtls_cipher_info_from_type(MBEDTLS_CIPHER_AES_256_ECB), kmac, 256, in, in_len-16, signature);
     if (r != 0)
         return CCID_WRONG_SIGNATURE;
     if (memcmp(signature, in+in_len-16, 16) != 0)
