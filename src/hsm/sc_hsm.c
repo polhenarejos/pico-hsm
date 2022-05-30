@@ -1001,25 +1001,24 @@ static int cmd_keypair_gen() {
             if (asn1_find_tag(apdu.data, apdu.nc, 0x92, &kdom_size, &kdomd) && kdom_size > 0 && kdomd != NULL)
                 kdom = *kdomd;
             if (memcmp(oid, "\x4\x0\x7F\x0\x7\x2\x2\x2\x1\x2",MIN(oid_len,10)) == 0) { //RSA
-                size_t ex_len, ks_len;
-                uint8_t *ex = NULL;
-                uint8_t *ks = NULL;
-                asn1_find_tag(p, tout, 0x82, &ex_len, &ex);
-                asn1_find_tag(p, tout, 0x2, &ks_len, &ks);
-                int exponent = 65537, key_size = 2048;
-                if (ex) {
+                size_t ex_len = 3, ks_len = 2;
+                uint8_t *ex = NULL, *ks = NULL;
+                uint32_t exponent = 65537, key_size = 2048;
+                if (asn1_find_tag(p, tout, 0x82, &ex_len, &ex) && ex_len > 0 && ex != NULL) {
+                    uint8_t *dt = ex;
                     exponent = 0;
-                    while (ex_len-- > 0) {
-                        exponent = (exponent << 8) | *ex++;
+                    for (int i = 0; i < ex_len; i++) {
+                        exponent = (exponent << 8) | *dt++;
                     }
                 }
-                if (ks) {
+                if (asn1_find_tag(p, tout, 0x2, &ks_len, &ks) && ks_len > 0 && ks != NULL) {
+                    uint8_t *dt = ks;
                     key_size = 0;
-                    while (ks_len-- > 0) {
-                        key_size = (key_size << 8) | *ks++;
+                    for (int i = 0; i < ks_len; i++) {
+                        key_size = (key_size << 8) | *dt++;
                     }
                 }
-                printf("KEYPAIR RSA %d\r\n",key_size);
+                printf("KEYPAIR RSA %ld (%lx)\r\n",key_size,exponent);
                 mbedtls_rsa_context rsa;
                 mbedtls_rsa_init(&rsa);
                 uint8_t index = 0;
