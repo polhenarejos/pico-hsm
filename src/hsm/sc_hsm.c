@@ -742,7 +742,7 @@ static int cmd_initialize() {
             return SW_EXEC_ERROR();
         file_t *tf = search_dynamic_file(EF_DKEK);
         if (!tf) {
-            file_t *tf = file_new(EF_DKEK);
+            tf = file_new(EF_DKEK);
             if (!tf)
                 return SW_MEMORY_FAILURE();
         }
@@ -1962,7 +1962,6 @@ static int cmd_derive_asym() {
         
         int r;
         r = load_private_key_ecdsa(&ctx, fkey);
-        printf("r %d\n",r);
         if (r != CCID_OK) {
             mbedtls_ecdsa_free(&ctx);
             if (r == CCID_VERIFICATION_FAILED)
@@ -1973,7 +1972,6 @@ static int cmd_derive_asym() {
         mbedtls_mpi_init(&a);
         mbedtls_mpi_init(&nd);
         r = mbedtls_mpi_read_binary(&a, apdu.data+1, apdu.nc-1);
-        printf("r %d\n",r);
         if (r != 0) {
             mbedtls_ecdsa_free(&ctx);
             mbedtls_mpi_free(&a);
@@ -1981,7 +1979,6 @@ static int cmd_derive_asym() {
             return SW_DATA_INVALID();
         }
         r = mbedtls_mpi_add_mod(&ctx.grp, &nd, &ctx.d, &a);
-        printf("r %d\n",r);
         if (r != 0) {
             mbedtls_ecdsa_free(&ctx);
             mbedtls_mpi_free(&a);
@@ -1989,7 +1986,6 @@ static int cmd_derive_asym() {
             return SW_EXEC_ERROR();
         }
         r = mbedtls_mpi_copy(&ctx.d, &nd);
-        printf("r %d\n",r);
         if (r != 0) {
             mbedtls_ecdsa_free(&ctx);
             mbedtls_mpi_free(&a);
@@ -1999,7 +1995,6 @@ static int cmd_derive_asym() {
         sc_context_t *card_ctx = create_context();
         uint8_t kdom = get_key_domain(fkey);
         r = store_keys(&ctx, SC_PKCS15_TYPE_PRKEY_EC, dest_id, card_ctx, kdom);
-        printf("r %d %d\n",r,kdom);
         free(card_ctx);
         if (r != CCID_OK) {
             mbedtls_ecdsa_free(&ctx);
