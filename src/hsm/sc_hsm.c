@@ -17,7 +17,6 @@
 
 #include "sc_hsm.h"
 #include "files.h"
-#include "libopensc/card-sc-hsm.h"
 #include "random.h"
 #include "common.h"
 #include "mbedtls/sha256.h"
@@ -296,28 +295,21 @@ static int cmd_select() {
 }
 
 int parse_token_info(const file_t *f, int mode) {
-    char *label = "SmartCard-HSM";
+    char *label = "Pico-HSM";
     char *manu = "Pol Henarejos";
-    sc_pkcs15_tokeninfo_t *ti = (sc_pkcs15_tokeninfo_t *)calloc(1, sizeof(sc_pkcs15_tokeninfo_t));
-    ti->version = HSM_VERSION_MAJOR;
-    ti->flags = SC_PKCS15_TOKEN_PRN_GENERATION | SC_PKCS15_TOKEN_EID_COMPLIANT;
-    ti->label = (char *)calloc(strlen(label)+1, sizeof(char));
-    strlcpy(ti->label, label, strlen(label)+1);
-    ti->serial_number = (char *)calloc(2 * PICO_UNIQUE_BOARD_ID_SIZE_BYTES + 1, sizeof(char));
-    pico_get_unique_board_id_string(ti->serial_number, 2 * PICO_UNIQUE_BOARD_ID_SIZE_BYTES + 1);
-    ti->manufacturer_id = (char *)calloc(strlen(manu)+1, sizeof(char));
-    strlcpy(ti->manufacturer_id, manu, strlen(manu)+1);
-
-    uint8_t *b;
-    size_t len;
-    sc_pkcs15_encode_tokeninfo(NULL, ti, &b, &len);
     if (mode == 1) {
-        memcpy(res_APDU, b, len);
-        res_APDU_size = len;
+        uint8_t *p = res_APDU;
+        *p++ = 0x30;
+        *p++ = 0; //set later
+        *p++ = 0x2; *p++ = 1; *p++ = HSM_VERSION_MAJOR;
+        *p++ = 0x4; *p++ = 8; pico_get_unique_board_id((pico_unique_board_id_t *)p); p += 8;
+        *p++ = 0xC; *p++ = strlen(manu); strcpy((char *)p, manu); p += strlen(manu);
+        *p++ = 0x80; *p++ = strlen(label); strcpy((char *)p, label); p += strlen(label);
+        *p++ = 0x3; *p++ = 2; *p++ = 4; *p++ = 0x30;
+        res_APDU_size = p-res_APDU;
+        res_APDU[1] = res_APDU_size-2;
     }
-    free(b);
-    sc_pkcs15_free_tokeninfo(ti);
-    return len;
+    return 2+(2+1)+(2+8)+(2+strlen(manu))+(2+strlen(label))+(2+2);
 }
 
 int parse_cvca(const file_t *f, int mode) {
@@ -822,13 +814,13 @@ uint8_t get_key_domain(file_t *fkey) {
 int store_keys(void *key_ctx, int type, uint8_t key_id, uint8_t kdom) {
     int r, key_size = 0;
     uint8_t kdata[4096/8]; //worst case
-    if (type == SC_PKCS15_TYPE_PRKEY_RSA) {
+    if (type == HSM_KEY_RSA) {
         mbedtls_rsa_context *rsa = (mbedtls_rsa_context *)key_ctx;
         key_size = mbedtls_mpi_size(&rsa->P)+mbedtls_mpi_size(&rsa->Q);
         mbedtls_mpi_write_binary(&rsa->P, kdata, key_size/2);
         mbedtls_mpi_write_binary(&rsa->Q, kdata+key_size/2, key_size/2);
     }
-    else if (type == SC_PKCS15_TYPE_PRKEY_EC) {
+    else if (type == HSM_KEY_EC) {
         mbedtls_ecdsa_context *ecdsa = (mbedtls_ecdsa_context *)key_ctx;
         key_size = mbedtls_mpi_size(&ecdsa->d);
         kdata[0] = ecdsa->grp.id & 0xff;
@@ -993,9 +985,9 @@ size_t asn1_cvc_public_key_ecdsa(mbedtls_ecdsa_context *ecdsa, uint8_t *buf, siz
 
 size_t asn1_cvc_cert_body(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf_len) {
     size_t pubkey_size = 0;
-    if (key_type == P15_KEYTYPE_RSA)
+    if (key_type == HSM_KEY_RSA)
         pubkey_size = asn1_cvc_public_key_rsa(rsa_ecdsa, NULL, 0);
-    else if (key_type == P15_KEYTYPE_ECC)
+    else if (key_type == HSM_KEY_EC)
         pubkey_size = asn1_cvc_public_key_ecdsa(rsa_ecdsa, NULL, 0);
     size_t cpi_size = 4;
     
@@ -1026,9 +1018,9 @@ size_t asn1_cvc_cert_body(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_
     //car
     *p++ = 0x42; p += format_tlv_len(lencar, p); memcpy(p, car, lencar); p += lencar;
     //pubkey
-    if (key_type == P15_KEYTYPE_RSA)
+    if (key_type == HSM_KEY_RSA)
         p += asn1_cvc_public_key_rsa(rsa_ecdsa, p, pubkey_size);
-    else if (key_type == P15_KEYTYPE_ECC)
+    else if (key_type == HSM_KEY_EC)
         p += asn1_cvc_public_key_ecdsa(rsa_ecdsa, p, pubkey_size);
     //chr
     *p++ = 0x5f; *p++ = 0x20; p += format_tlv_len(lenchr, p); memcpy(p, chr, lenchr); p += lenchr;
@@ -1037,9 +1029,9 @@ size_t asn1_cvc_cert_body(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_
 
 size_t asn1_cvc_cert(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf_len) {
     size_t key_size = 0;
-    if (key_type == P15_KEYTYPE_RSA)
+    if (key_type == HSM_KEY_RSA)
         key_size = mbedtls_mpi_size(&((mbedtls_rsa_context *)rsa_ecdsa)->N);
-    else if (key_type == P15_KEYTYPE_ECC)
+    else if (key_type == HSM_KEY_EC)
         key_size = MBEDTLS_ECDSA_MAX_SIG_LEN(((mbedtls_ecdsa_context *)rsa_ecdsa)->grp.nbits+1);
     size_t body_size = asn1_cvc_cert_body(rsa_ecdsa, key_type, NULL, 0), sig_size = asn1_len_tag(0x5f37, key_size);
     size_t tot_len = asn1_len_tag(0x7f21, body_size+sig_size);
@@ -1058,11 +1050,11 @@ size_t asn1_cvc_cert(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf
     memcpy(p, "\x5f\x37", 2); p += 2;
     sig_len_pos = p;
     p += format_tlv_len(key_size, p);
-    if (key_type == P15_KEYTYPE_RSA) {
+    if (key_type == HSM_KEY_RSA) {
         if (mbedtls_rsa_rsassa_pkcs1_v15_sign(rsa_ecdsa, random_gen, NULL, MBEDTLS_MD_SHA256, 32, hsh, p) != 0)
             return 0;
     }
-    else if (key_type == P15_KEYTYPE_ECC) {
+    else if (key_type == HSM_KEY_EC) {
         size_t new_key_size = 0;
         if (mbedtls_ecdsa_write_signature(rsa_ecdsa, MBEDTLS_MD_SHA256, hsh, sizeof(hsh), p, key_size, &new_key_size, random_gen, NULL) != 0)
             return 0;
@@ -1166,10 +1158,10 @@ static int cmd_keypair_gen() {
                         mbedtls_rsa_free(&rsa);
                     return SW_EXEC_ERROR();
                 }
-                if ((res_APDU_size = asn1_cvc_aut(&rsa, P15_KEYTYPE_RSA, res_APDU, 4096)) == 0) {
+                if ((res_APDU_size = asn1_cvc_aut(&rsa, HSM_KEY_RSA, res_APDU, 4096)) == 0) {
                     return SW_EXEC_ERROR();
                 }
-	            ret = store_keys(&rsa, SC_PKCS15_TYPE_PRKEY_RSA, key_id, kdom);
+	            ret = store_keys(&rsa, HSM_KEY_RSA, key_id, kdom);
 	            if (ret != CCID_OK) {
                     mbedtls_rsa_free(&rsa);
                     return SW_EXEC_ERROR();
@@ -1194,10 +1186,10 @@ static int cmd_keypair_gen() {
                     mbedtls_ecdsa_free(&ecdsa);
                     return SW_EXEC_ERROR();
                 }
-                if ((res_APDU_size = asn1_cvc_aut(&ecdsa, P15_KEYTYPE_ECC, res_APDU, 4096)) == 0) {
+                if ((res_APDU_size = asn1_cvc_aut(&ecdsa, HSM_KEY_EC, res_APDU, 4096)) == 0) {
                     return SW_EXEC_ERROR();
                 }
-	            ret = store_keys(&ecdsa, SC_PKCS15_TYPE_PRKEY_EC, key_id, kdom);
+	            ret = store_keys(&ecdsa, HSM_KEY_EC, key_id, kdom);
 	            if (ret != CCID_OK) {
                     mbedtls_ecdsa_free(&ecdsa);
                     return SW_EXEC_ERROR();
@@ -1210,7 +1202,7 @@ static int cmd_keypair_gen() {
     else
         return SW_WRONG_DATA();
 
-    if (ret != SC_SUCCESS) {
+    if (ret != CCID_OK) {
         return SW_EXEC_ERROR();
     }
     size_t lt[4] = { 0 }, meta_size = 0;
@@ -1459,31 +1451,31 @@ int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey) {
 
 //-----
 /* From OpenSC */
-static const u8 hdr_md5[] = {
+static const uint8_t hdr_md5[] = {
 	0x30, 0x20, 0x30, 0x0c, 0x06, 0x08, 0x2a, 0x86, 0x48, 0x86, 0xf7,
 	0x0d, 0x02, 0x05, 0x05, 0x00, 0x04, 0x10
 };
-static const u8 hdr_sha1[] = {
+static const uint8_t hdr_sha1[] = {
 	0x30, 0x21, 0x30, 0x09, 0x06, 0x05, 0x2b, 0x0e, 0x03, 0x02, 0x1a,
 	0x05, 0x00, 0x04, 0x14
 };
-static const u8 hdr_sha256[] = {
+static const uint8_t hdr_sha256[] = {
 	0x30, 0x31, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65,
 	0x03, 0x04, 0x02, 0x01, 0x05, 0x00, 0x04, 0x20
 };
-static const u8 hdr_sha384[] = {
+static const uint8_t hdr_sha384[] = {
 	0x30, 0x41, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65,
 	0x03, 0x04, 0x02, 0x02, 0x05, 0x00, 0x04, 0x30
 };
-static const u8 hdr_sha512[] = {
+static const uint8_t hdr_sha512[] = {
 	0x30, 0x51, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65,
 	0x03, 0x04, 0x02, 0x03, 0x05, 0x00, 0x04, 0x40
 };
-static const u8 hdr_sha224[] = {
+static const uint8_t hdr_sha224[] = {
 	0x30, 0x2d, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65,
 	0x03, 0x04, 0x02, 0x04, 0x05, 0x00, 0x04, 0x1c
 };
-static const u8 hdr_ripemd160[] = {
+static const uint8_t hdr_ripemd160[] = {
 	0x30, 0x21, 0x30, 0x09, 0x06, 0x05, 0x2b, 0x24, 0x03, 0x02, 0x01,
 	0x05, 0x00, 0x04, 0x14
 };
@@ -1746,7 +1738,7 @@ static int cmd_key_unwrap() {
             mbedtls_rsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
-        r = store_keys(&ctx, SC_PKCS15_TYPE_PRKEY_RSA, key_id, kdom);
+        r = store_keys(&ctx, HSM_KEY_RSA, key_id, kdom);
         mbedtls_rsa_free(&ctx);
         if (r != CCID_OK) {
             return SW_EXEC_ERROR();
@@ -1762,7 +1754,7 @@ static int cmd_key_unwrap() {
             mbedtls_ecdsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
-        r = store_keys(&ctx, SC_PKCS15_TYPE_PRKEY_EC, key_id, kdom);
+        r = store_keys(&ctx, HSM_KEY_EC, key_id, kdom);
         mbedtls_ecdsa_free(&ctx);
         if (r != CCID_OK) {
             return SW_EXEC_ERROR();
@@ -2017,7 +2009,7 @@ static int cmd_derive_asym() {
             return SW_EXEC_ERROR();
         }
         uint8_t kdom = get_key_domain(fkey);
-        r = store_keys(&ctx, SC_PKCS15_TYPE_PRKEY_EC, dest_id, kdom);
+        r = store_keys(&ctx, HSM_KEY_EC, dest_id, kdom);
         if (r != CCID_OK) {
             mbedtls_ecdsa_free(&ctx);
             mbedtls_mpi_free(&a);

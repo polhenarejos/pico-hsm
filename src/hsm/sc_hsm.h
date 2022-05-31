@@ -57,6 +57,15 @@ extern const uint8_t sc_hsm_aid[];
 #define HSM_OPT_RRC_RESET_ONLY      0x0020
 #define HSM_OPT_BOOTSEL_BUTTON      0x0100
 
+#define PRKD_PREFIX				0xC4		/* Hi byte in file identifier for PKCS#15 PRKD objects */
+#define CD_PREFIX				0xC8		/* Hi byte in file identifier for PKCS#15 CD objects */
+#define DCOD_PREFIX				0xC9		/* Hi byte in file identifier for PKCS#15 DCOD objects */
+#define CA_CERTIFICATE_PREFIX	0xCA		/* Hi byte in file identifier for CA certificates */
+#define KEY_PREFIX				0xCC		/* Hi byte in file identifier for key objects */
+#define PROT_DATA_PREFIX		0xCD		/* Hi byte in file identifier for PIN protected data objects */
+#define EE_CERTIFICATE_PREFIX	0xCE		/* Hi byte in file identifier for EE certificates */
+#define DATA_PREFIX				0xCF		/* Hi byte in file identifier for readable data objects */
+
 #define P15_KEYTYPE_RSA     0x30
 #define P15_KEYTYPE_ECC     0xA0
 #define P15_KEYTYPE_AES     0xA8

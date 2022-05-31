@@ -97,22 +97,6 @@ target_sources(pico_hsm PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/des.c
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/nist_kw.c
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/hkdf.c
-        
-        ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/pkcs15.c
-        ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/pkcs15-prkey.c
-        ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/pkcs15-algo.c
-        ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/pkcs15-cert.c
-        ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/pkcs15-data.c
-        ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/pkcs15-pin.c
-        ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/pkcs15-pubkey.c
-        ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/pkcs15-sec.c
-        ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/pkcs15-skey.c
-        ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/asn1.c
-        ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/log.c
-        ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/errors.c
-        ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/sc.c
-        ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/ctx.c
-        ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/pkcs15-sc-hsm.c
         )
 
 target_include_directories(pico_hsm PUBLIC
@@ -121,7 +105,6 @@ target_include_directories(pico_hsm PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/ccid
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/rng
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/usb
-        ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/include
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library
         )
