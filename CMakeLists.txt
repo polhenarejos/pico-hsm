@@ -113,7 +113,6 @@ target_sources(pico_hsm PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/sc.c
         ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/ctx.c
         ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/pkcs15-sc-hsm.c
-        ${CMAKE_CURRENT_LIST_DIR}/OpenSC/src/libopensc/padding.c
         )
 
 target_include_directories(pico_hsm PUBLIC
