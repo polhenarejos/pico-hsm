@@ -955,7 +955,6 @@ size_t asn1_cvc_public_key_ecdsa(mbedtls_ecdsa_context *ecdsa, uint8_t *buf, siz
     size_t ctot_size = asn1_len_tag(0x87, c_size);
     size_t oid_len = asn1_len_tag(0x6, sizeof(oid_ecdsa));
     size_t tot_len = asn1_len_tag(0x7f49, oid_len+ptot_size+atot_size+btot_size+gtot_size+otot_size+ytot_size+ctot_size);
-    printf("asn1_cvc_public_key_ecdsa() %d\n",tot_len);
     if (buf == NULL || buf_len == 0)
         return tot_len;
     if (buf_len < tot_len)
@@ -968,18 +967,19 @@ size_t asn1_cvc_public_key_ecdsa(mbedtls_ecdsa_context *ecdsa, uint8_t *buf, siz
     //p
     *p++ = 0x81; p += format_tlv_len(p_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.P, p, p_size); p += p_size;
     //A
-    *p++ = 0x82; p += format_tlv_len(a_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.A, p, p_size); p += a_size;
+    *p++ = 0x82; p += format_tlv_len(a_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.A, p, a_size); p += a_size;
     //B
     *p++ = 0x83; p += format_tlv_len(b_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.B, p, b_size); p += b_size;
     //G
-    *p++ = 0x84; p += format_tlv_len(g_size, p); mbedtls_ecp_point_write_binary(&ecdsa->grp, &ecdsa->grp.G, MBEDTLS_ECP_PF_UNCOMPRESSED, &g_size, p, g_size); p += g_size;
+    size_t g_new_size = 0;
+    *p++ = 0x84; p += format_tlv_len(g_size, p); mbedtls_ecp_point_write_binary(&ecdsa->grp, &ecdsa->grp.G, MBEDTLS_ECP_PF_UNCOMPRESSED, &g_new_size, p, g_size); p += g_size;
     //order
     *p++ = 0x85; p += format_tlv_len(o_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.N, p, o_size); p += o_size;
     //Y
-    *p++ = 0x86; p += format_tlv_len(y_size, p); mbedtls_ecp_point_write_binary(&ecdsa->grp, &ecdsa->Q, MBEDTLS_ECP_PF_UNCOMPRESSED, &y_size, p, y_size); p += y_size;
+    size_t y_new_size = 0;
+    *p++ = 0x86; p += format_tlv_len(y_size, p); mbedtls_ecp_point_write_binary(&ecdsa->grp, &ecdsa->Q, MBEDTLS_ECP_PF_UNCOMPRESSED, &y_new_size, p, y_size); p += y_size;
     //cofactor
     *p++ = 0x87; p += format_tlv_len(c_size, p); *p++ = 1;
-    printf("asn1_cvc_public_key_ecdsa() %d\n",tot_len);
     return tot_len;
 }
 
@@ -1053,11 +1053,13 @@ size_t asn1_cvc_cert(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf
     if (key_type == HSM_KEY_RSA) {
         if (mbedtls_rsa_rsassa_pkcs1_v15_sign(rsa_ecdsa, random_gen, NULL, MBEDTLS_MD_SHA256, 32, hsh, p) != 0)
             return 0;
+        p += key_size;
     }
     else if (key_type == HSM_KEY_EC) {
         size_t new_key_size = 0;
         if (mbedtls_ecdsa_write_signature(rsa_ecdsa, MBEDTLS_MD_SHA256, hsh, sizeof(hsh), p, key_size, &new_key_size, random_gen, NULL) != 0)
             return 0;
+        p += new_key_size;
         if (new_key_size != key_size) {
             size_t new_sig_size = asn1_len_tag(0x5f37, new_key_size);
             format_tlv_len(new_key_size, sig_len_pos);
@@ -1067,7 +1069,7 @@ size_t asn1_cvc_cert(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf
             tot_len = asn1_len_tag(0x7f21, body_size+new_sig_size);
         }
     }
-    return tot_len;
+    return p-buf;
 }
 
 size_t asn1_cvc_aut(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf_len) {
@@ -1086,6 +1088,7 @@ size_t asn1_cvc_aut(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf_
     uint8_t *body = p;
     //cvcert
     p += asn1_cvc_cert(rsa_ecdsa, key_type, p, cvcert_size);
+    cvcert_size = p-body;
     //outcar
     *p++ = 0x42; p += format_tlv_len(lenoutcar, p); memcpy(p, outcar, lenoutcar); p += lenoutcar;
     mbedtls_ecdsa_context ctx;
@@ -1102,16 +1105,17 @@ size_t asn1_cvc_aut(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf_
         mbedtls_ecdsa_free(&ctx);
         return 0;
     }
+    p += new_key_size;
+    mbedtls_ecdsa_free(&ctx);
     if (new_key_size != key_size) {
         size_t new_sig_size = asn1_len_tag(0x5f37, new_key_size);
         format_tlv_len(new_key_size, sig_len_pos);
         if (format_tlv_len(cvcert_size+outcar_size+outsig_size, NULL) != format_tlv_len(cvcert_size+outcar_size+new_sig_size, NULL))
             memmove(buf+1+format_tlv_len(cvcert_size+outcar_size+new_sig_size, NULL), buf+1+format_tlv_len(cvcert_size+outcar_size+outsig_size, NULL), cvcert_size+outcar_size+new_sig_size);
         format_tlv_len(cvcert_size+outcar_size+new_sig_size, buf+1);
-        tot_len = asn1_len_tag(0x7f21, cvcert_size+outcar_size+new_sig_size);
+        tot_len = asn1_len_tag(0x67, cvcert_size+outcar_size+new_sig_size);
     }
-    mbedtls_ecdsa_free(&ctx);
-    return tot_len;
+    return p-buf;
 }
 
 static int cmd_keypair_gen() {
@@ -1229,7 +1233,8 @@ static int cmd_keypair_gen() {
     ret = flash_write_data_to_file(fpk, res_APDU, res_APDU_size);
     if (ret != 0)
         return SW_EXEC_ERROR();
-    
+    if (apdu.ne == 0)
+        apdu.ne = res_APDU_size;
     low_flash_available();
     return SW_OK();
 }
