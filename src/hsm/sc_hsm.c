@@ -924,8 +924,8 @@ int store_keys(void *key_ctx, int type, uint8_t key_id, uint8_t kdom) {
 }
 
 int find_and_store_meta_key(uint8_t key_id) {
-    size_t lt[4] = { 0 }, meta_size = 0;
-    uint8_t *pt[4] = { NULL };
+    size_t lt[4] = { 0,0,0,0 }, meta_size = 0;
+    uint8_t *pt[4] = { NULL,NULL,NULL,NULL };
     for (int t = 0; t < 4; t++) {
         if (asn1_find_tag(apdu.data, apdu.nc, 0x90+t, &lt[t], &pt[t]) && pt[t] != NULL && lt[t] > 0)
             meta_size += asn1_len_tag(0x90+t, lt[t]);
@@ -937,6 +937,7 @@ int find_and_store_meta_key(uint8_t key_id) {
                 *m++ = 0x90+t;
                 m += format_tlv_len(lt[t], m);
                 memcpy(m, pt[t], lt[t]);
+                m += lt[t];
             }
         }
         int r = meta_add((KEY_PREFIX << 8) | key_id, meta, meta_size);
