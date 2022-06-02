@@ -927,8 +927,13 @@ int find_and_store_meta_key(uint8_t key_id) {
     size_t lt[4] = { 0,0,0,0 }, meta_size = 0;
     uint8_t *pt[4] = { NULL,NULL,NULL,NULL };
     for (int t = 0; t < 4; t++) {
-        if (asn1_find_tag(apdu.data, apdu.nc, 0x90+t, &lt[t], &pt[t]) && pt[t] != NULL && lt[t] > 0)
+        uint8_t *ptt = NULL;
+        size_t ltt = 0;
+        if (asn1_find_tag(apdu.data, apdu.nc, 0x90+t, &ltt, &ptt) && ptt != NULL && ltt > 0) {
+            lt[t] = ltt;
+            pt[t] = ptt;
             meta_size += asn1_len_tag(0x90+t, lt[t]);
+        }
     }
     if (meta_size) {
         uint8_t *meta = (uint8_t *)calloc(1, meta_size), *m = meta;
