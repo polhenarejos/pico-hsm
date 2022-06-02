@@ -923,6 +923,30 @@ int store_keys(void *key_ctx, int type, uint8_t key_id, uint8_t kdom) {
     return CCID_OK;
 }
 
+int find_and_store_meta_key(uint8_t key_id) {
+    size_t lt[4] = { 0 }, meta_size = 0;
+    uint8_t *pt[4] = { NULL };
+    for (int t = 0; t < 4; t++) {
+        if (asn1_find_tag(apdu.data, apdu.nc, 0x90+t, &lt[t], &pt[t]) && pt[t] != NULL && lt[t] > 0)
+            meta_size += asn1_len_tag(0x90+t, lt[t]);
+    }
+    if (meta_size) {
+        uint8_t *meta = (uint8_t *)calloc(1, meta_size), *m = meta;
+        for (int t = 0; t < 4; t++) {
+            if (lt[t] > 0 && pt[t] != NULL) {
+                *m++ = 0x90+t;
+                m += format_tlv_len(lt[t], m);
+                memcpy(m, pt[t], lt[t]);
+            }
+        }
+        int r = meta_add((KEY_PREFIX << 8) | key_id, meta, meta_size);
+        free(meta);
+        if (r != 0)
+            return CCID_EXEC_ERROR;
+    }
+    return CCID_OK;
+}
+
 static int cmd_keypair_gen() {
     uint8_t key_id = P1(apdu), kdom = 0;
     if (!isUserAuthenticated)
@@ -1014,26 +1038,8 @@ static int cmd_keypair_gen() {
     if (ret != CCID_OK) {
         return SW_EXEC_ERROR();
     }
-    size_t lt[4] = { 0 }, meta_size = 0;
-    uint8_t *pt[4] = { NULL };
-    for (int t = 0; t < 4; t++) {
-        if (asn1_find_tag(apdu.data, apdu.nc, 0x90+t, &lt[t], &pt[t]) && pt[t] != NULL && lt[t] > 0)
-            meta_size += 1+format_tlv_len(lt[t], NULL)+lt[t];
-    }
-    if (meta_size) {
-        uint8_t *meta = (uint8_t *)calloc(1, meta_size), *m = meta;
-        for (int t = 0; t < 4; t++) {
-            if (lt[t] > 0 && pt[t] != NULL) {
-                *m++ = 0x90+t;
-                m += format_tlv_len(lt[t], m);
-                memcpy(m, pt[t], lt[t]);
-            }
-        }
-        ret = meta_add((KEY_PREFIX << 8) | key_id, meta, meta_size);
-        free(meta);
-        if (ret != 0)
-            return SW_EXEC_ERROR();
-    }
+    if (find_and_store_meta_key(key_id) != CCID_OK)
+        return SW_EXEC_ERROR();
     file_t *fpk = file_new((EE_CERTIFICATE_PREFIX << 8) | key_id);
     ret = flash_write_data_to_file(fpk, res_APDU, res_APDU_size);
     if (ret != 0)
@@ -1199,6 +1205,8 @@ static int cmd_key_gen() {
     r = store_keys(aes_key, aes_type, key_id, 0);
     if (r != CCID_OK)
         return SW_MEMORY_FAILURE();
+    if (find_and_store_meta_key(key_id) != CCID_OK)
+        return SW_EXEC_ERROR();
     low_flash_available();
     return SW_OK();
 }
