@@ -1155,7 +1155,7 @@ static int cmd_change_pin() {
                 return SW_REFERENCE_NOT_FOUND();
             }
             uint8_t pin_len = file_read_uint8(file_get_data(file_pin1));
-            uint16_t r = check_pin(file_pin1, apdu.data, pin_len);
+            int r = check_pin(file_pin1, apdu.data, pin_len);
             if (r != 0x9000)
                 return r;
             uint8_t old_session_pin[32];
@@ -1163,7 +1163,10 @@ static int cmd_change_pin() {
             for (uint8_t kdom = 0; kdom < MAX_KEY_DOMAINS; kdom++) {
                 uint8_t dkek[DKEK_SIZE];
                 memcpy(session_pin, old_session_pin, sizeof(session_pin));
-                if (load_dkek(kdom, dkek) != CCID_OK) //loads the DKEK with old pin
+                r = load_dkek(kdom, dkek); //loads the DKEK with old pin
+                if (r == CCID_ERR_FILE_NOT_FOUND)
+                    break;
+                else if (r != CCID_OK)
                     return SW_EXEC_ERROR();
                 //encrypt DKEK with new pin
                 hash_multi(apdu.data+pin_len, apdu.nc-pin_len, session_pin);
