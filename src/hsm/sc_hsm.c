@@ -733,6 +733,24 @@ static int cmd_initialize() {
     return SW_OK();
 }
 
+uint8_t get_key_domain(file_t *fkey) {
+    if (!fkey)
+        return 0xff;
+    uint8_t *meta_data = NULL;
+    uint8_t meta_size = meta_find(fkey->fid, &meta_data);
+    if (meta_size > 0 && meta_data != NULL) {
+        uint16_t tag = 0x0;
+        uint8_t *tag_data = NULL, *p = NULL;
+        size_t tag_len = 0;
+        while (walk_tlv(meta_data, meta_size, &p, &tag, &tag_len, &tag_data)) {
+            if (tag == 0x92) { //ofset tag
+                return *tag_data;
+            }
+        }
+    }
+    return 0;
+}
+
 static int cmd_key_domain() {
     //if (dkeks == 0)
     //    return SW_COMMAND_NOT_ALLOWED();
@@ -778,6 +796,12 @@ static int cmd_key_domain() {
     else if (p1 == 0x1 || p1 == 0x3 || p1 == 0x4) { //key domain setup
         if (p1 == 0x1 && apdu.nc != 1)
             return SW_WRONG_LENGTH();
+        if (p1 == 0x3 || p1 == 0x4) { //if key domain is not empty, command is denied
+            for (int i = 0; i < dynamic_files; i++) {
+                if (get_key_domain(&dynamic_file[i]) == p2)
+                    return SW_FILE_EXISTS();
+            }
+        }
         uint8_t t[MAX_KEY_DOMAINS*2];
         memcpy(t, kdata, tf_kd_size);
         if (p1 == 0x1) {
@@ -808,24 +832,6 @@ static int cmd_key_domain() {
     dkek_kcv(p2, res_APDU+2);
     res_APDU_size = 2+8;
     return SW_OK();
-}
-
-uint8_t get_key_domain(file_t *fkey) {
-    if (!fkey)
-        return 0xff;
-    uint8_t *meta_data = NULL;
-    uint8_t meta_size = meta_find(fkey->fid, &meta_data);
-    if (meta_size > 0 && meta_data != NULL) {
-        uint16_t tag = 0x0;
-        uint8_t *tag_data = NULL, *p = NULL;
-        size_t tag_len = 0;
-        while (walk_tlv(meta_data, meta_size, &p, &tag, &tag_len, &tag_data)) {
-            if (tag == 0x92) { //ofset tag
-                return *tag_data;
-            }
-        }
-    }
-    return 0;
 }
 
 //Stores the private and public keys in flash
