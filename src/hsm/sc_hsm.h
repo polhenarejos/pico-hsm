@@ -56,6 +56,7 @@ extern const uint8_t sc_hsm_aid[];
 #define HSM_OPT_COMBINED_AUTH       0x0010
 #define HSM_OPT_RRC_RESET_ONLY      0x0020
 #define HSM_OPT_BOOTSEL_BUTTON      0x0100
+#define HSM_OPT_KEY_COUNTER_ALL     0x0200
 
 #define PRKD_PREFIX				0xC4		/* Hi byte in file identifier for PKCS#15 PRKD objects */
 #define CD_PREFIX				0xC8		/* Hi byte in file identifier for PKCS#15 CD objects */

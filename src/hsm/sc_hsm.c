@@ -941,9 +941,12 @@ int find_and_store_meta_key(uint8_t key_id) {
         }
     }
     if (lt[0] == 0 && pt[0] == NULL) {
-        lt[0] = 4;
-        pt[0] = t90;
-        meta_size += 6;
+        uint16_t opts = get_device_options();
+        if (opts & HSM_OPT_KEY_COUNTER_ALL) {
+            lt[0] = 4;
+            pt[0] = t90;
+            meta_size += 6;
+        }
     }
     if (meta_size) {
         uint8_t *meta = (uint8_t *)calloc(1, meta_size), *m = meta;
