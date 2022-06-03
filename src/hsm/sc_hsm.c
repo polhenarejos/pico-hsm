@@ -752,6 +752,58 @@ uint8_t get_key_domain(file_t *fkey) {
     return 0;
 }
 
+uint32_t get_key_counter(file_t *fkey) {
+   if (!fkey)
+        return 0xffffff;
+    uint8_t *meta_data = NULL;
+    uint8_t meta_size = meta_find(fkey->fid, &meta_data);
+    if (meta_size > 0 && meta_data != NULL) {
+        uint16_t tag = 0x0;
+        uint8_t *tag_data = NULL, *p = NULL;
+        size_t tag_len = 0;
+        while (walk_tlv(meta_data, meta_size, &p, &tag, &tag_len, &tag_data)) {
+            if (tag == 0x90) { //ofset tag
+                return (tag_data[0] << 24) | (tag_data[1] << 16) | (tag_data[2] << 8) | tag_data[3];
+            }
+        }
+    }
+    return 0xffffffff; 
+}
+
+uint32_t decrement_key_counter(file_t *fkey) {
+    if (!fkey)
+        return 0xffffff;
+    uint8_t *meta_data = NULL;
+    uint8_t meta_size = meta_find(fkey->fid, &meta_data);
+    if (meta_size > 0 && meta_data != NULL) {
+        uint16_t tag = 0x0;
+        uint8_t *tag_data = NULL, *p = NULL;
+        size_t tag_len = 0;
+        uint8_t *cmeta = (uint8_t *)calloc(1, meta_size);
+        /* We cannot modify meta_data, as it comes from flash memory. It must be cpied to an aux buffer */
+        memcpy(cmeta, meta_data, meta_size);
+        while (walk_tlv(cmeta, meta_size, &p, &tag, &tag_len, &tag_data)) {
+            if (tag == 0x90) { //ofset tag
+                uint32_t val = (tag_data[0] << 24) | (tag_data[1] << 16) | (tag_data[2] << 8) | tag_data[3];
+                val--;
+                tag_data[0] = (val >> 24) & 0xff;
+                tag_data[1] = (val >> 16) & 0xff;
+                tag_data[2] = (val >> 8) & 0xff;
+                tag_data[3] = val & 0xff;
+                
+                int r = meta_add(fkey->fid, cmeta, meta_size);
+                free(cmeta);
+                if (r != 0)
+                    return 0xffffffff;
+                low_flash_available();
+                return val;
+            }
+        }
+        free(cmeta);
+    }
+    return 0xffffffff;
+}
+
 static int cmd_key_domain() {
     //if (dkeks == 0)
     //    return SW_COMMAND_NOT_ALLOWED();
@@ -878,6 +930,7 @@ int store_keys(void *key_ctx, int type, uint8_t key_id, uint8_t kdom) {
 int find_and_store_meta_key(uint8_t key_id) {
     size_t lt[4] = { 0,0,0,0 }, meta_size = 0;
     uint8_t *pt[4] = { NULL,NULL,NULL,NULL };
+    uint8_t t90[4] = { 0xFF, 0xFF, 0xFF, 0xFE };
     for (int t = 0; t < 4; t++) {
         uint8_t *ptt = NULL;
         size_t ltt = 0;
@@ -886,6 +939,11 @@ int find_and_store_meta_key(uint8_t key_id) {
             pt[t] = ptt;
             meta_size += asn1_len_tag(0x90+t, lt[t]);
         }
+    }
+    if (lt[0] == 0 && pt[0] == NULL) {
+        lt[0] = 4;
+        pt[0] = t90;
+        meta_size += 6;
     }
     if (meta_size) {
         uint8_t *meta = (uint8_t *)calloc(1, meta_size), *m = meta;
@@ -992,10 +1050,6 @@ static int cmd_keypair_gen() {
     }
     else
         return SW_WRONG_DATA();
-
-    if (ret != CCID_OK) {
-        return SW_EXEC_ERROR();
-    }
     if (find_and_store_meta_key(key_id) != CCID_OK)
         return SW_EXEC_ERROR();
     file_t *fpk = file_new((EE_CERTIFICATE_PREFIX << 8) | key_id);
@@ -1303,6 +1357,8 @@ static int cmd_signature() {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     if (!(fkey = search_dynamic_file((KEY_PREFIX << 8) | key_id)) || !fkey->data) 
         return SW_FILE_NOT_FOUND();
+    if (get_key_counter(fkey) == 0)
+        return SW_FILE_FULL();
     int key_size = file_get_size(fkey);
     if (p2 == ALGO_RSA_PKCS1_SHA1 || p2 == ALGO_RSA_PSS_SHA1 || p2 == ALGO_EC_SHA1)
         md = MBEDTLS_MD_SHA1;
@@ -1429,6 +1485,7 @@ static int cmd_signature() {
     }
     else
         return SW_INCORRECT_P1P2();
+    decrement_key_counter(fkey);
     return SW_OK();
 }
 
@@ -1561,7 +1618,7 @@ static int cmd_key_unwrap() {
             return SW_EXEC_ERROR();
         }
     }
-    if (kdom > 0) {
+    if (kdom >= 0) {
         uint8_t meta[3] = {0x92,1,kdom};
         r = meta_add((KEY_PREFIX << 8) | key_id, meta, sizeof(meta));
         if (r != CCID_OK)
