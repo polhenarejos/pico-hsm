@@ -784,6 +784,12 @@ static int cmd_key_domain() {
         t[2*p2+1] = current_dkeks = 0;
         if (flash_write_data_to_file(tf_kd, t, tf_kd_size) != CCID_OK)
             return SW_EXEC_ERROR();
+        file_t *tf = file_new(EF_DKEK+p2);
+        if (!tf)
+            return SW_MEMORY_FAILURE();
+        uint8_t dk[DKEK_SIZE];
+        memset(dk, 0, sizeof(dk));
+        flash_write_data_to_file(tf, dk, sizeof(dk));
         low_flash_available();
     }
     memset(res_APDU,0,10);
@@ -850,75 +856,6 @@ int store_keys(void *key_ctx, int type, uint8_t key_id, uint8_t kdom) {
     r = flash_write_data_to_file(fpk, kdata, key_size);
     if (r != CCID_OK)
         return r;
-    //add_file_to_chain(fpk, &ef_kf);
-    /*
-    if (type == SC_PKCS15_TYPE_PRKEY_RSA || type == SC_PKCS15_TYPE_PRKEY_EC) {
-        struct sc_pkcs15_object *p15o = (struct sc_pkcs15_object *)calloc(1,sizeof (struct sc_pkcs15_object));
-        
-        sc_pkcs15_prkey_info_t *prkd = (sc_pkcs15_prkey_info_t *)calloc(1, sizeof (sc_pkcs15_prkey_info_t));
-        memset(prkd, 0, sizeof(sc_pkcs15_prkey_info_t));
-        prkd->id.len = 1;
-        prkd->id.value[0] = key_id;
-        prkd->usage = SC_PKCS15_PRKEY_USAGE_DECRYPT | SC_PKCS15_PRKEY_USAGE_SIGN | SC_PKCS15_PRKEY_USAGE_SIGNRECOVER | SC_PKCS15_PRKEY_USAGE_UNWRAP;
-        prkd->access_flags = SC_PKCS15_PRKEY_ACCESS_SENSITIVE | SC_PKCS15_PRKEY_ACCESS_NEVEREXTRACTABLE | SC_PKCS15_PRKEY_ACCESS_ALWAYSSENSITIVE | SC_PKCS15_PRKEY_ACCESS_LOCAL;
-        prkd->native = 1;
-        prkd->key_reference = key_id;
-        prkd->path.value[0] = PRKD_PREFIX;
-        prkd->path.value[1] = key_id;
-        prkd->path.len = 2;
-        if (type == SC_PKCS15_TYPE_PRKEY_RSA)
-            prkd->modulus_length = key_size;
-        else
-            prkd->field_length = key_size-1; //contains 1 byte for the grp id
-        
-        p15o->data = prkd;
-        p15o->type = SC_PKCS15_TYPE_PRKEY | (type & 0xff);
-        
-        r = sc_pkcs15_encode_prkdf_entry(ctx, p15o, &asn1bin, &asn1len);
-        free(prkd);
-        //sc_asn1_print_tags(asn1bin, asn1len);
-    }
-    
-    fpk = file_new((PRKD_PREFIX << 8) | key_id);
-    r = flash_write_data_to_file(fpk, asn1bin, asn1len);
-    if (asn1bin)
-        free(asn1bin);
-    if (r != CCID_OK)
-        return r;
-        */
-    //add_file_to_chain(fpk, &ef_prkdf);
-    /*
-    sc_pkcs15_pubkey_info_t *pukd = (sc_pkcs15_pubkey_info_t *)calloc(1, sizeof(sc_pkcs15_pubkey_info_t));
-    memset(pukd, 0, sizeof(sc_pkcs15_pubkey_info_t));
-    pukd->id.len = 1;
-    pukd->id.value[0] = key_id;
-    pukd->usage = SC_PKCS15_PRKEY_USAGE_ENCRYPT | SC_PKCS15_PRKEY_USAGE_WRAP | SC_PKCS15_PRKEY_USAGE_VERIFY;
-    pukd->access_flags = SC_PKCS15_PRKEY_ACCESS_EXTRACTABLE;
-    pukd->native = 1;
-    pukd->key_reference = key_id;
-    pukd->path.value[0] = CD_PREFIX;
-    pukd->path.value[1] = key_id;
-    pukd->path.len = 2;
-    
-    if (type == SC_PKCS15_TYPE_PRKEY_RSA)
-        pukd->modulus_length = key_size;
-    else
-        pukd->field_length = key_size-1;
-    
-    p15o->data = pukd;
-    p15o->type = SC_PKCS15_TYPE_PUBKEY | (type & 0xff);
-    
-    r = sc_pkcs15_encode_pukdf_entry(ctx, p15o, &asn1bin, &asn1len);
-    free(pukd);
-    free(p15o);
-    //sc_asn1_print_tags(asn1bin, asn1len);
-    fpk = file_new((EE_CERTIFICATE_PREFIX << 8) | key_id);
-    r = flash_write_data_to_file(fpk, asn1bin, asn1len);
-    free(asn1bin);
-    if (r != CCID_OK)
-        return r;
-    //add_file_to_chain(fpk, &ef_cdf);
-    */
     low_flash_available();
     return CCID_OK;
 }
