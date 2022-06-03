@@ -1637,6 +1637,8 @@ static int cmd_decrypt_asym() {
     file_t *ef = search_dynamic_file((KEY_PREFIX << 8) | key_id);
     if (!ef)
         return SW_FILE_NOT_FOUND();
+    if (get_key_counter(ef) == 0)
+        return SW_FILE_FULL();
     if (P2(apdu) == ALGO_RSA_DECRYPT) {
         mbedtls_rsa_context ctx;
         mbedtls_rsa_init(&ctx);
@@ -1702,6 +1704,7 @@ static int cmd_decrypt_asym() {
     }
     else
         return SW_WRONG_P1P2();
+    decrement_key_counter(ef);
     return SW_OK();
 }
 
