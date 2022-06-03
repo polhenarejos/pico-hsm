@@ -695,7 +695,8 @@ static int cmd_initialize() {
         }
         uint8_t t[DKEK_SIZE];
         memset(t, 0, sizeof(t));
-        flash_write_data_to_file(tf, t, sizeof(t));
+        if (store_dkek_key(0, t) != CCID_OK)
+            return SW_EXEC_ERROR();
         if (dkeks) {
             if (*dkeks > 0) {
                 uint16_t d = *dkeks;
@@ -817,12 +818,10 @@ static int cmd_key_domain() {
         }
         if (flash_write_data_to_file(tf_kd, t, tf_kd_size) != CCID_OK)
             return SW_EXEC_ERROR();
-        file_t *tf = file_new(EF_DKEK+p2);
-        if (!tf)
-            return SW_MEMORY_FAILURE();
         uint8_t dk[DKEK_SIZE];
         memset(dk, 0, sizeof(dk));
-        flash_write_data_to_file(tf, dk, sizeof(dk));
+        if (store_dkek_key(p2, dk) != CCID_OK)
+            return SW_EXEC_ERROR();
         low_flash_available();
         return SW_OK();
     }

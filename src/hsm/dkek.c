@@ -32,6 +32,19 @@
 extern bool has_session_pin;
 extern uint8_t session_pin[32];
 
+#define POLY 0xedb88320
+
+uint32_t crc32c(const uint8_t *buf, size_t len)
+{
+    uint32_t crc = ~0;
+    while (len--) {
+        crc ^= *buf++;
+        for (int k = 0; k < 8; k++)
+            crc = (crc >> 1) ^ (POLY & (0 - (crc & 1)));
+    }
+    return ~crc;
+}
+
 int load_dkek(uint8_t id, uint8_t *dkek) {
     if (has_session_pin == false)
         return CCID_NO_LOGIN;
@@ -39,9 +52,11 @@ int load_dkek(uint8_t id, uint8_t *dkek) {
     if (!tf)
         return CCID_ERR_FILE_NOT_FOUND;
     memcpy(dkek, file_get_data(tf), DKEK_SIZE);
-    int ret = aes_decrypt_cfb_256(session_pin, DKEK_IV(dkek), DKEK_KEY(dkek), DKEK_KEY_SIZE);
+    int ret = aes_decrypt_cfb_256(session_pin, DKEK_IV(dkek), DKEK_KEY(dkek), DKEK_KEY_SIZE+DKEK_KEY_CS_SIZE);
     if (ret != 0)
         return CCID_EXEC_ERROR;
+    if (crc32c(DKEK_KEY(dkek), DKEK_KEY_SIZE) != *(uint32_t*)DKEK_CHECKSUM(dkek))
+        return CCID_WRONG_DKEK;
     return CCID_OK;
 }
 
@@ -53,7 +68,8 @@ int store_dkek_key(uint8_t id, uint8_t *dkek) {
     file_t *tf = search_dynamic_file(EF_DKEK+id);
     if (!tf)
         return CCID_ERR_FILE_NOT_FOUND;
-    aes_encrypt_cfb_256(session_pin, DKEK_IV(dkek), DKEK_KEY(dkek), DKEK_KEY_SIZE);
+    *(uint32_t*)DKEK_CHECKSUM(dkek) = crc32c(DKEK_KEY(dkek), DKEK_KEY_SIZE);
+    aes_encrypt_cfb_256(session_pin, DKEK_IV(dkek), DKEK_KEY(dkek), DKEK_KEY_SIZE+DKEK_KEY_CS_SIZE);
     flash_write_data_to_file(tf, dkek, DKEK_SIZE);
     low_flash_available();
     release_dkek(dkek);

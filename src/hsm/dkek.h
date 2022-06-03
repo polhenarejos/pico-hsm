@@ -37,8 +37,10 @@ extern int dkek_decode_key(uint8_t, void *key_ctx, const uint8_t *in, size_t in_
 
 #define DKEK_IV_SIZE     (IV_SIZE)
 #define DKEK_KEY_SIZE    (32)
-#define DKEK_SIZE        (DKEK_IV_SIZE+DKEK_KEY_SIZE)
+#define DKEK_KEY_CS_SIZE (4)
+#define DKEK_SIZE        (DKEK_IV_SIZE+DKEK_KEY_SIZE+DKEK_KEY_CS_SIZE)
 #define DKEK_KEY(p)      (p+DKEK_IV_SIZE)
 #define DKEK_IV(p)       (p)
+#define DKEK_CHECKSUM(p) (p+DKEK_IV_SIZE+DKEK_KEY_SIZE)
 
 #endif
