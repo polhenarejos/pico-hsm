@@ -780,11 +780,14 @@ static int cmd_key_domain() {
             return SW_WRONG_LENGTH();
         uint8_t t[MAX_KEY_DOMAINS*2];
         memcpy(t, kdata, tf_kd_size);
-        if (p1 == 0x1)
+        if (p1 == 0x1) {
             t[2*p2] = dkeks = apdu.data[0];
-        else
-            t[2*p2] = dkeks = 0;
-        t[2*p2+1] = current_dkeks = 0;
+            t[2*p2+1] = current_dkeks = 0;
+        }
+        else if (p1 == 0x3) {
+            t[2*p2] = dkeks = 0xff;
+            t[2*p2+1] = 0xff;
+        }
         if (flash_write_data_to_file(tf_kd, t, tf_kd_size) != CCID_OK)
             return SW_EXEC_ERROR();
         file_t *tf = file_new(EF_DKEK+p2);
@@ -794,6 +797,7 @@ static int cmd_key_domain() {
         memset(dk, 0, sizeof(dk));
         flash_write_data_to_file(tf, dk, sizeof(dk));
         low_flash_available();
+        return SW_OK();
     }
     memset(res_APDU,0,10);
     res_APDU[0] = dkeks;
