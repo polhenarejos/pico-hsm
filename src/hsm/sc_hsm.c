@@ -775,7 +775,7 @@ static int cmd_key_domain() {
                 return SW_REFERENCE_NOT_FOUND();
         }
     }
-    else if (p1 == 0x1 || p1 == 0x3) { //key domain setup
+    else if (p1 == 0x1 || p1 == 0x3 || p1 == 0x4) { //key domain setup
         if (p1 == 0x1 && apdu.nc != 1)
             return SW_WRONG_LENGTH();
         uint8_t t[MAX_KEY_DOMAINS*2];
@@ -787,6 +787,9 @@ static int cmd_key_domain() {
         else if (p1 == 0x3) {
             t[2*p2] = dkeks = 0xff;
             t[2*p2+1] = 0xff;
+        }
+        else if (p1 == 0x4) {
+            t[2*p2+1] = current_dkeks = 0;
         }
         if (flash_write_data_to_file(tf_kd, t, tf_kd_size) != CCID_OK)
             return SW_EXEC_ERROR();
