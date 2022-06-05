@@ -146,8 +146,3 @@ The signature is verified with the hash:
 $ openssl pkeyutl -verify -pubin -inkey 11.pub -in data.sha1 -sigfile data.sig                              
 Signature Verified Successfully
 ```
-
-
-
-
-

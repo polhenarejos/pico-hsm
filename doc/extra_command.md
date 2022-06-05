@@ -83,4 +83,9 @@ Sending: 80 64 06 00 01 00
 Received (SW1=0x90, SW2=0x00)
 ```
 
+### Key usage counter by default
+Pico HSM supports a key usage counter to audit the usage of a particular key. For every operation with the key, the counter is reduced by 1. When it reaches 0, the key is disabled and cannot be used.
 
+This option is disabled by default. When enabled, each generated key in the device is attached to a counter, starting at `2^32-1` (`FFFFFFFEh`). Therefore, it allows to count how many times a key is used for signing or decryption.
+
+The counter can be viewed by using the SCS3 tool. More info at [doc/scs3.md](/doc/scs3.md).

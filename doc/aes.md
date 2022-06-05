@@ -40,7 +40,7 @@ Once a secret AES key is generated, a content can be encrypted and decrypted sym
 
 ```
 $ echo "This is a text." | sc-tool -l --pin 648219 --encrypt --id 12 --mechanism aes-cbc > crypted.aes
-````
+```
 
 The file `crypted.aes` contains the ciphered string with the AES key generated previously.
 
@@ -55,4 +55,3 @@ This is a text.
 ```
 
 AES-CBC it is a block operation and it requires an input size multiple of 16 bytes. Thus, for a trivial data, a padding operation has to be performed beforehand. 
-
