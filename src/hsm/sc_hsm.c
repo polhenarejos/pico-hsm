@@ -644,8 +644,7 @@ static int cmd_initialize() {
                     double_hash_pin(tag_data, tag_len, dhash+1);
                     flash_write_data_to_file(file_pin1, dhash, sizeof(dhash));
                     hash_multi(tag_data, tag_len, session_pin);
-                    has_session_pin = true;
-                } 
+                }
             }
             else if (tag == 0x82) { //sopin pin
                 if (file_sopin && file_sopin->data) {
@@ -655,7 +654,7 @@ static int cmd_initialize() {
                     flash_write_data_to_file(file_sopin, dhash, sizeof(dhash));
                     hash_multi(tag_data, tag_len, session_sopin);
                     has_session_sopin = true;
-                } 
+                }
             }
             else if (tag == 0x91) { //retries user pin
                 file_t *tf = search_by_fid(0x1082, NULL, SPECIFY_EF);
@@ -672,6 +671,13 @@ static int cmd_initialize() {
                 if (!tf)
                     return SW_MEMORY_FAILURE();
                 flash_write_data_to_file(tf, NULL, 0);
+            }
+            else if (tag == 0x93) {
+                file_t *ef_puk = search_by_fid(EF_PUKAUT, NULL, SPECIFY_EF);
+                if (!ef_puk)
+                    return SW_MEMORY_FAILURE();
+                uint8_t pk_status[4] = { tag_data[0], tag_data[0], tag_data[1], 0 };
+                flash_write_data_to_file(ef_puk, pk_status, sizeof(pk_status));    
             }
             else if (tag == 0x97) {
                 kds = tag_data;
@@ -718,6 +724,9 @@ static int cmd_initialize() {
             if (flash_write_data_to_file(tf_kd, t, 2*k) != CCID_OK)
                 return SW_EXEC_ERROR();
         }
+        /* When initialized, it has all credentials */
+        has_session_pin = true;
+        isUserAuthenticated = true;
         low_flash_available();
     }
     else { //free memory bytes request
@@ -2033,6 +2042,19 @@ int cmd_session_pin() {
     return SW_OK();
 }
 
+int cmd_puk_auth() {
+    file_t *ef_puk = search_by_fid(EF_PUKAUT, NULL, SPECIFY_EF);
+    if (!ef_puk || !ef_puk->data)
+        return SW_FILE_NOT_FOUND();
+    if (P1(apdu) == 0x0 && P2(apdu) == 0x0) {
+        memcpy(res_APDU, file_get_data(ef_puk), 4);
+        res_APDU_size = 4;
+    }
+    else
+        return SW_INCORRECT_P1P2();
+    return SW_OK();
+}
+
 typedef struct cmd
 {
   uint8_t ins;
@@ -2047,6 +2069,7 @@ typedef struct cmd
 #define INS_KEY_GEN                 0x48
 #define INS_INITIALIZE              0x50
 #define INS_KEY_DOMAIN              0x52
+#define INS_PUK_AUTH                0x54
 #define INS_LIST_KEYS               0x58
 #define INS_SESSION_PIN             0x5A
 #define INS_DECRYPT_ASYM            0x62
@@ -2089,6 +2112,7 @@ static const cmd_t cmds[] = {
     { INS_MSE, cmd_mse },
     { INS_GENERAL_AUTHENTICATE, cmd_general_authenticate },
     { INS_SESSION_PIN, cmd_session_pin },
+    { INS_PUK_AUTH, cmd_puk_auth },
     { 0x00, 0x0}
 };
 
