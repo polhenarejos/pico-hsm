@@ -518,7 +518,7 @@ static int cmd_verify() {
         uint16_t opts = get_device_options();
         if (opts & HSM_OPT_TRANSPORT_PIN)
             return SW_DATA_INVALID();
-        if (file_get_data(file_pin1) == 0) //not initialized
+        if (*file_get_data(file_pin1) == 0) //not initialized
             return SW_REFERENCE_NOT_FOUND();
         if (apdu.nc > 0) {
             return check_pin(file_pin1, apdu.data, apdu.nc);
