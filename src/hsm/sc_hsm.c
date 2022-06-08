@@ -148,11 +148,20 @@ void scan_all() {
     scan_files();
 }
 
+PUK_store puk_store[3];
+
 void init_sc_hsm() {
     scan_all();
     has_session_pin = has_session_sopin = false;
     isUserAuthenticated = false;
     cmd_select();
+    const uint8_t *cvcerts[] = { cvca, dica, termca };
+    for (int i = 0; i < sizeof(cvcerts)/sizeof(uint8_t *); i++) {
+        uint16_t cert_len = (cvcerts[i][1] << 8) | cvcerts[i][0];
+        puk_store[i].chr = cvc_get_chr((uint8_t *)cvcerts[i]+2, cert_len, &puk_store[i].chr_len);
+        puk_store[i].car = cvc_get_chr((uint8_t *)cvcerts[i]+2, cert_len, &puk_store[i].car_len);
+        puk_store[i].up = i-1;
+    }
 }
 
 int sc_hsm_unload() {
@@ -1951,16 +1960,10 @@ static int cmd_mse() {
                     
                 }
                 else {
-                    size_t dica_chr_len = 0, termca_chr_len = 0, cvca_chr_len = 0;
-                    uint8_t *dica_chr = cvc_get_chr((uint8_t *)dica+2, (dica[1] << 8) | dica[0], &dica_chr_len);
-                    uint8_t *termca_chr = cvc_get_chr((uint8_t *)termca+2, (termca[1] << 8) | termca[0], &termca_chr_len);
-                    uint8_t *cvca_chr = cvc_get_chr((uint8_t *)cvca+2, (cvca[1] << 8) | cvca[0], &cvca_chr_len);
-                    if (memcmp(dica_chr, tag_data, dica_chr_len) == 0)
-                        return SW_OK();
-                    else if (memcmp(termca_chr, tag_data, termca_chr_len) == 0)
-                        return SW_OK();
-                    else if (memcmp(cvca_chr, tag_data, cvca_chr_len) == 0)
-                        return SW_OK();
+                    for (int i = 0; i < sizeof(puk_store)/sizeof(struct PUK_store); i++) {
+                        if (memcmp(puk_store[i].chr, tag_data, puk_store[i].chr_len) == 0)
+                            return SW_OK();
+                    }
                     return SW_REFERENCE_NOT_FOUND();
                 }
             }
