@@ -1931,24 +1931,40 @@ static int cmd_extras() {
 static int cmd_mse() {
     int p1 = P1(apdu);
     int p2 = P2(apdu);
+    if (p2 != 0xA4 && p2 != 0xA6 && p2 != 0xAA && p2 != 0xB4 && p2 != 0xB6 && p2 != 0xB8)
+        return SW_INCORRECT_P1P2();
     if (p1 & 0x1) { //SET
-        if (p2 == 0xA4) { //AT
-            uint16_t tag = 0x0;
-            uint8_t *tag_data = NULL, *p = NULL;
-            size_t tag_len = 0;    
-            while (walk_tlv(apdu.data, apdu.nc, &p, &tag, &tag_len, &tag_data)) {
-                if (tag == 0x80) {
+        uint16_t tag = 0x0;
+        uint8_t *tag_data = NULL, *p = NULL;
+        size_t tag_len = 0;    
+        while (walk_tlv(apdu.data, apdu.nc, &p, &tag, &tag_len, &tag_data)) {
+            if (tag == 0x80) {
+                if (p2 == 0xA4) {
                     if (tag_len == 10 && memcmp(tag_data, "\x04\x00\x7F\x00\x07\x02\x02\x03\x02\x02", tag_len) == 0)
                         sm_set_protocol(MSE_AES);
                     else if (tag_len == 10 && memcmp(tag_data, "\x04\x00\x7F\x00\x07\x02\x02\x03\x02\x01", tag_len) == 0)
                         sm_set_protocol(MSE_3DES);
-                    else
-                        return SW_REFERENCE_NOT_FOUND();
+                }
+            }
+            else if (tag == 0x83) {
+                if (tag_len == 1) {
+                    
+                }
+                else {
+                    size_t dica_chr_len = 0, termca_chr_len = 0, cvca_chr_len = 0;
+                    uint8_t *dica_chr = cvc_get_chr((uint8_t *)dica+2, (dica[1] << 8) | dica[0], &dica_chr_len);
+                    uint8_t *termca_chr = cvc_get_chr((uint8_t *)termca+2, (termca[1] << 8) | termca[0], &termca_chr_len);
+                    uint8_t *cvca_chr = cvc_get_chr((uint8_t *)cvca+2, (cvca[1] << 8) | cvca[0], &cvca_chr_len);
+                    if (memcmp(dica_chr, tag_data, dica_chr_len) == 0)
+                        return SW_OK();
+                    else if (memcmp(termca_chr, tag_data, termca_chr_len) == 0)
+                        return SW_OK();
+                    else if (memcmp(cvca_chr, tag_data, cvca_chr_len) == 0)
+                        return SW_OK();
+                    return SW_REFERENCE_NOT_FOUND();
                 }
             }
         }
-        else
-            return SW_INCORRECT_P1P2();
     }
     else
         return SW_INCORRECT_P1P2();
