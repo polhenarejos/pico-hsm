@@ -23,5 +23,8 @@
 
 extern size_t asn1_cvc_cert(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf_len);
 extern size_t asn1_cvc_aut(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf_len);
+extern uint8_t *cvc_get_field(uint8_t *data, size_t len, size_t *olen, uint16_t tag);
+extern uint8_t *cvc_get_car(uint8_t *data, size_t len, size_t *olen);
+extern uint8_t *cvc_get_chr(uint8_t *data, size_t len, size_t *olen);
 
 #endif

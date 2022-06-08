@@ -240,3 +240,34 @@ size_t asn1_cvc_aut(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf_
     mbedtls_mpi_free(&s);
     return p-buf;
 }
+
+uint8_t *cvc_get_field(uint8_t *data, size_t len, size_t *olen, uint16_t tag) {
+    uint8_t *rdata = NULL;
+    if (data == NULL || len == 0)
+        return NULL;
+    if (asn1_find_tag(data, len, tag, olen, &rdata) == false)
+        return NULL;
+    return rdata;
+}
+
+uint8_t *cvc_get_car(uint8_t *data, size_t len, size_t *olen) {
+    uint8_t *bkdata = data;
+    if ((data = cvc_get_field(data, len, olen, 0x67)) == NULL) /* Check for CSR */
+        data = bkdata;
+    if ((data = cvc_get_field(data, len, olen, 0x7F21)) != NULL) {
+        if ((data = cvc_get_field(data, len, olen, 0x7F4E)) != NULL)
+            return cvc_get_field(data, len, olen, 0x42);
+    }
+    return NULL;
+}
+
+uint8_t *cvc_get_chr(uint8_t *data, size_t len, size_t *olen) {
+    uint8_t *bkdata = data;
+    if ((data = cvc_get_field(data, len, olen, 0x67)) == NULL) /* Check for CSR */
+        data = bkdata;
+    if ((data = cvc_get_field(data, len, olen, 0x7F21)) != NULL) {
+        if ((data = cvc_get_field(data, len, olen, 0x7F4E)) != NULL)
+            return cvc_get_field(data, len, olen, 0x5F20);
+    }
+    return NULL;
+}
