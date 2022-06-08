@@ -241,7 +241,7 @@ size_t asn1_cvc_aut(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf_
     return p-buf;
 }
 
-uint8_t *cvc_get_field(uint8_t *data, size_t len, size_t *olen, uint16_t tag) {
+const uint8_t *cvc_get_field(const uint8_t *data, size_t len, size_t *olen, uint16_t tag) {
     uint8_t *rdata = NULL;
     if (data == NULL || len == 0)
         return NULL;
@@ -250,24 +250,82 @@ uint8_t *cvc_get_field(uint8_t *data, size_t len, size_t *olen, uint16_t tag) {
     return rdata;
 }
 
-uint8_t *cvc_get_car(uint8_t *data, size_t len, size_t *olen) {
-    uint8_t *bkdata = data;
+const uint8_t *cvc_get_body(const uint8_t *data, size_t len, size_t *olen) {
+    const uint8_t *bkdata = data;
     if ((data = cvc_get_field(data, len, olen, 0x67)) == NULL) /* Check for CSR */
         data = bkdata;
     if ((data = cvc_get_field(data, len, olen, 0x7F21)) != NULL) {
-        if ((data = cvc_get_field(data, len, olen, 0x7F4E)) != NULL)
-            return cvc_get_field(data, len, olen, 0x42);
+        return cvc_get_field(data, len, olen, 0x7F4E);
     }
     return NULL;
 }
 
-uint8_t *cvc_get_chr(uint8_t *data, size_t len, size_t *olen) {
-    uint8_t *bkdata = data;
-    if ((data = cvc_get_field(data, len, olen, 0x67)) == NULL) /* Check for CSR */
-        data = bkdata;
-    if ((data = cvc_get_field(data, len, olen, 0x7F21)) != NULL) {
-        if ((data = cvc_get_field(data, len, olen, 0x7F4E)) != NULL)
-            return cvc_get_field(data, len, olen, 0x5F20);
+const uint8_t *cvc_get_car(const uint8_t *data, size_t len, size_t *olen) {
+    if ((data = cvc_get_body(data, len, olen)) != NULL) {
+        return cvc_get_field(data, len, olen, 0x42);
     }
     return NULL;
+}
+
+const uint8_t *cvc_get_chr(const uint8_t *data, size_t len, size_t *olen) {
+    if ((data = cvc_get_body(data, len, olen)) != NULL) {
+        return cvc_get_field(data, len, olen, 0x5F20);
+    }
+    return NULL;
+}
+
+const uint8_t *cvc_get_pub(const uint8_t *data, size_t len, size_t *olen) {
+    if ((data = cvc_get_body(data, len, olen)) != NULL) {
+        return cvc_get_field(data, len, olen, 0x7F49);
+    }
+    return NULL;
+}
+
+extern PUK_store puk_store[3];
+
+int cvc_verify(const uint8_t *cert, size_t cert_len, const uint8_t *ca, size_t ca_len) {
+    size_t puk_len = 0;
+    const uint8_t *puk = cvc_get_pub(ca, ca_len, &puk_len);
+    if (!puk)
+        return CCID_WRONG_DATA;
+    const uint8_t *t81 = NULL;
+    size_t car_len = 0;
+    const uint8_t *car = cvc_get_car(ca, ca_len, &car_len);
+    if (!car)
+        return CCID_WRONG_DATA;
+    do {
+        size_t t81_len = 0;
+        t81 = cvc_get_field(puk, puk_len, &t81_len, 0x81);
+        if (!t81 && car) {
+            for (int i = 0; i < sizeof(puk_store)/sizeof(PUK_store); i++) {
+                if (memcmp(puk_store[i].chr, car, car_len) == 0) {
+                    puk = puk_store[i].puk;
+                    puk_len = puk_store[i].puk_len;
+                    if (memcmp(puk_store[i].car, puk_store[i].chr, puk_store[i].car_len) != 0) {
+                        car = puk_store[i].car;
+                        car_len = puk_store[i].car_len;
+                    }
+                    else
+                        car = NULL;
+                    break;
+                }
+            }
+        }
+    } while (t81 == NULL && car != NULL);
+    if (t81 == NULL)
+        return CCID_WRONG_DATA;
+    size_t oid_len = 0;
+    const uint8_t *oid = cvc_get_field(puk, puk_len, &oid_len, 0x6);
+    if (!oid)
+        return CCID_WRONG_DATA;
+    if (memcmp(oid, "\x4\x0\x7F\x0\x7\x2\x2\x2\x1\x2", oid_len) == 0) { //RSA
+        mbedtls_rsa_context rsa;
+        mbedtls_rsa_init(&rsa);
+    }
+    else if (memcmp(oid, "\x4\x0\x7F\x0\x7\x2\x2\x2\x2\x3", oid_len) == 0) { //ECC
+        mbedtls_ecdsa_context ecdsa;
+        mbedtls_ecdsa_init(&ecdsa);
+        
+    }
+    return CCID_OK;
 }
