@@ -62,6 +62,7 @@ target_sources(pico_hsm PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cvc.c
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/files.c
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/dkek.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/hsm/oid.c
         
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/aes.c
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/asn1write.c
