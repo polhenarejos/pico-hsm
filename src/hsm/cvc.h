@@ -29,12 +29,17 @@ typedef struct PUK_store {
     const uint8_t *chr;
     size_t chr_len;
     uint8_t up;
+    const uint8_t *cvcert;
+    size_t cvcert_len;
 } PUK_store;
+
+#define MAX_PUK_STORE_ENTRIES 16
 
 extern size_t asn1_cvc_cert(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf_len);
 extern size_t asn1_cvc_aut(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf_len);
 extern const uint8_t *cvc_get_field(const uint8_t *data, size_t len, size_t *olen, uint16_t tag);
 extern const uint8_t *cvc_get_car(const uint8_t *data, size_t len, size_t *olen);
 extern const uint8_t *cvc_get_chr(const uint8_t *data, size_t len, size_t *olen);
+extern const uint8_t *cvc_get_pub(const uint8_t *data, size_t len, size_t *olen);
 
 #endif
