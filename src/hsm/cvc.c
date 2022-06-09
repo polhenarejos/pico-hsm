@@ -202,8 +202,9 @@ size_t asn1_cvc_cert(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf
 
 size_t asn1_cvc_aut(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf_len) {
     size_t cvcert_size = asn1_cvc_cert(rsa_ecdsa, key_type, NULL, 0);
-    uint8_t *outcar = (uint8_t *)"ESHSM00001";
-    size_t lenoutcar = strlen((char *)outcar), outcar_size = asn1_len_tag(0x42, lenoutcar);
+    size_t outcar_len = 0;
+    const uint8_t *outcar = cvc_get_chr((uint8_t *)termca+2, (termca[1] << 8) | termca[0], &outcar_len);
+    size_t outcar_size = asn1_len_tag(0x42, outcar_len);
     int key_size = 2*file_read_uint16(termca_pk), ret = 0;
     size_t outsig_size = asn1_len_tag(0x5f37, key_size), tot_len = asn1_len_tag(0x67, cvcert_size+outcar_size+outsig_size);
     if (buf_len == 0 || buf == NULL)
@@ -217,7 +218,7 @@ size_t asn1_cvc_aut(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf_
     //cvcert
     p += asn1_cvc_cert(rsa_ecdsa, key_type, p, cvcert_size);
     //outcar
-    *p++ = 0x42; p += format_tlv_len(lenoutcar, p); memcpy(p, outcar, lenoutcar); p += lenoutcar;
+    *p++ = 0x42; p += format_tlv_len(outcar_len, p); memcpy(p, outcar, outcar_len); p += outcar_len;
     mbedtls_ecdsa_context ctx;
     mbedtls_ecdsa_init(&ctx);
     if (mbedtls_ecp_read_key(MBEDTLS_ECP_DP_SECP192R1, &ctx, termca_pk+2, file_read_uint16(termca_pk)) != 0)
