@@ -21,19 +21,19 @@
 #include <stdlib.h>
 #include "pico/stdlib.h"
 
-typedef struct PUK_store {
+typedef struct PUK {
     const uint8_t *puk;
     size_t puk_len;
     const uint8_t *car;
     size_t car_len;
     const uint8_t *chr;
     size_t chr_len;
-    uint8_t up;
     const uint8_t *cvcert;
     size_t cvcert_len;
-} PUK_store;
+    uint8_t up;
+} PUK;
 
-#define MAX_PUK_STORE_ENTRIES 16
+#define MAX_PUK_STORE_ENTRIES 4
 
 extern size_t asn1_cvc_cert(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf_len);
 extern size_t asn1_cvc_aut(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf_len);
@@ -41,5 +41,6 @@ extern const uint8_t *cvc_get_field(const uint8_t *data, size_t len, size_t *ole
 extern const uint8_t *cvc_get_car(const uint8_t *data, size_t len, size_t *olen);
 extern const uint8_t *cvc_get_chr(const uint8_t *data, size_t len, size_t *olen);
 extern const uint8_t *cvc_get_pub(const uint8_t *data, size_t len, size_t *olen);
+extern int cvc_verify(const uint8_t *cert, size_t cert_len, const uint8_t *ca, size_t ca_len);
 
 #endif

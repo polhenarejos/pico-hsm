@@ -293,7 +293,7 @@ const uint8_t *cvc_get_pub(const uint8_t *data, size_t len, size_t *olen) {
     return NULL;
 }
 
-extern PUK_store puk_store[3];
+extern PUK puk_store[MAX_PUK_STORE_ENTRIES];
 extern int puk_store_entries;
 
 int puk_store_index(const uint8_t *chr, size_t chr_len) {
@@ -311,8 +311,8 @@ int cvc_verify(const uint8_t *cert, size_t cert_len, const uint8_t *ca, size_t c
         return CCID_WRONG_DATA;
     size_t oid_len = 0, cv_body_len = 0, sig_len = 0;
     const uint8_t *oid = cvc_get_field(puk, puk_len, &oid_len, 0x6);
-    const uint8_t *cv_body = cvc_get_body(ca, ca_len, &cv_body_len);
-    const uint8_t *sig = cvc_get_sig(ca, ca_len, &sig_len);
+    const uint8_t *cv_body = cvc_get_body(cert, cert_len, &cv_body_len);
+    const uint8_t *sig = cvc_get_sig(cert, cert_len, &sig_len);
     if (!sig)
         return CCID_WRONG_DATA;
     if (!cv_body)
@@ -442,6 +442,11 @@ int cvc_verify(const uint8_t *cert, size_t cert_len, const uint8_t *ca, size_t c
             return CCID_WRONG_DATA;
         }
         ret = mbedtls_ecp_point_read_binary(&ecdsa.grp, &ecdsa.Q, t86, t86_len);
+        if (ret != 0) {
+            mbedtls_ecdsa_free(&ecdsa);
+            return CCID_EXEC_ERROR;
+        }
+        ret = mbedtls_ecp_check_pubkey(&ecdsa.grp, &ecdsa.Q);
         if (ret != 0) {
             mbedtls_ecdsa_free(&ecdsa);
             return CCID_EXEC_ERROR;
