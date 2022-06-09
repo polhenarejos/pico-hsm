@@ -150,8 +150,9 @@ void scan_all() {
     scan_files();
 }
 
-PUK_store puk_store[MAX_PUK_STORE_ENTRIES];
+PUK puk_store[MAX_PUK_STORE_ENTRIES];
 int puk_store_entries = 0;
+PUK *current_puk = NULL;
 
 void init_sc_hsm() {
     scan_all();
@@ -159,10 +160,12 @@ void init_sc_hsm() {
     isUserAuthenticated = false;
     cmd_select();
     const uint8_t *cvcerts[] = { cvca, dica, termca };
-    for (int i = 0, puk_store_entries = 0; i < sizeof(cvcerts)/sizeof(uint8_t *); i++, puk_store_entries++) {
+    memset(puk_store, 0, sizeof(puk_store));
+    puk_store_entries = 0;
+    for (int i = 0; i < sizeof(cvcerts)/sizeof(uint8_t *); i++, puk_store_entries++) {
         uint16_t cert_len = (cvcerts[i][1] << 8) | cvcerts[i][0];
         puk_store[i].chr = cvc_get_chr((uint8_t *)cvcerts[i]+2, cert_len, &puk_store[i].chr_len);
-        puk_store[i].car = cvc_get_chr((uint8_t *)cvcerts[i]+2, cert_len, &puk_store[i].car_len);
+        puk_store[i].car = cvc_get_car((uint8_t *)cvcerts[i]+2, cert_len, &puk_store[i].car_len);
         puk_store[i].puk = cvc_get_pub((uint8_t *)cvcerts[i]+2, cert_len, &puk_store[i].puk_len);
         puk_store[i].up = i-1;
         puk_store[i].cvcert = cvcerts[i]+2;
@@ -1967,8 +1970,10 @@ static int cmd_mse() {
                 }
                 else {
                     for (int i = 0; i < puk_store_entries; i++) {
-                        if (memcmp(puk_store[i].chr, tag_data, puk_store[i].chr_len) == 0)
+                        if (memcmp(puk_store[i].chr, tag_data, puk_store[i].chr_len) == 0) {
+                            current_puk = &puk_store[i];
                             return SW_OK();
+                        }
                     }
                     return SW_REFERENCE_NOT_FOUND();
                 }
@@ -2080,6 +2085,35 @@ int cmd_puk_auth() {
     return SW_OK();
 }
 
+int cmd_pso() {
+    uint8_t p1 = P1(apdu), p2 = P2(apdu);
+    if (p1 == 0x0 && (p2 == 0x92 || p2 == 0xAE || p2 == 0xBE)) { /* Verify certificate */
+        if (apdu.nc == 0)
+            return SW_WRONG_LENGTH();
+        if (current_puk == NULL)
+            return SW_REFERENCE_NOT_FOUND();
+        if (apdu.data[0] != 0x7F || apdu.data[1] != 0x21) {
+            uint8_t tlv_len = 2+format_tlv_len(apdu.nc, NULL);
+            memmove(apdu.data+tlv_len, apdu.data, apdu.nc);
+            memcpy(apdu.data, "\x7F\x21", 2);
+            format_tlv_len(apdu.nc, apdu.data+2);
+            apdu.nc += tlv_len;
+        }
+        int r = cvc_verify(apdu.data, apdu.nc, current_puk->cvcert, current_puk->cvcert_len);
+        if (r != CCID_OK) {
+            if (r == CCID_WRONG_DATA)
+                return SW_DATA_INVALID();
+            else if (r == CCID_WRONG_SIGNATURE)
+                return SW_CONDITIONS_NOT_SATISFIED();
+            return SW_EXEC_ERROR();
+        }
+        return SW_OK();
+    }
+    else
+        return SW_INCORRECT_P1P2();
+    return SW_OK();
+}
+
 typedef struct cmd
 {
   uint8_t ins;
@@ -2089,6 +2123,7 @@ typedef struct cmd
 #define INS_VERIFY                  0x20
 #define INS_MSE                     0x22
 #define INS_CHANGE_PIN              0x24
+#define INS_PSO                     0x2A
 #define INS_RESET_RETRY             0x2C
 #define INS_KEYPAIR_GEN             0x46
 #define INS_KEY_GEN                 0x48
@@ -2138,6 +2173,7 @@ static const cmd_t cmds[] = {
     { INS_GENERAL_AUTHENTICATE, cmd_general_authenticate },
     { INS_SESSION_PIN, cmd_session_pin },
     { INS_PUK_AUTH, cmd_puk_auth },
+    { INS_PSO, cmd_pso },
     { 0x00, 0x0}
 };
 
