@@ -35,6 +35,8 @@
 #include "eac.h"
 #include "cvc.h"
 #include "asn1.h"
+#include "oid.h"
+#include "mbedtls/oid.h"
 
 const uint8_t sc_hsm_aid[] = {
     11, 
@@ -160,6 +162,7 @@ void init_sc_hsm() {
         uint16_t cert_len = (cvcerts[i][1] << 8) | cvcerts[i][0];
         puk_store[i].chr = cvc_get_chr((uint8_t *)cvcerts[i]+2, cert_len, &puk_store[i].chr_len);
         puk_store[i].car = cvc_get_chr((uint8_t *)cvcerts[i]+2, cert_len, &puk_store[i].car_len);
+        puk_store[i].puk = cvc_get_pub((uint8_t *)cvcerts[i]+2, cert_len, &puk_store[i].puk_len);
         puk_store[i].up = i-1;
     }
 }
@@ -1001,7 +1004,7 @@ static int cmd_keypair_gen() {
             uint8_t *kdomd = NULL;
             if (asn1_find_tag(apdu.data, apdu.nc, 0x92, &kdom_size, &kdomd) && kdom_size > 0 && kdomd != NULL)
                 kdom = *kdomd;
-            if (memcmp(oid, "\x4\x0\x7F\x0\x7\x2\x2\x2\x1\x2",MIN(oid_len,10)) == 0) { //RSA
+            if (memcmp(oid, OID_ID_TA_RSA_V1_5_SHA_256, oid_len) == 0) { //RSA
                 size_t ex_len = 3, ks_len = 2;
                 uint8_t *ex = NULL, *ks = NULL;
                 uint32_t exponent = 65537, key_size = 2048;
@@ -1038,7 +1041,7 @@ static int cmd_keypair_gen() {
                 }
                 mbedtls_rsa_free(&rsa);            
             }
-            else if (memcmp(oid, "\x4\x0\x7F\x0\x7\x2\x2\x2\x2\x3",MIN(oid_len,10)) == 0) { //ECC
+            else if (memcmp(oid, OID_IT_TA_ECDSA_SHA_256,MIN(oid_len,10)) == 0) { //ECC
                 size_t prime_len;
                 uint8_t *prime = NULL;
                 if (asn1_find_tag(p, tout, 0x81, &prime_len, &prime) != true)
@@ -1424,15 +1427,15 @@ static int cmd_signature() {
                 asn1_find_tag(p, tout, 0x4, &hash_len, &hash);
             }
             if (oid && oid_len > 0) {
-                if (memcmp(oid, "\x2B\x0E\x03\x02\x1A", oid_len) == 0) 
+                if (memcmp(oid, MBEDTLS_OID_DIGEST_ALG_SHA1, oid_len) == 0) 
                     md = MBEDTLS_MD_SHA1;
-                else if (memcmp(oid, "\x60\x86\x48\x01\x65\x03\x04\x02\x04", oid_len) == 0) 
+                else if (memcmp(oid, MBEDTLS_OID_DIGEST_ALG_SHA224, oid_len) == 0) 
                     md = MBEDTLS_MD_SHA224;
-                else if (memcmp(oid, "\x60\x86\x48\x01\x65\x03\x04\x02\x01", oid_len) == 0) 
+                else if (memcmp(oid, MBEDTLS_OID_DIGEST_ALG_SHA256, oid_len) == 0) 
                     md = MBEDTLS_MD_SHA256;
-                else if (memcmp(oid, "\x60\x86\x48\x01\x65\x03\x04\x02\x02", oid_len) == 0) 
+                else if (memcmp(oid, MBEDTLS_OID_DIGEST_ALG_SHA384, oid_len) == 0) 
                     md = MBEDTLS_MD_SHA384;
-                else if (memcmp(oid, "\x60\x86\x48\x01\x65\x03\x04\x02\x03", oid_len) == 0) 
+                else if (memcmp(oid, MBEDTLS_OID_DIGEST_ALG_SHA512, oid_len) == 0) 
                     md = MBEDTLS_MD_SHA512;
             }
             if (p2 == ALGO_RSA_PSS || p2 == ALGO_RSA_PSS_SHA1 || p2 == ALGO_RSA_PSS_SHA256) {
@@ -1949,9 +1952,9 @@ static int cmd_mse() {
         while (walk_tlv(apdu.data, apdu.nc, &p, &tag, &tag_len, &tag_data)) {
             if (tag == 0x80) {
                 if (p2 == 0xA4) {
-                    if (tag_len == 10 && memcmp(tag_data, "\x04\x00\x7F\x00\x07\x02\x02\x03\x02\x02", tag_len) == 0)
+                    if (tag_len == 10 && memcmp(tag_data, OID_ID_CA_ECDH_AES_CBC_CMAC_128, tag_len) == 0)
                         sm_set_protocol(MSE_AES);
-                    else if (tag_len == 10 && memcmp(tag_data, "\x04\x00\x7F\x00\x07\x02\x02\x03\x02\x01", tag_len) == 0)
+                    else if (tag_len == 10 && memcmp(tag_data, OID_ID_CA_ECDH_3DES_CBC_CBC, tag_len) == 0)
                         sm_set_protocol(MSE_3DES);
                 }
             }
@@ -2021,9 +2024,9 @@ int cmd_general_authenticate() {
             uint8_t *t = (uint8_t *)calloc(1, pubkey_len+16);
             memcpy(t, "\x7F\x49\x3F\x06\x0A", 5);
             if (sm_get_protocol() == MSE_AES)
-                memcpy(t+5, "\x04\x00\x7F\x00\x07\x02\x02\x03\x02\x02", 10);
+                memcpy(t+5, OID_ID_CA_ECDH_AES_CBC_CMAC_128, 10);
             else if (sm_get_protocol() == MSE_3DES)
-                memcpy(t+5, "\x04\x00\x7F\x00\x07\x02\x02\x03\x02\x01", 10);
+                memcpy(t+5, OID_ID_CA_ECDH_3DES_CBC_CBC, 10);
             t[15] = 0x86;
             memcpy(t+16, pubkey, pubkey_len);
             
