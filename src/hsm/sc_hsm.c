@@ -150,7 +150,8 @@ void scan_all() {
     scan_files();
 }
 
-PUK_store puk_store[3];
+PUK_store puk_store[MAX_PUK_STORE_ENTRIES];
+int puk_store_entries = 0;
 
 void init_sc_hsm() {
     scan_all();
@@ -158,12 +159,14 @@ void init_sc_hsm() {
     isUserAuthenticated = false;
     cmd_select();
     const uint8_t *cvcerts[] = { cvca, dica, termca };
-    for (int i = 0; i < sizeof(cvcerts)/sizeof(uint8_t *); i++) {
+    for (int i = 0, puk_store_entries = 0; i < sizeof(cvcerts)/sizeof(uint8_t *); i++, puk_store_entries++) {
         uint16_t cert_len = (cvcerts[i][1] << 8) | cvcerts[i][0];
         puk_store[i].chr = cvc_get_chr((uint8_t *)cvcerts[i]+2, cert_len, &puk_store[i].chr_len);
         puk_store[i].car = cvc_get_chr((uint8_t *)cvcerts[i]+2, cert_len, &puk_store[i].car_len);
         puk_store[i].puk = cvc_get_pub((uint8_t *)cvcerts[i]+2, cert_len, &puk_store[i].puk_len);
         puk_store[i].up = i-1;
+        puk_store[i].cvcert = cvcerts[i]+2;
+        puk_store[i].cvcert_len = cert_len;
     }
 }
 
@@ -1963,7 +1966,7 @@ static int cmd_mse() {
                     
                 }
                 else {
-                    for (int i = 0; i < sizeof(puk_store)/sizeof(struct PUK_store); i++) {
+                    for (int i = 0; i < puk_store_entries; i++) {
                         if (memcmp(puk_store[i].chr, tag_data, puk_store[i].chr_len) == 0)
                             return SW_OK();
                     }
