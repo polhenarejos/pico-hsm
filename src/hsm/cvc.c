@@ -25,6 +25,8 @@
 #include "ccid2040.h"
 #include "crypto_utils.h"
 #include "random.h"
+#include "oid.h"
+#include "mbedtls/md.h"
 
 size_t asn1_cvc_public_key_rsa(mbedtls_rsa_context *rsa, uint8_t *buf, size_t buf_len) {
     const uint8_t oid_rsa[] = { 0x04, 0x00, 0x7F, 0x00, 0x07, 0x02, 0x02, 0x02, 0x01, 0x02 };
@@ -37,7 +39,7 @@ size_t asn1_cvc_public_key_rsa(mbedtls_rsa_context *rsa, uint8_t *buf, size_t bu
     if (buf_len < tot_len)
         return 0;
     uint8_t *p = buf;
-    memcpy(p, "\x7f\x49", 2); p += 2;
+    memcpy(p, "\x7F\x49", 2); p += 2;
     p += format_tlv_len(oid_len+ntot_size+etot_size, p);
     //oid
     *p++ = 0x6; p += format_tlv_len(sizeof(oid_rsa), p); memcpy(p, oid_rsa, sizeof(oid_rsa)); p += sizeof(oid_rsa);
@@ -74,7 +76,7 @@ size_t asn1_cvc_public_key_ecdsa(mbedtls_ecdsa_context *ecdsa, uint8_t *buf, siz
     if (buf_len < tot_len)
         return 0;
     uint8_t *p = buf;
-    memcpy(p, "\x7f\x49", 2); p += 2;
+    memcpy(p, "\x7F\x49", 2); p += 2;
     p += format_tlv_len(oid_len+ptot_size+atot_size+btot_size+gtot_size+otot_size+ytot_size+ctot_size, p);
     //oid
     *p++ = 0x6; p += format_tlv_len(sizeof(oid_ecdsa), p); memcpy(p, oid_ecdsa, sizeof(oid_ecdsa)); p += sizeof(oid_ecdsa);
@@ -135,7 +137,7 @@ size_t asn1_cvc_cert_body(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_
     if (buf_len < tot_len)
         return 0;
     uint8_t *p = buf;
-    memcpy(p, "\x7f\x4e", 2); p += 2;
+    memcpy(p, "\x7F\x4E", 2); p += 2;
     p += format_tlv_len(cpi_size+car_size+pubkey_size+chr_size, p);
     //cpi
     *p++ = 0x5f; *p++ = 0x29; *p++ = 1; *p++ = 0;
@@ -164,14 +166,14 @@ size_t asn1_cvc_cert(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf
     if (buf_len < tot_len)
         return 0;
     uint8_t *p = buf, *body = NULL;
-    memcpy(p, "\x7f\x21", 2); p += 2;
+    memcpy(p, "\x7F\x21", 2); p += 2;
     p += format_tlv_len(body_size+sig_size, p);
     body = p;
     p += asn1_cvc_cert_body(rsa_ecdsa, key_type, p, body_size);
     
     uint8_t hsh[32];
     hash256(body, body_size, hsh);
-    memcpy(p, "\x5f\x37", 2); p += 2;
+    memcpy(p, "\x5F\x37", 2); p += 2;
     p += format_tlv_len(key_size, p);
     if (key_type == HSM_KEY_RSA) {
         if (mbedtls_rsa_rsassa_pkcs1_v15_sign(rsa_ecdsa, random_gen, NULL, MBEDTLS_MD_SHA256, 32, hsh, p) != 0)
@@ -260,6 +262,16 @@ const uint8_t *cvc_get_body(const uint8_t *data, size_t len, size_t *olen) {
     return NULL;
 }
 
+const uint8_t *cvc_get_sig(const uint8_t *data, size_t len, size_t *olen) {
+    const uint8_t *bkdata = data;
+    if ((data = cvc_get_field(data, len, olen, 0x67)) == NULL) /* Check for CSR */
+        data = bkdata;
+    if ((data = cvc_get_field(data, len, olen, 0x7F21)) != NULL) {
+        return cvc_get_field(data, len, olen, 0x5F37);
+    }
+    return NULL;
+}
+
 const uint8_t *cvc_get_car(const uint8_t *data, size_t len, size_t *olen) {
     if ((data = cvc_get_body(data, len, olen)) != NULL) {
         return cvc_get_field(data, len, olen, 0x42);
@@ -282,50 +294,181 @@ const uint8_t *cvc_get_pub(const uint8_t *data, size_t len, size_t *olen) {
 }
 
 extern PUK_store puk_store[3];
+extern int puk_store_entries;
+
+int puk_store_index(const uint8_t *chr, size_t chr_len) {
+    for (int i = 0; i < puk_store_entries; i++) {
+        if (memcmp(puk_store[i].chr, chr, chr_len) == 0)
+            return i;
+    }
+    return -1;
+}
 
 int cvc_verify(const uint8_t *cert, size_t cert_len, const uint8_t *ca, size_t ca_len) {
     size_t puk_len = 0;
     const uint8_t *puk = cvc_get_pub(ca, ca_len, &puk_len);
     if (!puk)
         return CCID_WRONG_DATA;
-    const uint8_t *t81 = NULL;
-    size_t car_len = 0;
-    const uint8_t *car = cvc_get_car(ca, ca_len, &car_len);
-    if (!car)
-        return CCID_WRONG_DATA;
-    do {
-        size_t t81_len = 0;
-        t81 = cvc_get_field(puk, puk_len, &t81_len, 0x81);
-        if (!t81 && car) {
-            for (int i = 0; i < sizeof(puk_store)/sizeof(PUK_store); i++) {
-                if (memcmp(puk_store[i].chr, car, car_len) == 0) {
-                    puk = puk_store[i].puk;
-                    puk_len = puk_store[i].puk_len;
-                    if (memcmp(puk_store[i].car, puk_store[i].chr, puk_store[i].car_len) != 0) {
-                        car = puk_store[i].car;
-                        car_len = puk_store[i].car_len;
-                    }
-                    else
-                        car = NULL;
-                    break;
-                }
-            }
-        }
-    } while (t81 == NULL && car != NULL);
-    if (t81 == NULL)
-        return CCID_WRONG_DATA;
-    size_t oid_len = 0;
+    size_t oid_len = 0, cv_body_len = 0, sig_len = 0;
     const uint8_t *oid = cvc_get_field(puk, puk_len, &oid_len, 0x6);
+    const uint8_t *cv_body = cvc_get_body(ca, ca_len, &cv_body_len);
+    const uint8_t *sig = cvc_get_sig(ca, ca_len, &sig_len);
+    if (!sig)
+        return CCID_WRONG_DATA;
+    if (!cv_body)
+        return CCID_WRONG_DATA;
     if (!oid)
         return CCID_WRONG_DATA;
-    if (memcmp(oid, "\x4\x0\x7F\x0\x7\x2\x2\x2\x1\x2", oid_len) == 0) { //RSA
+    if (memcmp(oid, OID_ID_TA_RSA, 9) == 0) { //RSA
+        size_t t81_len = 0, t82_len = 0;
+        const uint8_t *t81 = cvc_get_field(puk, puk_len, &t81_len, 0x81), *t82 = cvc_get_field(puk, puk_len, &t81_len, 0x82);
+        if (!t81 || !t82)
+            return CCID_WRONG_DATA;
         mbedtls_rsa_context rsa;
         mbedtls_rsa_init(&rsa);
+        mbedtls_md_type_t md = MBEDTLS_MD_NONE;
+        if (memcmp(oid, OID_ID_TA_RSA_V1_5_SHA_1, oid_len) == 0) 
+            md = MBEDTLS_MD_SHA1;
+        else if (memcmp(oid, OID_ID_TA_RSA_V1_5_SHA_256, oid_len) == 0) 
+            md = MBEDTLS_MD_SHA256;
+        else if (memcmp(oid, OID_ID_TA_RSA_V1_5_SHA_512, oid_len) == 0) 
+            md = MBEDTLS_MD_SHA512;
+        else if (memcmp(oid, OID_ID_TA_RSA_PSS_SHA_1, oid_len) == 0) {
+            md = MBEDTLS_MD_SHA1;
+            mbedtls_rsa_set_padding(&rsa, MBEDTLS_RSA_PKCS_V21, md);
+        }
+        else if (memcmp(oid, OID_ID_TA_RSA_PSS_SHA_256, oid_len) == 0) {
+            md = MBEDTLS_MD_SHA256;
+            mbedtls_rsa_set_padding(&rsa, MBEDTLS_RSA_PKCS_V21, md);
+        }
+        else if (memcmp(oid, OID_ID_TA_RSA_PSS_SHA_512, oid_len) == 0) {
+            md = MBEDTLS_MD_SHA512;
+            mbedtls_rsa_set_padding(&rsa, MBEDTLS_RSA_PKCS_V21, md);
+        }
+        if (md == MBEDTLS_MD_NONE) {
+            mbedtls_rsa_free(&rsa);
+            return CCID_WRONG_DATA;
+        }
+        int r = mbedtls_mpi_read_binary(&rsa.N, t81, t81_len);
+        if (r != 0) {
+            mbedtls_rsa_free(&rsa);
+            return CCID_EXEC_ERROR;
+        }
+        r = mbedtls_mpi_read_binary(&rsa.E, t82, t82_len);
+        if (r != 0) {
+            mbedtls_rsa_free(&rsa);
+            return CCID_EXEC_ERROR;
+        }
+        r = mbedtls_rsa_complete(&rsa);
+        if (r != 0) {
+            mbedtls_rsa_free(&rsa);
+            return CCID_EXEC_ERROR;
+        }
+        r = mbedtls_rsa_check_pubkey(&rsa);
+        if (r != 0) {
+            mbedtls_rsa_free(&rsa);
+            return CCID_EXEC_ERROR;
+        }
+        const mbedtls_md_info_t *md_info = mbedtls_md_info_from_type(md);
+        uint8_t hash[64], hash_len = mbedtls_md_get_size(md_info);
+        uint8_t tlv_body = 2+format_tlv_len(cv_body_len, NULL);
+        r = mbedtls_md(md_info, cv_body-tlv_body, cv_body_len+tlv_body, hash);
+        if (r != 0) {
+            mbedtls_rsa_free(&rsa);
+            return CCID_EXEC_ERROR;
+        }
+        r = mbedtls_rsa_pkcs1_verify(&rsa, md, hash_len, hash, sig);
+        mbedtls_rsa_free(&rsa);
+        if (r != 0)
+            return CCID_WRONG_SIGNATURE;
     }
-    else if (memcmp(oid, "\x4\x0\x7F\x0\x7\x2\x2\x2\x2\x3", oid_len) == 0) { //ECC
+    else if (memcmp(oid, OID_ID_TA_ECDSA, 9) == 0) { //ECC
+        mbedtls_md_type_t md = MBEDTLS_MD_NONE;
+        if (memcmp(oid, OID_IT_TA_ECDSA_SHA_1, oid_len) == 0) 
+            md = MBEDTLS_MD_SHA1;
+        else if (memcmp(oid, OID_IT_TA_ECDSA_SHA_224, oid_len) == 0) 
+            md = MBEDTLS_MD_SHA224;
+        else if (memcmp(oid, OID_IT_TA_ECDSA_SHA_256, oid_len) == 0) 
+            md = MBEDTLS_MD_SHA256;
+        else if (memcmp(oid, OID_IT_TA_ECDSA_SHA_384, oid_len) == 0) 
+            md = MBEDTLS_MD_SHA384;
+        else if (memcmp(oid, OID_IT_TA_ECDSA_SHA_512, oid_len) == 0) 
+            md = MBEDTLS_MD_SHA512;
+        if (md == MBEDTLS_MD_NONE) 
+            return CCID_WRONG_DATA;
+        const mbedtls_md_info_t *md_info = mbedtls_md_info_from_type(md);
+        uint8_t hash[64], hash_len = mbedtls_md_get_size(md_info);
+        uint8_t tlv_body = 2+format_tlv_len(cv_body_len, NULL);
+        int ret = mbedtls_md(md_info, cv_body-tlv_body, cv_body_len+tlv_body, hash);
+        if (ret != 0)
+            return CCID_EXEC_ERROR;
+        
+        size_t chr_len = 0, car_len = 0, t86_len = 0;
+        const uint8_t *chr = NULL, *car = NULL, *t86 = cvc_get_field(puk, puk_len, &t86_len, 0x86);
+        if (!t86)
+            return CCID_WRONG_DATA;
+        int eq = -1;
+        do {
+            chr = cvc_get_chr(ca, ca_len, &chr_len);
+            car = cvc_get_car(ca, ca_len, &car_len);
+            eq = memcmp(car, chr, MAX(car_len, chr_len));
+            if (car && eq != 0) {
+                int idx = puk_store_index(car, car_len);
+                if (idx != -1) {
+                    ca = puk_store[idx].cvcert;
+                    ca_len = puk_store[idx].cvcert_len;
+                }
+                else
+                    ca = NULL;
+            }
+        } while (car && chr && eq != 0);
+        size_t ca_puk_len = 0;
+        const uint8_t *ca_puk = cvc_get_pub(ca, ca_len, &ca_puk_len);
+        if (!ca_puk)
+            return CCID_WRONG_DATA;
+        size_t t81_len = 0;
+        const uint8_t *t81 = cvc_get_field(ca_puk, ca_puk_len, &t81_len, 0x81);
+        if (!t81)
+            return CCID_WRONG_DATA;
+        
+        mbedtls_ecp_group_id ec_id = ec_get_curve_from_prime(t81, t81_len);
+        if (ec_id == MBEDTLS_ECP_DP_NONE)
+            return CCID_WRONG_DATA;
         mbedtls_ecdsa_context ecdsa;
         mbedtls_ecdsa_init(&ecdsa);
-        
+        ret = mbedtls_ecp_group_load(&ecdsa.grp, ec_id);
+        if (ret != 0) {
+            mbedtls_ecdsa_free(&ecdsa);
+            return CCID_WRONG_DATA;
+        }
+        ret = mbedtls_ecp_point_read_binary(&ecdsa.grp, &ecdsa.Q, t86, t86_len);
+        if (ret != 0) {
+            mbedtls_ecdsa_free(&ecdsa);
+            return CCID_EXEC_ERROR;
+        }
+        mbedtls_mpi r, s;
+        mbedtls_mpi_init(&r);
+        mbedtls_mpi_init(&s);
+        ret = mbedtls_mpi_read_binary(&r, sig, sig_len/2);
+        if (ret != 0) {
+            mbedtls_mpi_free(&r);
+            mbedtls_mpi_free(&s);
+            mbedtls_ecdsa_free(&ecdsa);
+            return CCID_EXEC_ERROR;
+        }
+        ret = mbedtls_mpi_read_binary(&s, sig+sig_len/2, sig_len/2);
+        if (ret != 0) {
+            mbedtls_mpi_free(&r);
+            mbedtls_mpi_free(&s);
+            mbedtls_ecdsa_free(&ecdsa);
+            return CCID_EXEC_ERROR;
+        }
+        ret = mbedtls_ecdsa_verify(&ecdsa.grp, hash, hash_len, &ecdsa.Q, &r, &s);
+        mbedtls_mpi_free(&r);
+        mbedtls_mpi_free(&s);
+        mbedtls_ecdsa_free(&ecdsa);
+        if (ret != 0)
+            return CCID_WRONG_SIGNATURE;
     }
     return CCID_OK;
 }
