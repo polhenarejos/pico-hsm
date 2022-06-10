@@ -157,6 +157,7 @@ void scan_all() {
 PUK puk_store[MAX_PUK_STORE_ENTRIES];
 int puk_store_entries = 0;
 PUK *current_puk = NULL;
+file_t *ef_puk_aut = NULL;
 
 int add_cert_puk_store(const uint8_t *data, size_t data_len, bool copy) {
     if (data == NULL || data_len == 0)
@@ -2018,10 +2019,27 @@ static int cmd_mse() {
                     
                 }
                 else {
-                    for (int i = 0; i < puk_store_entries; i++) {
-                        if (memcmp(puk_store[i].chr, tag_data, puk_store[i].chr_len) == 0) {
-                            current_puk = &puk_store[i];
-                            return SW_OK();
+                    if (p2 == 0xB6) {
+                        for (int i = 0; i < puk_store_entries; i++) {
+                            if (memcmp(puk_store[i].chr, tag_data, puk_store[i].chr_len) == 0) {
+                                current_puk = &puk_store[i];
+                                return SW_OK();
+                            }
+                        }
+                    }
+                    else if (p2 == 0xA4) { /* Aut */
+                        for (int i = 0; i < MAX_PUK; i++) {
+                            file_t *ef = search_dynamic_file(EF_PUK+p2);
+                            if (!ef)
+                                break;
+                            if (ef->data == NULL || file_get_size(ef) == 0)
+                                break;
+                            size_t chr_len = 0;
+                            const uint8_t *chr = cvc_get_chr(file_get_data(ef), file_get_size(ef), &chr_len);
+                            if (memcmp(chr, tag_data, chr_len) == 0) {
+                                ef_puk_aut = ef;
+                                return SW_OK();
+                            }
                         }
                     }
                     return SW_REFERENCE_NOT_FOUND();
@@ -2298,7 +2316,9 @@ int cmd_pso() {
 int cmd_external_authenticate() {
     if (P1(apdu) != 0x0 || P2(apdu) != 0x0)
         return SW_INCORRECT_P1P2();
-    uint8_t *input = (uint8_t *)calloc(dev_name_len+8)
+    uint8_t *input = (uint8_t *)calloc(dev_name_len+challenge_len, sizeof(uint8_t));
+    
+    free(input);
     return SW_OK();
 }
 
