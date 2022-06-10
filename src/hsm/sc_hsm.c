@@ -52,6 +52,8 @@ const uint8_t atr_sc_hsm[] = {
 
 uint8_t session_pin[32], session_sopin[32];
 bool has_session_pin = false, has_session_sopin = false;
+const uint8_t *dev_name = NULL;
+size_t dev_name_len = 0;
 
 static int sc_hsm_process_apdu();
 
@@ -201,6 +203,7 @@ void init_sc_hsm() {
         if (ef && file_get_size(ef) > 0)
             add_cert_puk_store(file_get_data(ef), file_get_size(ef), false);
     }
+    dev_name = cvc_get_chr(termca, (termca[1] << 8) | termca[0], &dev_name_len);
 }
 
 int sc_hsm_unload() {
@@ -657,11 +660,14 @@ static int cmd_reset_retry() {
     return SW_INCORRECT_P1P2();
 }
 
+static uint8_t challenge[256];
+
 static int cmd_challenge() {
     uint8_t *rb = (uint8_t *)random_bytes_get(apdu.ne);
     if (!rb)
         return SW_WRONG_LENGTH();
     memcpy(res_APDU, rb, apdu.ne);
+    memcpy(challenge, rb, MIN(apdu.ne, sizeof(challenge)));
     res_APDU_size = apdu.ne;
     return SW_OK();
 }
@@ -2272,7 +2278,6 @@ int cmd_pso() {
                     return SW_EXEC_ERROR();
                 uint8_t *buf = (uint8_t *)calloc(cd_len, sizeof(uint8_t));
                 int r = asn1_build_cert_description(chr, chr_len, puk_bin, puk_bin_len, fid, buf, cd_len);
-                DEBUG_PAYLOAD(buf,cd_len);
                 flash_write_data_to_file(cd_ef, buf, cd_len);
                 free(buf);
                 if (r == 0)
