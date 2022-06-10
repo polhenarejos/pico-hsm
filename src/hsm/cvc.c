@@ -379,19 +379,13 @@ mbedtls_ecp_group_id cvc_inherite_ec_group(const uint8_t *ca, size_t ca_len) {
     return ec_get_curve_from_prime(t81, t81_len);
 }
 
-int cvc_verify(const uint8_t *cert, size_t cert_len, const uint8_t *ca, size_t ca_len) {
+int puk_verify(const uint8_t *sig, size_t sig_len, const uint8_t *hash, size_t hash_len, const uint8_t *ca, size_t ca_len) {
     size_t puk_len = 0;
     const uint8_t *puk = cvc_get_pub(ca, ca_len, &puk_len);
     if (!puk)
         return CCID_WRONG_DATA;
-    size_t oid_len = 0, cv_body_len = 0, sig_len = 0;
+    size_t oid_len = 0;
     const uint8_t *oid = cvc_get_field(puk, puk_len, &oid_len, 0x6);
-    const uint8_t *cv_body = cvc_get_body(cert, cert_len, &cv_body_len);
-    const uint8_t *sig = cvc_get_sig(cert, cert_len, &sig_len);
-    if (!sig)
-        return CCID_WRONG_DATA;
-    if (!cv_body)
-        return CCID_WRONG_DATA;
     if (!oid)
         return CCID_WRONG_DATA;
     if (memcmp(oid, OID_ID_TA_RSA, 9) == 0) { //RSA
@@ -444,14 +438,6 @@ int cvc_verify(const uint8_t *cert, size_t cert_len, const uint8_t *ca, size_t c
             mbedtls_rsa_free(&rsa);
             return CCID_EXEC_ERROR;
         }
-        const mbedtls_md_info_t *md_info = mbedtls_md_info_from_type(md);
-        uint8_t hash[64], hash_len = mbedtls_md_get_size(md_info);
-        uint8_t tlv_body = 2+format_tlv_len(cv_body_len, NULL);
-        r = mbedtls_md(md_info, cv_body-tlv_body, cv_body_len+tlv_body, hash);
-        if (r != 0) {
-            mbedtls_rsa_free(&rsa);
-            return CCID_EXEC_ERROR;
-        }
         r = mbedtls_rsa_pkcs1_verify(&rsa, md, hash_len, hash, sig);
         mbedtls_rsa_free(&rsa);
         if (r != 0)
@@ -471,12 +457,6 @@ int cvc_verify(const uint8_t *cert, size_t cert_len, const uint8_t *ca, size_t c
             md = MBEDTLS_MD_SHA512;
         if (md == MBEDTLS_MD_NONE) 
             return CCID_WRONG_DATA;
-        const mbedtls_md_info_t *md_info = mbedtls_md_info_from_type(md);
-        uint8_t hash[64], hash_len = mbedtls_md_get_size(md_info);
-        uint8_t tlv_body = 2+format_tlv_len(cv_body_len, NULL);
-        int ret = mbedtls_md(md_info, cv_body-tlv_body, cv_body_len+tlv_body, hash);
-        if (ret != 0)
-            return CCID_EXEC_ERROR;
         
         size_t t86_len = 0;
         const uint8_t *t86 = cvc_get_field(puk, puk_len, &t86_len, 0x86);
@@ -487,7 +467,7 @@ int cvc_verify(const uint8_t *cert, size_t cert_len, const uint8_t *ca, size_t c
             return CCID_WRONG_DATA;
         mbedtls_ecdsa_context ecdsa;
         mbedtls_ecdsa_init(&ecdsa);
-        ret = mbedtls_ecp_group_load(&ecdsa.grp, ec_id);
+        int ret = mbedtls_ecp_group_load(&ecdsa.grp, ec_id);
         if (ret != 0) {
             mbedtls_ecdsa_free(&ecdsa);
             return CCID_WRONG_DATA;
@@ -526,5 +506,61 @@ int cvc_verify(const uint8_t *cert, size_t cert_len, const uint8_t *ca, size_t c
         if (ret != 0)
             return CCID_WRONG_SIGNATURE;
     }
+    return CCID_OK;
+}
+
+int cvc_verify(const uint8_t *cert, size_t cert_len, const uint8_t *ca, size_t ca_len) {
+    size_t puk_len = 0;
+    const uint8_t *puk = cvc_get_pub(ca, ca_len, &puk_len);
+    if (!puk)
+        return CCID_WRONG_DATA;
+    size_t oid_len = 0, cv_body_len = 0, sig_len = 0;
+    const uint8_t *oid = cvc_get_field(puk, puk_len, &oid_len, 0x6);
+    const uint8_t *cv_body = cvc_get_body(cert, cert_len, &cv_body_len);
+    const uint8_t *sig = cvc_get_sig(cert, cert_len, &sig_len);
+    if (!sig)
+        return CCID_WRONG_DATA;
+    if (!cv_body)
+        return CCID_WRONG_DATA;
+    if (!oid)
+        return CCID_WRONG_DATA;
+    mbedtls_md_type_t md = MBEDTLS_MD_NONE;
+    if (memcmp(oid, OID_ID_TA_RSA, 9) == 0) { //RSA
+        if (memcmp(oid, OID_ID_TA_RSA_V1_5_SHA_1, oid_len) == 0) 
+            md = MBEDTLS_MD_SHA1;
+        else if (memcmp(oid, OID_ID_TA_RSA_V1_5_SHA_256, oid_len) == 0) 
+            md = MBEDTLS_MD_SHA256;
+        else if (memcmp(oid, OID_ID_TA_RSA_V1_5_SHA_512, oid_len) == 0) 
+            md = MBEDTLS_MD_SHA512;
+        else if (memcmp(oid, OID_ID_TA_RSA_PSS_SHA_1, oid_len) == 0)
+            md = MBEDTLS_MD_SHA1;
+        else if (memcmp(oid, OID_ID_TA_RSA_PSS_SHA_256, oid_len) == 0)
+            md = MBEDTLS_MD_SHA256;
+        else if (memcmp(oid, OID_ID_TA_RSA_PSS_SHA_512, oid_len) == 0)
+            md = MBEDTLS_MD_SHA512;
+    }
+    else if (memcmp(oid, OID_ID_TA_ECDSA, 9) == 0) { //ECC
+        if (memcmp(oid, OID_IT_TA_ECDSA_SHA_1, oid_len) == 0) 
+            md = MBEDTLS_MD_SHA1;
+        else if (memcmp(oid, OID_IT_TA_ECDSA_SHA_224, oid_len) == 0) 
+            md = MBEDTLS_MD_SHA224;
+        else if (memcmp(oid, OID_IT_TA_ECDSA_SHA_256, oid_len) == 0) 
+            md = MBEDTLS_MD_SHA256;
+        else if (memcmp(oid, OID_IT_TA_ECDSA_SHA_384, oid_len) == 0) 
+            md = MBEDTLS_MD_SHA384;
+        else if (memcmp(oid, OID_IT_TA_ECDSA_SHA_512, oid_len) == 0) 
+            md = MBEDTLS_MD_SHA512;
+    }
+    if (md == MBEDTLS_MD_NONE) 
+        return CCID_WRONG_DATA;
+    const mbedtls_md_info_t *md_info = mbedtls_md_info_from_type(md);
+    uint8_t hash[64], hash_len = mbedtls_md_get_size(md_info);
+    uint8_t tlv_body = 2+format_tlv_len(cv_body_len, NULL);
+    int r = mbedtls_md(md_info, cv_body-tlv_body, cv_body_len+tlv_body, hash);
+    if (r != 0)
+        return CCID_EXEC_ERROR;
+    r = puk_verify(sig, sig_len, hash, hash_len, ca, ca_len);
+    if (r != 0)
+        return CCID_WRONG_SIGNATURE;
     return CCID_OK;
 }
