@@ -38,6 +38,8 @@
 #include "oid.h"
 #include "mbedtls/oid.h"
 
+#define MAX_PUK 8
+
 const uint8_t sc_hsm_aid[] = {
     11, 
     0xE8,0x2B,0x06,0x01,0x04,0x01,0x81,0xC3,0x1F,0x02,0x01
@@ -154,22 +156,45 @@ PUK puk_store[MAX_PUK_STORE_ENTRIES];
 int puk_store_entries = 0;
 PUK *current_puk = NULL;
 
+int add_cert_puk_store(const uint8_t *data, size_t data_len, bool copy) {
+    if (data == NULL || data_len == 0)
+        return CCID_ERR_NULL_PARAM;
+    if (puk_store_entries == MAX_PUK_STORE_ENTRIES)
+        return CCID_ERR_MEMORY_FATAL;
+    
+    puk_store[puk_store_entries].copied = copy;
+    if (copy == true) {
+        uint8_t *tmp = (uint8_t *)calloc(data_len, sizeof(uint8_t));
+        memcpy(tmp, data, data_len);
+        puk_store[puk_store_entries].cvcert = tmp;
+    }
+    else
+        puk_store[puk_store_entries].cvcert = data;
+    puk_store[puk_store_entries].cvcert_len = data_len;
+    puk_store[puk_store_entries].chr = cvc_get_chr(puk_store[puk_store_entries].cvcert, data_len, &puk_store[puk_store_entries].chr_len);
+    puk_store[puk_store_entries].car = cvc_get_car(puk_store[puk_store_entries].cvcert, data_len, &puk_store[puk_store_entries].car_len);
+    puk_store[puk_store_entries].puk = cvc_get_pub(puk_store[puk_store_entries].cvcert, data_len, &puk_store[puk_store_entries].puk_len);
+    
+    puk_store_entries++;
+    return CCID_OK;
+}
+
 void init_sc_hsm() {
     scan_all();
     has_session_pin = has_session_sopin = false;
     isUserAuthenticated = false;
     cmd_select();
     const uint8_t *cvcerts[] = { cvca, dica, termca };
+    if (puk_store_entries > 0) { /* From previous session */
+        for (int i = 0; i < puk_store_entries; i++) {
+            if (puk_store[i].copied == true)
+                free((uint8_t *)puk_store[i].cvcert);
+        }
+    }
     memset(puk_store, 0, sizeof(puk_store));
     puk_store_entries = 0;
-    for (int i = 0; i < sizeof(cvcerts)/sizeof(uint8_t *); i++, puk_store_entries++) {
-        uint16_t cert_len = (cvcerts[i][1] << 8) | cvcerts[i][0];
-        puk_store[i].chr = cvc_get_chr((uint8_t *)cvcerts[i]+2, cert_len, &puk_store[i].chr_len);
-        puk_store[i].car = cvc_get_car((uint8_t *)cvcerts[i]+2, cert_len, &puk_store[i].car_len);
-        puk_store[i].puk = cvc_get_pub((uint8_t *)cvcerts[i]+2, cert_len, &puk_store[i].puk_len);
-        puk_store[i].up = i-1;
-        puk_store[i].cvcert = cvcerts[i]+2;
-        puk_store[i].cvcert_len = cert_len;
+    for (int i = 0; i < sizeof(cvcerts)/sizeof(uint8_t *); i++) {
+        add_cert_puk_store(cvcerts[i]+2, (cvcerts[i][1] << 8) | cvcerts[i][0], false);
     }
 }
 
@@ -201,7 +226,7 @@ void select_file(file_t *pe) {
 
 uint16_t get_device_options() {
     file_t *ef = search_by_fid(EF_DEVOPS, NULL, SPECIFY_EF);
-    if (ef && ef->data)
+    if (ef && ef->data && file_get_size(ef))
         return (file_read_uint8(file_get_data(ef)) << 8) | file_read_uint8(file_get_data(ef)+1);
     return 0x0;
 }
@@ -280,7 +305,7 @@ static int cmd_select() {
                 return SW_FILE_NOT_FOUND();
             }
             if (card_terminated) {
-                return set_res_sw (0x62, 0x85);
+                return set_res_sw(0x62, 0x85);
             }        
         }
         else if (p1 == 0x08) { //Select from the MF - Path without the MF identifier
@@ -694,8 +719,18 @@ static int cmd_initialize() {
                 file_t *ef_puk = search_by_fid(EF_PUKAUT, NULL, SPECIFY_EF);
                 if (!ef_puk)
                     return SW_MEMORY_FAILURE();
-                uint8_t pk_status[4] = { tag_data[0], tag_data[0], tag_data[1], 0 };
-                flash_write_data_to_file(ef_puk, pk_status, sizeof(pk_status));    
+                uint8_t pk_status[4+MAX_PUK], puks = MIN(tag_data[0],MAX_PUK);
+                memset(pk_status, 0, sizeof(pk_status));
+                pk_status[0] = puks;
+                pk_status[1] = puks;
+                pk_status[2] = tag_data[1];
+                flash_write_data_to_file(ef_puk, pk_status, 4+puks);
+                for (int i = 0; i < puks; i++) {
+                    file_t *tf = file_new(EF_PUK+i);
+                    if (!tf)
+                        return SW_MEMORY_FAILURE();
+                    flash_write_data_to_file(tf, NULL, 0);
+                }
             }
             else if (tag == 0x97) {
                 kds = tag_data;
@@ -1385,7 +1420,7 @@ static int cmd_signature() {
     file_t *fkey;
     if (!isUserAuthenticated)
         return SW_SECURITY_STATUS_NOT_SATISFIED();
-    if (!(fkey = search_dynamic_file((KEY_PREFIX << 8) | key_id)) || !fkey->data) 
+    if (!(fkey = search_dynamic_file((KEY_PREFIX << 8) | key_id)) || !fkey->data || file_get_size(fkey) == 0) 
         return SW_FILE_NOT_FOUND();
     if (get_key_counter(fkey) == 0)
         return SW_FILE_FULL();
@@ -1836,7 +1871,7 @@ static int cmd_derive_asym() {
     file_t *fkey;
     if (!isUserAuthenticated)
         return SW_SECURITY_STATUS_NOT_SATISFIED();
-    if (!(fkey = search_dynamic_file((KEY_PREFIX << 8) | key_id)) || !fkey->data) 
+    if (!(fkey = search_dynamic_file((KEY_PREFIX << 8) | key_id)) || !fkey->data || file_get_size(fkey) == 0) 
         return SW_FILE_NOT_FOUND();
 
     if (apdu.nc == 0)
@@ -2073,15 +2108,63 @@ int cmd_session_pin() {
 }
 
 int cmd_puk_auth() {
+    uint8_t p1 = P1(apdu), p2 = P2(apdu);
     file_t *ef_puk = search_by_fid(EF_PUKAUT, NULL, SPECIFY_EF);
-    if (!ef_puk || !ef_puk->data)
+    if (!ef_puk || !ef_puk->data || file_get_size(ef_puk) == 0)
         return SW_FILE_NOT_FOUND();
-    if (P1(apdu) == 0x0 && P2(apdu) == 0x0) {
-        memcpy(res_APDU, file_get_data(ef_puk), 4);
+    uint8_t *puk_data = file_get_data(ef_puk);
+    if (apdu.nc > 0) {
+        if (p1 == 0x0 || p1 == 0x1) {
+            file_t *ef = NULL;
+            if (p1 == 0x0) { /* Add */
+                if (p2 != 0x0)
+                    return SW_INCORRECT_P1P2();
+                for (int i = 0; i < puk_data[0]; i++) {
+                    ef = search_dynamic_file(EF_PUK+i);
+                    if (!ef) /* Never should not happen */
+                        return SW_MEMORY_FAILURE();
+                    if (ef->data == NULL || file_get_size(ef) == 0) /* found first empty slot */
+                        break;
+                }
+                uint8_t *tmp = (uint8_t *)calloc(4, sizeof(uint8_t));
+                memcpy(tmp, puk_data, 4);
+                tmp[1] = tmp[1]-1;
+                flash_write_data_to_file(ef, apdu.data, apdu.nc);
+                free(tmp);
+            }
+            else if (p1 == 0x1) { /* Replace */
+                if (p2 >= puk_data[0])
+                    return SW_INCORRECT_P1P2();
+                ef = search_dynamic_file(EF_PUK+p2);
+                if (!ef) /* Never should not happen */
+                    return SW_MEMORY_FAILURE();
+            }
+            flash_write_data_to_file(ef, apdu.data, apdu.nc);
+            low_flash_available();
+        }
+        else
+            return SW_INCORRECT_P1P2();
+    }
+    if (p1 == 0x2) {
+        if (p2 >= puk_data[0])
+            return SW_INCORRECT_P1P2();
+        file_t *ef = search_dynamic_file(EF_PUK+p2);
+        if (!ef)
+            return SW_INCORRECT_P1P2();
+        if (ef->data == NULL || file_get_size(ef) == 0)
+            return SW_REFERENCE_NOT_FOUND();
+        size_t chr_len = 0;
+        const uint8_t *chr = cvc_get_chr(file_get_data(ef), file_get_size(ef), &chr_len);
+        if (chr) {
+            memcpy(res_APDU, chr, chr_len);
+            res_APDU_size = chr_len;
+        }
+        return set_res_sw(0x90, puk_data[4+p2]);
+    }
+    else {
+        memcpy(res_APDU, puk_data, 4);
         res_APDU_size = 4;
     }
-    else
-        return SW_INCORRECT_P1P2();
     return SW_OK();
 }
 
@@ -2107,6 +2190,8 @@ int cmd_pso() {
                 return SW_CONDITIONS_NOT_SATISFIED();
             return SW_EXEC_ERROR();
         }
+        if (add_cert_puk_store(apdu.data, apdu.nc, true) != CCID_OK)
+            return SW_FILE_FULL();
         return SW_OK();
     }
     else
