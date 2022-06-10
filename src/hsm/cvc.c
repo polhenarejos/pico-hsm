@@ -15,8 +15,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "cvc.h"
 #include "common.h"
+#include "cvc.h"
 #include "mbedtls/rsa.h"
 #include "mbedtls/ecdsa.h"
 #include "cvcerts.h"
@@ -305,6 +305,36 @@ int puk_store_index(const uint8_t *chr, size_t chr_len) {
     return -1;
 }
 
+mbedtls_ecp_group_id cvc_inherite_ec_group(const uint8_t *ca, size_t ca_len) {
+    size_t chr_len = 0, car_len = 0;
+    const uint8_t *chr = NULL, *car = NULL;
+    int eq = -1;
+    do {
+        chr = cvc_get_chr(ca, ca_len, &chr_len);
+        car = cvc_get_car(ca, ca_len, &car_len);
+        eq = memcmp(car, chr, MAX(car_len, chr_len));
+        if (car && eq != 0) {
+            int idx = puk_store_index(car, car_len);
+            if (idx != -1) {
+                ca = puk_store[idx].cvcert;
+                ca_len = puk_store[idx].cvcert_len;
+            }
+            else
+                ca = NULL;
+        }
+    } while (car && chr && eq != 0);
+    size_t ca_puk_len = 0;
+    const uint8_t *ca_puk = cvc_get_pub(ca, ca_len, &ca_puk_len);
+    if (!ca_puk)
+        return MBEDTLS_ECP_DP_NONE;
+    size_t t81_len = 0;
+    const uint8_t *t81 = cvc_get_field(ca_puk, ca_puk_len, &t81_len, 0x81);
+    if (!t81)
+        return MBEDTLS_ECP_DP_NONE;
+    
+    return ec_get_curve_from_prime(t81, t81_len);
+}
+
 int cvc_verify(const uint8_t *cert, size_t cert_len, const uint8_t *ca, size_t ca_len) {
     size_t puk_len = 0;
     const uint8_t *puk = cvc_get_pub(ca, ca_len, &puk_len);
@@ -404,35 +434,11 @@ int cvc_verify(const uint8_t *cert, size_t cert_len, const uint8_t *ca, size_t c
         if (ret != 0)
             return CCID_EXEC_ERROR;
         
-        size_t chr_len = 0, car_len = 0, t86_len = 0;
-        const uint8_t *chr = NULL, *car = NULL, *t86 = cvc_get_field(puk, puk_len, &t86_len, 0x86);
+        size_t t86_len = 0;
+        const uint8_t *t86 = cvc_get_field(puk, puk_len, &t86_len, 0x86);
         if (!t86)
             return CCID_WRONG_DATA;
-        int eq = -1;
-        do {
-            chr = cvc_get_chr(ca, ca_len, &chr_len);
-            car = cvc_get_car(ca, ca_len, &car_len);
-            eq = memcmp(car, chr, MAX(car_len, chr_len));
-            if (car && eq != 0) {
-                int idx = puk_store_index(car, car_len);
-                if (idx != -1) {
-                    ca = puk_store[idx].cvcert;
-                    ca_len = puk_store[idx].cvcert_len;
-                }
-                else
-                    ca = NULL;
-            }
-        } while (car && chr && eq != 0);
-        size_t ca_puk_len = 0;
-        const uint8_t *ca_puk = cvc_get_pub(ca, ca_len, &ca_puk_len);
-        if (!ca_puk)
-            return CCID_WRONG_DATA;
-        size_t t81_len = 0;
-        const uint8_t *t81 = cvc_get_field(ca_puk, ca_puk_len, &t81_len, 0x81);
-        if (!t81)
-            return CCID_WRONG_DATA;
-        
-        mbedtls_ecp_group_id ec_id = ec_get_curve_from_prime(t81, t81_len);
+        mbedtls_ecp_group_id ec_id = cvc_inherite_ec_group(ca, ca_len);
         if (ec_id == MBEDTLS_ECP_DP_NONE)
             return CCID_WRONG_DATA;
         mbedtls_ecdsa_context ecdsa;
