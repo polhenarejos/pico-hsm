@@ -30,7 +30,7 @@ typedef struct PUK {
     size_t chr_len;
     const uint8_t *cvcert;
     size_t cvcert_len;
-    uint8_t up;
+    bool copied;
 } PUK;
 
 #define MAX_PUK_STORE_ENTRIES 4
