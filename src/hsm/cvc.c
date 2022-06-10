@@ -244,6 +244,50 @@ size_t asn1_cvc_aut(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf_
     return p-buf;
 }
 
+size_t asn1_build_cert_description(const uint8_t *label, size_t label_len, const uint8_t *puk, size_t puk_len, uint16_t fid, uint8_t *buf, size_t buf_len) {
+    size_t opt_len = 2;
+    size_t seq1_size = asn1_len_tag(0x30, asn1_len_tag(0xC, label_len)+asn1_len_tag(0x3, opt_len));
+    size_t seq2_size = asn1_len_tag(0x30, asn1_len_tag(0x4, 20)); /* SHA1 is 20 bytes length */
+    size_t seq3_size = asn1_len_tag(0xA1, asn1_len_tag(0x30, asn1_len_tag(0x30, asn1_len_tag(0x4, sizeof(uint16_t)))));
+    size_t tot_len = asn1_len_tag(0x30, seq1_size+seq2_size+seq3_size);
+    if (buf_len == 0 || buf == NULL)
+        return tot_len;
+    if (buf_len < tot_len)
+        return 0;
+    uint8_t *p = buf;
+    *p++ = 0x30;
+    p += format_tlv_len(seq1_size+seq2_size+seq3_size, p);
+    //Seq 1
+    *p++ = 0x30;
+    p += format_tlv_len(asn1_len_tag(0xC, label_len)+asn1_len_tag(0x3, opt_len), p);
+    *p++ = 0xC;
+    p += format_tlv_len(label_len, p);
+    memcpy(p, label, label_len); p += label_len;
+    *p++ = 0x3;
+    p += format_tlv_len(opt_len, p);
+    memcpy(p, "\x06\x40", 2); p += 2;
+    
+    //Seq 2
+    *p++ = 0x30;
+    p += format_tlv_len(asn1_len_tag(0x4, 20), p);
+    *p++ = 0x4;
+    p += format_tlv_len(20, p);
+    mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA1), puk, puk_len, p);  p += 20;
+    
+    //Seq 3
+    *p++ = 0xA1;
+    p += format_tlv_len(asn1_len_tag(0x30, asn1_len_tag(0x30, asn1_len_tag(0x4, sizeof(uint16_t)))), p);
+    *p++ = 0x30;
+    p += format_tlv_len(asn1_len_tag(0x30, asn1_len_tag(0x4, sizeof(uint16_t))), p);
+    *p++ = 0x30;
+    p += format_tlv_len(asn1_len_tag(0x4, sizeof(uint16_t)), p);
+    *p++ = 0x4;
+    p += format_tlv_len(sizeof(uint16_t), p);
+    *p++ = fid >> 8;
+    *p++ = fid & 0xff;
+    return p-buf;
+}
+
 const uint8_t *cvc_get_field(const uint8_t *data, size_t len, size_t *olen, uint16_t tag) {
     uint8_t *rdata = NULL;
     if (data == NULL || len == 0)

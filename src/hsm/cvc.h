@@ -38,6 +38,7 @@ typedef struct PUK {
 
 extern size_t asn1_cvc_cert(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf_len);
 extern size_t asn1_cvc_aut(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf_len);
+extern size_t asn1_build_cert_description(const uint8_t *label, size_t label_len, const uint8_t *puk, size_t puk_len, uint16_t fid, uint8_t *buf, size_t buf_len);
 extern const uint8_t *cvc_get_field(const uint8_t *data, size_t len, size_t *olen, uint16_t tag);
 extern const uint8_t *cvc_get_car(const uint8_t *data, size_t len, size_t *olen);
 extern const uint8_t *cvc_get_chr(const uint8_t *data, size_t len, size_t *olen);
