@@ -2204,6 +2204,78 @@ int cmd_pso() {
                 flash_write_data_to_file(ca_ef, apdu.data, apdu.nc);
                 if (add_cert_puk_store(file_get_data(ca_ef), file_get_size(ca_ef), false) != CCID_OK)
                     return SW_FILE_FULL();
+                
+                size_t chr_len = 0;
+                const uint8_t *chr = cvc_get_chr(apdu.data, apdu.nc, &chr_len);
+                if (chr == NULL)
+                    return SW_WRONG_DATA();
+                size_t puk_len = 0, puk_bin_len = 0;
+                const uint8_t *puk = cvc_get_pub(apdu.data, apdu.nc, &puk_len), *puk_bin = NULL;
+                if (puk == NULL)
+                    return SW_WRONG_DATA();
+                size_t oid_len = 0;
+                const uint8_t *oid = cvc_get_field(puk, puk_len, &oid_len, 0x6);
+                if (oid == NULL)
+                    return SW_WRONG_DATA();
+                if (memcmp(oid, OID_ID_TA_RSA, 9) == 0) { //RSA
+                    puk_bin = cvc_get_field(puk, puk_len, &puk_bin_len, 0x81);
+                    if (!puk_bin)
+                        return SW_WRONG_DATA();
+                }
+                else if (memcmp(oid, OID_ID_TA_ECDSA, 9) == 0) { //ECC
+                    mbedtls_ecp_group_id ec_id = cvc_inherite_ec_group(apdu.data, apdu.nc);
+                    mbedtls_ecp_group grp;
+                    mbedtls_ecp_group_init(&grp);
+                    if (mbedtls_ecp_group_load(&grp, ec_id) != 0) {
+                        mbedtls_ecp_group_free(&grp);
+                        return SW_WRONG_DATA();
+                    }
+                    size_t plen = mbedtls_mpi_size(&grp.P);
+                    size_t t86_len = 0;
+                    const uint8_t *t86 = cvc_get_field(puk, puk_len, &t86_len, 0x86);
+                    if (mbedtls_ecp_get_type(&grp) == MBEDTLS_ECP_TYPE_MONTGOMERY) {
+                        if (plen != t86_len) {
+                            mbedtls_ecp_group_free(&grp);
+                            return SW_WRONG_DATA();
+                        }
+                        puk_bin = t86;
+                        puk_bin_len = t86_len;
+                    }
+                    else if (mbedtls_ecp_get_type(&grp) == MBEDTLS_ECP_TYPE_SHORT_WEIERSTRASS) {
+                        if (t86[0] == 0x2 || t86[0] == 0x3) {
+                            if (t86_len != plen+1) {
+                                mbedtls_ecp_group_free(&grp);
+                                return SW_WRONG_DATA();
+                            }
+                        }
+                        else if (t86[0] == 0x4) {
+                            if (t86_len != 2*plen+1) {
+                                mbedtls_ecp_group_free(&grp);
+                                return SW_WRONG_DATA();
+                            }
+                        }
+                        else {
+                            mbedtls_ecp_group_free(&grp);
+                            return SW_WRONG_DATA();
+                        }
+                        puk_bin = t86+1;
+                        puk_bin_len = plen;
+                    }
+                    mbedtls_ecp_group_free(&grp);
+                    if (!puk_bin)
+                        return SW_WRONG_DATA();
+                }
+                file_t *cd_ef = file_new((CD_PREFIX << 8) | i);
+                size_t cd_len = asn1_build_cert_description(chr, chr_len, puk_bin, puk_bin_len, fid, NULL, 0);
+                if (cd_len == 0)
+                    return SW_EXEC_ERROR();
+                uint8_t *buf = (uint8_t *)calloc(cd_len, sizeof(uint8_t));
+                int r = asn1_build_cert_description(chr, chr_len, puk_bin, puk_bin_len, fid, buf, cd_len);
+                DEBUG_PAYLOAD(buf,cd_len);
+                flash_write_data_to_file(cd_ef, buf, cd_len);
+                free(buf);
+                if (r == 0)
+                    return SW_EXEC_ERROR();
                 low_flash_available();
                 break;
             }
