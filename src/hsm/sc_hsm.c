@@ -661,13 +661,15 @@ static int cmd_reset_retry() {
 }
 
 static uint8_t challenge[256];
+static uint8_t challenge_len = 0;
 
 static int cmd_challenge() {
     uint8_t *rb = (uint8_t *)random_bytes_get(apdu.ne);
     if (!rb)
         return SW_WRONG_LENGTH();
     memcpy(res_APDU, rb, apdu.ne);
-    memcpy(challenge, rb, MIN(apdu.ne, sizeof(challenge)));
+    challenge_len = MIN(apdu.ne, sizeof(challenge));
+    memcpy(challenge, rb, challenge_len);
     res_APDU_size = apdu.ne;
     return SW_OK();
 }
@@ -2293,6 +2295,13 @@ int cmd_pso() {
     return SW_OK();
 }
 
+int cmd_external_authenticate() {
+    if (P1(apdu) != 0x0 || P2(apdu) != 0x0)
+        return SW_INCORRECT_P1P2();
+    uint8_t *input = (uint8_t *)calloc(dev_name_len+8)
+    return SW_OK();
+}
+
 typedef struct cmd
 {
   uint8_t ins;
@@ -2318,6 +2327,7 @@ typedef struct cmd
 #define INS_UNWRAP                  0x74
 #define INS_DERIVE_ASYM             0x76
 #define INS_CIPHER_SYM              0x78
+#define INS_EXTERNAL_AUTHENTICATE   0x82
 #define INS_CHALLENGE               0x84
 #define INS_GENERAL_AUTHENTICATE    0x86
 #define INS_SELECT_FILE				0xA4
@@ -2353,6 +2363,7 @@ static const cmd_t cmds[] = {
     { INS_SESSION_PIN, cmd_session_pin },
     { INS_PUK_AUTH, cmd_puk_auth },
     { INS_PSO, cmd_pso },
+    { INS_EXTERNAL_AUTHENTICATE, cmd_external_authenticate },
     { 0x00, 0x0}
 };
 
