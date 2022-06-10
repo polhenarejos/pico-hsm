@@ -25,6 +25,7 @@
 #define EF_DKEK         0x1090
 #define EF_KEY_DOMAIN   0x10A0
 #define EF_PUKAUT       0x10C0
+#define EF_PUK          0X10D0
 #define EF_PRKDFS       0x6040
 #define EF_PUKDFS       0x6041
 #define EF_CDFS         0x6042
