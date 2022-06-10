@@ -184,7 +184,6 @@ void init_sc_hsm() {
     has_session_pin = has_session_sopin = false;
     isUserAuthenticated = false;
     cmd_select();
-    const uint8_t *cvcerts[] = { cvca, dica, termca };
     if (puk_store_entries > 0) { /* From previous session */
         for (int i = 0; i < puk_store_entries; i++) {
             if (puk_store[i].copied == true)
@@ -193,8 +192,14 @@ void init_sc_hsm() {
     }
     memset(puk_store, 0, sizeof(puk_store));
     puk_store_entries = 0;
+    const uint8_t *cvcerts[] = { cvca, dica, termca };
     for (int i = 0; i < sizeof(cvcerts)/sizeof(uint8_t *); i++) {
         add_cert_puk_store(cvcerts[i]+2, (cvcerts[i][1] << 8) | cvcerts[i][0], false);
+    }
+    for (int i = 0; i < 0xfe; i++) {
+        file_t *ef = search_dynamic_file((CA_CERTIFICATE_PREFIX << 8) | i);
+        if (ef && file_get_size(ef) > 0)
+            add_cert_puk_store(file_get_data(ef), file_get_size(ef), false);
     }
 }
 
@@ -2126,10 +2131,11 @@ int cmd_puk_auth() {
                     if (ef->data == NULL || file_get_size(ef) == 0) /* found first empty slot */
                         break;
                 }
-                uint8_t *tmp = (uint8_t *)calloc(4, sizeof(uint8_t));
-                memcpy(tmp, puk_data, 4);
-                tmp[1] = tmp[1]-1;
-                flash_write_data_to_file(ef, apdu.data, apdu.nc);
+                uint8_t *tmp = (uint8_t *)calloc(file_get_size(ef_puk), sizeof(uint8_t));
+                memcpy(tmp, puk_data, file_get_size(ef_puk));
+                tmp[1] = puk_data[1]-1;
+                flash_write_data_to_file(ef_puk, tmp, file_get_size(ef_puk));
+                puk_data = file_get_data(ef_puk);
                 free(tmp);
             }
             else if (p1 == 0x1) { /* Replace */
@@ -2190,8 +2196,18 @@ int cmd_pso() {
                 return SW_CONDITIONS_NOT_SATISFIED();
             return SW_EXEC_ERROR();
         }
-        if (add_cert_puk_store(apdu.data, apdu.nc, true) != CCID_OK)
-            return SW_FILE_FULL();
+        for (int i = 0; i < 0xfe; i++) {
+            uint16_t fid = (CA_CERTIFICATE_PREFIX << 8) | i;
+            file_t *ca_ef = search_dynamic_file(fid);
+            if (!ca_ef) {
+                ca_ef = file_new(fid);
+                flash_write_data_to_file(ca_ef, apdu.data, apdu.nc);
+                if (add_cert_puk_store(file_get_data(ca_ef), file_get_size(ca_ef), false) != CCID_OK)
+                    return SW_FILE_FULL();
+                low_flash_available();
+                break;
+            }
+        }
         return SW_OK();
     }
     else
