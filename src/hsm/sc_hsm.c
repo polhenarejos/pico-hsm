@@ -271,6 +271,7 @@ static int cmd_select() {
     uint8_t pfx = fid >> 8;
     if (pfx == PRKD_PREFIX || 
         pfx == CD_PREFIX || 
+        pfx == CA_CERTIFICATE_PREFIX || 
         pfx == KEY_PREFIX || 
         pfx == EE_CERTIFICATE_PREFIX || 
         pfx == DCOD_PREFIX || 
