@@ -2316,9 +2316,18 @@ int cmd_pso() {
 int cmd_external_authenticate() {
     if (P1(apdu) != 0x0 || P2(apdu) != 0x0)
         return SW_INCORRECT_P1P2();
-    uint8_t *input = (uint8_t *)calloc(dev_name_len+challenge_len, sizeof(uint8_t));
-    
+    if (ef_puk_aut == NULL)
+        return SW_REFERENCE_NOT_FOUND();
+    if (apdu.nc == 0)
+        return SW_WRONG_LENGTH();
+    uint8_t *input = (uint8_t *)calloc(dev_name_len+challenge_len, sizeof(uint8_t)), hash[32];
+    memcpy(input, dev_name, dev_name_len);
+    memcpy(input+dev_name_len, challenge, challenge_len);
+    hash256(input, dev_name_len+challenge_len, hash);
+    int r = puk_verify(apdu.data, apdu.nc, hash, 32, file_get_data(ef_puk_aut), file_get_size(ef_puk_aut));
     free(input);
+    if (r != 0)
+        return SW_CONDITIONS_NOT_SATISFIED();
     return SW_OK();
 }
 

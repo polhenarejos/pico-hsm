@@ -45,5 +45,6 @@ extern const uint8_t *cvc_get_chr(const uint8_t *data, size_t len, size_t *olen)
 extern const uint8_t *cvc_get_pub(const uint8_t *data, size_t len, size_t *olen);
 extern int cvc_verify(const uint8_t *cert, size_t cert_len, const uint8_t *ca, size_t ca_len);
 extern mbedtls_ecp_group_id cvc_inherite_ec_group(const uint8_t *ca, size_t ca_len);
+extern int puk_verify(const uint8_t *sig, size_t sig_len, const uint8_t *hash, size_t hash_len, const uint8_t *ca, size_t ca_len);
 
 #endif
