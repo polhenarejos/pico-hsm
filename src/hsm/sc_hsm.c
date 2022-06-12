@@ -2029,7 +2029,7 @@ static int cmd_mse() {
                     }
                     else if (p2 == 0xA4) { /* Aut */
                         for (int i = 0; i < MAX_PUK; i++) {
-                            file_t *ef = search_dynamic_file(EF_PUK+p2);
+                            file_t *ef = search_dynamic_file(EF_PUK+i);
                             if (!ef)
                                 break;
                             if (ef->data == NULL || file_get_size(ef) == 0)
