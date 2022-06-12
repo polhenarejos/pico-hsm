@@ -158,6 +158,7 @@ PUK puk_store[MAX_PUK_STORE_ENTRIES];
 int puk_store_entries = 0;
 PUK *current_puk = NULL;
 file_t *ef_puk_aut = NULL;
+uint8_t puk_status[MAX_PUK];
 
 int add_cert_puk_store(const uint8_t *data, size_t data_len, bool copy) {
     if (data == NULL || data_len == 0)
@@ -205,6 +206,7 @@ void init_sc_hsm() {
             add_cert_puk_store(file_get_data(ef), file_get_size(ef), false);
     }
     dev_name = cvc_get_chr(termca, (termca[1] << 8) | termca[0], &dev_name_len);
+    memset(puk_status, 0, sizeof(puk_status));
 }
 
 int sc_hsm_unload() {
@@ -571,6 +573,8 @@ static int cmd_verify() {
         uint16_t opts = get_device_options();
         if (opts & HSM_OPT_TRANSPORT_PIN)
             return SW_DATA_INVALID();
+        if (has_session_pin) /* It can be true from PUK AUT */
+            return SW_OK();
         if (*file_get_data(file_pin1) == 0) //not initialized
             return SW_REFERENCE_NOT_FOUND();
         if (apdu.nc > 0) {
@@ -578,8 +582,6 @@ static int cmd_verify() {
         }
         if (file_read_uint8(file_get_data(file_retries_pin1)) == 0)
             return SW_PIN_BLOCKED();
-        if (has_session_pin)
-            return SW_OK();
         return set_res_sw(0x63, 0xc0 | file_read_uint8(file_get_data(file_retries_pin1)));
     }
     else if (p2 == 0x88) { //SOPin
@@ -734,12 +736,12 @@ static int cmd_initialize() {
                 file_t *ef_puk = search_by_fid(EF_PUKAUT, NULL, SPECIFY_EF);
                 if (!ef_puk)
                     return SW_MEMORY_FAILURE();
-                uint8_t pk_status[4+MAX_PUK], puks = MIN(tag_data[0],MAX_PUK);
+                uint8_t pk_status[4], puks = MIN(tag_data[0],MAX_PUK);
                 memset(pk_status, 0, sizeof(pk_status));
                 pk_status[0] = puks;
                 pk_status[1] = puks;
                 pk_status[2] = tag_data[1];
-                flash_write_data_to_file(ef_puk, pk_status, 4+puks);
+                flash_write_data_to_file(ef_puk, pk_status, sizeof(pk_status));
                 for (int i = 0; i < puks; i++) {
                     file_t *tf = file_new(EF_PUK+i);
                     if (!tf)
@@ -2192,10 +2194,13 @@ int cmd_puk_auth() {
             memcpy(res_APDU, chr, chr_len);
             res_APDU_size = chr_len;
         }
-        return set_res_sw(0x90, puk_data[4+p2]);
+        return set_res_sw(0x90, puk_status[p2]);
     }
     else {
-        memcpy(res_APDU, puk_data, 4);
+        memcpy(res_APDU, puk_data, 3);
+        res_APDU[3] = 0;
+        for (int i = 0; i < puk_data[0]; i++)
+            res_APDU[3] += puk_status[i];
         res_APDU_size = 4;
     }
     return SW_OK();
@@ -2320,6 +2325,10 @@ int cmd_external_authenticate() {
         return SW_REFERENCE_NOT_FOUND();
     if (apdu.nc == 0)
         return SW_WRONG_LENGTH();
+    file_t *ef_puk = search_by_fid(EF_PUKAUT, NULL, SPECIFY_EF);
+    if (!ef_puk || !ef_puk->data || file_get_size(ef_puk) == 0)
+        return SW_FILE_NOT_FOUND();
+    uint8_t *puk_data = file_get_data(ef_puk);
     uint8_t *input = (uint8_t *)calloc(dev_name_len+challenge_len, sizeof(uint8_t)), hash[32];
     memcpy(input, dev_name, dev_name_len);
     memcpy(input+dev_name_len, challenge, challenge_len);
@@ -2328,6 +2337,13 @@ int cmd_external_authenticate() {
     free(input);
     if (r != 0)
         return SW_CONDITIONS_NOT_SATISFIED();
+    puk_status[ef_puk_aut->fid & (MAX_PUK-1)] = 1;
+    uint8_t auts = 0;
+    for (int i = 0; i < puk_data[0]; i++)
+        auts += puk_status[i];
+    if (auts >= puk_data[2]) {
+        has_session_pin = isUserAuthenticated = true;
+    }
     return SW_OK();
 }
 
