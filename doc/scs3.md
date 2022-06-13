@@ -20,6 +20,12 @@ SmartCardHSM.rootCerts = {
 }
 ```
 
+Similarly, replace the line `1531` in file `scs3/keymanager/keymanager.js` with:
+
+```
+	assert(devcert.verifyWith(this.crypto, dicacert.getPublicKey(SmartCardHSM.rootCerts.ESCVCAHSM00001.getPublicKey()), dicacert.getPublicKeyOID()));
+```
+
 After this ammendment, the KeyManager can be invoked (CTRL+M) and it will output something similar to:
 ```
 >load("keymanager/keymanager.js");
