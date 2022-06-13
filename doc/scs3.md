@@ -1,5 +1,11 @@
 # SCS3 tool
 
+SCS3 tool is a specific tool developed by CardContact to manage HSM. Thanks to its interface, Pico HSM can be enhanced with more advanced functionalities, not present in the PKCS11 module:
+
+- Import PKCS12 private keys and certificates.
+- Import private keys and certificates from other Pico HSM devices in WKY format.
+- 
+
 Unfortunately, there is no pkcs11 tool or equivalent capable to perform the import. Since it uses the SC-HSM driver, it also supports the communication with the [SCS3 tool](https://www.openscdp.org/scsh3/ "SCS3 tool"). It can be downloaded from [here](https://www.openscdp.org/scsh3/download.html "here").
 
 However, SCS3 only works with those HSM manufactured by CardContact. The check is performed by means of trust store against the manufacturing certificates. For obvious reasons, these certificates can only be signed with the private keys of the Certificate Authorities listed in the trust store. 
@@ -28,7 +34,7 @@ Similarly, replace the line `1531` in file `scs3/keymanager/keymanager.js` with:
 
 Alternatively, this patch [scs3.patch.txt](https://github.com/polhenarejos/pico-hsm/files/8890050/scs3.patch.txt) can be applied.
 
-After this ammendment, the KeyManager can be invoked (CTRL+M) and it will output something similar to:
+After this ammendment, the program can be started and the KeyManager can be invoked (CTRL+M) and it will output something similar to:
 ```
 >load("keymanager/keymanager.js");
 
@@ -45,6 +51,13 @@ mechanism from the User PIN context menu.
 
 The SCS3 tool is ready to import private keys and certificates, wraped in WKY files or in PKCS#12 format. Also, all stored keys can be exported, combined with their respective certificates. Note that the user has to be previously logged in.
 
+## macOS users
+In macOS, the PCSC must be explicitly specified. Otherwise, the reader will not be found.
+
+It can be executed in a Terminal via
+```
+ java -Dsun.security.smartcardio.library=/System/Library/Frameworks/PCSC.framework/Versions/Current/PCSC -Dorg.bouncycastle.asn1.allow_unsafe_integer=true -Djava.library.path=./lib -classpath 'lib/*' de.cardcontact.scdp.scsh3.GUIShell
+```
 ## DKEK requirement
 
 In order to perform the import, private keys must be wrapped with the same DKEK present in the Pico HSM. Thus, the Pico HSM must be previously initialized with at minimum of 1 DKEK share. This share will be used to wrap the private key before import. 
