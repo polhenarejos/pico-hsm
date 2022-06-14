@@ -813,40 +813,51 @@ static int cmd_initialize() {
     return SW_OK();
 }
 
-uint8_t get_key_domain(file_t *fkey) {
-    if (!fkey)
-        return 0xff;
+const uint8_t *get_meta_tag(file_t *ef, uint16_t meta_tag, size_t *tag_len) {
+    if (ef == NULL)
+        return NULL;
     uint8_t *meta_data = NULL;
-    uint8_t meta_size = meta_find(fkey->fid, &meta_data);
+    uint8_t meta_size = meta_find(ef->fid, &meta_data);
     if (meta_size > 0 && meta_data != NULL) {
         uint16_t tag = 0x0;
         uint8_t *tag_data = NULL, *p = NULL;
-        size_t tag_len = 0;
-        while (walk_tlv(meta_data, meta_size, &p, &tag, &tag_len, &tag_data)) {
-            if (tag == 0x92) { //ofset tag
-                return *tag_data;
+        while (walk_tlv(meta_data, meta_size, &p, &tag, tag_len, &tag_data)) {
+            if (tag == meta_tag) {
+                return tag_data;
             }
         }
     }
+    return NULL;
+}
+
+uint8_t get_key_domain(file_t *fkey) {
+    size_t tag_len = 0;
+    const uint8_t *meta_tag = get_meta_tag(fkey, 0x92, &tag_len);
+    if (meta_tag)
+        return *meta_tag;
     return 0;
 }
 
 uint32_t get_key_counter(file_t *fkey) {
-   if (!fkey)
-        return 0xffffff;
-    uint8_t *meta_data = NULL;
-    uint8_t meta_size = meta_find(fkey->fid, &meta_data);
-    if (meta_size > 0 && meta_data != NULL) {
-        uint16_t tag = 0x0;
-        uint8_t *tag_data = NULL, *p = NULL;
-        size_t tag_len = 0;
-        while (walk_tlv(meta_data, meta_size, &p, &tag, &tag_len, &tag_data)) {
-            if (tag == 0x90) { //ofset tag
-                return (tag_data[0] << 24) | (tag_data[1] << 16) | (tag_data[2] << 8) | tag_data[3];
-            }
-        }
-    }
+    size_t tag_len = 0;
+    const uint8_t *meta_tag = get_meta_tag(fkey, 0x90, &tag_len);
+    if (meta_tag)
+        return (meta_tag[0] << 24) | (meta_tag[1] << 16) | (meta_tag[2] << 8) | meta_tag[3];
     return 0xffffffff; 
+}
+
+bool key_has_purpose(file_t *ef, uint8_t purpose) {
+    size_t tag_len = 0;
+    const uint8_t *meta_tag = get_meta_tag(ef, 0x91, &tag_len);
+    if (meta_tag) {
+        DEBUG_PAYLOAD(meta_tag,tag_len);
+        for (int i = 0; i < tag_len; i++) {
+            if (meta_tag[i] == purpose)
+                return true;
+        }
+        return false;
+    }
+    return true;
 }
 
 uint32_t decrement_key_counter(file_t *fkey) {
@@ -1441,6 +1452,8 @@ static int cmd_signature() {
         return SW_FILE_NOT_FOUND();
     if (get_key_counter(fkey) == 0)
         return SW_FILE_FULL();
+    if (key_has_purpose(fkey, p2) == false)
+        return SW_CONDITIONS_NOT_SATISFIED();
     int key_size = file_get_size(fkey);
     if (p2 == ALGO_RSA_PKCS1_SHA1 || p2 == ALGO_RSA_PSS_SHA1 || p2 == ALGO_EC_SHA1)
         md = MBEDTLS_MD_SHA1;
@@ -1452,7 +1465,7 @@ static int cmd_signature() {
         generic_hash(md, apdu.data, apdu.nc, apdu.data);
         apdu.nc = mbedtls_md_get_size(mbedtls_md_info_from_type(md));
     }
-    if (p2 == ALGO_RSA_RAW || p2 == ALGO_RSA_PKCS1 || p2 == ALGO_RSA_PKCS1_SHA1 || p2 == ALGO_RSA_PKCS1_SHA256 || p2 == ALGO_RSA_PSS || p2 == ALGO_RSA_PSS_SHA1 || p2 == ALGO_RSA_PSS_SHA256) {
+    if (p2 >= ALGO_RSA_RAW && p2 <= ALGO_RSA_PSS_SHA512) {
         mbedtls_rsa_context ctx;
         mbedtls_rsa_init(&ctx);
         
@@ -1496,12 +1509,18 @@ static int cmd_signature() {
                 else if (memcmp(oid, MBEDTLS_OID_DIGEST_ALG_SHA512, oid_len) == 0) 
                     md = MBEDTLS_MD_SHA512;
             }
-            if (p2 == ALGO_RSA_PSS || p2 == ALGO_RSA_PSS_SHA1 || p2 == ALGO_RSA_PSS_SHA256) {
+            if (p2 >= ALGO_RSA_PSS && p2 <= ALGO_RSA_PSS_SHA512) {
                 if (p2 == ALGO_RSA_PSS && !oid) {
                     if (apdu.nc == 20) //default is sha1
                         md = MBEDTLS_MD_SHA1;
-                    else if (apdu.nc == 32) 
+                    else if (apdu.nc == 28)
+                        md = MBEDTLS_MD_SHA224;
+                    else if (apdu.nc == 32)
                         md = MBEDTLS_MD_SHA256;
+                    else if (apdu.nc == 48)
+                        md = MBEDTLS_MD_SHA384;
+                    else if (apdu.nc == 64)
+                        md = MBEDTLS_MD_SHA512;
                 }
                 mbedtls_rsa_set_padding(&ctx, MBEDTLS_RSA_PKCS_V21, md);
             }
@@ -1525,7 +1544,7 @@ static int cmd_signature() {
         apdu.ne = key_size;
         mbedtls_rsa_free(&ctx);
     }
-    else if (p2 == ALGO_EC_RAW || p2 == ALGO_EC_SHA1 || p2 == ALGO_EC_SHA224 || p2 == ALGO_EC_SHA256) {
+    else if (p2 >= ALGO_EC_RAW && p2 <= ALGO_EC_SHA512) {
         mbedtls_ecdsa_context ctx;
         mbedtls_ecdsa_init(&ctx);
         md = MBEDTLS_MD_SHA256;
@@ -1547,6 +1566,10 @@ static int cmd_signature() {
             md = MBEDTLS_MD_SHA224;
         else if (p2 == ALGO_EC_SHA256)
             md = MBEDTLS_MD_SHA256;
+        else if (p2 == ALGO_EC_SHA384)
+            md = MBEDTLS_MD_SHA384;
+        else if (p2 == ALGO_EC_SHA512)
+            md = MBEDTLS_MD_SHA512;
         int r;
         r = load_private_key_ecdsa(&ctx, fkey);
         if (r != CCID_OK) {
@@ -1581,6 +1604,8 @@ static int cmd_key_wrap() {
     uint8_t kdom = get_key_domain(ef);
     if (!ef)
         return SW_FILE_NOT_FOUND();
+    if (key_has_purpose(ef, ALGO_WRAP) == false)
+        return SW_CONDITIONS_NOT_SATISFIED();
     file_t *prkd = search_dynamic_file((PRKD_PREFIX << 8) | key_id);
     if (!prkd)
         return SW_FILE_NOT_FOUND();
@@ -1711,6 +1736,7 @@ static int cmd_key_unwrap() {
 
 static int cmd_decrypt_asym() {
     int key_id = P1(apdu);
+    uint8_t p2 = P2(apdu);
     if (!isUserAuthenticated)
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     file_t *ef = search_dynamic_file((KEY_PREFIX << 8) | key_id);
@@ -1718,7 +1744,9 @@ static int cmd_decrypt_asym() {
         return SW_FILE_NOT_FOUND();
     if (get_key_counter(ef) == 0)
         return SW_FILE_FULL();
-    if (P2(apdu) == ALGO_RSA_DECRYPT) {
+    if (key_has_purpose(ef, p2) == false)
+        return SW_CONDITIONS_NOT_SATISFIED();
+    if (p2 == ALGO_RSA_DECRYPT) {
         mbedtls_rsa_context ctx;
         mbedtls_rsa_init(&ctx);
         int r = load_private_key_rsa(&ctx, ef);
@@ -1739,7 +1767,7 @@ static int cmd_decrypt_asym() {
         res_APDU_size = key_size;
         mbedtls_rsa_free(&ctx);
     }
-    else if (P2(apdu) == ALGO_EC_DH) {
+    else if (p2 == ALGO_EC_DH) {
         mbedtls_ecdh_context ctx;
         if (wait_button() == true) //timeout
             return SW_SECURE_MESSAGE_EXEC_ERROR();
@@ -1795,6 +1823,8 @@ static int cmd_cipher_sym() {
     file_t *ef = search_dynamic_file((KEY_PREFIX << 8) | key_id);
     if (!ef)
         return SW_FILE_NOT_FOUND();
+    if (key_has_purpose(ef, algo) == false)
+        return SW_CONDITIONS_NOT_SATISFIED();
     if ((apdu.nc % 16) != 0) {
         return SW_WRONG_LENGTH();
     }
@@ -1890,7 +1920,12 @@ static int cmd_derive_asym() {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     if (!(fkey = search_dynamic_file((KEY_PREFIX << 8) | key_id)) || !fkey->data || file_get_size(fkey) == 0) 
         return SW_FILE_NOT_FOUND();
-
+uint8_t *meta_data = NULL;
+    uint8_t meta_size = meta_find(fkey->fid, &meta_data);
+    printf("kid = %d\n",fkey->fid);
+    DEBUG_PAYLOAD(meta_data, meta_size);
+    if (key_has_purpose(fkey, ALGO_EC_DERIVE) == false)
+        return SW_CONDITIONS_NOT_SATISFIED();
     if (apdu.nc == 0)
         return SW_WRONG_LENGTH();
     if (apdu.data[0] == ALGO_EC_DERIVE) {
