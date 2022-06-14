@@ -60,6 +60,10 @@ Pico HSM support initialize options, such as setting Transport PIN or reset retr
 
 To specify a set of options, the `XX` parameter shall be set to `06`. The data parameter shall be 1 byte, where the options are combined with the or operand `|`. The length `YY` shall be set to `01`.
 
+Available options (counting from LSB):
+- Bit `0`: enable/disable press-to-confirm button.
+- Bit `1`: enable/disable key usage counter for all keys.
+
 ### Press-to-confirm button
 Press-to-confirm button offers an extra security layer by requiring the user confirmation everytime that a private/secret key is loaded. This avoids ghost applications thay may perform hidden opperations without noticing the user, such as signing or decrypting. Pico HSM will inform the user that is awaiting for a confirmation by making almost a fixed Led blink.
 
@@ -89,3 +93,23 @@ Pico HSM supports a key usage counter to audit the usage of a particular key. Fo
 This option is disabled by default. When enabled, each generated key in the device is attached to a counter, starting at `2^32-1` (`FFFFFFFEh`). Therefore, it allows to count how many times a key is used for signing or decryption.
 
 The counter can be viewed by using the SCS3 tool. More info at [doc/scs3.md](/doc/scs3.md).
+
+This feature is disabled by default but can be enabled rapidly by setting the 2nd LSB bit to 1:
+
+```
+$ opensc-tool -s 806406000102
+Using reader with a card: Free Software Initiative of Japan Gnuk
+Sending: 80 64 06 00 01 01 
+Received (SW1=0x90, SW2=0x00)
+```
+
+At this moment, when a private/secret key is loaded, the Pico HSM will wait for the pressed BOOTSEL button to confirm the operation.
+
+To disable, the LSB bit must be set to 0:
+
+```
+$ opensc-tool -s 806406000100
+Using reader with a card: Free Software Initiative of Japan Gnuk
+Sending: 80 64 06 00 01 00
+Received (SW1=0x90, SW2=0x00)
+```
