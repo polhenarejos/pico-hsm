@@ -573,7 +573,7 @@ static int cmd_verify() {
         uint16_t opts = get_device_options();
         if (opts & HSM_OPT_TRANSPORT_PIN)
             return SW_DATA_INVALID();
-        if (has_session_pin) /* It can be true from PUK AUT */
+        if (has_session_pin && apdu.nc == 0) /* It can be true from PUK AUT */
             return SW_OK();
         if (*file_get_data(file_pin1) == 0) //not initialized
             return SW_REFERENCE_NOT_FOUND();
