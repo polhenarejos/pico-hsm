@@ -1747,9 +1747,11 @@ static int cmd_decrypt_asym() {
         return SW_FILE_FULL();
     if (key_has_purpose(ef, p2) == false)
         return SW_CONDITIONS_NOT_SATISFIED();
-    if (p2 == ALGO_RSA_DECRYPT) {
+    if (p2 >= ALGO_RSA_DECRYPT && p2 <= ALGO_RSA_DECRYPT_OEP) {
         mbedtls_rsa_context ctx;
         mbedtls_rsa_init(&ctx);
+        if (p2 == ALGO_RSA_DECRYPT_OEP)
+            mbedtls_rsa_set_padding(&ctx, MBEDTLS_RSA_PKCS_V21, MBEDTLS_MD_NONE);
         int r = load_private_key_rsa(&ctx, ef);
         if (r != CCID_OK) {
             mbedtls_rsa_free(&ctx);
@@ -1760,12 +1762,21 @@ static int cmd_decrypt_asym() {
         int key_size = file_get_size(ef);
         if (apdu.nc < key_size) //needs padding
             memset(apdu.data+apdu.nc, 0, key_size-apdu.nc);
-        r = mbedtls_rsa_private(&ctx, random_gen, NULL, apdu.data, res_APDU);
+        if (p2 == ALGO_RSA_DECRYPT_PKCS1 || p2 == ALGO_RSA_DECRYPT_OEP) {
+            size_t olen = apdu.nc;
+            r = mbedtls_rsa_pkcs1_decrypt(&ctx, random_gen, NULL, &olen, apdu.data, res_APDU, 512);
+            if (r == 0)
+                res_APDU_size = olen;
+        }
+        else {
+            r = mbedtls_rsa_private(&ctx, random_gen, NULL, apdu.data, res_APDU);
+            if (r == 0)
+                res_APDU_size = key_size;
+        }
         if (r != 0) {
             mbedtls_rsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
-        res_APDU_size = key_size;
         mbedtls_rsa_free(&ctx);
     }
     else if (p2 == ALGO_EC_DH) {

@@ -27,7 +27,7 @@ extern const uint8_t sc_hsm_aid[];
 
 #define ALGO_RSA_RAW			0x20		/* RSA signature with external padding */
 #define ALGO_RSA_DECRYPT		0x21		/* RSA raw decrypt */
-#define ALGO_RSA_DECRYPT_V15    0x22
+#define ALGO_RSA_DECRYPT_PKCS1  0x22
 #define ALGO_RSA_DECRYPT_OEP    0x23
 #define ALGO_RSA_PKCS1			0x30		/* RSA signature with DigestInfo input and PKCS#1 V1.5 padding */
 #define ALGO_RSA_PKCS1_SHA1		0x31		/* RSA signature with SHA-1 hash and PKCS#1 V1.5 padding */
