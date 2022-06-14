@@ -1236,6 +1236,7 @@ static int cmd_delete_file() {
     }
     if (!authenticate_action(ef, ACL_OP_DELETE_SELF))
         return SW_SECURITY_STATUS_NOT_SATISFIED();
+    meta_delete(ef->fid);
     if (flash_clear_file(ef) != CCID_OK)
         return SW_EXEC_ERROR();
     if (delete_dynamic_file(ef) != CCID_OK)
@@ -1920,10 +1921,6 @@ static int cmd_derive_asym() {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     if (!(fkey = search_dynamic_file((KEY_PREFIX << 8) | key_id)) || !fkey->data || file_get_size(fkey) == 0) 
         return SW_FILE_NOT_FOUND();
-uint8_t *meta_data = NULL;
-    uint8_t meta_size = meta_find(fkey->fid, &meta_data);
-    printf("kid = %d\n",fkey->fid);
-    DEBUG_PAYLOAD(meta_data, meta_size);
     if (key_has_purpose(fkey, ALGO_EC_DERIVE) == false)
         return SW_CONDITIONS_NOT_SATISFIED();
     if (apdu.nc == 0)
