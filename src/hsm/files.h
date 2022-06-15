@@ -33,6 +33,10 @@
 #define EF_DODFS        0x6044
 #define EF_SKDFS        0x6045
 
+#define EF_KEY_DEV      0xCC00
+#define EF_PRKD_DEV     0xC400
+#define EF_EE_DEV       0xCE00
+
 extern file_t *file_pin1;
 extern file_t *file_retries_pin1;
 extern file_t *file_sopin;
