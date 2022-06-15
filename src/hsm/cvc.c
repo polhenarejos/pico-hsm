@@ -288,6 +288,51 @@ size_t asn1_build_cert_description(const uint8_t *label, size_t label_len, const
     return p-buf;
 }
 
+size_t asn1_build_prkd_ecc(const uint8_t *label, size_t label_len, const uint8_t *keyid, size_t keyid_len, size_t keysize, uint8_t *buf, size_t buf_len) {
+    size_t seq1_size = asn1_len_tag(0x30, asn1_len_tag(0xC, label_len));
+    size_t seq2_size = asn1_len_tag(0x30, asn1_len_tag(0x4, keyid_len)+asn1_len_tag(0x3, 3));
+    size_t seq3_size = asn1_len_tag(0xA1, asn1_len_tag(0x30, asn1_len_tag(0x30, asn1_len_tag(0x4, 0))+asn1_len_tag(0x2,2)));
+    size_t tot_len = asn1_len_tag(0xA0, seq1_size+seq2_size+seq3_size);
+    if (buf_len == 0 || buf == NULL)
+        return tot_len;
+    if (buf_len < tot_len)
+        return 0;
+    uint8_t *p = buf;
+    *p++ = 0xA0;
+    p += format_tlv_len(seq1_size+seq2_size+seq3_size, p);
+    //Seq 1
+    *p++ = 0x30;
+    p += format_tlv_len(asn1_len_tag(0xC, label_len), p);
+    *p++ = 0xC;
+    p += format_tlv_len(label_len, p);
+    memcpy(p, label, label_len); p += label_len;
+    
+    //Seq 2
+    *p++ = 0x30;
+    p += format_tlv_len(asn1_len_tag(0x4, keyid_len)+asn1_len_tag(0x3, 3), p);
+    *p++ = 0x4;
+    p += format_tlv_len(keyid_len, p);
+    memcpy(p, keyid, keyid_len); p += keyid_len;
+    *p++ = 0x3;
+    p += format_tlv_len(3, p);
+    memcpy(p, "\x07\x20\x80", 3); p += 3;
+    
+    //Seq 3
+    *p++ = 0xA1;
+    p += format_tlv_len(asn1_len_tag(0x30, asn1_len_tag(0x30, asn1_len_tag(0x4, 0))+asn1_len_tag(0x2,2)), p);
+    *p++ = 0x30;
+    p += format_tlv_len(asn1_len_tag(0x30, asn1_len_tag(0x4, 0))+asn1_len_tag(0x2,2), p);
+    *p++ = 0x30;
+    p += format_tlv_len(asn1_len_tag(0x4, 0), p);
+    *p++ = 0x4;
+    p += format_tlv_len(0, p);
+    *p++ = 0x2;
+    p += format_tlv_len(2, p);
+    *p++ = (keysize >> 8) & 0xff;
+    *p++ = keysize & 0xff;
+    return p-buf;
+}
+
 const uint8_t *cvc_get_field(const uint8_t *data, size_t len, size_t *olen, uint16_t tag) {
     uint8_t *rdata = NULL;
     if (data == NULL || len == 0)
