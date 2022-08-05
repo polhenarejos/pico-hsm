@@ -1,6 +1,6 @@
 # Public Key Authentication
 
-Public Key Authentication (PKA) is a mechanism to authenticate a legit user without introducing any PIN. The authentication is performed by signing a challenge and checking the signature result.
+Public Key Authentication (PKA) is a mechanism to authenticate a legit user without introducing any PIN (see Notes below). The authentication is performed by signing a challenge and checking the signature result.
 
 1. A Pico HSM #A contains a private key, whose public key will be used for authentication.
 2. The public key of #A is registered into a second Pico HSM #B.
@@ -8,8 +8,6 @@ Public Key Authentication (PKA) is a mechanism to authenticate a legit user with
 4. #A signs the challenge and returns the signature.
 5. #B verifies the signature against the challenge with the public key of #A, previously registered.
 6. If the signature is valid, #B grants access to the user.
-
-This mechanism has no retry counter or PIN throttling, as no PIN is set up on the device.
 
 To enable PKA, the device must be initialized beforehand. In case the device has secret/private keys, all shall be exported and reimported when the set up is finished.
 
@@ -66,12 +64,12 @@ From now on, you have full access and can operate normally with the primary devi
 Pico HSM uses the PIN to protect the DKEK, which is lately used to protect private/secret keys and wrap/unwrap. However, when PKA is enabled, the authentication is not performed by introducing any PIN.
 Authenticated privileges are granted when PKA succeeds, regardless of PIN, which is optional.
 
-Nevertheless, *it is extremely recommended to combine PKA with PIN*. Note that when combined, only PKA grants authenticated privileges. Therefore, if both schemes are setup, it is necessary to unlock the DKEK with PIN verification. 
+Nevertheless, **it is extremely recommended to combine PKA with PIN**. Note that when combined, only PKA grants authenticated privileges. Therefore, if both schemes are setup, it is necessary to unlock the DKEK with PIN verification. 
 Otherwise, it will not be possible to operate with private/secret keys despite the user will be logged in. 
 
 Unfortunately, SCS3 does not supports the combination of both schemes during the initialization. Fortunately, OpenSC does.
 
-To initialize the device with PKA *and* PIN use the following command (or similar), which accepts the use of PIN parameter *and* PKA configuration:
+To initialize the device with PKA **and** PIN use the following command (or similar), which accepts the use of PIN parameter **and** PKA configuration:
 
 ```
 sc-hsm-tool -X --so-pin 1234567890123456 --pin 648219 -K 1 -n 1 -s 1
