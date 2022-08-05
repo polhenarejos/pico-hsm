@@ -853,7 +853,6 @@ bool key_has_purpose(file_t *ef, uint8_t purpose) {
     size_t tag_len = 0;
     const uint8_t *meta_tag = get_meta_tag(ef, 0x91, &tag_len);
     if (meta_tag) {
-        DEBUG_PAYLOAD(meta_tag,tag_len);
         for (int i = 0; i < tag_len; i++) {
             if (meta_tag[i] == purpose)
                 return true;
