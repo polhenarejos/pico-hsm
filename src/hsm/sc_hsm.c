@@ -521,12 +521,14 @@ int pin_wrong_retry(const file_t *pin) {
 }
 
 int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
-    if (!pin)
-        return SW_REFERENCE_NOT_FOUND();
-    if (!pin->data) {
+    if (!pin || !pin->data || file_get_size(pin) == 0) {
         return SW_REFERENCE_NOT_FOUND();
     }
-    isUserAuthenticated = false;
+    file_t *ef_puk = search_by_fid(EF_PUKAUT, NULL, SPECIFY_EF);
+    /* check if isUserAuthenticated is handled by PUK Auth */
+    bool puk_handled = !ef_puk || !ef_puk->data || file_get_size(ef_puk) == 0 || file_read_uint8(file_get_data(ef_puk)) == 0; 
+    if (puk_handled == false)
+        isUserAuthenticated = false;
     has_session_pin = has_session_sopin = false;
     if (is_secured_apdu() && sm_session_pin_len > 0 && pin == file_pin1) {
         if (len == sm_session_pin_len && memcmp(data, sm_session_pin, len) != 0) {
@@ -553,7 +555,8 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
         return SW_PIN_BLOCKED();
     if (r != CCID_OK)
         return SW_MEMORY_FAILURE();
-    isUserAuthenticated = true;
+    if (puk_handled == false)
+        isUserAuthenticated = true;
     hash_multi(data, len, session_pin);
     if (pin == file_pin1)
         has_session_pin = true;
@@ -573,7 +576,7 @@ static int cmd_verify() {
         uint16_t opts = get_device_options();
         if (opts & HSM_OPT_TRANSPORT_PIN)
             return SW_DATA_INVALID();
-        if (has_session_pin && apdu.nc == 0) /* It can be true from PUK AUT */
+        if (has_session_pin && apdu.nc == 0)
             return SW_OK();
         if (*file_get_data(file_pin1) == 0) //not initialized
             return SW_REFERENCE_NOT_FOUND();
@@ -898,7 +901,7 @@ static int cmd_key_domain() {
     //if (dkeks == 0)
     //    return SW_COMMAND_NOT_ALLOWED();
     uint8_t p1 = P1(apdu), p2 = P2(apdu);
-    if (has_session_pin == false && apdu.nc > 0)
+    if ((has_session_pin == false || isUserAuthenticated == false) && apdu.nc > 0)
         return SW_CONDITIONS_NOT_SATISFIED();
     if (p2 >= MAX_KEY_DOMAINS)
         return SW_WRONG_P1P2();
@@ -2385,7 +2388,7 @@ int cmd_external_authenticate() {
     for (int i = 0; i < puk_data[0]; i++)
         auts += puk_status[i];
     if (auts >= puk_data[2]) {
-        has_session_pin = isUserAuthenticated = true;
+        isUserAuthenticated = true;
     }
     return SW_OK();
 }
