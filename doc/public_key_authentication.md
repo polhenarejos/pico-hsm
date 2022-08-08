@@ -65,19 +65,33 @@ Pico HSM uses the PIN to protect the DKEK, which is lately used to protect priva
 Authenticated privileges are granted when PKA succeeds, regardless of PIN, which is optional.
 
 Nevertheless, **it is extremely recommended to combine PKA with PIN**. Note that when combined, only PKA grants authenticated privileges. Therefore, if both schemes are setup, it is necessary to unlock the DKEK with PIN verification. 
-Otherwise, it will not be possible to operate with private/secret keys despite the user will be logged in. 
+Otherwise, it will not be possible to operate with private/secret keys despite the user will be logged in.
 
-Unfortunately, SCS3 does not supports the combination of both schemes during the initialization. Fortunately, OpenSC does.
+With this scheme, multiple custodians may authenticate the device individually and remotely and, when fully authenticated, the master user can unlock the DKEK with the PIN.
 
-To initialize the device with PKA **and** PIN use the following command (or similar), which accepts the use of PIN parameter **and** PKA configuration:
+Moreover, with this approach the device is kept safe and neither the DKEK nor the private/secret keys are stored in plain text in the device. 
+Even though the flash memory is dumped by an attacker, it will not be possible to decipher any sensitive data or key.
+
+Initialization of the device with PKA **and** PIN can be achieved with SCS3 or OpenSC:
+
+**Note:** do not import any DKEK share or DKEK operation before PKA and PIN setup. 
+
+### With OpenSC
+
+Use the following command (or similar), which accepts the use of PIN parameter **and** PKA configuration:
 
 ```
 sc-hsm-tool -X --so-pin 1234567890123456 --pin 648219 -K 1 -n 1 -s 1
 ```
 
-where PKA and PIN are enabled, jointly with DKEK protection. 
+and PKA and PIN are enabled, jointly with DKEK protection. 
 
-Therefore, with this scheme, multiple custodians may authenticate the device individually and, when fully authenticated, the master user can unlock the DKEK with the PIN.
+### With SCS3
 
-With this approach the device is kept safe and neither the DKEK nor the private/secret keys are stored in plain text in the device. 
-Even though the flash memory is dumped by an attacker, it will not be possible to decipher any sensitive data or key.
+Unfortunately, SCS3 does not allow to initialize the device with PKA and PIN at the same time, though it can be achieved in separated steps:
+
+1. Initialize the device with PKA. When done, the PIN will not be initialized but it will advice that 3 attemps can be performed.
+2. There is NO default PIN. So, DO NOT attempt to log in yet. A reset PIN shall be requested.
+3. Click on ``Reset User-PIN``, introduce the SO-PIN configured during the initialization and introduce the desired User-PIN.
+
+When done, the device will be configured with PIN **and** PKA. 
