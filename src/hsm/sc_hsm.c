@@ -529,8 +529,6 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
     if (!pin || !pin->data || file_get_size(pin) == 0) {
         return SW_REFERENCE_NOT_FOUND();
     }
-    /* check if isUserAuthenticated is handled by PUK Auth */
-    bool puk_handled = pka_enabled(); 
     if (pka_enabled() == false)
         isUserAuthenticated = false;
     has_session_pin = has_session_sopin = false;
@@ -582,8 +580,8 @@ static int cmd_verify() {
             return SW_DATA_INVALID();
         if (has_session_pin && apdu.nc == 0)
             return SW_OK();
-        //if (*file_get_data(file_pin1) == 0) //not initialized
-        //    return SW_REFERENCE_NOT_FOUND();
+        if (*file_get_data(file_pin1) == 0 && pka_enabled() == false) //not initialized
+            return SW_REFERENCE_NOT_FOUND();
         if (apdu.nc > 0) {
             return check_pin(file_pin1, apdu.data, apdu.nc);
         }
