@@ -520,14 +520,18 @@ int pin_wrong_retry(const file_t *pin) {
     return CCID_ERR_BLOCKED;
 }
 
+bool pka_enabled() {
+    file_t *ef_puk = search_by_fid(EF_PUKAUT, NULL, SPECIFY_EF);
+    return ef_puk && ef_puk->data && file_get_size(ef_puk) > 0 && file_read_uint8(file_get_data(ef_puk)) > 0;
+}
+
 int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
     if (!pin || !pin->data || file_get_size(pin) == 0) {
         return SW_REFERENCE_NOT_FOUND();
     }
-    file_t *ef_puk = search_by_fid(EF_PUKAUT, NULL, SPECIFY_EF);
     /* check if isUserAuthenticated is handled by PUK Auth */
-    bool puk_handled = !ef_puk || !ef_puk->data || file_get_size(ef_puk) == 0 || file_read_uint8(file_get_data(ef_puk)) == 0; 
-    if (puk_handled == false)
+    bool puk_handled = pka_enabled(); 
+    if (pka_enabled() == false)
         isUserAuthenticated = false;
     has_session_pin = has_session_sopin = false;
     if (is_secured_apdu() && sm_session_pin_len > 0 && pin == file_pin1) {
@@ -555,7 +559,7 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
         return SW_PIN_BLOCKED();
     if (r != CCID_OK)
         return SW_MEMORY_FAILURE();
-    if (puk_handled == false)
+    if (pka_enabled() == false)
         isUserAuthenticated = true;
     hash_multi(data, len, session_pin);
     if (pin == file_pin1)
@@ -578,8 +582,8 @@ static int cmd_verify() {
             return SW_DATA_INVALID();
         if (has_session_pin && apdu.nc == 0)
             return SW_OK();
-        if (*file_get_data(file_pin1) == 0) //not initialized
-            return SW_REFERENCE_NOT_FOUND();
+        //if (*file_get_data(file_pin1) == 0) //not initialized
+        //    return SW_REFERENCE_NOT_FOUND();
         if (apdu.nc > 0) {
             return check_pin(file_pin1, apdu.data, apdu.nc);
         }
