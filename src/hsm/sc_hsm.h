@@ -50,6 +50,8 @@ extern const uint8_t sc_hsm_aid[];
 #define ALGO_EC_SHA384          0x74
 #define ALGO_EC_SHA512          0x75
 #define ALGO_EC_DH				0x80        /* ECDH key derivation */
+#define ALGO_EC_DH_AUTPUK       0x83
+#define ALGO_EC_DH_XKEK         0x84
 
 #define ALGO_WRAP               0x92
 #define ALGO_UNWRAP             0x93
