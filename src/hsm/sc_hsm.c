@@ -971,11 +971,28 @@ static int cmd_key_domain() {
         low_flash_available();
         return SW_OK();
     }
+    else if (p1 == 0x2) {
+        
+    }
+    else
+        return SW_INCORRECT_P1P2();
     memset(res_APDU,0,10);
     res_APDU[0] = dkeks;
     res_APDU[1] = dkeks > current_dkeks ? dkeks-current_dkeks : 0;
     dkek_kcv(p2, res_APDU+2);
     res_APDU_size = 2+8;
+    if (p1 == 0x2) {
+        size_t pub_len = 0;
+        const uint8_t *pub = cvc_get_pub(apdu.data, apdu.nc, &pub_len);
+        if (pub) {
+            size_t t86_len = 0;
+            const uint8_t *t86 = cvc_get_field(pub, pub_len, &t86_len, 0x86);
+            if (t86) {
+                memcpy(res_APDU+10, t86+1, t86_len-1);
+                res_APDU_size += t86_len-1;
+            }
+        }
+    }
     return SW_OK();
 }
 
