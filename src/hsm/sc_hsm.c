@@ -1800,7 +1800,7 @@ static int cmd_decrypt_asym() {
         }
         mbedtls_rsa_free(&ctx);
     }
-    else if (p2 == ALGO_EC_DH) {
+    else if (p2 == ALGO_EC_DH || p2 == ALGO_EC_DH_XKEK) {
         mbedtls_ecdh_context ctx;
         if (wait_button() == true) //timeout
             return SW_SECURE_MESSAGE_EXEC_ERROR();
@@ -1827,7 +1827,20 @@ static int cmd_decrypt_asym() {
             return SW_DATA_INVALID();
         }
         free(kdata);
-        r = mbedtls_ecdh_read_public(&ctx, apdu.data-1, apdu.nc+1);
+        r = -1;
+        if (p2 == ALGO_EC_DH)
+            r = mbedtls_ecdh_read_public(&ctx, apdu.data-1, apdu.nc+1);
+        else if (p2 == ALGO_EC_DH_XKEK) {
+            size_t pub_len = 0;
+            const uint8_t *pub = cvc_get_pub(apdu.data, apdu.nc, &pub_len);
+            if (pub) {
+                size_t t86_len = 0;
+                const uint8_t *t86 = cvc_get_field(pub, pub_len, &t86_len, 0x86);
+                if (t86) {
+                    r = mbedtls_ecdh_read_public(&ctx, t86-1, t86_len+1);
+                }
+            }
+        }
         if (r != 0) {
             mbedtls_ecdh_free(&ctx);
             return SW_DATA_INVALID();
