@@ -628,6 +628,8 @@ static int cmd_reset_retry() {
             if (r != 0x9000)
                 return r;
             newpin_len = apdu.nc-8;
+            has_session_sopin = true;
+            hash_multi(apdu.data, 8, session_sopin);
         }
         else if (P1(apdu) == 0x2) {    
             if (!has_session_sopin)
@@ -1267,10 +1269,7 @@ static int cmd_change_pin() {
             int r = check_pin(file_pin1, apdu.data, pin_len);
             if (r != 0x9000)
                 return r;
-            uint8_t old_session_pin[32];
-            memcpy(old_session_pin, session_pin, sizeof(old_session_pin));
             uint8_t mkek[MKEK_SIZE];
-            memcpy(session_pin, old_session_pin, sizeof(session_pin));
             r = load_mkek(mkek); //loads the MKEK with old pin
             if (r != CCID_OK)
                 return SW_EXEC_ERROR();
@@ -1281,7 +1280,6 @@ static int cmd_change_pin() {
             release_mkek(mkek);
             if (r != CCID_OK)
                 return SW_EXEC_ERROR();
-            memset(old_session_pin, 0, sizeof(old_session_pin));
             uint8_t dhash[33];
             dhash[0] = apdu.nc-pin_len;
             double_hash_pin(apdu.data+pin_len, apdu.nc-pin_len, dhash+1);
