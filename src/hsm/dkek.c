@@ -82,7 +82,7 @@ int load_dkek(uint8_t id, uint8_t *dkek) {
 }
 
 void release_mkek(uint8_t *mkek) {
-    memset(mkek, 0, MKEK_SIZE);
+    mbedtls_platform_zeroize(mkek, MKEK_SIZE);
 }
 
 int store_mkek(const uint8_t *mkek) {
@@ -162,7 +162,7 @@ int dkek_kcv(uint8_t id, uint8_t *kcv) { //kcv 8 bytes
     if (r != CCID_OK)
         return r;
     hash256(dkek, DKEK_KEY_SIZE, hsh);
-    memset(dkek, 0, sizeof(dkek));
+    mbedtls_platform_zeroize(dkek, sizeof(dkek));
     memcpy(kcv, hsh, 8);
     return CCID_OK;
 }
@@ -175,7 +175,7 @@ int dkek_kenc(uint8_t id, uint8_t *kenc) { //kenc 32 bytes
         return r;
     memcpy(dkek+DKEK_KEY_SIZE, "\x0\x0\x0\x1", 4);
     hash256(dkek, sizeof(dkek), kenc);
-    memset(dkek, 0, sizeof(dkek));
+    mbedtls_platform_zeroize(dkek, sizeof(dkek));
     return CCID_OK;
 }
 
@@ -187,7 +187,7 @@ int dkek_kmac(uint8_t id, uint8_t *kmac) { //kmac 32 bytes
         return r;
     memcpy(dkek+DKEK_KEY_SIZE, "\x0\x0\x0\x2", 4);
     hash256(dkek, DKEK_KEY_SIZE+4, kmac);
-    memset(dkek, 0, sizeof(dkek));
+    mbedtls_platform_zeroize(dkek, sizeof(dkek));
     return CCID_OK;
 }
 
