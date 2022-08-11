@@ -768,15 +768,7 @@ static int cmd_initialize() {
         file_t *tf_kd = search_by_fid(EF_KEY_DOMAIN, NULL, SPECIFY_EF);
         if (!tf_kd)
             return SW_EXEC_ERROR();
-        file_t *tf = search_dynamic_file(EF_DKEK);
-        if (!tf) {
-            tf = file_new(EF_DKEK);
-            if (!tf)
-                return SW_MEMORY_FAILURE();
-        }
-        uint8_t t[DKEK_SIZE];
-        memset(t, 0, sizeof(t));
-        if (store_dkek_key(0, t) != CCID_OK)
+        if (store_mkek(NULL) != CCID_OK)
             return SW_EXEC_ERROR();
         if (dkeks) {
             if (*dkeks > 0) {
@@ -964,7 +956,7 @@ static int cmd_key_domain() {
         }
         if (flash_write_data_to_file(tf_kd, t, tf_kd_size) != CCID_OK)
             return SW_EXEC_ERROR();
-        uint8_t dk[DKEK_SIZE];
+        uint8_t dk[DKEK_KEY_SIZE];
         memset(dk, 0, sizeof(dk));
         if (store_dkek_key(p2, dk) != CCID_OK)
             return SW_EXEC_ERROR();
@@ -997,7 +989,7 @@ static int cmd_key_domain() {
 }
 
 //Stores the private and public keys in flash
-int store_keys(void *key_ctx, int type, uint8_t key_id, uint8_t kdom) {
+int store_keys(void *key_ctx, int type, uint8_t key_id) {
     int r, key_size = 0;
     uint8_t kdata[4096/8]; //worst case
     if (type == HSM_KEY_RSA) {
@@ -1027,7 +1019,7 @@ int store_keys(void *key_ctx, int type, uint8_t key_id, uint8_t kdom) {
     file_t *fpk = file_new((KEY_PREFIX << 8) | key_id);
     if (!fpk)
         return SW_MEMORY_FAILURE();
-    r = dkek_encrypt(kdom, kdata, key_size);
+    r = mkek_encrypt(kdata, key_size);
     if (r != CCID_OK) {
         return r;
     }
@@ -1078,7 +1070,7 @@ int find_and_store_meta_key(uint8_t key_id) {
 }
 
 static int cmd_keypair_gen() {
-    uint8_t key_id = P1(apdu), kdom = 0;
+    uint8_t key_id = P1(apdu);
     if (!isUserAuthenticated)
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     int ret = 0;
@@ -1090,10 +1082,6 @@ static int cmd_keypair_gen() {
         size_t oid_len = 0;
         uint8_t *oid = NULL;
         if (asn1_find_tag(p, tout, 0x6, &oid_len, &oid) && oid_len > 0 && oid != NULL) {
-            size_t kdom_size = 0;
-            uint8_t *kdomd = NULL;
-            if (asn1_find_tag(apdu.data, apdu.nc, 0x92, &kdom_size, &kdomd) && kdom_size > 0 && kdomd != NULL)
-                kdom = *kdomd;
             if (memcmp(oid, OID_ID_TA_RSA_V1_5_SHA_256, oid_len) == 0) { //RSA
                 size_t ex_len = 3, ks_len = 2;
                 uint8_t *ex = NULL, *ks = NULL;
@@ -1124,7 +1112,7 @@ static int cmd_keypair_gen() {
                 if ((res_APDU_size = asn1_cvc_aut(&rsa, HSM_KEY_RSA, res_APDU, 4096)) == 0) {
                     return SW_EXEC_ERROR();
                 }
-	            ret = store_keys(&rsa, HSM_KEY_RSA, key_id, kdom);
+	            ret = store_keys(&rsa, HSM_KEY_RSA, key_id);
 	            if (ret != CCID_OK) {
                     mbedtls_rsa_free(&rsa);
                     return SW_EXEC_ERROR();
@@ -1152,7 +1140,7 @@ static int cmd_keypair_gen() {
                 if ((res_APDU_size = asn1_cvc_aut(&ecdsa, HSM_KEY_EC, res_APDU, 4096)) == 0) {
                     return SW_EXEC_ERROR();
                 }
-	            ret = store_keys(&ecdsa, HSM_KEY_EC, key_id, kdom);
+	            ret = store_keys(&ecdsa, HSM_KEY_EC, key_id);
 	            if (ret != CCID_OK) {
                     mbedtls_ecdsa_free(&ecdsa);
                     return SW_EXEC_ERROR();
@@ -1281,22 +1269,18 @@ static int cmd_change_pin() {
                 return r;
             uint8_t old_session_pin[32];
             memcpy(old_session_pin, session_pin, sizeof(old_session_pin));
-            for (uint8_t kdom = 0; kdom < MAX_KEY_DOMAINS; kdom++) {
-                uint8_t dkek[DKEK_SIZE];
-                memcpy(session_pin, old_session_pin, sizeof(session_pin));
-                r = load_dkek(kdom, dkek); //loads the DKEK with old pin
-                if (r == CCID_ERR_FILE_NOT_FOUND)
-                    break;
-                else if (r != CCID_OK)
-                    return SW_EXEC_ERROR();
-                //encrypt DKEK with new pin
-                hash_multi(apdu.data+pin_len, apdu.nc-pin_len, session_pin);
-                has_session_pin = true;
-                r = store_dkek_key(kdom, dkek);
-                release_dkek(dkek);
-                if (r != CCID_OK)
-                    return SW_EXEC_ERROR();
-            }
+            uint8_t mkek[MKEK_SIZE];
+            memcpy(session_pin, old_session_pin, sizeof(session_pin));
+            r = load_mkek(mkek); //loads the MKEK with old pin
+            if (r != CCID_OK)
+                return SW_EXEC_ERROR();
+            //encrypt MKEK with new pin
+            hash_multi(apdu.data+pin_len, apdu.nc-pin_len, session_pin);
+            has_session_pin = true;
+            r = store_mkek(mkek);
+            release_mkek(mkek);
+            if (r != CCID_OK)
+                return SW_EXEC_ERROR();
             memset(old_session_pin, 0, sizeof(old_session_pin));
             uint8_t dhash[33];
             dhash[0] = apdu.nc-pin_len;
@@ -1332,7 +1316,7 @@ static int cmd_key_gen() {
         aes_type = HSM_KEY_AES_192;
     else if (key_size == 32)
         aes_type = HSM_KEY_AES_256;
-    r = store_keys(aes_key, aes_type, key_id, 0);
+    r = store_keys(aes_key, aes_type, key_id);
     if (r != CCID_OK)
         return SW_MEMORY_FAILURE();
     if (find_and_store_meta_key(key_id) != CCID_OK)
@@ -1346,9 +1330,9 @@ int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
         return CCID_VERIFICATION_FAILED;
         
     int key_size = file_get_size(fkey);
-    uint8_t kdata[4096/8], kdom = get_key_domain(fkey);
+    uint8_t kdata[4096/8];
     memcpy(kdata, file_get_data(fkey), key_size);
-    if (dkek_decrypt(kdom, kdata, key_size) != 0) {
+    if (mkek_decrypt(kdata, key_size) != 0) {
         return CCID_EXEC_ERROR;
     }
     if (mbedtls_mpi_read_binary(&ctx->P, kdata, key_size/2) != 0) {
@@ -1382,10 +1366,10 @@ int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey) {
     if (wait_button() == true) //timeout
         return CCID_VERIFICATION_FAILED;
         
-    int key_size = file_get_size(fkey), kdom = get_key_domain(fkey);
+    int key_size = file_get_size(fkey);
     uint8_t kdata[67]; //Worst case, 521 bit + 1byte
     memcpy(kdata, file_get_data(fkey), key_size);
-    if (dkek_decrypt(kdom, kdata, key_size) != 0) {
+    if (mkek_decrypt(kdata, key_size) != 0) {
         return CCID_EXEC_ERROR;
     }
     mbedtls_ecp_group_id gid = kdata[0];
@@ -1666,7 +1650,7 @@ static int cmd_key_wrap() {
         
         int key_size = file_get_size(ef), aes_type = HSM_KEY_AES;
         memcpy(kdata, file_get_data(ef), key_size);
-        if (dkek_decrypt(kdom, kdata, key_size) != 0) {
+        if (mkek_decrypt(kdata, key_size) != 0) {
             return SW_EXEC_ERROR();
         }
         if (key_size == 32)
@@ -1703,7 +1687,7 @@ static int cmd_key_unwrap() {
             mbedtls_rsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
-        r = store_keys(&ctx, HSM_KEY_RSA, key_id, kdom);
+        r = store_keys(&ctx, HSM_KEY_RSA, key_id);
         mbedtls_rsa_free(&ctx);
         if (r != CCID_OK) {
             return SW_EXEC_ERROR();
@@ -1719,7 +1703,7 @@ static int cmd_key_unwrap() {
             mbedtls_ecdsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
-        r = store_keys(&ctx, HSM_KEY_EC, key_id, kdom);
+        r = store_keys(&ctx, HSM_KEY_EC, key_id);
         mbedtls_ecdsa_free(&ctx);
         if (r != CCID_OK) {
             return SW_EXEC_ERROR();
@@ -1742,7 +1726,7 @@ static int cmd_key_unwrap() {
             aes_type = HSM_KEY_AES_128;
         else
             return SW_EXEC_ERROR();
-        r = store_keys(aes_key, aes_type, key_id, kdom);
+        r = store_keys(aes_key, aes_type, key_id);
         if (r != CCID_OK) {
             return SW_EXEC_ERROR();
         }
@@ -1805,9 +1789,9 @@ static int cmd_decrypt_asym() {
         if (wait_button() == true) //timeout
             return SW_SECURE_MESSAGE_EXEC_ERROR();
         int key_size = file_get_size(ef);
-        uint8_t *kdata = (uint8_t *)calloc(1,key_size), kdom = get_key_domain(ef);
+        uint8_t *kdata = (uint8_t *)calloc(1,key_size);
         memcpy(kdata, file_get_data(ef), key_size);
-        if (dkek_decrypt(kdom, kdata, key_size) != 0) {
+        if (mkek_decrypt(kdata, key_size) != 0) {
             free(kdata);
             return SW_EXEC_ERROR();
         }
@@ -1878,9 +1862,8 @@ static int cmd_cipher_sym() {
         return SW_SECURE_MESSAGE_EXEC_ERROR();
     int key_size = file_get_size(ef);
     uint8_t kdata[32]; //maximum AES key size
-    uint8_t kdom = get_key_domain(ef);
     memcpy(kdata, file_get_data(ef), key_size);
-    if (dkek_decrypt(kdom, kdata, key_size) != 0) {
+    if (mkek_decrypt(kdata, key_size) != 0) {
         return SW_EXEC_ERROR();
     }
     if (algo == ALGO_AES_CBC_ENCRYPT || algo == ALGO_AES_CBC_DECRYPT) {
@@ -2006,8 +1989,7 @@ static int cmd_derive_asym() {
             mbedtls_mpi_free(&nd);
             return SW_EXEC_ERROR();
         }
-        uint8_t kdom = get_key_domain(fkey);
-        r = store_keys(&ctx, HSM_KEY_EC, dest_id, kdom);
+        r = store_keys(&ctx, HSM_KEY_EC, dest_id);
         if (r != CCID_OK) {
             mbedtls_ecdsa_free(&ctx);
             mbedtls_mpi_free(&a);

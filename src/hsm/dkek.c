@@ -45,49 +45,76 @@ uint32_t crc32c(const uint8_t *buf, size_t len)
     return ~crc;
 }
 
-int load_dkek(uint8_t id, uint8_t *dkek) {
+int load_mkek(uint8_t *mkek) {
     if (has_session_pin == false)
         return CCID_NO_LOGIN;
-    file_t *tf = search_dynamic_file(EF_DKEK+id);
+    file_t *tf = search_dynamic_file(EF_MKEK);
     if (!tf)
         return CCID_ERR_FILE_NOT_FOUND;
-    memcpy(dkek, file_get_data(tf), DKEK_SIZE);
-    int ret = aes_decrypt_cfb_256(session_pin, DKEK_IV(dkek), DKEK_KEY(dkek), DKEK_KEY_SIZE+DKEK_KEY_CS_SIZE);
+    memcpy(mkek, file_get_data(tf), MKEK_SIZE);
+    int ret = aes_decrypt_cfb_256(session_pin, MKEK_IV(mkek), MKEK_KEY(mkek), MKEK_KEY_SIZE+MKEK_KEY_CS_SIZE);
     if (ret != 0)
         return CCID_EXEC_ERROR;
-    if (crc32c(DKEK_KEY(dkek), DKEK_KEY_SIZE) != *(uint32_t*)DKEK_CHECKSUM(dkek))
+    if (crc32c(MKEK_KEY(mkek), MKEK_KEY_SIZE) != *(uint32_t*)MKEK_CHECKSUM(mkek))
         return CCID_WRONG_DKEK;
     return CCID_OK;
 }
 
-void release_dkek(uint8_t *dkek) {
-    memset(dkek, 0, DKEK_SIZE);
+int load_dkek(uint8_t id, uint8_t *dkek) {
+    file_t *tf = search_dynamic_file(EF_DKEK+id);
+    if (!tf)
+        return CCID_ERR_FILE_NOT_FOUND;
+    memcpy(dkek, file_get_data(tf), DKEK_KEY_SIZE);
+    return mkek_decrypt(dkek, DKEK_KEY_SIZE);
+}
+
+void release_mkek(uint8_t *mkek) {
+    memset(mkek, 0, MKEK_SIZE);
+}
+
+int store_mkek(const uint8_t *mkek) {
+    if (has_session_pin == false)
+        return CCID_NO_LOGIN;
+    uint8_t tmp_mkek[MKEK_SIZE];
+    if (mkek == NULL) {
+        const uint8_t *rd = random_bytes_get(MKEK_IV_SIZE+MKEK_KEY_SIZE);
+        memcpy(tmp_mkek, rd, MKEK_IV_SIZE+MKEK_KEY_SIZE);
+    }
+    else
+        memcpy(tmp_mkek, mkek, MKEK_SIZE);
+    file_t *tf = search_dynamic_file(EF_MKEK);
+    if (!tf)
+        return CCID_ERR_FILE_NOT_FOUND;
+    *(uint32_t*)MKEK_CHECKSUM(tmp_mkek) = crc32c(MKEK_KEY(tmp_mkek), MKEK_KEY_SIZE);
+    aes_encrypt_cfb_256(session_pin, MKEK_IV(tmp_mkek), MKEK_KEY(tmp_mkek), MKEK_KEY_SIZE+MKEK_KEY_CS_SIZE);
+    flash_write_data_to_file(tf, tmp_mkek, MKEK_SIZE);
+    low_flash_available();
+    release_mkek(tmp_mkek);
+    return CCID_OK;
 }
 
 int store_dkek_key(uint8_t id, uint8_t *dkek) {
     file_t *tf = search_dynamic_file(EF_DKEK+id);
     if (!tf)
         return CCID_ERR_FILE_NOT_FOUND;
-    *(uint32_t*)DKEK_CHECKSUM(dkek) = crc32c(DKEK_KEY(dkek), DKEK_KEY_SIZE);
-    aes_encrypt_cfb_256(session_pin, DKEK_IV(dkek), DKEK_KEY(dkek), DKEK_KEY_SIZE+DKEK_KEY_CS_SIZE);
-    flash_write_data_to_file(tf, dkek, DKEK_SIZE);
+    int r = mkek_encrypt(dkek, DKEK_KEY_SIZE);
+    if (r != CCID_OK)
+        return r;
+    flash_write_data_to_file(tf, dkek, DKEK_KEY_SIZE);
     low_flash_available();
-    release_dkek(dkek);
     return CCID_OK;
 }
 
 int save_dkek_key(uint8_t id, const uint8_t *key) {
-    uint8_t dkek[DKEK_SIZE];
-    const uint8_t *iv = random_bytes_get(32);
-    memcpy(dkek, iv, DKEK_IV_SIZE);
+    uint8_t dkek[DKEK_KEY_SIZE];
     if (!key) {
         file_t *tf = search_dynamic_file(EF_DKEK+id);
         if (!tf)
             return CCID_ERR_FILE_NOT_FOUND;
-        memcpy(DKEK_KEY(dkek), file_get_data(tf), DKEK_KEY_SIZE);
+        memcpy(dkek, file_get_data(tf), DKEK_KEY_SIZE);
     }
     else
-        memcpy(DKEK_KEY(dkek), key, DKEK_KEY_SIZE);
+        memcpy(dkek, key, DKEK_KEY_SIZE);
     return store_dkek_key(id, dkek);
 }
 
@@ -107,58 +134,58 @@ int import_dkek_share(uint8_t id, const uint8_t *share) {
 }
 
 int dkek_kcv(uint8_t id, uint8_t *kcv) { //kcv 8 bytes
-    uint8_t hsh[32], dkek[DKEK_SIZE];
+    uint8_t hsh[32], dkek[DKEK_KEY_SIZE];
     memset(kcv, 0, 8);
     int r = load_dkek(id, dkek);
     if (r != CCID_OK)
         return r;
-    hash256(DKEK_KEY(dkek), DKEK_KEY_SIZE, hsh);
-    release_dkek(dkek);
+    hash256(dkek, DKEK_KEY_SIZE, hsh);
+    memset(dkek, 0, sizeof(dkek));
     memcpy(kcv, hsh, 8);
     return CCID_OK;
 }
 
 int dkek_kenc(uint8_t id, uint8_t *kenc) { //kenc 32 bytes
-    uint8_t dkek[DKEK_SIZE+4];
+    uint8_t dkek[DKEK_KEY_SIZE+4];
     memset(kenc, 0, 32);
     int r = load_dkek(id, dkek);
     if (r != CCID_OK)
         return r;
-    memcpy(DKEK_KEY(dkek)+DKEK_KEY_SIZE, "\x0\x0\x0\x1", 4);
-    hash256(DKEK_KEY(dkek), DKEK_KEY_SIZE+4, kenc);
-    release_dkek(dkek);
+    memcpy(dkek+DKEK_KEY_SIZE, "\x0\x0\x0\x1", 4);
+    hash256(dkek, sizeof(dkek), kenc);
+    memset(dkek, 0, sizeof(dkek));
     return CCID_OK;
 }
 
 int dkek_kmac(uint8_t id, uint8_t *kmac) { //kmac 32 bytes
-    uint8_t dkek[DKEK_SIZE+4];
+    uint8_t dkek[DKEK_KEY_SIZE+4];
     memset(kmac, 0, 32);
     int r = load_dkek(id, dkek);
     if (r != CCID_OK)
         return r;
-    memcpy(DKEK_KEY(dkek)+DKEK_KEY_SIZE, "\x0\x0\x0\x2", 4);
-    hash256(DKEK_KEY(dkek), DKEK_KEY_SIZE+4, kmac);
-    release_dkek(dkek);
+    memcpy(dkek+DKEK_KEY_SIZE, "\x0\x0\x0\x2", 4);
+    hash256(dkek, DKEK_KEY_SIZE+4, kmac);
+    memset(dkek, 0, sizeof(dkek));
     return CCID_OK;
 }
 
-int dkek_encrypt(uint8_t id, uint8_t *data, size_t len) {
+int mkek_encrypt(uint8_t *data, size_t len) {
     int r;
-    uint8_t dkek[DKEK_SIZE+4];
-    if ((r = load_dkek(id, dkek)) != CCID_OK)
+    uint8_t mkek[MKEK_SIZE+4];
+    if ((r = load_mkek(mkek)) != CCID_OK)
         return r;
-    r = aes_encrypt_cfb_256(DKEK_KEY(dkek), DKEK_IV(dkek), data, len);
-    release_dkek(dkek);
+    r = aes_encrypt_cfb_256(MKEK_KEY(mkek), MKEK_IV(mkek), data, len);
+    release_mkek(mkek);
     return r;
 }
 
-int dkek_decrypt(uint8_t id, uint8_t *data, size_t len) {
+int mkek_decrypt(uint8_t *data, size_t len) {
     int r;
-    uint8_t dkek[DKEK_SIZE+4];
-    if ((r = load_dkek(id, dkek)) != CCID_OK)
+    uint8_t mkek[MKEK_SIZE+4];
+    if ((r = load_mkek(mkek)) != CCID_OK)
         return r;
-    r = aes_decrypt_cfb_256(DKEK_KEY(dkek), DKEK_IV(dkek), data, len);
-    release_dkek(dkek);
+    r = aes_decrypt_cfb_256(MKEK_KEY(mkek), MKEK_IV(mkek), data, len);
+    release_mkek(mkek);
     return r;
 }
 
