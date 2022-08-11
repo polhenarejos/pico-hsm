@@ -50,14 +50,14 @@ int load_mkek(uint8_t *mkek) {
         return CCID_NO_LOGIN;
     const uint8_t *pin = NULL;
     if (pin == NULL && has_session_pin == true) {
-        file_t *tf = search_dynamic_file(EF_MKEK);
+        file_t *tf = search_by_fid(EF_MKEK, NULL, SPECIFY_EF);
         if (tf) {
             memcpy(mkek, file_get_data(tf), MKEK_SIZE);
             pin = session_pin;
         }
     }
     if (pin == NULL && has_session_sopin == true) {
-        file_t *tf = search_dynamic_file(EF_MKEK_SO);
+        file_t *tf = search_by_fid(EF_MKEK_SO, NULL, SPECIFY_EF);
         if (tf) {
             memcpy(mkek, file_get_data(tf), MKEK_SIZE);
             pin = session_sopin;
@@ -97,14 +97,14 @@ int store_mkek(const uint8_t *mkek) {
         memcpy(tmp_mkek, mkek, MKEK_SIZE);
     *(uint32_t*)MKEK_CHECKSUM(tmp_mkek) = crc32c(MKEK_KEY(tmp_mkek), MKEK_KEY_SIZE);
     if (has_session_pin) {
-        file_t *tf = search_dynamic_file(EF_MKEK);
+        file_t *tf = search_by_fid(EF_MKEK, NULL, SPECIFY_EF);
         if (!tf)
             return CCID_ERR_FILE_NOT_FOUND;
         aes_encrypt_cfb_256(session_pin, MKEK_IV(tmp_mkek), MKEK_KEY(tmp_mkek), MKEK_KEY_SIZE+MKEK_KEY_CS_SIZE);
         flash_write_data_to_file(tf, tmp_mkek, MKEK_SIZE);
     }
     if (has_session_sopin) {
-        file_t *tf = search_dynamic_file(EF_MKEK_SO);
+        file_t *tf = search_by_fid(EF_MKEK_SO, NULL, SPECIFY_EF);
         if (!tf)
             return CCID_ERR_FILE_NOT_FOUND;
         aes_encrypt_cfb_256(session_sopin, MKEK_IV(tmp_mkek), MKEK_KEY(tmp_mkek), MKEK_KEY_SIZE+MKEK_KEY_CS_SIZE);
