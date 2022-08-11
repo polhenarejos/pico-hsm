@@ -780,7 +780,6 @@ static int cmd_initialize() {
                 }
             }
         }
-        //At least, the first DKEK shall exist
         file_t *tf_kd = search_by_fid(EF_KEY_DOMAIN, NULL, SPECIFY_EF);
         if (!tf_kd)
             return SW_EXEC_ERROR();
@@ -800,6 +799,11 @@ static int cmd_initialize() {
                 if (flash_write_data_to_file(tf_kd, (const uint8_t *)&d, sizeof(d)) != CCID_OK)
                     return SW_EXEC_ERROR();
             }
+        }
+        else {
+            uint16_t d = 0x0000;
+            if (flash_write_data_to_file(tf_kd, (const uint8_t *)&d, sizeof(d)) != CCID_OK)
+                return SW_EXEC_ERROR();
         }
         if (kds) {
             uint8_t t[MAX_KEY_DOMAINS*2], k = MIN(*kds,MAX_KEY_DOMAINS);
