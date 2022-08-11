@@ -644,6 +644,16 @@ static int cmd_reset_retry() {
         flash_write_data_to_file(file_pin1, dhash, sizeof(dhash));
         if (pin_reset_retries(file_pin1, true) != CCID_OK)
             return SW_MEMORY_FAILURE();
+        uint8_t mkek[MKEK_SIZE];
+        int r = load_mkek(mkek); //loads the MKEK with SO pin
+        if (r != CCID_OK)
+            return SW_EXEC_ERROR();
+        hash_multi(apdu.data+(apdu.nc-newpin_len), newpin_len, session_pin);
+        has_session_pin = true;
+        r = store_mkek(mkek);
+        release_mkek(mkek);
+        if (r != CCID_OK)
+            return SW_EXEC_ERROR();
         low_flash_available();
         return SW_OK();
     }
@@ -656,6 +666,8 @@ static int cmd_reset_retry() {
             uint16_t r = check_pin(file_sopin, apdu.data, 8);
             if (r != 0x9000)
                 return r;
+            has_session_sopin = true;
+            hash_multi(apdu.data, 8, session_sopin);
         }
         else if (P1(apdu) == 0x3) {
             if (!has_session_sopin)
@@ -696,6 +708,7 @@ static int cmd_initialize() {
     if (apdu.nc > 0) {
         initialize_flash(true);
         scan_all();
+        has_session_pin = has_session_sopin = false;
         uint16_t tag = 0x0;
         uint8_t *tag_data = NULL, *p = NULL, *kds = NULL, *dkeks = NULL;
         size_t tag_len = 0;    
@@ -711,6 +724,7 @@ static int cmd_initialize() {
                     double_hash_pin(tag_data, tag_len, dhash+1);
                     flash_write_data_to_file(file_pin1, dhash, sizeof(dhash));
                     hash_multi(tag_data, tag_len, session_pin);
+                    has_session_pin = true;
                 }
             }
             else if (tag == 0x82) { //sopin pin
@@ -794,7 +808,6 @@ static int cmd_initialize() {
                 return SW_EXEC_ERROR();
         }
         /* When initialized, it has all credentials */
-        has_session_pin = true;
         isUserAuthenticated = true;
         low_flash_available();
     }

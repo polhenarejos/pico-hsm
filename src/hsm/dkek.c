@@ -29,8 +29,8 @@
 #include "mbedtls/ecdsa.h"
 #include "files.h"
 
-extern bool has_session_pin;
-extern uint8_t session_pin[32];
+extern bool has_session_pin, has_session_sopin;
+extern uint8_t session_pin[32], session_sopin[32];
 
 #define POLY 0xedb88320
 
@@ -46,13 +46,26 @@ uint32_t crc32c(const uint8_t *buf, size_t len)
 }
 
 int load_mkek(uint8_t *mkek) {
-    if (has_session_pin == false)
+    if (has_session_pin == false && has_session_sopin == false)
         return CCID_NO_LOGIN;
-    file_t *tf = search_dynamic_file(EF_MKEK);
-    if (!tf)
-        return CCID_ERR_FILE_NOT_FOUND;
-    memcpy(mkek, file_get_data(tf), MKEK_SIZE);
-    int ret = aes_decrypt_cfb_256(session_pin, MKEK_IV(mkek), MKEK_KEY(mkek), MKEK_KEY_SIZE+MKEK_KEY_CS_SIZE);
+    const uint8_t *pin = NULL;
+    if (pin == NULL && has_session_pin == true) {
+        file_t *tf = search_dynamic_file(EF_MKEK);
+        if (tf) {
+            memcpy(mkek, file_get_data(tf), MKEK_SIZE);
+            pin = session_pin;
+        }
+    }
+    if (pin == NULL && has_session_sopin == true) {
+        file_t *tf = search_dynamic_file(EF_MKEK_SO);
+        if (tf) {
+            memcpy(mkek, file_get_data(tf), MKEK_SIZE);
+            pin = session_sopin;
+        }
+    }
+    if (pin == NULL) //Should never happen
+        return CCID_EXEC_ERROR;
+    int ret = aes_decrypt_cfb_256(pin, MKEK_IV(mkek), MKEK_KEY(mkek), MKEK_KEY_SIZE+MKEK_KEY_CS_SIZE);
     if (ret != 0)
         return CCID_EXEC_ERROR;
     if (crc32c(MKEK_KEY(mkek), MKEK_KEY_SIZE) != *(uint32_t*)MKEK_CHECKSUM(mkek))
@@ -73,7 +86,7 @@ void release_mkek(uint8_t *mkek) {
 }
 
 int store_mkek(const uint8_t *mkek) {
-    if (has_session_pin == false)
+    if (has_session_pin == false && has_session_sopin == false)
         return CCID_NO_LOGIN;
     uint8_t tmp_mkek[MKEK_SIZE];
     if (mkek == NULL) {
@@ -82,12 +95,21 @@ int store_mkek(const uint8_t *mkek) {
     }
     else
         memcpy(tmp_mkek, mkek, MKEK_SIZE);
-    file_t *tf = search_dynamic_file(EF_MKEK);
-    if (!tf)
-        return CCID_ERR_FILE_NOT_FOUND;
     *(uint32_t*)MKEK_CHECKSUM(tmp_mkek) = crc32c(MKEK_KEY(tmp_mkek), MKEK_KEY_SIZE);
-    aes_encrypt_cfb_256(session_pin, MKEK_IV(tmp_mkek), MKEK_KEY(tmp_mkek), MKEK_KEY_SIZE+MKEK_KEY_CS_SIZE);
-    flash_write_data_to_file(tf, tmp_mkek, MKEK_SIZE);
+    if (has_session_pin) {
+        file_t *tf = search_dynamic_file(EF_MKEK);
+        if (!tf)
+            return CCID_ERR_FILE_NOT_FOUND;
+        aes_encrypt_cfb_256(session_pin, MKEK_IV(tmp_mkek), MKEK_KEY(tmp_mkek), MKEK_KEY_SIZE+MKEK_KEY_CS_SIZE);
+        flash_write_data_to_file(tf, tmp_mkek, MKEK_SIZE);
+    }
+    if (has_session_sopin) {
+        file_t *tf = search_dynamic_file(EF_MKEK_SO);
+        if (!tf)
+            return CCID_ERR_FILE_NOT_FOUND;
+        aes_encrypt_cfb_256(session_sopin, MKEK_IV(tmp_mkek), MKEK_KEY(tmp_mkek), MKEK_KEY_SIZE+MKEK_KEY_CS_SIZE);
+        flash_write_data_to_file(tf, tmp_mkek, MKEK_SIZE);
+    }
     low_flash_available();
     release_mkek(tmp_mkek);
     return CCID_OK;
