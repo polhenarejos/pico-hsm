@@ -392,6 +392,13 @@ const uint8_t *cvc_get_pub(const uint8_t *data, size_t len, size_t *olen) {
     return NULL;
 }
 
+const uint8_t *cvc_get_ext(const uint8_t *data, size_t len, size_t *olen) {
+    if ((data = cvc_get_body(data, len, olen)) != NULL) {
+        return cvc_get_field(data, len, olen, 0x65);
+    }
+    return NULL;
+}
+
 extern PUK puk_store[MAX_PUK_STORE_ENTRIES];
 extern int puk_store_entries;
 
