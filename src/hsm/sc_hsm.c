@@ -1172,7 +1172,7 @@ static int cmd_keypair_gen() {
                         mbedtls_rsa_free(&rsa);
                     return SW_EXEC_ERROR();
                 }
-                if ((res_APDU_size = asn1_cvc_aut(&rsa, HSM_KEY_RSA, res_APDU, 4096)) == 0) {
+                if ((res_APDU_size = asn1_cvc_aut(&rsa, HSM_KEY_RSA, res_APDU, 4096, NULL, 0)) == 0) {
                     return SW_EXEC_ERROR();
                 }
 	            ret = store_keys(&rsa, HSM_KEY_RSA, key_id);
@@ -1200,7 +1200,36 @@ static int cmd_keypair_gen() {
                     mbedtls_ecdsa_free(&ecdsa);
                     return SW_EXEC_ERROR();
                 }
-                if ((res_APDU_size = asn1_cvc_aut(&ecdsa, HSM_KEY_EC, res_APDU, 4096)) == 0) {
+                size_t l91 = 0, ext_len = 0;
+                uint8_t *p91 = NULL, *ext = NULL;
+                if (asn1_find_tag(apdu.data, apdu.nc, 0x91, &l91, &p91) && p91 != NULL && l91 > 0) {
+                    for (int n = 0; n < l91; n++) {
+                        if (p91[n] == ALGO_EC_DH_XKEK) {
+                            size_t l92 = 0;
+                            uint8_t *p92 = NULL;
+                            if (!asn1_find_tag(apdu.data, apdu.nc, 0x92, &l92, &p92) || p92 == NULL || l92 == 0)
+                                return SW_WRONG_DATA();
+                            if (p92[0] > MAX_KEY_DOMAINS)
+                                return SW_WRONG_DATA();
+                            file_t *tf_xkek = search_dynamic_file(EF_XKEK+p92[0]);
+                            if (!tf_xkek)
+                                return SW_WRONG_DATA();
+                            ext_len = 2+2+strlen(OID_ID_KEY_DOMAIN_UID)+2+file_get_size(tf_xkek);
+                            ext = (uint8_t *)calloc(1, ext_len);
+                            uint8_t *pe = ext;
+                            *pe++ = 0x73;
+                            *pe++ = ext_len-2;
+                            *pe++ = 0x6;
+                            *pe++ = strlen(OID_ID_KEY_DOMAIN_UID);
+                            memcpy(pe, OID_ID_KEY_DOMAIN_UID, strlen(OID_ID_KEY_DOMAIN_UID));
+                            pe += strlen(OID_ID_KEY_DOMAIN_UID);
+                            *pe++ = 0x80;
+                            *pe++ = file_get_size(tf_xkek);
+                            memcpy(pe, file_get_data(tf_xkek), file_get_size(tf_xkek));
+                        }
+                    }
+                }
+                if ((res_APDU_size = asn1_cvc_aut(&ecdsa, HSM_KEY_EC, res_APDU, 4096, ext, ext_len)) == 0) {
                     return SW_EXEC_ERROR();
                 }
 	            ret = store_keys(&ecdsa, HSM_KEY_EC, key_id);
