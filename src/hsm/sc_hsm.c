@@ -772,12 +772,14 @@ static int cmd_initialize() {
             }
             else if (tag == 0x97) {
                 kds = tag_data;
+                /*
                 for (int i = 0; i < MIN(*kds,MAX_KEY_DOMAINS); i++) {
                     file_t *tf = file_new(EF_DKEK+i);
                     if (!tf)
                         return SW_MEMORY_FAILURE();
                     flash_write_data_to_file(tf, NULL, 0);
                 }
+                */
             }
         }
         file_t *tf_kd = search_by_fid(EF_KEY_DOMAIN, NULL, SPECIFY_EF);
@@ -923,7 +925,7 @@ static int cmd_key_domain() {
     uint16_t tf_kd_size = file_get_size(tf_kd);
     if (tf_kd_size == 0)
         return SW_WRONG_P1P2();
-    uint8_t *kdata = file_get_data(tf_kd), dkeks = kdata ? *(kdata+2*p2) : 0, current_dkeks = kdata ? *(kdata+2*p2+1) : 0;
+    uint8_t *kdata = file_get_data(tf_kd), dkeks = kdata ? kdata[2*p2] : 0, current_dkeks = kdata ? kdata[2*p2+1] : 0;
     if (p1 == 0x0) { //dkek import
         if (apdu.nc > 0) {
             file_t *tf = file_new(EF_DKEK+p2);
@@ -944,8 +946,10 @@ static int cmd_key_domain() {
             low_flash_available();
         }
         else {
-            file_t *tf = search_dynamic_file(EF_DKEK+p2);
-            if (!tf)
+            //file_t *tf = search_dynamic_file(EF_DKEK+p2);
+            //if (!tf)
+            //    return SW_INCORRECT_P1P2();
+            if (2*p2 >= tf_kd_size)
                 return SW_INCORRECT_P1P2();
             if (current_dkeks == 0xff)
                 return SW_REFERENCE_NOT_FOUND();
