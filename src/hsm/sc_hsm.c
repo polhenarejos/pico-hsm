@@ -853,7 +853,7 @@ uint8_t get_key_domain(file_t *fkey) {
     const uint8_t *meta_tag = get_meta_tag(fkey, 0x92, &tag_len);
     if (meta_tag)
         return *meta_tag;
-    return 0;
+    return 0xff;
 }
 
 uint32_t get_key_counter(file_t *fkey) {
@@ -909,6 +909,16 @@ uint32_t decrement_key_counter(file_t *fkey) {
         free(cmeta);
     }
     return 0xffffffff;
+}
+
+int delete_file(file_t *ef) {
+    meta_delete(ef->fid);
+    if (flash_clear_file(ef) != CCID_OK)
+        return CCID_EXEC_ERROR;
+    if (delete_dynamic_file(ef) != CCID_OK)
+        return CCID_EXEC_ERROR;
+    low_flash_available();
+    return CCID_OK;
 }
 
 static int cmd_key_domain() {
@@ -977,14 +987,18 @@ static int cmd_key_domain() {
         }
         if (flash_write_data_to_file(tf_kd, t, tf_kd_size) != CCID_OK)
             return SW_EXEC_ERROR();
-        uint8_t dk[DKEK_KEY_SIZE];
-        memset(dk, 0, sizeof(dk));
-        if (store_dkek_key(p2, dk) != CCID_OK)
-            return SW_EXEC_ERROR();
-        low_flash_available();
+        file_t *tf = NULL;
+        if ((tf = search_dynamic_file(EF_DKEK+p2))) {
+            if (delete_file(tf) != CCID_OK)
+                return SW_EXEC_ERROR();
+        }
+        if ((tf = search_dynamic_file(EF_XKEK+p2))) {
+            if (delete_file(tf) != CCID_OK)
+                return SW_EXEC_ERROR();
+        }
         return SW_OK();
     }
-    else if (p1 == 0x2) {
+    else if (p1 == 0x2) { //XKEK Key Domain creation
         if (apdu.nc > 0) {
             size_t pub_len = 0;
             const uint8_t *pub = cvc_get_pub(termca+2, (termca[1] << 8 | termca[0]), &pub_len);
@@ -1294,12 +1308,8 @@ static int cmd_delete_file() {
     }
     if (!authenticate_action(ef, ACL_OP_DELETE_SELF))
         return SW_SECURITY_STATUS_NOT_SATISFIED();
-    meta_delete(ef->fid);
-    if (flash_clear_file(ef) != CCID_OK)
+    if (delete_file(ef) != CCID_OK)
         return SW_EXEC_ERROR();
-    if (delete_dynamic_file(ef) != CCID_OK)
-        return SW_EXEC_ERROR();
-    low_flash_available();
     return SW_OK();
 }
 
