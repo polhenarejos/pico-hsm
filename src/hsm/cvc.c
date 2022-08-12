@@ -109,14 +109,17 @@ size_t asn1_cvc_public_key_ecdsa(mbedtls_ecdsa_context *ecdsa, uint8_t *buf, siz
     return tot_len;
 }
 
-size_t asn1_cvc_cert_body(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf_len) {
+size_t asn1_cvc_cert_body(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf_len, const uint8_t *ext, size_t ext_len) {
     size_t pubkey_size = 0;
     if (key_type == HSM_KEY_RSA)
         pubkey_size = asn1_cvc_public_key_rsa(rsa_ecdsa, NULL, 0);
     else if (key_type == HSM_KEY_EC)
         pubkey_size = asn1_cvc_public_key_ecdsa(rsa_ecdsa, NULL, 0);
     size_t cpi_size = 4;
-    
+    size_t ext_size = 0;
+    if (ext && ext_len > 0)
+        ext_size = asn1_len_tag(0x65, ext_len);
+
     uint8_t *car = NULL, *chr = NULL;
     size_t lencar = 0, lenchr = 0;
     
@@ -130,7 +133,7 @@ size_t asn1_cvc_cert_body(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_
     }
     size_t car_size = asn1_len_tag(0x42, lencar), chr_size = asn1_len_tag(0x5f20, lenchr);
     
-    size_t tot_len = asn1_len_tag(0x7f4e, cpi_size+car_size+pubkey_size+chr_size);
+    size_t tot_len = asn1_len_tag(0x7f4e, cpi_size+car_size+pubkey_size+chr_size+ext_size);
     
     if (buf_len == 0 || buf == NULL)
         return tot_len;
@@ -138,7 +141,7 @@ size_t asn1_cvc_cert_body(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_
         return 0;
     uint8_t *p = buf;
     memcpy(p, "\x7F\x4E", 2); p += 2;
-    p += format_tlv_len(cpi_size+car_size+pubkey_size+chr_size, p);
+    p += format_tlv_len(cpi_size+car_size+pubkey_size+chr_size+ext_size, p);
     //cpi
     *p++ = 0x5f; *p++ = 0x29; *p++ = 1; *p++ = 0;
     //car
@@ -150,16 +153,22 @@ size_t asn1_cvc_cert_body(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_
         p += asn1_cvc_public_key_ecdsa(rsa_ecdsa, p, pubkey_size);
     //chr
     *p++ = 0x5f; *p++ = 0x20; p += format_tlv_len(lenchr, p); memcpy(p, chr, lenchr); p += lenchr;
+    if (ext && ext_len > 0) {
+        *p++ = 0x65;
+        p += format_tlv_len(ext_len, p);
+        memcpy(p, ext, ext_len);
+        p += ext_len;
+    }
     return tot_len;
 }
 
-size_t asn1_cvc_cert(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf_len) {
+size_t asn1_cvc_cert(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf_len, const uint8_t *ext, size_t ext_len) {
     size_t key_size = 0;
     if (key_type == HSM_KEY_RSA)
         key_size = mbedtls_mpi_size(&((mbedtls_rsa_context *)rsa_ecdsa)->N);
     else if (key_type == HSM_KEY_EC)
         key_size = 2*mbedtls_mpi_size(&((mbedtls_ecdsa_context *)rsa_ecdsa)->d);
-    size_t body_size = asn1_cvc_cert_body(rsa_ecdsa, key_type, NULL, 0), sig_size = asn1_len_tag(0x5f37, key_size);
+    size_t body_size = asn1_cvc_cert_body(rsa_ecdsa, key_type, NULL, 0, ext, ext_len), sig_size = asn1_len_tag(0x5f37, key_size);
     size_t tot_len = asn1_len_tag(0x7f21, body_size+sig_size);
     if (buf_len == 0 || buf == NULL)
         return tot_len;
@@ -169,7 +178,7 @@ size_t asn1_cvc_cert(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf
     memcpy(p, "\x7F\x21", 2); p += 2;
     p += format_tlv_len(body_size+sig_size, p);
     body = p;
-    p += asn1_cvc_cert_body(rsa_ecdsa, key_type, p, body_size);
+    p += asn1_cvc_cert_body(rsa_ecdsa, key_type, p, body_size, ext, ext_len);
     
     uint8_t hsh[32];
     hash256(body, body_size, hsh);
@@ -200,8 +209,8 @@ size_t asn1_cvc_cert(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf
     return p-buf;
 }
 
-size_t asn1_cvc_aut(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf_len) {
-    size_t cvcert_size = asn1_cvc_cert(rsa_ecdsa, key_type, NULL, 0);
+size_t asn1_cvc_aut(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf_len, const uint8_t *ext, size_t ext_len) {
+    size_t cvcert_size = asn1_cvc_cert(rsa_ecdsa, key_type, NULL, 0, ext, ext_len);
     size_t outcar_len = 0;
     const uint8_t *outcar = cvc_get_chr((uint8_t *)termca+2, (termca[1] << 8) | termca[0], &outcar_len);
     size_t outcar_size = asn1_len_tag(0x42, outcar_len);
@@ -216,7 +225,7 @@ size_t asn1_cvc_aut(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf_
     p += format_tlv_len(cvcert_size+outcar_size+outsig_size, p);
     uint8_t *body = p;
     //cvcert
-    p += asn1_cvc_cert(rsa_ecdsa, key_type, p, cvcert_size);
+    p += asn1_cvc_cert(rsa_ecdsa, key_type, p, cvcert_size, ext, ext_len);
     //outcar
     *p++ = 0x42; p += format_tlv_len(outcar_len, p); memcpy(p, outcar, outcar_len); p += outcar_len;
     mbedtls_ecdsa_context ctx;
