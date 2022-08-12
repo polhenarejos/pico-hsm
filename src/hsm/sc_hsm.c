@@ -1931,7 +1931,43 @@ static int cmd_decrypt_asym() {
             mbedtls_ecdh_free(&ctx);
             return SW_EXEC_ERROR();
         }
-        res_APDU_size = olen+1;
+        if (p2 == ALGO_EC_DH)
+            res_APDU_size = olen+1;
+        else {
+            res_APDU_size = 0;
+            size_t ext_len = 0;
+            const uint8_t *ext = NULL;
+            if ((ext = cvc_get_ext(apdu.data, apdu.nc, &ext_len)) == NULL)
+                return SW_WRONG_DATA();
+            uint8_t *p = NULL, *tag_data = NULL, *kdom_uid = NULL;
+            uint16_t tag = 0;
+            size_t tag_len = 0, kdom_uid_len = 0;
+            while (walk_tlv(ext, ext_len, &p, &tag, &tag_len, &tag_data)) {
+                if (tag == 0x73) {
+                    size_t oid_len = 0;
+                    uint8_t *oid_data = NULL;
+                    if (asn1_find_tag(tag_data, tag_len, 0x6, &oid_len, &oid_data) == true && oid_len == strlen(OID_ID_KEY_DOMAIN_UID) && memcmp(oid_data, OID_ID_KEY_DOMAIN_UID, strlen(OID_ID_KEY_DOMAIN_UID)) == 0) {
+                        if (asn1_find_tag(tag_data, tag_len, 0x80, &kdom_uid_len, &kdom_uid) == false)
+                            return SW_WRONG_DATA();
+                        break;
+                    }
+                }
+            }
+            if (kdom_uid_len == 0 || kdom_uid == NULL)
+                return SW_WRONG_DATA();
+            for (int n = 0; n < MAX_KEY_DOMAINS; n++) {
+                file_t *tf = search_dynamic_file(EF_XKEK+n);
+                if (tf) {
+                    if (file_get_size(tf) == kdom_uid_len && memcmp(file_get_data(tf), kdom_uid, kdom_uid_len) == 0) {
+                        file_new(EF_DKEK+n);
+                        if (store_dkek_key(n, res_APDU+1) != CCID_OK)
+                            return SW_EXEC_ERROR();
+                        return SW_OK();
+                    }
+                }
+            }
+            return SW_REFERENCE_NOT_FOUND();
+        }
         mbedtls_ecdh_free(&ctx);
     }
     else
