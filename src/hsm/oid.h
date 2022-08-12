@@ -78,4 +78,31 @@
 
 #define OID_ID_CI                       OID_BSI_DE "\x02\x02\x06"
 
+#define OID_CARDCONTACT                 "\x2B\x06\x01\x04\x01\x81\xC3\x1F"
+
+#define OID_OPENSCDP                    OID_CARDCONTACT "\x01"
+#define OID_CC_ISO7816                  OID_CARDCONTACT "\x02"
+#define OID_CC_PKI                      OID_CARDCONTACT "\x03"
+#define OID_CC_FORMAT                   OID_CARDCONTACT "\x04"
+#define OID_CC_GP_PROFILES              OID_CARDCONTACT "\x10"
+
+#define OID_SCSH3                       OID_OPENSCDP "\x01"
+#define OID_SCSH3GUI                    OID_OPENSCDP "\x02"
+
+#define OID_SMARCARD_HSM                OID_CC_ISO7816 "\x01"
+#define OID_CC_APDUTEST                 OID_CC_ISO7816 "\x02"
+#define OID_CC_PACKAGES                 OID_CC_ISO7816 "\x7F"
+
+#define OID_CC_ROLES                    OID_CC_PKI "\x01"
+#define OID_CC_ROLE_SC_HSM              OID_CC_ROLES "\x01"
+
+#define OID_CC_EXTENSIONS               OID_CC_PKI "\x02"
+#define OID_ID_IMPU                     OID_CC_EXTENSIONS "\x01"
+#define OID_ID_KEY_DOMAIN_UID           OID_CC_EXTENSIONS "\x02"
+
+#define OID_CC_FF_DEVICEID              OID_CC_FORMAT "\x01"
+#define OID_CC_FF_KDM                   OID_CC_FORMAT "\x02"
+#define OID_CC_FF_PKA                   OID_CC_FORMAT "\x03"
+#define OID_CC_FF_KDA                   OID_CC_FORMAT "\x04"
+
 #endif
