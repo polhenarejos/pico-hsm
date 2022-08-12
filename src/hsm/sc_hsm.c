@@ -946,12 +946,10 @@ static int cmd_key_domain() {
             low_flash_available();
         }
         else {
-            //file_t *tf = search_dynamic_file(EF_DKEK+p2);
-            //if (!tf)
-            //    return SW_INCORRECT_P1P2();
+            file_t *tf = search_dynamic_file(EF_XKEK+p2);
             if (2*p2 >= tf_kd_size)
                 return SW_INCORRECT_P1P2();
-            if (current_dkeks == 0xff)
+            if (current_dkeks == 0xff && !tf) //XKEK have always 0xff)
                 return SW_REFERENCE_NOT_FOUND();
         }
     }
@@ -987,7 +985,42 @@ static int cmd_key_domain() {
         return SW_OK();
     }
     else if (p1 == 0x2) {
-        
+        if (apdu.nc > 0) {
+            size_t pub_len = 0;
+            const uint8_t *pub = cvc_get_pub(termca+2, (termca[1] << 8 | termca[0]), &pub_len);
+            if (!pub)
+                return SW_EXEC_ERROR();
+            size_t t86_len = 0;
+            const uint8_t *t86 = cvc_get_field(pub, pub_len, &t86_len, 0x86);
+            if (!t86 || t86[0] != 0x4)
+                return SW_EXEC_ERROR();
+            size_t t54_len = 0;
+            const uint8_t *t54 = cvc_get_field(apdu.data, apdu.nc, &t54_len, 0x54);     
+            if (!t54)
+                return SW_WRONG_DATA();        
+            uint8_t hash[32], *input = (uint8_t *)calloc(1, (t86_len-1)/2+1);
+            input[0] = 0x54;
+            memcpy(input+1, t86+1, (t86_len-1)/2);
+            hash256(input, (t86_len-1)/2+1, hash);
+            free(input);
+            int r = puk_verify(t54, t54_len, hash, 32, apdu.data, apdu.nc);
+            if (r != 0)
+                return SW_CONDITIONS_NOT_SATISFIED();
+            file_t *tf = file_new(EF_XKEK+p2);
+            if (!tf)
+                return SW_MEMORY_FAILURE();
+            
+            //All checks done. Get Key Domain UID
+            pub = cvc_get_pub(apdu.data, apdu.nc, &pub_len);
+            if (pub) {
+                size_t t86_len = 0;
+                const uint8_t *t86 = cvc_get_field(pub, pub_len, &t86_len, 0x86);
+                if (t86) {
+                    flash_write_data_to_file(tf, t86+1, t86_len-1);
+                    low_flash_available();
+                }
+            }
+        }
     }
     else
         return SW_INCORRECT_P1P2();
@@ -996,17 +1029,10 @@ static int cmd_key_domain() {
     res_APDU[1] = dkeks > current_dkeks ? dkeks-current_dkeks : 0;
     dkek_kcv(p2, res_APDU+2);
     res_APDU_size = 2+8;
-    if (p1 == 0x2) {
-        size_t pub_len = 0;
-        const uint8_t *pub = cvc_get_pub(apdu.data, apdu.nc, &pub_len);
-        if (pub) {
-            size_t t86_len = 0;
-            const uint8_t *t86 = cvc_get_field(pub, pub_len, &t86_len, 0x86);
-            if (t86) {
-                memcpy(res_APDU+10, t86+1, t86_len-1);
-                res_APDU_size += t86_len-1;
-            }
-        }
+    file_t *tf = search_dynamic_file(EF_XKEK+p2);
+    if (tf) {
+        memcpy(res_APDU+10, file_get_data(tf), file_get_size(tf));
+        res_APDU_size += file_get_size(tf);
     }
     return SW_OK();
 }

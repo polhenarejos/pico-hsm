@@ -24,6 +24,7 @@
 #define EF_DEVOPS       0x100E
 #define EF_MKEK         0x100A
 #define EF_MKEK_SO      0x100B
+#define EF_XKEK         0x1080
 #define EF_DKEK         0x1090
 #define EF_KEY_DOMAIN   0x10A0
 #define EF_PUKAUT       0x10C0
