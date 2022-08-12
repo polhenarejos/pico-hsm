@@ -966,7 +966,7 @@ static int cmd_key_domain() {
     else if (p1 == 0x1 || p1 == 0x3 || p1 == 0x4) { //key domain setup
         if (p1 == 0x1 && apdu.nc != 1)
             return SW_WRONG_LENGTH();
-        if (p1 == 0x3 || p1 == 0x4) { //if key domain is not empty, command is denied
+        if (p1 == 0x3) { //if key domain is not empty, command is denied
             for (int i = 0; i < dynamic_files; i++) {
                 if (get_key_domain(&dynamic_file[i]) == p2)
                     return SW_FILE_EXISTS();
