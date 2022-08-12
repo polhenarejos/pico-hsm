@@ -992,7 +992,7 @@ static int cmd_key_domain() {
             if (delete_file(tf) != CCID_OK)
                 return SW_EXEC_ERROR();
         }
-        if ((tf = search_dynamic_file(EF_XKEK+p2))) {
+        if (p1 == 0x3 && (tf = search_dynamic_file(EF_XKEK+p2))) {
             if (delete_file(tf) != CCID_OK)
                 return SW_EXEC_ERROR();
         }
