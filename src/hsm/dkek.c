@@ -158,6 +158,7 @@ int import_dkek_share(uint8_t id, const uint8_t *share) {
 int dkek_kcv(uint8_t id, uint8_t *kcv) { //kcv 8 bytes
     uint8_t hsh[32], dkek[DKEK_KEY_SIZE];
     memset(kcv, 0, 8);
+    memset(hsh, 0, sizeof(hsh));
     int r = load_dkek(id, dkek);
     if (r != CCID_OK)
         return r;
