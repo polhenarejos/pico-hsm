@@ -959,7 +959,7 @@ static int cmd_key_domain() {
             file_t *tf = search_dynamic_file(EF_XKEK+p2);
             if (2*p2 >= tf_kd_size)
                 return SW_INCORRECT_P1P2();
-            if (current_dkeks == 0xff && !tf) //XKEK have always 0xff)
+            if (current_dkeks == 0xff && !tf) //XKEK have always 0xff
                 return SW_REFERENCE_NOT_FOUND();
         }
     }
@@ -996,7 +996,7 @@ static int cmd_key_domain() {
             if (delete_file(tf) != CCID_OK)
                 return SW_EXEC_ERROR();
         }
-        return SW_OK();
+        low_flash_available();
     }
     else if (p1 == 0x2) { //XKEK Key Domain creation
         if (apdu.nc > 0) {
