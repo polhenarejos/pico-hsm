@@ -15,12 +15,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "crypto_utils.h"
 #include "sc_hsm.h"
 #include "files.h"
 #include "random.h"
 #include "kek.h"
 #include "version.h"
 #include "asn1.h"
+#include "cvc.h"
 
 extern void scan_all();
 
@@ -143,6 +145,38 @@ int cmd_initialize() {
         }
         /* When initialized, it has all credentials */
         isUserAuthenticated = true;
+        /* Create terminal private key */
+        mbedtls_ecdsa_context ecdsa;
+        mbedtls_ecdsa_init(&ecdsa);
+        mbedtls_ecp_group_id ec_id = MBEDTLS_ECP_DP_SECP192R1;
+        uint8_t index = 0, key_id = 0;
+        int ret = mbedtls_ecdsa_genkey(&ecdsa, ec_id, random_gen, &index);
+        if (ret != 0) {
+            mbedtls_ecdsa_free(&ecdsa);
+            return SW_EXEC_ERROR();
+        }
+        ret = store_keys(&ecdsa, HSM_KEY_EC, key_id);
+        if (ret != CCID_OK) {
+            mbedtls_ecdsa_free(&ecdsa);
+            return SW_EXEC_ERROR();
+        }
+        mbedtls_ecdsa_free(&ecdsa);
+        
+        size_t cvc_len = 0;
+        if ((cvc_len = asn1_cvc_aut(&ecdsa, HSM_KEY_EC, res_APDU, 4096, NULL, 0)) == 0) {
+            return SW_EXEC_ERROR();
+        }
+        file_t *fpk = file_new((EE_CERTIFICATE_PREFIX << 8) | key_id);
+        ret = flash_write_data_to_file(fpk, res_APDU, cvc_len);
+        if (ret != 0)
+            return SW_EXEC_ERROR();
+        
+        const uint8_t *keyid = (const uint8_t *)"\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0", *label = (const uint8_t *)"TERMCA";
+        size_t prkd_len = asn1_build_prkd_ecc(label, strlen((const char *)label), keyid, 20, 192, res_APDU, 4096);
+        fpk = file_new((PRKD_PREFIX << 8) | key_id);
+        ret = flash_write_data_to_file(fpk, res_APDU, prkd_len);
+        if (ret != 0)
+            return SW_EXEC_ERROR();
         low_flash_available();
     }
     else { //free memory bytes request
