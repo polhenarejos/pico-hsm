@@ -16,6 +16,7 @@
  */
 
 #include "sc_hsm.h"
+#include "files.h"
 #include "common.h"
 #include "version.h"
 #include "cvcerts.h"
