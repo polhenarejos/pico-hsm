@@ -484,7 +484,7 @@ int store_keys(void *key_ctx, int type, uint8_t key_id) {
         return CCID_WRONG_DATA;
     file_t *fpk = file_new((KEY_PREFIX << 8) | key_id);
     if (!fpk)
-        return SW_MEMORY_FAILURE();
+        return CCID_ERR_MEMORY_FATAL;
     r = mkek_encrypt(kdata, key_size);
     if (r != CCID_OK) {
         return r;
