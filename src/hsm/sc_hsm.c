@@ -30,7 +30,7 @@
 #include "version.h"
 #include "cvcerts.h"
 #include "crypto_utils.h"
-#include "dkek.h"
+#include "kek.h"
 #include "hardware/rtc.h"
 #include "eac.h"
 #include "cvc.h"

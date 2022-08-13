@@ -19,7 +19,7 @@
 #include "common.h"
 #include "stdlib.h"
 #include "pico/stdlib.h"
-#include "dkek.h"
+#include "kek.h"
 #include "crypto_utils.h"
 #include "random.h"
 #include "sc_hsm.h"
