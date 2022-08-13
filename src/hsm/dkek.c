@@ -212,7 +212,7 @@ int mkek_decrypt(uint8_t *data, size_t len) {
     return r;
 }
 
-int dkek_encode_key(uint8_t id, void *key_ctx, int key_type, uint8_t *out, size_t *out_len) {
+int dkek_encode_key(uint8_t id, void *key_ctx, int key_type, uint8_t *out, size_t *out_len, const uint8_t *allowed, size_t allowed_len) {
     if (!(key_type & HSM_KEY_RSA) && !(key_type & HSM_KEY_EC) && !(key_type & HSM_KEY_AES))
         return CCID_WRONG_DATA;
         
@@ -221,8 +221,6 @@ int dkek_encode_key(uint8_t id, void *key_ctx, int key_type, uint8_t *out, size_
     int kb_len = 0, r = 0;
     uint8_t *algo = NULL;
     uint8_t algo_len = 0;
-    uint8_t *allowed = NULL;
-    uint8_t allowed_len = 0;
     uint8_t kenc[32];
     memset(kenc, 0, sizeof(kenc));
     r = dkek_kenc(id, kenc);
@@ -260,8 +258,6 @@ int dkek_encode_key(uint8_t id, void *key_ctx, int key_type, uint8_t *out, size_
         
         algo = (uint8_t *)"\x00\x08\x60\x86\x48\x01\x65\x03\x04\x01"; //2.16.840.1.101.3.4.1 (2+8)
         algo_len = 10;
-        allowed = (uint8_t *)"\x00\x04\x10\x11\x18\x99"; //(2+4)
-        allowed_len = 6;
     }
     else if (key_type & HSM_KEY_RSA) {
         if (*out_len < 8+1+12+6+(8+2*4+2*4096/8+3+13)+16) //13 bytes pading 
@@ -329,7 +325,8 @@ int dkek_encode_key(uint8_t id, void *key_ctx, int key_type, uint8_t *out, size_
     else
         *out_len += 2;
     
-    if (allowed) {
+    if (allowed && allowed_len > 0) {
+        put_uint16_t(allowed_len, out+*out_len); *out_len += 2;
         memcpy(out+*out_len, allowed, allowed_len);
         *out_len += allowed_len;
     }
@@ -372,7 +369,7 @@ int dkek_type_key(const uint8_t *in) {
     return 0x0;
 }
 
-int dkek_decode_key(uint8_t id, void *key_ctx, const uint8_t *in, size_t in_len, int *key_size_out) {
+int dkek_decode_key(uint8_t id, void *key_ctx, const uint8_t *in, size_t in_len, int *key_size_out, uint8_t **allowed, size_t *allowed_len) {
     uint8_t kcv[8];
     int r = 0;
     memset(kcv, 0, sizeof(kcv));
@@ -423,6 +420,8 @@ int dkek_decode_key(uint8_t id, void *key_ctx, const uint8_t *in, size_t in_len,
     
     //Allowed algorithms
     len = get_uint16_t(in, ofs);
+    *allowed = (uint8_t *)(in+ofs+2);
+    *allowed_len = len;
     ofs += len+2;
     
     //Access conditions

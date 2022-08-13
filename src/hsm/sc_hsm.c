@@ -1709,6 +1709,8 @@ static int cmd_key_wrap() {
         return SW_FILE_NOT_FOUND();
     const uint8_t *dprkd = file_get_data(prkd);
     size_t wrap_len = MAX_DKEK_ENCODE_KEY_BUFFER;
+    size_t tag_len = 0;
+    const uint8_t *meta_tag = get_meta_tag(ef, 0x91, &tag_len);
     if (*dprkd == P15_KEYTYPE_RSA) {
         mbedtls_rsa_context ctx;
         mbedtls_rsa_init(&ctx);
@@ -1719,7 +1721,7 @@ static int cmd_key_wrap() {
                 return SW_SECURE_MESSAGE_EXEC_ERROR();
             return SW_EXEC_ERROR();
         }
-        r = dkek_encode_key(kdom, &ctx, HSM_KEY_RSA, res_APDU, &wrap_len);
+        r = dkek_encode_key(kdom, &ctx, HSM_KEY_RSA, res_APDU, &wrap_len, meta_tag, tag_len);
         mbedtls_rsa_free(&ctx);
     }
     else if (*dprkd == P15_KEYTYPE_ECC) {
@@ -1732,7 +1734,7 @@ static int cmd_key_wrap() {
                 return SW_SECURE_MESSAGE_EXEC_ERROR();
             return SW_EXEC_ERROR();
         }
-        r = dkek_encode_key(kdom, &ctx, HSM_KEY_EC, res_APDU, &wrap_len);
+        r = dkek_encode_key(kdom, &ctx, HSM_KEY_EC, res_APDU, &wrap_len, meta_tag, tag_len);
         mbedtls_ecdsa_free(&ctx);
     }
     else if (*dprkd == P15_KEYTYPE_AES) {
@@ -1751,7 +1753,7 @@ static int cmd_key_wrap() {
             aes_type = HSM_KEY_AES_192;
         else if (key_size == 16)
             aes_type = HSM_KEY_AES_128;
-        r = dkek_encode_key(kdom, kdata, aes_type, res_APDU, &wrap_len);
+        r = dkek_encode_key(kdom, kdata, aes_type, res_APDU, &wrap_len, meta_tag, tag_len);
         mbedtls_platform_zeroize(kdata, sizeof(kdata));
     }
     if (r != CCID_OK)
@@ -1767,14 +1769,15 @@ static int cmd_key_unwrap() {
     if (!isUserAuthenticated)
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     int key_type = dkek_type_key(apdu.data);
-    uint8_t kdom = -1;
+    uint8_t kdom = -1, *allowed = NULL;
+    size_t allowed_len = 0;
     if (key_type == 0x0)
         return SW_DATA_INVALID();
     if (key_type == HSM_KEY_RSA) {
         mbedtls_rsa_context ctx;
         mbedtls_rsa_init(&ctx);
         do {
-            r = dkek_decode_key(++kdom, &ctx, apdu.data, apdu.nc, NULL);
+            r = dkek_decode_key(++kdom, &ctx, apdu.data, apdu.nc, NULL, &allowed, &allowed_len);
         } while((r == CCID_ERR_FILE_NOT_FOUND || r == CCID_WRONG_DKEK) && kdom < MAX_KEY_DOMAINS);
         if (r != CCID_OK) {
             mbedtls_rsa_free(&ctx);
@@ -1790,7 +1793,7 @@ static int cmd_key_unwrap() {
         mbedtls_ecdsa_context ctx;
         mbedtls_ecdsa_init(&ctx);
         do {
-            r = dkek_decode_key(++kdom, &ctx, apdu.data, apdu.nc, NULL);
+            r = dkek_decode_key(++kdom, &ctx, apdu.data, apdu.nc, NULL, &allowed, &allowed_len);
         } while((r == CCID_ERR_FILE_NOT_FOUND || r == CCID_WRONG_DKEK) && kdom < MAX_KEY_DOMAINS);
         if (r != CCID_OK) {
             mbedtls_ecdsa_free(&ctx);
@@ -1806,7 +1809,7 @@ static int cmd_key_unwrap() {
         uint8_t aes_key[32];
         int key_size = 0, aes_type = 0;
         do {
-            r = dkek_decode_key(++kdom, aes_key, apdu.data, apdu.nc, &key_size);
+            r = dkek_decode_key(++kdom, aes_key, apdu.data, apdu.nc, &key_size, &allowed, &allowed_len);
         } while((r == CCID_ERR_FILE_NOT_FOUND || r == CCID_WRONG_DKEK) && kdom < MAX_KEY_DOMAINS);
         if (r != CCID_OK) {
             return SW_EXEC_ERROR();
@@ -1824,9 +1827,21 @@ static int cmd_key_unwrap() {
             return SW_EXEC_ERROR();
         }
     }
-    if (kdom >= 0) {
-        uint8_t meta[3] = {0x92,1,kdom};
-        r = meta_add((KEY_PREFIX << 8) | key_id, meta, sizeof(meta));
+    if ((allowed != NULL && allowed_len > 0) || kdom >= 0) {
+        size_t meta_len = (allowed_len > 0 ? 2+allowed_len : 0) + (kdom >= 0 ? 3 : 0);
+        uint8_t *meta = (uint8_t *)calloc(1,meta_len), *m = meta;
+        if (allowed_len > 0) {
+            *m++ = 0x91;
+            *m++ = allowed_len;
+            memcpy(m, allowed, allowed_len); m += allowed_len;
+        }
+        if (kdom >= 0) {
+            *m++ = 0x92;
+            *m++ = 1;
+            *m++ = kdom;
+        }
+        r = meta_add((KEY_PREFIX << 8) | key_id, meta, meta_len);
+        free(meta);
         if (r != CCID_OK)
             return r;
     }
