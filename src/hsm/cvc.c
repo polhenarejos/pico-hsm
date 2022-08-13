@@ -28,6 +28,9 @@
 #include "oid.h"
 #include "mbedtls/md.h"
 
+extern const uint8_t *dev_name;
+extern size_t dev_name_len;
+
 size_t asn1_cvc_public_key_rsa(mbedtls_rsa_context *rsa, uint8_t *buf, size_t buf_len) {
     const uint8_t oid_rsa[] = { 0x04, 0x00, 0x7F, 0x00, 0x07, 0x02, 0x02, 0x02, 0x01, 0x02 };
     size_t n_size = mbedtls_mpi_size(&rsa->N), e_size = mbedtls_mpi_size(&rsa->E);
@@ -124,12 +127,12 @@ size_t asn1_cvc_cert_body(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_
     size_t lencar = 0, lenchr = 0;
     
     if (asn1_find_tag(apdu.data, apdu.nc, 0x42, &lencar, &car) == false || lencar == 0 || car == NULL) {
-        car = (uint8_t *)"UTSRCACC100001";
-        lencar = strlen((char *)car);
+        car = (uint8_t *)dev_name;
+        lencar = dev_name_len;
     }
     if (asn1_find_tag(apdu.data, apdu.nc, 0x5f20, &lenchr, &chr) == false || lenchr == 0 || chr == NULL) {
-        chr = (uint8_t *)"ESHSMCVCA00001";
-        lenchr = strlen((char *)chr);
+        chr = (uint8_t *)dev_name;
+        lenchr = dev_name_len;
     }
     size_t car_size = asn1_len_tag(0x42, lencar), chr_size = asn1_len_tag(0x5f20, lenchr);
     
