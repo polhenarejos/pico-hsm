@@ -19,11 +19,13 @@
 #define _SC_HSM_H_
 
 #include <stdlib.h>
+#include "common.h"
+#include "mbedtls/rsa.h"
+#include "mbedtls/ecdsa.h"
 #include "pico/stdlib.h"
 #include "ccid2040.h"
 
 extern const uint8_t sc_hsm_aid[];
-
 
 #define ALGO_RSA_RAW			0x20		/* RSA signature with external padding */
 #define ALGO_RSA_DECRYPT		0x21		/* RSA raw decrypt */
@@ -87,13 +89,32 @@ extern const uint8_t sc_hsm_aid[];
 #define P15_KEYTYPE_ECC     0xA0
 #define P15_KEYTYPE_AES     0xA8
 
+#define MAX_PUK 8
+
 extern int pin_reset_retries(const file_t *pin, bool);
 extern int pin_wrong_retry(const file_t *pin);
 
 extern void hash(const uint8_t *input, size_t len, uint8_t output[32]);
 extern void hash_multi(const uint8_t *input, size_t len, uint8_t output[32]);
 extern void double_hash_pin(const uint8_t *pin, size_t len, uint8_t output[32]);
-
+extern uint16_t get_device_options();
+extern bool has_session_pin, has_session_sopin;
 extern uint8_t session_pin[32], session_sopin[32];
+extern int check_pin(const file_t *pin, const uint8_t *data, size_t len);
+extern bool pka_enabled();
+extern const uint8_t *dev_name;
+extern size_t dev_name_len;
+extern uint8_t puk_status[MAX_PUK];
+extern int puk_store_select_chr(const uint8_t *chr);
+extern int delete_file(file_t *ef);
+extern const uint8_t *get_meta_tag(file_t *ef, uint16_t meta_tag, size_t *tag_len);
+extern bool key_has_purpose(file_t *ef, uint8_t purpose);
+extern int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey);
+extern int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey);
+extern bool wait_button();
+extern int store_keys(void *key_ctx, int type, uint8_t key_id);
+extern int find_and_store_meta_key(uint8_t key_id);
+extern uint32_t get_key_counter(file_t *fkey);
+extern uint32_t decrement_key_counter(file_t *fkey);
 
 #endif

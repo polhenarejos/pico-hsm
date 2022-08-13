@@ -59,6 +59,32 @@ target_sources(pico_hsm PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/ccid/crypto_utils.c
         ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/ccid/eac.c
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/sc_hsm.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_select.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_list_keys.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_read_binary.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_verify.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_reset_retry.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_challenge.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_external_authenticate.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_mse.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_initialize.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_key_domain.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_key_wrap.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_keypair_gen.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_update_ef.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_delete_file.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_change_pin.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_key_gen.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_signature.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_key_unwrap.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_decrypt_asym.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_cipher_sym.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_derive_asym.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_extras.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_general_authenticate.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_session_pin.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_puk_auth.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_pso.c
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cvc.c
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/files.c
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/kek.c
