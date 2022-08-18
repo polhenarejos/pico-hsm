@@ -38,8 +38,6 @@ int cmd_mse() {
                 if (p2 == 0xA4) {
                     if (tag_len == 10 && memcmp(tag_data, OID_ID_CA_ECDH_AES_CBC_CMAC_128, tag_len) == 0)
                         sm_set_protocol(MSE_AES);
-                    else if (tag_len == 10 && memcmp(tag_data, OID_ID_CA_ECDH_3DES_CBC_CBC, tag_len) == 0)
-                        sm_set_protocol(MSE_3DES);
                 }
             }
             else if (tag == 0x83) {
