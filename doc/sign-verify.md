@@ -1,7 +1,7 @@
 # Sign and verify
 
 Pico HSM supports in place signature of arbitrary data. It supports the following algorithms:
-* RSA-PKCS 
+* RSA-PKCS
 * RSA-X-509
 * SHA1-RSA-PKCS
 * SHA256-RSA-PKCS
@@ -32,7 +32,7 @@ $ openssl rsa -inform DER -outform PEM -in 1.der -pubin > 1.pub
 At this moment, you are able to verify with the public key in `1.pub`. The signature is computed inside the Pico HSM with the private key. It never leaves the device.
 
 ## RSA-PKCS
-This algorithm is used to sign raw data. 
+This algorithm is used to sign raw data.
 
 To sign the data:
 ```
@@ -91,7 +91,7 @@ This algorithm uses the RSA-PKCS with PSS salt to randomize the signature. Pico 
 To sign the data:
 ```
 $ pkcs11-tool --id 1 --sign --pin 648219 --mechanism RSA-PKCS-PSS -i data.sha1 -o data.sig
-``` 
+```
 
 To verify the signature:
 ```
@@ -105,7 +105,7 @@ This algorithm takes the file as the input and sends its hash for signing with t
 To sign the data:
 ```
 $ pkcs11-tool --id 1 --sign --pin 648219 --mechanism SHA1-RSA-PKCS-PSS -i data -o data.sig
-``` 
+```
 
 To verify the signature:
 ```
@@ -118,14 +118,14 @@ This is a raw ECDSA signature, which is usually used to sign a hashed message. `
 
 To sign the data:
 ```
-$ pkcs11-tool --id 11 --sign --pin 648219 --mechanism ECDSA -i data.sha1 -o data.sig --signature-format openssl     
+$ pkcs11-tool --id 11 --sign --pin 648219 --mechanism ECDSA -i data.sha1 -o data.sig --signature-format openssl
 Using slot 0 with a present token (0x0)
 Using signature algorithm ECDSA
 ```
 
 To verify the signature:
 ```
-$ openssl pkeyutl -verify -pubin -inkey 11.pub -in data.sha1 -sigfile data.sig                                      
+$ openssl pkeyutl -verify -pubin -inkey 11.pub -in data.sha1 -sigfile data.sig
 Signature Verified Successfully
 ```
 
@@ -143,6 +143,6 @@ Using signature algorithm ECDSA-SHA256
 
 The signature is verified with the hash:
 ```
-$ openssl pkeyutl -verify -pubin -inkey 11.pub -in data.sha1 -sigfile data.sig                              
+$ openssl pkeyutl -verify -pubin -inkey 11.pub -in data.sha1 -sigfile data.sig
 Signature Verified Successfully
 ```

@@ -1,17 +1,17 @@
-/* 
+/*
  * This file is part of the Pico HSM distribution (https://github.com/polhenarejos/pico-hsm).
  * Copyright (c) 2022 Pol Henarejos.
- * 
- * This program is free software: you can redistribute it and/or modify  
- * it under the terms of the GNU General Public License as published by  
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, version 3.
  *
- * This program is distributed in the hope that it will be useful, but 
- * WITHOUT ANY WARRANTY; without even the implied warranty of 
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU 
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
  * General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License 
+ * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
@@ -126,7 +126,7 @@ size_t asn1_cvc_cert_body(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_
 
     uint8_t *car = NULL, *chr = NULL;
     size_t lencar = 0, lenchr = 0;
-    
+
     if (asn1_find_tag(apdu.data, apdu.nc, 0x42, &lencar, &car) == false || lencar == 0 || car == NULL) {
         car = (uint8_t *)dev_name;
         lencar = dev_name_len;
@@ -136,9 +136,9 @@ size_t asn1_cvc_cert_body(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_
         lenchr = dev_name_len;
     }
     size_t car_size = asn1_len_tag(0x42, lencar), chr_size = asn1_len_tag(0x5f20, lenchr);
-    
+
     size_t tot_len = asn1_len_tag(0x7f4e, cpi_size+car_size+pubkey_size+chr_size+ext_size);
-    
+
     if (buf_len == 0 || buf == NULL)
         return tot_len;
     if (buf_len < tot_len)
@@ -283,14 +283,14 @@ size_t asn1_build_cert_description(const uint8_t *label, size_t label_len, const
     *p++ = 0x3;
     p += format_tlv_len(opt_len, p);
     memcpy(p, "\x06\x40", 2); p += 2;
-    
+
     //Seq 2
     *p++ = 0x30;
     p += format_tlv_len(asn1_len_tag(0x4, 20), p);
     *p++ = 0x4;
     p += format_tlv_len(20, p);
     mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA1), puk, puk_len, p);  p += 20;
-    
+
     //Seq 3
     *p++ = 0xA1;
     p += format_tlv_len(asn1_len_tag(0x30, asn1_len_tag(0x30, asn1_len_tag(0x4, sizeof(uint16_t)))), p);
@@ -323,7 +323,7 @@ size_t asn1_build_prkd_ecc(const uint8_t *label, size_t label_len, const uint8_t
     *p++ = 0xC;
     p += format_tlv_len(label_len, p);
     memcpy(p, label, label_len); p += label_len;
-    
+
     //Seq 2
     *p++ = 0x30;
     p += format_tlv_len(asn1_len_tag(0x4, keyid_len)+asn1_len_tag(0x3, 3), p);
@@ -333,7 +333,7 @@ size_t asn1_build_prkd_ecc(const uint8_t *label, size_t label_len, const uint8_t
     *p++ = 0x3;
     p += format_tlv_len(3, p);
     memcpy(p, "\x07\x20\x80", 3); p += 3;
-    
+
     //Seq 3
     *p++ = 0xA1;
     p += format_tlv_len(asn1_len_tag(0x30, asn1_len_tag(0x30, asn1_len_tag(0x4, 0))+asn1_len_tag(0x2,2)), p);
@@ -444,7 +444,7 @@ mbedtls_ecp_group_id cvc_inherite_ec_group(const uint8_t *ca, size_t ca_len) {
     const uint8_t *t81 = cvc_get_field(ca_puk, ca_puk_len, &t81_len, 0x81);
     if (!t81)
         return MBEDTLS_ECP_DP_NONE;
-    
+
     return ec_get_curve_from_prime(t81, t81_len);
 }
 
@@ -465,11 +465,11 @@ int puk_verify(const uint8_t *sig, size_t sig_len, const uint8_t *hash, size_t h
         mbedtls_rsa_context rsa;
         mbedtls_rsa_init(&rsa);
         mbedtls_md_type_t md = MBEDTLS_MD_NONE;
-        if (memcmp(oid, OID_ID_TA_RSA_V1_5_SHA_1, oid_len) == 0) 
+        if (memcmp(oid, OID_ID_TA_RSA_V1_5_SHA_1, oid_len) == 0)
             md = MBEDTLS_MD_SHA1;
-        else if (memcmp(oid, OID_ID_TA_RSA_V1_5_SHA_256, oid_len) == 0) 
+        else if (memcmp(oid, OID_ID_TA_RSA_V1_5_SHA_256, oid_len) == 0)
             md = MBEDTLS_MD_SHA256;
-        else if (memcmp(oid, OID_ID_TA_RSA_V1_5_SHA_512, oid_len) == 0) 
+        else if (memcmp(oid, OID_ID_TA_RSA_V1_5_SHA_512, oid_len) == 0)
             md = MBEDTLS_MD_SHA512;
         else if (memcmp(oid, OID_ID_TA_RSA_PSS_SHA_1, oid_len) == 0) {
             md = MBEDTLS_MD_SHA1;
@@ -514,19 +514,19 @@ int puk_verify(const uint8_t *sig, size_t sig_len, const uint8_t *hash, size_t h
     }
     else if (memcmp(oid, OID_ID_TA_ECDSA, 9) == 0) { //ECC
         mbedtls_md_type_t md = MBEDTLS_MD_NONE;
-        if (memcmp(oid, OID_ID_TA_ECDSA_SHA_1, oid_len) == 0) 
+        if (memcmp(oid, OID_ID_TA_ECDSA_SHA_1, oid_len) == 0)
             md = MBEDTLS_MD_SHA1;
-        else if (memcmp(oid, OID_ID_TA_ECDSA_SHA_224, oid_len) == 0) 
+        else if (memcmp(oid, OID_ID_TA_ECDSA_SHA_224, oid_len) == 0)
             md = MBEDTLS_MD_SHA224;
-        else if (memcmp(oid, OID_ID_TA_ECDSA_SHA_256, oid_len) == 0) 
+        else if (memcmp(oid, OID_ID_TA_ECDSA_SHA_256, oid_len) == 0)
             md = MBEDTLS_MD_SHA256;
-        else if (memcmp(oid, OID_ID_TA_ECDSA_SHA_384, oid_len) == 0) 
+        else if (memcmp(oid, OID_ID_TA_ECDSA_SHA_384, oid_len) == 0)
             md = MBEDTLS_MD_SHA384;
-        else if (memcmp(oid, OID_ID_TA_ECDSA_SHA_512, oid_len) == 0) 
+        else if (memcmp(oid, OID_ID_TA_ECDSA_SHA_512, oid_len) == 0)
             md = MBEDTLS_MD_SHA512;
-        if (md == MBEDTLS_MD_NONE) 
+        if (md == MBEDTLS_MD_NONE)
             return CCID_WRONG_DATA;
-        
+
         size_t t86_len = 0;
         const uint8_t *t86 = cvc_get_field(puk, puk_len, &t86_len, 0x86);
         if (!t86)
@@ -595,11 +595,11 @@ int cvc_verify(const uint8_t *cert, size_t cert_len, const uint8_t *ca, size_t c
         return CCID_WRONG_DATA;
     mbedtls_md_type_t md = MBEDTLS_MD_NONE;
     if (memcmp(oid, OID_ID_TA_RSA, 9) == 0) { //RSA
-        if (memcmp(oid, OID_ID_TA_RSA_V1_5_SHA_1, oid_len) == 0) 
+        if (memcmp(oid, OID_ID_TA_RSA_V1_5_SHA_1, oid_len) == 0)
             md = MBEDTLS_MD_SHA1;
-        else if (memcmp(oid, OID_ID_TA_RSA_V1_5_SHA_256, oid_len) == 0) 
+        else if (memcmp(oid, OID_ID_TA_RSA_V1_5_SHA_256, oid_len) == 0)
             md = MBEDTLS_MD_SHA256;
-        else if (memcmp(oid, OID_ID_TA_RSA_V1_5_SHA_512, oid_len) == 0) 
+        else if (memcmp(oid, OID_ID_TA_RSA_V1_5_SHA_512, oid_len) == 0)
             md = MBEDTLS_MD_SHA512;
         else if (memcmp(oid, OID_ID_TA_RSA_PSS_SHA_1, oid_len) == 0)
             md = MBEDTLS_MD_SHA1;
@@ -609,18 +609,18 @@ int cvc_verify(const uint8_t *cert, size_t cert_len, const uint8_t *ca, size_t c
             md = MBEDTLS_MD_SHA512;
     }
     else if (memcmp(oid, OID_ID_TA_ECDSA, 9) == 0) { //ECC
-        if (memcmp(oid, OID_ID_TA_ECDSA_SHA_1, oid_len) == 0) 
+        if (memcmp(oid, OID_ID_TA_ECDSA_SHA_1, oid_len) == 0)
             md = MBEDTLS_MD_SHA1;
-        else if (memcmp(oid, OID_ID_TA_ECDSA_SHA_224, oid_len) == 0) 
+        else if (memcmp(oid, OID_ID_TA_ECDSA_SHA_224, oid_len) == 0)
             md = MBEDTLS_MD_SHA224;
-        else if (memcmp(oid, OID_ID_TA_ECDSA_SHA_256, oid_len) == 0) 
+        else if (memcmp(oid, OID_ID_TA_ECDSA_SHA_256, oid_len) == 0)
             md = MBEDTLS_MD_SHA256;
-        else if (memcmp(oid, OID_ID_TA_ECDSA_SHA_384, oid_len) == 0) 
+        else if (memcmp(oid, OID_ID_TA_ECDSA_SHA_384, oid_len) == 0)
             md = MBEDTLS_MD_SHA384;
-        else if (memcmp(oid, OID_ID_TA_ECDSA_SHA_512, oid_len) == 0) 
+        else if (memcmp(oid, OID_ID_TA_ECDSA_SHA_512, oid_len) == 0)
             md = MBEDTLS_MD_SHA512;
     }
-    if (md == MBEDTLS_MD_NONE) 
+    if (md == MBEDTLS_MD_NONE)
         return CCID_WRONG_DATA;
     const mbedtls_md_info_t *md_info = mbedtls_md_info_from_type(md);
     uint8_t hash[64], hash_len = mbedtls_md_get_size(md_info);

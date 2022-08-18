@@ -86,7 +86,7 @@ This feature protects the user from unwanted uses from background applications t
 It allows the storage of arbitrary files with binary data.
 
 ### Real time clock (RTC)
-Pico HSM has a RTC with external datetime setting and getting. 
+Pico HSM has a RTC with external datetime setting and getting.
 
 ### Secure Messaging (secure channel)
 Pico HSM supports secure channel, where the data packets between the host and device are encrypted to avoid man-in-the-middle attacks.
@@ -98,7 +98,7 @@ A specific session PIN can be set during the session opening to avoid the system
 Secure channel messages are secured with a certificate issued by an external PKI.
 
 ### Multiple key domains
-Key domains are domains to store separate private/secret keys. Each domain is protected by a DKEK, independent from the other domains. Private/secret keys can be generated in different key domains to be used with separated DKEK. 
+Key domains are domains to store separate private/secret keys. Each domain is protected by a DKEK, independent from the other domains. Private/secret keys can be generated in different key domains to be used with separated DKEK.
 Therefore, a single device may contain different domains with independent keys.
 
 ### Key usage counter
@@ -113,17 +113,17 @@ In PKA, the PIN is used for protecting the DKEK, as classic method with only PIN
 
 [^1]: PKCS11 modules (`pkcs11-tool` and `sc-tool`) do not support CMAC and key derivation. It must be processed through raw APDU command (`opensc-tool -s`).
 [^2]: Available via SCS3 tool. See [SCS3](/doc/scs3.md "SCS3") for more information.
-[^3]: Imports are available only if the Pico HSM is previously initialized with a DKEK and the DKEK shares are available during the import process. 
+[^3]: Imports are available only if the Pico HSM is previously initialized with a DKEK and the DKEK shares are available during the import process.
 
 ## Security considerations
-All secret keys (asymmetric and symmetric) are stored encrypted in the flash memory of the Raspberry Pico. DKEK is used as a 256 bit AES key to protect private and secret keys. Keys are never stored in RAM except for signature and decryption operations and only during the process. All keys (including DKEK) are loaded and cleared every time to avoid potential security flaws. 
+All secret keys (asymmetric and symmetric) are stored encrypted in the flash memory of the Raspberry Pico. DKEK is used as a 256 bit AES key to protect private and secret keys. Keys are never stored in RAM except for signature and decryption operations and only during the process. All keys (including DKEK) are loaded and cleared every time to avoid potential security flaws.
 
 At the same time, DKEK is encrypted with doubled salted and hashed PIN. Also, the PIN is hashed in memory during the session. Hence, PIN is never stored in plain text neither in flash nor in memory. Note that PIN is conveyed from the host to the HSM in plain text if no secure channel is provided.
 
 If the Pico is stolen the contents of private and secret keys cannot be read without the PIN, even if the flash memory is dumped.
 
 ## Download
-Please, go to the Release page and download the UF2 file for your board. 
+Please, go to the Release page and download the UF2 file for your board.
 
 Note that UF2 files are shiped with a dummy VID/PID to avoid license issues (FEFF:FCFD). If you are planning to use it with OpenSC or similar, you should modify Info.plist of CCID driver to add these VID/PID or use the VID/PID patcher as follows:
 `./patch_vidpid.sh VID:PID input_hsm_file.uf2 output_hsm_file.uf2`
@@ -179,7 +179,7 @@ For Public Key Authentication, check [doc/public_key_authentication.md](/doc/pub
 
 ## Operation time
 ### Keypair generation
-Generating EC keys is almost instant. RSA keypair generation takes some time, specially for `3072` and `4096` bits. 
+Generating EC keys is almost instant. RSA keypair generation takes some time, specially for `3072` and `4096` bits.
 
 | RSA key length (bits) | Average time (seconds) |
 | :---: | :---: |
@@ -227,7 +227,7 @@ While processing, the Pico HSM is busy and cannot receive additional commands un
 
 ## Driver
 
-Pico HSM uses the `sc-hsm` driver provided by [OpenSC](https://github.com/OpenSC/OpenSC/ "OpenSC") or the `sc-hsm-embedded` driver provided by [CardContact](https://github.com/CardContact/sc-hsm-embedded "CardContact"). This driver utilizes the standardized PKCS#11 interface to communicate with the user and it can be used with many engines that accept PKCS#11 interface, such as OpenSSL, P11 library or pkcs11-tool. 
+Pico HSM uses the `sc-hsm` driver provided by [OpenSC](https://github.com/OpenSC/OpenSC/ "OpenSC") or the `sc-hsm-embedded` driver provided by [CardContact](https://github.com/CardContact/sc-hsm-embedded "CardContact"). This driver utilizes the standardized PKCS#11 interface to communicate with the user and it can be used with many engines that accept PKCS#11 interface, such as OpenSSL, P11 library or pkcs11-tool.
 
 Pico HSM relies on PKCS#15 structure to store and manipulate the internal files (PINs, private keys, certificates, etc.) and directories. Therefore, it accepts the commands from `pkcs15-tool`. For instance, `pkcs15-tool -D` will list all elements stored in the Pico HSM.
 

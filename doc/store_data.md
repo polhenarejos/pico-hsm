@@ -9,7 +9,7 @@ Before writting a file into the Pico HSM, we generate the data file with the fol
 
 ```
 $ echo 'Pico HSM is awesome!' > test
-``` 
+```
 
 Then, we can store the data file with the following command:
 
@@ -43,7 +43,7 @@ Always provide a unique `--label`, as it will be used to index and reference the
 To view the stored file, we can use the following command with the same label we employed:
 
 ```
-$ pkcs11-tool --read-object --type data --label 'test1' 
+$ pkcs11-tool --read-object --type data --label 'test1'
 Using slot 0 with a present token (0x0)
 Pico HSM is awesome!
 ```
@@ -98,7 +98,7 @@ Data object 'test1'
 	applicationName: test1
 	Path:            e82b0601040181c31f0201::cf00
 	Data (21 bytes): 5069636F2048534D20697320617765736F6D65210A
-                  
+
 Data object 'test2'
 	applicationName: test2
 	Path:            e82b0601040181c31f0201::cd01

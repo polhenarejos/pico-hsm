@@ -29,15 +29,15 @@ symbols.
 Please keep the generated DKEK share file in a safe location. We also recommend to keep a
 paper printout, in case the electronic version becomes unavailable. A printable version
 of the file can be generated using "openssl base64 -in <filename>".
-Enter password to encrypt DKEK share : 
+Enter password to encrypt DKEK share :
 
-Please retype password to confirm : 
+Please retype password to confirm :
 
 Enciphering DKEK share, please wait...
 DKEK share created and saved to dkek.pbe
 ```
 
-The generated file `dkek.pbe` contains the DKEK. Technically, it contains a share. But if a device is initialized with one share, it is equivalent to contain the full DKEK. 
+The generated file `dkek.pbe` contains the DKEK. Technically, it contains a share. But if a device is initialized with one share, it is equivalent to contain the full DKEK.
 
 Keep these file in a safe place. If this file is lost, you can export the private keys but you will not be able to import into another device or in the same device if it is initialized again.
 
@@ -52,7 +52,7 @@ At this moment, the Pico HSM expects the DKEK. It is loaded with the following c
 ```
 $ sc-hsm-tool --import-dkek-share dkek.pbe
 Using reader with a card: Free Software Initiative of Japan Gnuk
-Enter password to decrypt DKEK share : 
+Enter password to decrypt DKEK share :
 
 Deciphering DKEK share, please wait...
 DKEK share imported
@@ -81,7 +81,7 @@ And finally, all are imported one after the other, without special order:
 ```
 $ sc-hsm-tool --import-dkek-share dkek-share-1.pbe
 Using reader with a card: Free Software Initiative of Japan Gnuk
-Enter password to decrypt DKEK share : 
+Enter password to decrypt DKEK share :
 
 Deciphering DKEK share, please wait...
 DKEK share imported
@@ -90,7 +90,7 @@ DKEK import pending, 2 share(s) still missing
 
 $ sc-hsm-tool --import-dkek-share dkek-share-2.pbe
 Using reader with a card: Free Software Initiative of Japan Gnuk
-Enter password to decrypt DKEK share : 
+Enter password to decrypt DKEK share :
 
 Deciphering DKEK share, please wait...
 DKEK share imported
@@ -99,7 +99,7 @@ DKEK import pending, 1 share(s) still missing
 
 $ sc-hsm-tool --import-dkek-share dkek-share-1.pbe
 Using reader with a card: Free Software Initiative of Japan Gnuk
-Enter password to decrypt DKEK share : 
+Enter password to decrypt DKEK share :
 
 Deciphering DKEK share, please wait...
 DKEK share imported
@@ -110,7 +110,7 @@ DKEK key check value : 4B7DA256ACD4EF62
 ### DKEK n-of-m threshold scheme
 This scheme provides an extra level of flexiblity, as not all custodians are necessary to import the DKEK share. For instance, with the previous schemes, if a custodian gets unavailable, the initialization will block until the missing custodian can got to finalize the initialization.
 
-With n-of-m threshold scheme, it flexibilizes the number of required custodians to reduce failure points. If a share is lost, the DKEK can still be recovered without major implications. 
+With n-of-m threshold scheme, it flexibilizes the number of required custodians to reduce failure points. If a share is lost, the DKEK can still be recovered without major implications.
 
 This scheme is not a replacement of DKEK shares. Instead, it splits the DKEK share encryption password amongst the n-of-m threshold scheme. For instance, if you define 2 shares and a scheme of 3-of-5 threshold for each share, it will imply 10 different custodians, where 6 are necessary to load both shares. You can also mix one share with traditional passphrase and the other with the n-of-m threshold scheme.
 
@@ -123,7 +123,7 @@ Using reader with a card:Free Software Initiative of Japan Gnuk
 The DKEK will be enciphered using a randomly generated 64 bit password.
 This password is split using a (3-of-5) threshold scheme.
 
-Please keep the generated and encrypted DKEK file in a safe location. We also recommend 
+Please keep the generated and encrypted DKEK file in a safe location. We also recommend
 to keep a paper printout, in case the electronic version becomes unavailable. A printable version
 of the file can be generated using "openssl base64 -in <filename>".
 
@@ -191,7 +191,7 @@ Private RSA Key [Certificate]
 ...
 ```
 
-Note that `Key ref` and `ID` may be different. Whilst different keys may share the same `ID` (highly discouraged), the `Key ref` is a value internally computed and unique. 
+Note that `Key ref` and `ID` may be different. Whilst different keys may share the same `ID` (highly discouraged), the `Key ref` is a value internally computed and unique.
 
 To export and wrap the private key:
 
@@ -199,10 +199,10 @@ To export and wrap the private key:
 $ sc-hsm-tool --wrap-key wrap-key.bin --key-reference 1 --pin 648219
 ```
 
-A file named `wrap-key.bin` is created with the private key encrypted securely with the DKEK. 
+A file named `wrap-key.bin` is created with the private key encrypted securely with the DKEK.
 
 ## Restore
-To restore the wraped key, a device initialized with the same DKEK is mandatory. 
+To restore the wraped key, a device initialized with the same DKEK is mandatory.
 
 To unwrap the key:
 

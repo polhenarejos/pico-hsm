@@ -54,4 +54,4 @@ Using decrypt algorithm AES-CBC
 This is a text.
 ```
 
-AES-CBC it is a block operation and it requires an input size multiple of 16 bytes. Thus, for a trivial data, a padding operation has to be performed beforehand. 
+AES-CBC it is a block operation and it requires an input size multiple of 16 bytes. Thus, for a trivial data, a padding operation has to be performed beforehand.

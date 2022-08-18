@@ -1,17 +1,17 @@
-/* 
+/*
  * This file is part of the Pico HSM distribution (https://github.com/polhenarejos/pico-hsm).
  * Copyright (c) 2022 Pol Henarejos.
- * 
- * This program is free software: you can redistribute it and/or modify  
- * it under the terms of the GNU General Public License as published by  
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, version 3.
  *
- * This program is distributed in the hope that it will be useful, but 
- * WITHOUT ANY WARRANTY; without even the implied warranty of 
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU 
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
  * General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License 
+ * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
@@ -41,7 +41,7 @@ int cmd_initialize() {
         has_session_pin = has_session_sopin = false;
         uint16_t tag = 0x0;
         uint8_t *tag_data = NULL, *p = NULL, *kds = NULL, *dkeks = NULL;
-        size_t tag_len = 0;    
+        size_t tag_len = 0;
         while (walk_tlv(apdu.data, apdu.nc, &p, &tag, &tag_len, &tag_data)) {
             if (tag == 0x80) { //options
                 file_t *tf = search_by_fid(EF_DEVOPS, NULL, SPECIFY_EF);
@@ -170,12 +170,12 @@ int cmd_initialize() {
                 return SW_EXEC_ERROR();
             }
             mbedtls_ecdsa_free(&ecdsa);
-            
+
             file_t *fpk = search_by_fid(EF_EE_DEV, NULL, SPECIFY_EF);
             ret = flash_write_data_to_file(fpk, res_APDU, cvc_len);
             if (ret != 0)
                 return SW_EXEC_ERROR();
-            
+
             const uint8_t *keyid = (const uint8_t *)"\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0", *label = (const uint8_t *)"ESTERMHSM";
             size_t prkd_len = asn1_build_prkd_ecc(label, strlen((const char *)label), keyid, 20, 192, res_APDU, 4096);
             fpk = search_by_fid(EF_PRKD_DEV, NULL, SPECIFY_EF);

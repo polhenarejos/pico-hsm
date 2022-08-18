@@ -29,7 +29,7 @@ On a secondary device, generate a private key, on the ECC 256 bits (`brainpoolP2
 
 <img width="1037" src="https://user-images.githubusercontent.com/55573252/173353764-4620ece4-0d82-4a23-a153-99bf912621a7.png">
 
-Once finished, export the public key. 
+Once finished, export the public key.
 
 <img width="350" src="https://user-images.githubusercontent.com/55573252/173353732-63f40572-a42f-4e5c-a9ab-6e52a083956b.png">
 
@@ -64,17 +64,17 @@ From now on, you have full access and can operate normally with the primary devi
 Pico HSM uses the PIN to protect the DKEK, which is lately used to protect private/secret keys and wrap/unwrap. However, when PKA is enabled, the authentication is not performed by introducing any PIN.
 Authenticated privileges are granted when PKA succeeds, regardless of PIN, which is optional.
 
-Nevertheless, **it is extremely recommended to combine PKA with PIN**. Note that when combined, only PKA grants authenticated privileges. Therefore, if both schemes are setup, it is necessary to unlock the DKEK with PIN verification. 
+Nevertheless, **it is extremely recommended to combine PKA with PIN**. Note that when combined, only PKA grants authenticated privileges. Therefore, if both schemes are setup, it is necessary to unlock the DKEK with PIN verification.
 Otherwise, it will not be possible to operate with private/secret keys despite the user will be logged in.
 
 With this scheme, multiple custodians may authenticate the device individually and remotely and, when fully authenticated, the master user can unlock the DKEK with the PIN.
 
-Moreover, with this approach the device is kept safe and neither the DKEK nor the private/secret keys are stored in plain text in the device. 
+Moreover, with this approach the device is kept safe and neither the DKEK nor the private/secret keys are stored in plain text in the device.
 Even though the flash memory is dumped by an attacker, it will not be possible to decipher any sensitive data or key.
 
 Initialization of the device with PKA **and** PIN can be achieved with SCS3 or OpenSC:
 
-**Note:** do not import any DKEK share or DKEK operation before PKA and PIN setup. 
+**Note:** do not import any DKEK share or DKEK operation before PKA and PIN setup.
 
 ### With OpenSC
 
@@ -84,9 +84,9 @@ Use the following command (or similar), which accepts the use of PIN parameter *
 sc-hsm-tool -X --so-pin 1234567890123456 --pin 648219 -K 1 -n 1 -s 1
 ```
 
-and PKA and PIN are enabled, jointly with DKEK protection. 
+and PKA and PIN are enabled, jointly with DKEK protection.
 
-### With SCS3
+###ï¿½With SCS3
 
 Unfortunately, SCS3 does not allow to initialize the device with PKA and PIN at the same time, though it can be achieved in separated steps:
 
@@ -94,4 +94,4 @@ Unfortunately, SCS3 does not allow to initialize the device with PKA and PIN at 
 2. There is NO default PIN. So, DO NOT attempt to log in yet. A reset PIN shall be requested.
 3. Click on ``Reset User-PIN``, introduce the SO-PIN configured during the initialization and introduce the desired User-PIN.
 
-When done, the device will be configured with PIN **and** PKA. 
+When done, the device will be configured with PIN **and** PKA.

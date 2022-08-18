@@ -24,12 +24,12 @@ This algorithm uses the PKCSv1.5 padding. It is considered deprecated and insecu
 First, we encrypt the data with the public key:
 
 ```
-$ openssl rsautl -encrypt -inkey 1.pub -in data -pubin -out data.crypt 
+$ openssl rsautl -encrypt -inkey 1.pub -in data -pubin -out data.crypt
 ```
 
 Then, we decrypt with the private key inside the Pico HSM:
 
-``` 
+```
 $ pkcs11-tool --id 1 --pin 648219 --decrypt --mechanism RSA-PKCS -i data.crypt
 Using slot 0 with a present token (0x0)
 Using decrypt algorithm RSA-PKCS
@@ -54,7 +54,7 @@ $ openssl rsautl -encrypt -inkey 1.pub -in data_pad -pubin -out data.crypt -raw
 
 Then, we decrypt with the private key inside the Pico HSM:
 ```
-$ cat data.crypt|pkcs11-tool --id 4 --pin 648219 --decrypt --mechanism RSA-X-509 
+$ cat data.crypt|pkcs11-tool --id 4 --pin 648219 --decrypt --mechanism RSA-X-509
 Using slot 0 with a present token (0x0)
 Using decrypt algorithm RSA-X-509
 This is a test string. Be safe, be secure.
@@ -78,7 +78,7 @@ This is a test string. Be safe, be secure.
 ```
 
 ## ECDH-DERIVE
-ECC keys do not allow ciphering operations. Instead, the ECDH scheme provides a mechanism to exchange a shared symmetric key without transmitting it to the remote part. The shared key is composed by multiplying the local private key and the remote public key. 
+ECC keys do not allow ciphering operations. Instead, the ECDH scheme provides a mechanism to exchange a shared symmetric key without transmitting it to the remote part. The shared key is composed by multiplying the local private key and the remote public key.
 
 First, we create the remote part, Bob, by generating an ECC keypair and getting the public key:
 ```
@@ -104,8 +104,8 @@ No output is displayed if both are equal.
 
 You can also view the contents of both keys:
 ```
-$ xxd -p bob-mine.der             
+$ xxd -p bob-mine.der
 9874558aefa9d92cc051e5da6d1753987e5314925d6d78bf
-$ xxd -p mine-bob.der             
+$ xxd -p mine-bob.der
 9874558aefa9d92cc051e5da6d1753987e5314925d6d78bf
 ```

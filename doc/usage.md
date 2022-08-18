@@ -1,7 +1,7 @@
 # Usage
 
 ## Tools
-We use multiple tools and PKCS#11 drivers and modules, depending on the purpose. 
+We use multiple tools and PKCS#11 drivers and modules, depending on the purpose.
 * **pkcs11-tool**: from OpenSC. It interfaces with the HSM via PKCS#11 interface. It supports different drivers and modules.
 * **sc-tool**: an alias of pkcs11-tool with the sc-hsm-embedded module. It is mainly used for AES management and it is defined as:
 ```
@@ -32,10 +32,10 @@ The first step is to initialize the HSM:
 ```
 $ sc-hsm-tool --initialize --so-pin 3537363231383830 --pin 648219
 ```
-The PIN number is used to manage all private keys in the device. It supports three attemps. After the third PIN failure, it gets blocked. 
+The PIN number is used to manage all private keys in the device. It supports three attemps. After the third PIN failure, it gets blocked.
 The PIN accepts from 6 to 16 characters.
 
-The SO-PIN is used to unblock the PIN. It accepts 15 attemps. After 15 failed attempts, the device will be completely blocked and will be necessary to initialize again, erasing all private keys and losing the access. Therefore, keep the SO-PIN in a safe place. 
+The SO-PIN is used to unblock the PIN. It accepts 15 attemps. After 15 failed attempts, the device will be completely blocked and will be necessary to initialize again, erasing all private keys and losing the access. Therefore, keep the SO-PIN in a safe place.
 The SO-PIN is always 16 hexadecimal characters.
 
 ## PIN and SO-PIN management
@@ -62,7 +62,7 @@ To generate a RSA 2048 bits, use the following command:
 $ pkcs11-tool -l --pin 648219 --keypairgen --key-type rsa:2048 --id 1 --label "RSA2K"
 Using slot 0 with a present token (0x0)
 Key pair generated:
-Private Key Object; RSA 
+Private Key Object; RSA
   label:      RSA2K
   ID:         1
   Usage:      decrypt, sign
@@ -77,7 +77,7 @@ The ID parameter is an internal hexadecimal number for easy identification. The 
 
 Pico HSM accepts RSA of 1024 (`rsa:1024`), 2048 (`rsa:2048`) and 4096 bits (`rsa:4096`).
 
-**Caution**: RSA 2048 bits may take more than 20 seconds. RSA 4096 bits may take more than 20 minutes. The Pico HSM will work as normally and neither the HSM nor the host will block. But, in the meantime, the Pico HSM will not accept any command. 
+**Caution**: RSA 2048 bits may take more than 20 seconds. RSA 4096 bits may take more than 20 minutes. The Pico HSM will work as normally and neither the HSM nor the host will block. But, in the meantime, the Pico HSM will not accept any command.
 An alternative is to generate the private key locally and import it to the HSM. This approach, however, is less secure as it does not use a True RNG or HRNG like Pico HSM. Use this approach if you have plugged a TRNG or you are not worried about obtaining the highest entropy.
 
 Pico HSM also accepts ECDSA keypairs:
@@ -157,9 +157,9 @@ Certificate:
                     a0:30:b2:ec:d3:d6:0d:58:f3
                 Exponent: 65537 (0x10001)
         X509v3 extensions:
-            X509v3 Subject Key Identifier: 
+            X509v3 Subject Key Identifier:
                 98:07:DA:13:B0:8E:A0:5C:97:83:68:FE:4A:25:8D:50:C4:DC:16:FA
-            X509v3 Authority Key Identifier: 
+            X509v3 Authority Key Identifier:
                 keyid:98:07:DA:13:B0:8E:A0:5C:97:83:68:FE:4A:25:8D:50:C4:DC:16:FA
 
             X509v3 Basic Constraints: critical
@@ -173,7 +173,7 @@ Certificate:
          99:2b:b2:82:66:c1:06:a7:2c:62:af:e2:e4:93:42:36:66:8d:
          c5:3f:e1:ec:5f:9a:f8:5f:b3:6a:8f:0e:12:5d:c9:46:38:ea:
          0b:08
-``` 
+```
 
 The resulting file `cert.pem` contains the signed certificate in PEM format. Convert it into DER format and load it into the Pico HSM:
 

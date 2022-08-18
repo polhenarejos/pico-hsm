@@ -1,17 +1,17 @@
-/* 
+/*
  * This file is part of the Pico HSM distribution (https://github.com/polhenarejos/pico-hsm).
  * Copyright (c) 2022 Pol Henarejos.
- * 
- * This program is free software: you can redistribute it and/or modify  
- * it under the terms of the GNU General Public License as published by  
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, version 3.
  *
- * This program is distributed in the hope that it will be useful, but 
- * WITHOUT ANY WARRANTY; without even the implied warranty of 
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU 
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
  * General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License 
+ * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
@@ -32,7 +32,7 @@ int cmd_mse() {
     if (p1 & 0x1) { //SET
         uint16_t tag = 0x0;
         uint8_t *tag_data = NULL, *p = NULL;
-        size_t tag_len = 0;    
+        size_t tag_len = 0;
         while (walk_tlv(apdu.data, apdu.nc, &p, &tag, &tag_len, &tag_data)) {
             if (tag == 0x80) {
                 if (p2 == 0xA4) {
@@ -42,7 +42,7 @@ int cmd_mse() {
             }
             else if (tag == 0x83) {
                 if (tag_len == 1) {
-                    
+
                 }
                 else {
                     if (p2 == 0xB6) {

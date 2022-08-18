@@ -1,20 +1,20 @@
-/* 
+/*
  * This file is part of the Pico HSM distribution (https://github.com/polhenarejos/pico-hsm).
  * Copyright (c) 2022 Pol Henarejos.
- * 
- * This program is free software: you can redistribute it and/or modify  
- * it under the terms of the GNU General Public License as published by  
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, version 3.
  *
- * This program is distributed in the hope that it will be useful, but 
- * WITHOUT ANY WARRANTY; without even the implied warranty of 
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU 
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
  * General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License 
+ * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
- 
+
 #include "crypto_utils.h"
 #include "sc_hsm.h"
 #include "asn1.h"
@@ -94,7 +94,7 @@ int cmd_signature() {
     file_t *fkey;
     if (!isUserAuthenticated)
         return SW_SECURITY_STATUS_NOT_SATISFIED();
-    if (!(fkey = search_dynamic_file((KEY_PREFIX << 8) | key_id)) || !fkey->data || file_get_size(fkey) == 0) 
+    if (!(fkey = search_dynamic_file((KEY_PREFIX << 8) | key_id)) || !fkey->data || file_get_size(fkey) == 0)
         return SW_FILE_NOT_FOUND();
     if (get_key_counter(fkey) == 0)
         return SW_FILE_FULL();
@@ -114,7 +114,7 @@ int cmd_signature() {
     if (p2 >= ALGO_RSA_RAW && p2 <= ALGO_RSA_PSS_SHA512) {
         mbedtls_rsa_context ctx;
         mbedtls_rsa_init(&ctx);
-        
+
         int r;
         r = load_private_key_rsa(&ctx, fkey);
         if (r != CCID_OK) {
@@ -144,15 +144,15 @@ int cmd_signature() {
                 asn1_find_tag(p, tout, 0x4, &hash_len, &hash);
             }
             if (oid && oid_len > 0) {
-                if (memcmp(oid, MBEDTLS_OID_DIGEST_ALG_SHA1, oid_len) == 0) 
+                if (memcmp(oid, MBEDTLS_OID_DIGEST_ALG_SHA1, oid_len) == 0)
                     md = MBEDTLS_MD_SHA1;
-                else if (memcmp(oid, MBEDTLS_OID_DIGEST_ALG_SHA224, oid_len) == 0) 
+                else if (memcmp(oid, MBEDTLS_OID_DIGEST_ALG_SHA224, oid_len) == 0)
                     md = MBEDTLS_MD_SHA224;
-                else if (memcmp(oid, MBEDTLS_OID_DIGEST_ALG_SHA256, oid_len) == 0) 
+                else if (memcmp(oid, MBEDTLS_OID_DIGEST_ALG_SHA256, oid_len) == 0)
                     md = MBEDTLS_MD_SHA256;
-                else if (memcmp(oid, MBEDTLS_OID_DIGEST_ALG_SHA384, oid_len) == 0) 
+                else if (memcmp(oid, MBEDTLS_OID_DIGEST_ALG_SHA384, oid_len) == 0)
                     md = MBEDTLS_MD_SHA384;
-                else if (memcmp(oid, MBEDTLS_OID_DIGEST_ALG_SHA512, oid_len) == 0) 
+                else if (memcmp(oid, MBEDTLS_OID_DIGEST_ALG_SHA512, oid_len) == 0)
                     md = MBEDTLS_MD_SHA512;
             }
             if (p2 >= ALGO_RSA_PSS && p2 <= ALGO_RSA_PSS_SHA512) {

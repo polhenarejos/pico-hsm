@@ -1,17 +1,17 @@
-/* 
+/*
  * This file is part of the Pico HSM distribution (https://github.com/polhenarejos/pico-hsm).
  * Copyright (c) 2022 Pol Henarejos.
- * 
- * This program is free software: you can redistribute it and/or modify  
- * it under the terms of the GNU General Public License as published by  
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, version 3.
  *
- * This program is distributed in the hope that it will be useful, but 
- * WITHOUT ANY WARRANTY; without even the implied warranty of 
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU 
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
  * General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License 
+ * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
@@ -42,26 +42,26 @@ int cmd_select() {
     uint8_t p2 = P2(apdu);
     file_t *pe = NULL;
     uint16_t fid = 0x0;
-    
-    // Only "first or only occurence" supported 
+
+    // Only "first or only occurence" supported
     //if ((p2 & 0xF3) != 0x00) {
     //    return SW_INCORRECT_P1P2();
     //}
-    
+
     if (apdu.nc >= 2)
         fid = get_uint16_t(apdu.data, 0);
-        
+
     //if ((fid & 0xff00) == (KEY_PREFIX << 8))
     //    fid = (PRKD_PREFIX << 8) | (fid & 0xff);
-    
+
     uint8_t pfx = fid >> 8;
-    if (pfx == PRKD_PREFIX || 
-        pfx == CD_PREFIX || 
-        pfx == CA_CERTIFICATE_PREFIX || 
-        pfx == KEY_PREFIX || 
-        pfx == EE_CERTIFICATE_PREFIX || 
-        pfx == DCOD_PREFIX || 
-        pfx == DATA_PREFIX || 
+    if (pfx == PRKD_PREFIX ||
+        pfx == CD_PREFIX ||
+        pfx == CA_CERTIFICATE_PREFIX ||
+        pfx == KEY_PREFIX ||
+        pfx == EE_CERTIFICATE_PREFIX ||
+        pfx == DCOD_PREFIX ||
+        pfx == DATA_PREFIX ||
         pfx == PROT_DATA_PREFIX) {
         if (!(pe = search_dynamic_file(fid)) && !(pe = search_by_fid(fid, NULL, SPECIFY_EF)))
             return SW_FILE_NOT_FOUND();
@@ -98,7 +98,7 @@ int cmd_select() {
             }
             if (card_terminated) {
                 return set_res_sw(0x62, 0x85);
-            }        
+            }
         }
         else if (p1 == 0x08) { //Select from the MF - Path without the MF identifier
             if (!(pe = search_by_path(apdu.data, apdu.nc, MF))) {

@@ -1,20 +1,20 @@
-/* 
+/*
  * This file is part of the Pico HSM distribution (https://github.com/polhenarejos/pico-hsm).
  * Copyright (c) 2022 Pol Henarejos.
- * 
- * This program is free software: you can redistribute it and/or modify  
- * it under the terms of the GNU General Public License as published by  
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, version 3.
  *
- * This program is distributed in the hope that it will be useful, but 
- * WITHOUT ANY WARRANTY; without even the implied warranty of 
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU 
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
  * General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License 
+ * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
- 
+
 #include "crypto_utils.h"
 #include "sc_hsm.h"
 #include "files.h"
@@ -29,7 +29,7 @@ int cmd_keypair_gen() {
     if (!isUserAuthenticated)
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     int ret = 0;
-    
+
     size_t tout = 0;
     //sc_asn1_print_tags(apdu.data, apdu.nc);
     uint8_t *p = NULL;
@@ -72,7 +72,7 @@ int cmd_keypair_gen() {
                     mbedtls_rsa_free(&rsa);
                     return SW_EXEC_ERROR();
                 }
-                mbedtls_rsa_free(&rsa);            
+                mbedtls_rsa_free(&rsa);
             }
             else if (memcmp(oid, OID_ID_TA_ECDSA_SHA_256,MIN(oid_len,10)) == 0) { //ECC
                 size_t prime_len;
@@ -131,7 +131,7 @@ int cmd_keypair_gen() {
                 }
                 mbedtls_ecdsa_free(&ecdsa);
             }
-            
+
         }
     }
     else

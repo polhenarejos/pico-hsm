@@ -1,17 +1,17 @@
-/* 
+/*
  * This file is part of the Pico HSM distribution (https://github.com/polhenarejos/pico-hsm).
  * Copyright (c) 2022 Pol Henarejos.
- * 
- * This program is free software: you can redistribute it and/or modify  
- * it under the terms of the GNU General Public License as published by  
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, version 3.
  *
- * This program is distributed in the hope that it will be useful, but 
- * WITHOUT ANY WARRANTY; without even the implied warranty of 
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU 
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
  * General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License 
+ * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
@@ -70,7 +70,7 @@
 #define OID_ID_RI_DH_SHA_224            OID_ID_RI_DH "\x02"
 #define OID_ID_RI_DH_SHA_256            OID_ID_RI_DH "\x03"
 
-#define OID_ID_RI_ECDH                  OID_ID_RI "\x02" 
+#define OID_ID_RI_ECDH                  OID_ID_RI "\x02"
 
 #define OID_ID_RI_ECDH_SHA_1            OID_ID_RI_ECDH "\x01"
 #define OID_ID_RI_ECDH_SHA_224          OID_ID_RI_ECDH "\x02"

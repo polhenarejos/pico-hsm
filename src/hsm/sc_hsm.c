@@ -1,17 +1,17 @@
-/* 
+/*
  * This file is part of the Pico HSM distribution (https://github.com/polhenarejos/pico-hsm).
  * Copyright (c) 2022 Pol Henarejos.
- * 
- * This program is free software: you can redistribute it and/or modify  
- * it under the terms of the GNU General Public License as published by  
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, version 3.
  *
- * This program is distributed in the hope that it will be useful, but 
- * WITHOUT ANY WARRANTY; without even the implied warranty of 
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU 
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
  * General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License 
+ * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
@@ -26,13 +26,13 @@
 #include "asn1.h"
 
 const uint8_t sc_hsm_aid[] = {
-    11, 
+    11,
     0xE8,0x2B,0x06,0x01,0x04,0x01,0x81,0xC3,0x1F,0x02,0x01
 };
 
-const uint8_t atr_sc_hsm[] = { 
+const uint8_t atr_sc_hsm[] = {
     24,
-    0x3B,0xFE,0x18,0x00,0x00,0x81,0x31,0xFE,0x45,0x80,0x31,0x81,0x54,0x48,0x53,0x4D,0x31,0x73,0x80,0x21,0x40,0x81,0x07,0xFA 
+    0x3B,0xFE,0x18,0x00,0x00,0x81,0x31,0xFE,0x45,0x80,0x31,0x81,0x54,0x48,0x53,0x4D,0x31,0x73,0x80,0x21,0x40,0x81,0x07,0xFA
 };
 
 uint8_t session_pin[32], session_sopin[32];
@@ -84,7 +84,7 @@ app_t *sc_hsm_select_aid(app_t *a) {
     return NULL;
 }
 
-void __attribute__ ((constructor)) sc_hsm_ctor() { 
+void __attribute__ ((constructor)) sc_hsm_ctor() {
     ccid_atr = atr_sc_hsm;
     register_app(sc_hsm_select_aid);
 }
@@ -135,7 +135,7 @@ void scan_files() {
         printf("FATAL ERROR: Retries SOPIN not found in memory!\r\n");
     }
     file_t *tf = NULL;
-    
+
     tf = search_by_fid(0x1082, NULL, SPECIFY_EF);
     if (tf) {
         if (!tf->data) {
@@ -176,7 +176,7 @@ int add_cert_puk_store(const uint8_t *data, size_t data_len, bool copy) {
         return CCID_ERR_NULL_PARAM;
     if (puk_store_entries == MAX_PUK_STORE_ENTRIES)
         return CCID_ERR_MEMORY_FATAL;
-    
+
     puk_store[puk_store_entries].copied = copy;
     if (copy == true) {
         uint8_t *tmp = (uint8_t *)calloc(data_len, sizeof(uint8_t));
@@ -189,7 +189,7 @@ int add_cert_puk_store(const uint8_t *data, size_t data_len, bool copy) {
     puk_store[puk_store_entries].chr = cvc_get_chr(puk_store[puk_store_entries].cvcert, data_len, &puk_store[puk_store_entries].chr_len);
     puk_store[puk_store_entries].car = cvc_get_car(puk_store[puk_store_entries].cvcert, data_len, &puk_store[puk_store_entries].car_len);
     puk_store[puk_store_entries].puk = cvc_get_pub(puk_store[puk_store_entries].cvcert, data_len, &puk_store[puk_store_entries].puk_len);
-    
+
     puk_store_entries++;
     return CCID_OK;
 }
@@ -278,7 +278,7 @@ int parse_token_info(const file_t *f, int mode) {
 
 int pin_reset_retries(const file_t *pin, bool force) {
     if (!pin)
-        return CCID_ERR_NULL_PARAM; 
+        return CCID_ERR_NULL_PARAM;
     const file_t *max = search_by_fid(pin->fid+1, NULL, SPECIFY_EF);
     const file_t *act = search_by_fid(pin->fid+2, NULL, SPECIFY_EF);
     if (!max || !act)
@@ -294,7 +294,7 @@ int pin_reset_retries(const file_t *pin, bool force) {
 
 int pin_wrong_retry(const file_t *pin) {
     if (!pin)
-        return CCID_ERR_NULL_PARAM; 
+        return CCID_ERR_NULL_PARAM;
     const file_t *act = search_by_fid(pin->fid+2, NULL, SPECIFY_EF);
     if (!act)
         return CCID_ERR_FILE_NOT_FOUND;
@@ -381,7 +381,7 @@ uint32_t get_key_counter(file_t *fkey) {
     const uint8_t *meta_tag = get_meta_tag(fkey, 0x90, &tag_len);
     if (meta_tag)
         return (meta_tag[0] << 24) | (meta_tag[1] << 16) | (meta_tag[2] << 8) | meta_tag[3];
-    return 0xffffffff; 
+    return 0xffffffff;
 }
 
 bool key_has_purpose(file_t *ef, uint8_t purpose) {
@@ -417,7 +417,7 @@ uint32_t decrement_key_counter(file_t *fkey) {
                 tag_data[1] = (val >> 16) & 0xff;
                 tag_data[2] = (val >> 8) & 0xff;
                 tag_data[3] = val & 0xff;
-                
+
                 int r = meta_add(fkey->fid, cmeta, meta_size);
                 free(cmeta);
                 if (r != 0)
@@ -525,7 +525,7 @@ int find_and_store_meta_key(uint8_t key_id) {
 int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
     if (wait_button() == true) //timeout
         return CCID_VERIFICATION_FAILED;
-        
+
     int key_size = file_get_size(fkey);
     uint8_t kdata[4096/8];
     memcpy(kdata, file_get_data(fkey), key_size);
@@ -568,7 +568,7 @@ int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
 int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey) {
     if (wait_button() == true) //timeout
         return CCID_VERIFICATION_FAILED;
-        
+
     int key_size = file_get_size(fkey);
     uint8_t kdata[67]; //Worst case, 521 bit + 1byte
     memcpy(kdata, file_get_data(fkey), key_size);
@@ -622,7 +622,7 @@ typedef struct cmd
 
 static const cmd_t cmds[] = {
     { INS_SELECT_FILE, cmd_select },
-    { INS_LIST_KEYS, cmd_list_keys }, 
+    { INS_LIST_KEYS, cmd_list_keys },
     { INS_READ_BINARY, cmd_read_binary },
     { INS_READ_BINARY_ODD, cmd_read_binary },
     { INS_VERIFY, cmd_verify },

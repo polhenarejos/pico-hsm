@@ -4,11 +4,11 @@ SCS3 tool is a specific tool developed by CardContact to manage HSM. Thanks to i
 
 - Import PKCS12 private keys and certificates.
 - Import private keys and certificates from other Pico HSM devices in WKY format.
-- 
+-
 
 Unfortunately, there is no pkcs11 tool or equivalent capable to perform the import. Since it uses the SC-HSM driver, it also supports the communication with the [SCS3 tool](https://www.openscdp.org/scsh3/ "SCS3 tool"). It can be downloaded from [here](https://www.openscdp.org/scsh3/download.html "here").
 
-However, SCS3 only works with those HSM manufactured by CardContact. The check is performed by means of trust store against the manufacturing certificates. For obvious reasons, these certificates can only be signed with the private keys of the Certificate Authorities listed in the trust store. 
+However, SCS3 only works with those HSM manufactured by CardContact. The check is performed by means of trust store against the manufacturing certificates. For obvious reasons, these certificates can only be signed with the private keys of the Certificate Authorities listed in the trust store.
 
 Pico HSM is shipped with its own CA certificates. To load this certificate onto the trust store of SCS3, the following line has to be appended to `SmartCardHSM.rootCerts` variable, near line `235` in the file `scs3/scsh/sc-hsm/SmartCardHSM.js`.
 
@@ -39,8 +39,8 @@ After this ammendment, the program can be started and the KeyManager can be invo
 >load("keymanager/keymanager.js");
 
 SmartCard-HSM Version 1.6 on JCOP          Free memory 217104 byte
-Issuer Certificate : CVC id-AT DV (official domestic) CAR=ESCVCAHSM00001 CHR=ESDVCAHSM00001 CED=27 / de març / 2022 CXD=31 / de desembre / 2025 
-Device Certificate : CVC id-AT Terminal CAR=ESDVCAHSM00001 CHR=ESTERMHSM00001 CED=27 / de març / 2022 CXD=31 / de desembre / 2023 
+Issuer Certificate : CVC id-AT DV (official domestic) CAR=ESCVCAHSM00001 CHR=ESDVCAHSM00001 CED=27 / de març / 2022 CXD=31 / de desembre / 2025
+Device Certificate : CVC id-AT Terminal CAR=ESDVCAHSM00001 CHR=ESTERMHSM00001 CED=27 / de març / 2022 CXD=31 / de desembre / 2023
 Default Key Domain : 0F89B400975EDD2D425ABF85F2FBD318779B3D85475E65D4
 -------------------------------------------------------------------
 Please right-click on nodes in the outline to see possible actions.
@@ -60,7 +60,7 @@ It can be executed in a Terminal via
 ```
 ## DKEK requirement
 
-In order to perform the import, private keys must be wrapped with the same DKEK present in the Pico HSM. Thus, the Pico HSM must be previously initialized with at minimum of 1 DKEK share. This share will be used to wrap the private key before import. 
+In order to perform the import, private keys must be wrapped with the same DKEK present in the Pico HSM. Thus, the Pico HSM must be previously initialized with at minimum of 1 DKEK share. This share will be used to wrap the private key before import.
 
 Note that the DKEK share shall be available before the import. In this way, all custodians must be present during the import process, since they will have to introduce their respective DKEK.
 

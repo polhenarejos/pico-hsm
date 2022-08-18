@@ -1,20 +1,20 @@
-/* 
+/*
  * This file is part of the Pico HSM distribution (https://github.com/polhenarejos/pico-hsm).
  * Copyright (c) 2022 Pol Henarejos.
- * 
- * This program is free software: you can redistribute it and/or modify  
- * it under the terms of the GNU General Public License as published by  
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, version 3.
  *
- * This program is distributed in the hope that it will be useful, but 
- * WITHOUT ANY WARRANTY; without even the implied warranty of 
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU 
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
  * General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License 
+ * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
- 
+
 #include "sc_hsm.h"
 #include "asn1.h"
 
@@ -33,19 +33,19 @@ int cmd_update_ef() {
         ef = currentEF;
     else if (p1 != EE_CERTIFICATE_PREFIX && p1 != PRKD_PREFIX && p1 != CA_CERTIFICATE_PREFIX && p1 != CD_PREFIX && p1 != DATA_PREFIX && p1 != DCOD_PREFIX && p1 != PROT_DATA_PREFIX)
         return SW_INCORRECT_P1P2();
-        
+
     if (ef && !authenticate_action(ef, ACL_OP_UPDATE_ERASE))
         return SW_SECURITY_STATUS_NOT_SATISFIED();
-        
+
     uint16_t tag = 0x0;
     uint8_t *tag_data = NULL, *p = NULL;
-    size_t tag_len = 0;    
+    size_t tag_len = 0;
     while (walk_tlv(apdu.data, apdu.nc, &p, &tag, &tag_len, &tag_data)) {
         if (tag == 0x54) { //ofset tag
             for (int i = 1; i <= tag_len; i++)
                 offset |= (*tag_data++ << (8*(tag_len-i)));
         }
-        else if (tag == 0x53) { //data 
+        else if (tag == 0x53) { //data
             data_len = tag_len;
             data = tag_data;
         }
@@ -71,7 +71,7 @@ int cmd_update_ef() {
         else {
             if (!ef->data)
                 return SW_DATA_INVALID();
- 
+
             uint8_t *data_merge = (uint8_t *)calloc(1, offset+data_len);
             memcpy(data_merge, file_get_data(ef), offset);
             memcpy(data_merge+offset, data, data_len);
@@ -82,5 +82,5 @@ int cmd_update_ef() {
         }
         low_flash_available();
     }
-    return SW_OK(); 
+    return SW_OK();
 }

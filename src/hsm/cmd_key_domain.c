@@ -1,17 +1,17 @@
-/* 
+/*
  * This file is part of the Pico HSM distribution (https://github.com/polhenarejos/pico-hsm).
  * Copyright (c) 2022 Pol Henarejos.
- * 
- * This program is free software: you can redistribute it and/or modify  
- * it under the terms of the GNU General Public License as published by  
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, version 3.
  *
- * This program is distributed in the hope that it will be useful, but 
- * WITHOUT ANY WARRANTY; without even the implied warranty of 
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU 
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
  * General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License 
+ * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
@@ -120,9 +120,9 @@ int cmd_key_domain() {
             if (!t86 || t86[0] != 0x4)
                 return SW_EXEC_ERROR();
             size_t t54_len = 0;
-            const uint8_t *t54 = cvc_get_field(apdu.data, apdu.nc, &t54_len, 0x54);     
+            const uint8_t *t54 = cvc_get_field(apdu.data, apdu.nc, &t54_len, 0x54);
             if (!t54)
-                return SW_WRONG_DATA();        
+                return SW_WRONG_DATA();
             uint8_t hash[32], *input = (uint8_t *)calloc(1, (t86_len-1)/2+1);
             input[0] = 0x54;
             memcpy(input+1, t86+1, (t86_len-1)/2);
@@ -134,7 +134,7 @@ int cmd_key_domain() {
             file_t *tf = file_new(EF_XKEK+p2);
             if (!tf)
                 return SW_MEMORY_FAILURE();
-            
+
             //All checks done. Get Key Domain UID
             pub = cvc_get_pub(apdu.data, apdu.nc, &pub_len);
             if (pub) {

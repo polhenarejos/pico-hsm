@@ -1,17 +1,17 @@
-/* 
+/*
  * This file is part of the Pico HSM distribution (https://github.com/polhenarejos/pico-hsm).
  * Copyright (c) 2022 Pol Henarejos.
- * 
- * This program is free software: you can redistribute it and/or modify  
- * it under the terms of the GNU General Public License as published by  
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, version 3.
  *
- * This program is distributed in the hope that it will be useful, but 
- * WITHOUT ANY WARRANTY; without even the implied warranty of 
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU 
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
  * General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License 
+ * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
@@ -21,7 +21,7 @@
 
 int cmd_reset_retry() {
     if (P2(apdu) != 0x81)
-        return SW_REFERENCE_NOT_FOUND();        
+        return SW_REFERENCE_NOT_FOUND();
     if (!file_sopin || !file_pin1) {
         return SW_FILE_NOT_FOUND();
     }
@@ -43,7 +43,7 @@ int cmd_reset_retry() {
             has_session_sopin = true;
             hash_multi(apdu.data, 8, session_sopin);
         }
-        else if (P1(apdu) == 0x2) {    
+        else if (P1(apdu) == 0x2) {
             if (!has_session_sopin)
                 return SW_CONDITIONS_NOT_SATISFIED();
             if (apdu.nc > 16)
@@ -69,7 +69,7 @@ int cmd_reset_retry() {
         low_flash_available();
         return SW_OK();
     }
-    else if (P1(apdu) == 0x1 || P1(apdu) == 0x3) {        
+    else if (P1(apdu) == 0x1 || P1(apdu) == 0x3) {
         if (!(opts & HSM_OPT_RRC_RESET_ONLY))
             return SW_COMMAND_NOT_ALLOWED();
         if (P1(apdu) == 0x1) {

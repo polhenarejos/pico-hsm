@@ -1,6 +1,6 @@
 # Extra command
 
-Pico HSM supports a customized extra command to use with different options. Since the drivers in the market do not support the following features, a raw APDU command shall be sent. 
+Pico HSM supports a customized extra command to use with different options. Since the drivers in the market do not support the following features, a raw APDU command shall be sent.
 
 To send a raw APDU command, `opensc-tool -s <APDU>` can be used. The `APDU` parameter is a string of hexadecimal numbers and it takes the following form:
 ```
@@ -27,7 +27,7 @@ For example, to obtain the current datetime:
 ```
 $ opensc-tool -s 80640A0008
 Using reader with a card: Free Software Initiative of Japan Gnuk
-Sending: 80 64 0A 00 08 
+Sending: 80 64 0A 00 08
 Received (SW1=0x90, SW2=0x00):
 07 E6 04 06 03 13 29 1E ......).
 ```
@@ -49,7 +49,7 @@ To set the reference datetime, a datetime string must be provided. For example:
 ```
 $ opensc-tool -s 80640A000807E6040603132917
 Using reader with a card: Free Software Initiative of Japan Gnuk
-Sending: 80 64 0A 00 08 07 E6 04 06 03 13 29 17 
+Sending: 80 64 0A 00 08 07 E6 04 06 03 13 29 17
 Received (SW1=0x90, SW2=0x00)
 ```
 
@@ -72,7 +72,7 @@ This feature is disabled by default but can be enabled rapidly by setting the LS
 ```
 $ opensc-tool -s 806406000101
 Using reader with a card: Free Software Initiative of Japan Gnuk
-Sending: 80 64 06 00 01 01 
+Sending: 80 64 06 00 01 01
 Received (SW1=0x90, SW2=0x00)
 ```
 
@@ -99,7 +99,7 @@ This feature is disabled by default but can be enabled rapidly by setting the 2n
 ```
 $ opensc-tool -s 806406000102
 Using reader with a card: Free Software Initiative of Japan Gnuk
-Sending: 80 64 06 00 01 01 
+Sending: 80 64 06 00 01 01
 Received (SW1=0x90, SW2=0x00)
 ```
 

@@ -1,22 +1,22 @@
-/* 
+/*
  * This file is part of the Pico HSM distribution (https://github.com/polhenarejos/pico-hsm).
  * Copyright (c) 2022 Pol Henarejos.
- * 
- * This program is free software: you can redistribute it and/or modify  
- * it under the terms of the GNU General Public License as published by  
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, version 3.
  *
- * This program is distributed in the hope that it will be useful, but 
- * WITHOUT ANY WARRANTY; without even the implied warranty of 
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU 
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
  * General Public License for more details.
  *
- * You should have received a copy of the GNU General Public License 
+ * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "common.h"
-#include "mbedtls/ecdsa.h" 
+#include "mbedtls/ecdsa.h"
 #include "crypto_utils.h"
 #include "sc_hsm.h"
 
@@ -43,7 +43,7 @@ int cmd_derive_asym() {
     file_t *fkey;
     if (!isUserAuthenticated)
         return SW_SECURITY_STATUS_NOT_SATISFIED();
-    if (!(fkey = search_dynamic_file((KEY_PREFIX << 8) | key_id)) || !fkey->data || file_get_size(fkey) == 0) 
+    if (!(fkey = search_dynamic_file((KEY_PREFIX << 8) | key_id)) || !fkey->data || file_get_size(fkey) == 0)
         return SW_FILE_NOT_FOUND();
     if (key_has_purpose(fkey, ALGO_EC_DERIVE) == false)
         return SW_CONDITIONS_NOT_SATISFIED();
@@ -52,7 +52,7 @@ int cmd_derive_asym() {
     if (apdu.data[0] == ALGO_EC_DERIVE) {
         mbedtls_ecdsa_context ctx;
         mbedtls_ecdsa_init(&ctx);
-        
+
         int r;
         r = load_private_key_ecdsa(&ctx, fkey);
         if (r != CCID_OK) {
@@ -96,7 +96,7 @@ int cmd_derive_asym() {
         mbedtls_mpi_free(&a);
         mbedtls_mpi_free(&nd);
     }
-    else 
+    else
         return SW_WRONG_DATA();
     return SW_OK();
 }
