@@ -42,11 +42,6 @@ endif()
 add_definitions(-DDEBUG_APDU=${DEBUG_APDU})
 
 find_package( PythonInterp 3.7 REQUIRED )
-        
-if (NOT EXISTS ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cvcerts.h)
-    execute_process(COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/burn-cvcerts.py ${CMAKE_CURRENT_LIST_DIR})
-    message("Burning CVCert")
-endif()
 
 configure_file(${CMAKE_CURRENT_LIST_DIR}/pico-ccid/config/mbedtls_config.h ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/include/mbedtls COPYONLY)
 
