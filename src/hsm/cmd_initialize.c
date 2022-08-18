@@ -166,14 +166,14 @@ int cmd_initialize() {
         if ((cvc_len = asn1_cvc_aut(&ecdsa, HSM_KEY_EC, res_APDU, 4096, NULL, 0)) == 0) {
             return SW_EXEC_ERROR();
         }
-        file_t *fpk = file_new((EE_CERTIFICATE_PREFIX << 8) | key_id);
+        file_t *fpk = search_by_fid(EF_EE_DEV, NULL, SPECIFY_EF);
         ret = flash_write_data_to_file(fpk, res_APDU, cvc_len);
         if (ret != 0)
             return SW_EXEC_ERROR();
         
         const uint8_t *keyid = (const uint8_t *)"\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0", *label = (const uint8_t *)"TERMCA";
         size_t prkd_len = asn1_build_prkd_ecc(label, strlen((const char *)label), keyid, 20, 192, res_APDU, 4096);
-        fpk = file_new((PRKD_PREFIX << 8) | key_id);
+        fpk = search_by_fid(EF_PRKD_DEV, NULL, SPECIFY_EF);
         ret = flash_write_data_to_file(fpk, res_APDU, prkd_len);
         if (ret != 0)
             return SW_EXEC_ERROR();
