@@ -1,5 +1,6 @@
 #!/bin/bash
 
+git submodule update --init
 sudo apt update
 sudo apt install -y cmake gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib
 git clone https://github.com/raspberrypi/pico-sdk
