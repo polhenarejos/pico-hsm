@@ -36,6 +36,10 @@ if (NOT DEFINED USB_PID)
     set(USB_PID 0xFCFD)
 endif()
 add_definitions(-DUSB_PID=${USB_PID})
+if (NOT DEFINED DEBUG_APDU)
+    set(DEBUG_APDU 0)
+endif()
+add_definitions(-DDEBUG_APDU=${DEBUG_APDU})
 
 find_package( PythonInterp 3.7 REQUIRED )
         
