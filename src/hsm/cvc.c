@@ -509,15 +509,15 @@ int puk_verify(const uint8_t *sig, size_t sig_len, const uint8_t *hash, size_t h
     }
     else if (memcmp(oid, OID_ID_TA_ECDSA, 9) == 0) { //ECC
         mbedtls_md_type_t md = MBEDTLS_MD_NONE;
-        if (memcmp(oid, OID_IT_TA_ECDSA_SHA_1, oid_len) == 0) 
+        if (memcmp(oid, OID_ID_TA_ECDSA_SHA_1, oid_len) == 0) 
             md = MBEDTLS_MD_SHA1;
-        else if (memcmp(oid, OID_IT_TA_ECDSA_SHA_224, oid_len) == 0) 
+        else if (memcmp(oid, OID_ID_TA_ECDSA_SHA_224, oid_len) == 0) 
             md = MBEDTLS_MD_SHA224;
-        else if (memcmp(oid, OID_IT_TA_ECDSA_SHA_256, oid_len) == 0) 
+        else if (memcmp(oid, OID_ID_TA_ECDSA_SHA_256, oid_len) == 0) 
             md = MBEDTLS_MD_SHA256;
-        else if (memcmp(oid, OID_IT_TA_ECDSA_SHA_384, oid_len) == 0) 
+        else if (memcmp(oid, OID_ID_TA_ECDSA_SHA_384, oid_len) == 0) 
             md = MBEDTLS_MD_SHA384;
-        else if (memcmp(oid, OID_IT_TA_ECDSA_SHA_512, oid_len) == 0) 
+        else if (memcmp(oid, OID_ID_TA_ECDSA_SHA_512, oid_len) == 0) 
             md = MBEDTLS_MD_SHA512;
         if (md == MBEDTLS_MD_NONE) 
             return CCID_WRONG_DATA;
@@ -604,15 +604,15 @@ int cvc_verify(const uint8_t *cert, size_t cert_len, const uint8_t *ca, size_t c
             md = MBEDTLS_MD_SHA512;
     }
     else if (memcmp(oid, OID_ID_TA_ECDSA, 9) == 0) { //ECC
-        if (memcmp(oid, OID_IT_TA_ECDSA_SHA_1, oid_len) == 0) 
+        if (memcmp(oid, OID_ID_TA_ECDSA_SHA_1, oid_len) == 0) 
             md = MBEDTLS_MD_SHA1;
-        else if (memcmp(oid, OID_IT_TA_ECDSA_SHA_224, oid_len) == 0) 
+        else if (memcmp(oid, OID_ID_TA_ECDSA_SHA_224, oid_len) == 0) 
             md = MBEDTLS_MD_SHA224;
-        else if (memcmp(oid, OID_IT_TA_ECDSA_SHA_256, oid_len) == 0) 
+        else if (memcmp(oid, OID_ID_TA_ECDSA_SHA_256, oid_len) == 0) 
             md = MBEDTLS_MD_SHA256;
-        else if (memcmp(oid, OID_IT_TA_ECDSA_SHA_384, oid_len) == 0) 
+        else if (memcmp(oid, OID_ID_TA_ECDSA_SHA_384, oid_len) == 0) 
             md = MBEDTLS_MD_SHA384;
-        else if (memcmp(oid, OID_IT_TA_ECDSA_SHA_512, oid_len) == 0) 
+        else if (memcmp(oid, OID_ID_TA_ECDSA_SHA_512, oid_len) == 0) 
             md = MBEDTLS_MD_SHA512;
     }
     if (md == MBEDTLS_MD_NONE) 

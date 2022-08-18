@@ -56,11 +56,11 @@
 
 #define OID_ID_TA_ECDSA                 OID_ID_TA "\x02"
 
-#define OID_IT_TA_ECDSA_SHA_1           OID_ID_TA_ECDSA "\x01"
-#define OID_IT_TA_ECDSA_SHA_224         OID_ID_TA_ECDSA "\x02"
-#define OID_IT_TA_ECDSA_SHA_256         OID_ID_TA_ECDSA "\x03"
-#define OID_IT_TA_ECDSA_SHA_384         OID_ID_TA_ECDSA "\x04"
-#define OID_IT_TA_ECDSA_SHA_512         OID_ID_TA_ECDSA "\x05"
+#define OID_ID_TA_ECDSA_SHA_1           OID_ID_TA_ECDSA "\x01"
+#define OID_ID_TA_ECDSA_SHA_224         OID_ID_TA_ECDSA "\x02"
+#define OID_ID_TA_ECDSA_SHA_256         OID_ID_TA_ECDSA "\x03"
+#define OID_ID_TA_ECDSA_SHA_384         OID_ID_TA_ECDSA "\x04"
+#define OID_ID_TA_ECDSA_SHA_512         OID_ID_TA_ECDSA "\x05"
 
 #define OID_ID_RI                       OID_BSI_DE "\x02\x02\x05"
 
