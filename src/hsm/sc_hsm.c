@@ -19,7 +19,6 @@
 #include "files.h"
 #include "common.h"
 #include "version.h"
-#include "cvcerts.h"
 #include "crypto_utils.h"
 #include "kek.h"
 #include "eac.h"
@@ -218,16 +217,15 @@ void init_sc_hsm() {
     }
     memset(puk_store, 0, sizeof(puk_store));
     puk_store_entries = 0;
-    const uint8_t *cvcerts[] = { cvca, dica, termca };
-    for (int i = 0; i < sizeof(cvcerts)/sizeof(uint8_t *); i++) {
-        add_cert_puk_store(cvcerts[i]+2, (cvcerts[i][1] << 8) | cvcerts[i][0], false);
-    }
+    file_t *fterm = search_by_fid(EF_TERMCA, NULL, SPECIFY_EF);
+    if (fterm)
+        add_cert_puk_store(file_get_data(fterm), file_get_size(fterm), false);
     for (int i = 0; i < 0xfe; i++) {
         file_t *ef = search_dynamic_file((CA_CERTIFICATE_PREFIX << 8) | i);
         if (ef && file_get_size(ef) > 0)
             add_cert_puk_store(file_get_data(ef), file_get_size(ef), false);
     }
-    dev_name = cvc_get_chr(termca, (termca[1] << 8) | termca[0], &dev_name_len);
+    dev_name = cvc_get_chr(file_get_data(fterm), file_get_size(fterm), &dev_name_len);
     memset(puk_status, 0, sizeof(puk_status));
 }
 
@@ -276,17 +274,6 @@ int parse_token_info(const file_t *f, int mode) {
         res_APDU[1] = res_APDU_size-2;
     }
     return 2+(2+1)+(2+8)+(2+strlen(manu))+(2+strlen(label))+(2+2);
-}
-
-int parse_cvca(const file_t *f, int mode) {
-    size_t termca_len = file_read_uint16(termca);
-    size_t dica_len = file_read_uint16(dica);
-    if (mode == 1) {
-        memcpy(res_APDU, termca+2, termca_len);
-        memcpy(res_APDU+termca_len, dica+2, dica_len);
-        res_APDU_size = termca_len+dica_len;
-    }
-    return termca_len+dica_len;
 }
 
 int pin_reset_retries(const file_t *pin, bool force) {

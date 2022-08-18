@@ -20,7 +20,6 @@
 #include "cvc.h"
 #include "kek.h"
 #include "files.h"
-#include "cvcerts.h"
 
 uint8_t get_key_domain(file_t *fkey) {
     size_t tag_len = 0;
@@ -110,7 +109,10 @@ int cmd_key_domain() {
     else if (p1 == 0x2) { //XKEK Key Domain creation
         if (apdu.nc > 0) {
             size_t pub_len = 0;
-            const uint8_t *pub = cvc_get_pub(termca+2, (termca[1] << 8 | termca[0]), &pub_len);
+            file_t *fterm = search_by_fid(EF_TERMCA, NULL, SPECIFY_EF);
+            if (!fterm)
+                return SW_EXEC_ERROR();
+            const uint8_t *pub = cvc_get_pub(file_get_data(fterm), file_get_size(fterm), &pub_len);
             if (!pub)
                 return SW_EXEC_ERROR();
             size_t t86_len = 0;

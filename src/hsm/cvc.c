@@ -17,9 +17,9 @@
 
 #include "common.h"
 #include "cvc.h"
+#include "sc_hsm.h"
 #include "mbedtls/rsa.h"
 #include "mbedtls/ecdsa.h"
-#include "cvcerts.h"
 #include <string.h>
 #include "asn1.h"
 #include "ccid2040.h"
@@ -27,6 +27,7 @@
 #include "random.h"
 #include "oid.h"
 #include "mbedtls/md.h"
+#include "files.h"
 
 extern const uint8_t *dev_name;
 extern size_t dev_name_len;
@@ -182,7 +183,6 @@ size_t asn1_cvc_cert(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf
     p += format_tlv_len(body_size+sig_size, p);
     body = p;
     p += asn1_cvc_cert_body(rsa_ecdsa, key_type, p, body_size, ext, ext_len);
-    
     uint8_t hsh[32];
     hash256(body, body_size, hsh);
     memcpy(p, "\x5F\x37", 2); p += 2;
@@ -214,10 +214,19 @@ size_t asn1_cvc_cert(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf
 
 size_t asn1_cvc_aut(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf_len, const uint8_t *ext, size_t ext_len) {
     size_t cvcert_size = asn1_cvc_cert(rsa_ecdsa, key_type, NULL, 0, ext, ext_len);
-    size_t outcar_len = 0;
-    const uint8_t *outcar = cvc_get_chr((uint8_t *)termca+2, (termca[1] << 8) | termca[0], &outcar_len);
+    size_t outcar_len = dev_name_len;
+    const uint8_t *outcar = dev_name;
     size_t outcar_size = asn1_len_tag(0x42, outcar_len);
-    int key_size = 2*file_read_uint16(termca_pk), ret = 0;
+    file_t *fkey = search_by_fid(EF_KEY_DEV, NULL, SPECIFY_EF);
+    if (!fkey)
+        return 0;
+    mbedtls_ecdsa_context ectx;
+    mbedtls_ecdsa_init(&ectx);
+    if (load_private_key_ecdsa(&ectx, fkey) != CCID_OK) {
+        mbedtls_ecdsa_free(&ectx);
+        return 0;
+    }
+    int ret = 0, key_size = mbedtls_mpi_size(&ectx.d);
     size_t outsig_size = asn1_len_tag(0x5f37, key_size), tot_len = asn1_len_tag(0x67, cvcert_size+outcar_size+outsig_size);
     if (buf_len == 0 || buf == NULL)
         return tot_len;
@@ -231,10 +240,6 @@ size_t asn1_cvc_aut(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf_
     p += asn1_cvc_cert(rsa_ecdsa, key_type, p, cvcert_size, ext, ext_len);
     //outcar
     *p++ = 0x42; p += format_tlv_len(outcar_len, p); memcpy(p, outcar, outcar_len); p += outcar_len;
-    mbedtls_ecdsa_context ctx;
-    mbedtls_ecdsa_init(&ctx);
-    if (mbedtls_ecp_read_key(MBEDTLS_ECP_DP_SECP192R1, &ctx, termca_pk+2, file_read_uint16(termca_pk)) != 0)
-        return 0;
     uint8_t hsh[32];
     memcpy(p, "\x5f\x37", 2); p += 2;
     p += format_tlv_len(key_size, p);
@@ -242,8 +247,8 @@ size_t asn1_cvc_aut(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf_
     mbedtls_mpi r, s;
     mbedtls_mpi_init(&r);
     mbedtls_mpi_init(&s);
-    ret = mbedtls_ecdsa_sign(&ctx.grp, &r, &s, &ctx.d, hsh, sizeof(hsh), random_gen, NULL);
-    mbedtls_ecdsa_free(&ctx);
+    ret = mbedtls_ecdsa_sign(&ectx.grp, &r, &s, &ectx.d, hsh, sizeof(hsh), random_gen, NULL);
+    mbedtls_ecdsa_free(&ectx);
     if (ret != 0) {
         mbedtls_mpi_free(&r);
         mbedtls_mpi_free(&s);

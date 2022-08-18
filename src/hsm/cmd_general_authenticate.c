@@ -20,9 +20,9 @@
 #include "asn1.h"
 #include "sc_hsm.h"
 #include "random.h"
-#include "cvcerts.h"
 #include "oid.h"
 #include "eac.h"
+#include "files.h"
 
 int cmd_general_authenticate() {
     if (P1(apdu) == 0x0 && P2(apdu) == 0x0) {
@@ -39,16 +39,27 @@ int cmd_general_authenticate() {
                     pubkey_len = tag_len+1;
                 }
             }
+            file_t *fkey = search_by_fid(EF_KEY_DEV, NULL, SPECIFY_EF);
+            if (!fkey)
+                return SW_EXEC_ERROR();
+            mbedtls_ecdsa_context ectx;
+            mbedtls_ecdsa_init(&ectx);
+            r = load_private_key_ecdsa(&ectx, fkey);
+            if (r != CCID_OK) {
+                mbedtls_ecdsa_free(&ectx);
+                return SW_EXEC_ERROR();
+            }
             mbedtls_ecdh_context ctx;
-            int key_size = file_read_uint16(termca_pk);
             mbedtls_ecdh_init(&ctx);
             mbedtls_ecp_group_id gid = MBEDTLS_ECP_DP_SECP192R1;
             r = mbedtls_ecdh_setup(&ctx, gid);
             if (r != 0) {
+                mbedtls_ecdsa_free(&ectx);
                 mbedtls_ecdh_free(&ctx);
                 return SW_DATA_INVALID();
             }
-            r = mbedtls_mpi_read_binary(&ctx.ctx.mbed_ecdh.d, termca_pk+2, key_size);
+            r = mbedtls_mpi_copy(&ctx.ctx.mbed_ecdh.d, &ectx.d);
+            mbedtls_ecdsa_free(&ectx);
             if (r != 0) {
                 mbedtls_ecdh_free(&ctx);
                 return SW_DATA_INVALID();
