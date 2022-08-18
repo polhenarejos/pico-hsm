@@ -74,7 +74,7 @@ int cmd_keypair_gen() {
                 }
                 mbedtls_rsa_free(&rsa);            
             }
-            else if (memcmp(oid, OID_IT_TA_ECDSA_SHA_256,MIN(oid_len,10)) == 0) { //ECC
+            else if (memcmp(oid, OID_ID_TA_ECDSA_SHA_256,MIN(oid_len,10)) == 0) { //ECC
                 size_t prime_len;
                 uint8_t *prime = NULL;
                 if (asn1_find_tag(p, tout, 0x81, &prime_len, &prime) != true)
