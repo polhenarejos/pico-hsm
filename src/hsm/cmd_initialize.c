@@ -148,7 +148,7 @@ int cmd_initialize() {
         /* Create terminal private key */
         mbedtls_ecdsa_context ecdsa;
         mbedtls_ecdsa_init(&ecdsa);
-        mbedtls_ecp_group_id ec_id = MBEDTLS_ECP_DP_SECP192R1;
+        mbedtls_ecp_group_id ec_id = MBEDTLS_ECP_DP_SECP256R1;
         uint8_t index = 0, key_id = 0;
         int ret = mbedtls_ecdsa_genkey(&ecdsa, ec_id, random_gen, &index);
         if (ret != 0) {
