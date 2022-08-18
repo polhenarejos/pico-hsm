@@ -146,35 +146,41 @@ int cmd_initialize() {
         /* When initialized, it has all credentials */
         isUserAuthenticated = true;
         /* Create terminal private key */
-        mbedtls_ecdsa_context ecdsa;
-        mbedtls_ecdsa_init(&ecdsa);
-        mbedtls_ecp_group_id ec_id = MBEDTLS_ECP_DP_SECP256R1;
-        uint8_t index = 0, key_id = 0;
-        int ret = mbedtls_ecdsa_genkey(&ecdsa, ec_id, random_gen, &index);
-        if (ret != 0) {
+        file_t *fdkey = search_by_fid(EF_KEY_DEV, NULL, SPECIFY_EF);
+        if (!fdkey)
+            return SW_EXEC_ERROR();
+        int ret = 0;
+        if (file_get_size(fdkey) == 0 || file_get_data(fdkey) == NULL) {
+            mbedtls_ecdsa_context ecdsa;
+            mbedtls_ecdsa_init(&ecdsa);
+            mbedtls_ecp_group_id ec_id = MBEDTLS_ECP_DP_SECP256R1;
+            uint8_t index = 0, key_id = 0;
+            ret = mbedtls_ecdsa_genkey(&ecdsa, ec_id, random_gen, &index);
+            if (ret != 0) {
+                mbedtls_ecdsa_free(&ecdsa);
+                return SW_EXEC_ERROR();
+            }
+            ret = store_keys(&ecdsa, HSM_KEY_EC, key_id);
+            if (ret != CCID_OK) {
+                mbedtls_ecdsa_free(&ecdsa);
+                return SW_EXEC_ERROR();
+            }
+            size_t cvc_len = 0;
+            if ((cvc_len = asn1_cvc_aut(&ecdsa, HSM_KEY_EC, res_APDU, 4096, NULL, 0)) == 0) {
+                return SW_EXEC_ERROR();
+            }
             mbedtls_ecdsa_free(&ecdsa);
-            return SW_EXEC_ERROR();
+            
+            file_t *fpk = search_by_fid(EF_EE_DEV, NULL, SPECIFY_EF);
+            ret = flash_write_data_to_file(fpk, res_APDU, cvc_len);
+            if (ret != 0)
+                return SW_EXEC_ERROR();
+            
+            const uint8_t *keyid = (const uint8_t *)"\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0", *label = (const uint8_t *)"ESTERMHSM";
+            size_t prkd_len = asn1_build_prkd_ecc(label, strlen((const char *)label), keyid, 20, 192, res_APDU, 4096);
+            fpk = search_by_fid(EF_PRKD_DEV, NULL, SPECIFY_EF);
+            ret = flash_write_data_to_file(fpk, res_APDU, prkd_len);
         }
-        ret = store_keys(&ecdsa, HSM_KEY_EC, key_id);
-        if (ret != CCID_OK) {
-            mbedtls_ecdsa_free(&ecdsa);
-            return SW_EXEC_ERROR();
-        }
-        size_t cvc_len = 0;
-        if ((cvc_len = asn1_cvc_aut(&ecdsa, HSM_KEY_EC, res_APDU, 4096, NULL, 0)) == 0) {
-            return SW_EXEC_ERROR();
-        }
-        mbedtls_ecdsa_free(&ecdsa);
-        
-        file_t *fpk = search_by_fid(EF_EE_DEV, NULL, SPECIFY_EF);
-        ret = flash_write_data_to_file(fpk, res_APDU, cvc_len);
-        if (ret != 0)
-            return SW_EXEC_ERROR();
-        
-        const uint8_t *keyid = (const uint8_t *)"\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0", *label = (const uint8_t *)"ESTERMHSM";
-        size_t prkd_len = asn1_build_prkd_ecc(label, strlen((const char *)label), keyid, 20, 192, res_APDU, 4096);
-        fpk = search_by_fid(EF_PRKD_DEV, NULL, SPECIFY_EF);
-        ret = flash_write_data_to_file(fpk, res_APDU, prkd_len);
         if (ret != 0)
             return SW_EXEC_ERROR();
         low_flash_available();
