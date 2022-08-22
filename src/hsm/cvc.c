@@ -226,7 +226,7 @@ size_t asn1_cvc_aut(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf_
         mbedtls_ecdsa_free(&ectx);
         return 0;
     }
-    int ret = 0, key_size = mbedtls_mpi_size(&ectx.d);
+    int ret = 0, key_size = 2*mbedtls_mpi_size(&ectx.d);
     size_t outsig_size = asn1_len_tag(0x5f37, key_size), tot_len = asn1_len_tag(0x67, cvcert_size+outcar_size+outsig_size);
     if (buf_len == 0 || buf == NULL)
         return tot_len;
