@@ -86,7 +86,7 @@ sc-hsm-tool -X --so-pin 1234567890123456 --pin 648219 -K 1 -n 1 -s 1
 
 and PKA and PIN are enabled, jointly with DKEK protection.
 
-###�With SCS3
+### With SCS3
 
 Unfortunately, SCS3 does not allow to initialize the device with PKA and PIN at the same time, though it can be achieved in separated steps:
 
