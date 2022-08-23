@@ -23,23 +23,7 @@
 
 #define OID_BSI_DE                      "\x04\x00\x7F\x00\x07"
 
-#define OID_ID_CA                       OID_BSI_DE "\x02\x02\x03"
-
-#define OID_ID_CA_DH                    OID_ID_CA "\x01"
-
-#define OID_ID_CA_DH_3DES_CBC_CBC       OID_ID_CA_DH "\x01"
-#define OID_ID_CA_DH_AES_CBC_CMAC_128   OID_ID_CA_DH "\x02"
-#define OID_ID_CA_DH_AES_CBC_CMAC_192   OID_ID_CA_DH "\x03"
-#define OID_ID_CA_DH_AES_CBC_CMAC_256   OID_ID_CA_DH "\x04"
-
-#define OID_ID_CA_ECDH                  OID_ID_CA "\x02"
-
-#define OID_ID_CA_ECDH_3DES_CBC_CBC     OID_ID_CA_ECDH "\x01"
-#define OID_ID_CA_ECDH_AES_CBC_CMAC_128 OID_ID_CA_ECDH "\x02"
-#define OID_ID_CA_ECDH_AES_CBC_CMAC_192 OID_ID_CA_ECDH "\x03"
-#define OID_ID_CA_ECDH_AES_CBC_CMAC_256 OID_ID_CA_ECDH "\x04"
-
-#define OID_ID_PK                       OID_BSI_DE "\x02\x02\0x1"
+#define OID_ID_PK                       OID_BSI_DE "\x02\x02\x01"
 #define OID_ID_PK_DH                    OID_ID_PK "\x01"
 #define OID_ID_PK_ECDH                  OID_ID_PK "\x02"
 
@@ -61,6 +45,20 @@
 #define OID_ID_TA_ECDSA_SHA_256         OID_ID_TA_ECDSA "\x03"
 #define OID_ID_TA_ECDSA_SHA_384         OID_ID_TA_ECDSA "\x04"
 #define OID_ID_TA_ECDSA_SHA_512         OID_ID_TA_ECDSA "\x05"
+
+#define OID_ID_CA                       OID_BSI_DE "\x02\x02\x03"
+
+#define OID_ID_CA_DH                    OID_ID_CA "\x01"
+#define OID_ID_CA_DH_3DES_CBC_CBC       OID_ID_CA_DH "\x01"
+#define OID_ID_CA_DH_AES_CBC_CMAC_128   OID_ID_CA_DH "\x02"
+#define OID_ID_CA_DH_AES_CBC_CMAC_192   OID_ID_CA_DH "\x03"
+#define OID_ID_CA_DH_AES_CBC_CMAC_256   OID_ID_CA_DH "\x04"
+
+#define OID_ID_CA_ECDH                  OID_ID_CA "\x02"
+#define OID_ID_CA_ECDH_3DES_CBC_CBC     OID_ID_CA_ECDH "\x01"
+#define OID_ID_CA_ECDH_AES_CBC_CMAC_128 OID_ID_CA_ECDH "\x02"
+#define OID_ID_CA_ECDH_AES_CBC_CMAC_192 OID_ID_CA_ECDH "\x03"
+#define OID_ID_CA_ECDH_AES_CBC_CMAC_256 OID_ID_CA_ECDH "\x04"
 
 #define OID_ID_RI                       OID_BSI_DE "\x02\x02\x05"
 
