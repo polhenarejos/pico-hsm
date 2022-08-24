@@ -32,7 +32,8 @@ Similarly, replace the line `1531` in file `scs3/keymanager/keymanager.js` with:
 	assert(devcert.verifyWith(this.crypto, dicacert.getPublicKey(SmartCardHSM.rootCerts.ESPICOHSMCA00001.getPublicKey()), dicacert.getPublicKeyOID()));
 ```
 
-Alternatively, this patch [scs3.patch.txt](https://github.com/polhenarejos/pico-hsm/files/8890050/scs3.patch.txt) can be applied.
+
+Alternatively, this patch [scs3.patch.txt](https://github.com/polhenarejos/pico-hsm/files/9415877/scs3.patch.txt) can be applied.
 
 After this ammendment, the program can be started and the KeyManager can be invoked (CTRL+M) and it will output something similar to:
 ```
