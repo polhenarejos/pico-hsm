@@ -36,6 +36,8 @@ int heapLeft() {
 
 int cmd_initialize() {
     if (apdu.nc > 0) {
+        uint8_t mkek[MKEK_SIZE];
+        int ret_mkek = load_mkek(mkek); //Try loading MKEK with previous session
         initialize_flash(true);
         scan_all();
         has_session_pin = has_session_sopin = false;
@@ -79,14 +81,18 @@ int cmd_initialize() {
             else if (tag == 0x92) {
                 dkeks = tag_data;
                 file_t *tf = file_new(EF_DKEK);
-                if (!tf)
+                if (!tf) {
+                    release_mkek(mkek);
                     return SW_MEMORY_FAILURE();
+                }
                 flash_write_data_to_file(tf, NULL, 0);
             }
             else if (tag == 0x93) {
                 file_t *ef_puk = search_by_fid(EF_PUKAUT, NULL, SPECIFY_EF);
-                if (!ef_puk)
+                if (!ef_puk) {
+                    release_mkek(mkek);
                     return SW_MEMORY_FAILURE();
+                }
                 uint8_t pk_status[4], puks = MIN(tag_data[0],MAX_PUK);
                 memset(pk_status, 0, sizeof(pk_status));
                 pk_status[0] = puks;
@@ -95,8 +101,10 @@ int cmd_initialize() {
                 flash_write_data_to_file(ef_puk, pk_status, sizeof(pk_status));
                 for (int i = 0; i < puks; i++) {
                     file_t *tf = file_new(EF_PUK+i);
-                    if (!tf)
+                    if (!tf) {
+                        release_mkek(mkek);
                         return SW_MEMORY_FAILURE();
+                    }
                     flash_write_data_to_file(tf, NULL, 0);
                 }
             }
@@ -113,12 +121,17 @@ int cmd_initialize() {
             }
         }
         file_t *tf_kd = search_by_fid(EF_KEY_DOMAIN, NULL, SPECIFY_EF);
-        if (!tf_kd)
+        if (!tf_kd) {
+            release_mkek(mkek);
             return SW_EXEC_ERROR();
-        uint8_t mkek[MKEK_SIZE];
-        int ret_mkek = load_mkek(mkek); //Tries to load MKEK if PIN/SO-PIN are provided before
-        if (store_mkek(ret_mkek == CCID_OK ? mkek : NULL) != CCID_OK)
+        }
+        if (ret_mkek != CCID_OK)
+            ret_mkek = load_mkek(mkek); //Try again with new PIN/SO-PIN just in case some is the same
+        if (store_mkek(ret_mkek == CCID_OK ? mkek : NULL) != CCID_OK) {
+            release_mkek(mkek);
             return SW_EXEC_ERROR();
+        }
+        release_mkek(mkek);
         if (dkeks) {
             if (*dkeks > 0) {
                 uint16_t d = *dkeks;
@@ -169,6 +182,7 @@ int cmd_initialize() {
             }
             size_t cvc_len = 0;
             if ((cvc_len = asn1_cvc_aut(&ecdsa, HSM_KEY_EC, res_APDU, 4096, NULL, 0)) == 0) {
+                mbedtls_ecdsa_free(&ecdsa);
                 return SW_EXEC_ERROR();
             }
             mbedtls_ecdsa_free(&ecdsa);
