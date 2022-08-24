@@ -97,10 +97,10 @@ def get_pki_certs(certs_dir='certs', force=False):
     dvcap = os.path.join(certs_dir, certs['dvca']['CHR'])
     if (os.path.exists(cvcap) is False or force is True):
         with open(cvcap, 'wb') as f:
-            f.write(certs['cvca']['cert'].encode())
+            f.write(base64.urlsafe_b64decode(certs['cvca']['cert']))
     if (os.path.exists(dvcap) is False or force is True):
         with open(dvcap, 'wb') as f:
-            f.write(certs['dvca']['cert'].encode())
+            f.write(base64.urlsafe_b64decode(certs['dvca']['cert']))
 
 def pki(card, args):
     if (args.subcommand == 'initialize'):
