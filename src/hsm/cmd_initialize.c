@@ -115,7 +115,9 @@ int cmd_initialize() {
         file_t *tf_kd = search_by_fid(EF_KEY_DOMAIN, NULL, SPECIFY_EF);
         if (!tf_kd)
             return SW_EXEC_ERROR();
-        if (store_mkek(NULL) != CCID_OK)
+        uint8_t mkek[MKEK_SIZE];
+        int ret_mkek = load_mkek(mkek); //Tries to load MKEK if PIN/SO-PIN are provided before
+        if (store_mkek(ret_mkek == CCID_OK ? mkek : NULL) != CCID_OK)
             return SW_EXEC_ERROR();
         if (dkeks) {
             if (*dkeks > 0) {
@@ -150,7 +152,7 @@ int cmd_initialize() {
         if (!fdkey)
             return SW_EXEC_ERROR();
         int ret = 0;
-        if (file_get_size(fdkey) == 0 || file_get_data(fdkey) == NULL) {
+        if (ret_mkek != CCID_OK || file_get_size(fdkey) == 0 || file_get_data(fdkey) == NULL) {
             mbedtls_ecdsa_context ecdsa;
             mbedtls_ecdsa_init(&ecdsa);
             mbedtls_ecp_group_id ec_id = MBEDTLS_ECP_DP_SECP256R1;
