@@ -67,6 +67,7 @@ def parse_args():
     subparser = parser.add_subparsers(title="commands", dest="command")
     parser_init = subparser.add_parser('initialize', help='Performs the first initialization of the Pico HSM.')
     parser_init.add_argument('--pin', help='PIN number')
+    parser_init.add_argument('--so-pin', help='SO-PIN number')
 
     parser_attestate = subparser.add_parser('attestate', help='Generates an attestation report for a private key and verifies the private key was generated in the devices or outside.')
     parser_attestate.add_argument('-k', '--key', help='The private key index', metavar='KEY_ID')
@@ -142,10 +143,18 @@ def initialize(card, args):
             pass
     else:
             pin = b'648219'
+    if (args.so_pin):
+        so_pin = args.so_pin.encode()
+        try:
+            response = send_apdu(card, 0x20, 0x00, 0x82, list(so_pin))
+        except APDUResponse:
+            pass
+    else:
+            pin = b'57621880'
 
     pin_data = [0x81, len(pin)] + list(pin)
-    reset_data = [0x80, 0x02, 0x00, 0x01] + pin_data + [0x82, 0x08, 0x35, 0x37, 0x36, 0x32, 0x31, 0x38,
-                0x38, 0x30, 0x91, 0x01, 0x03]
+    so_pin_data = [0x82, len(so_pin)] + list(so_pin)
+    reset_data = [0x80, 0x02, 0x00, 0x01] + pin_data + so_pin_data + [0x91, 0x01, 0x03]
     response = send_apdu(card, [0x80, 0x50], 0x00, 0x00, reset_data)
 
     response = send_apdu(card, 0xB1, 0xCE, 0x00, [0x54, 0x02, 0x00, 0x00])
