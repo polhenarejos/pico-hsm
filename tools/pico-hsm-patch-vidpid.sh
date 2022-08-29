@@ -18,7 +18,7 @@
 #
 
 VERSION_MAJOR="2" #Version of Pico CCID Core
-VERSION_MINOR="0"
+VERSION_MINOR="2"
 
 echo "----------------------------"
 echo "VID/PID patcher for Pico HSM"
