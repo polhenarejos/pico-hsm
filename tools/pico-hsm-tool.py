@@ -135,6 +135,7 @@ def initialize(card, args):
     print('Are you sure?')
     _ = input('[Press enter to confirm]')
 
+    send_apdu(card, 0xA4, 0x04, 0x00, [0xE8, 0x2B, 0x06, 0x01, 0x04, 0x01, 0x81, 0xC3, 0x1F, 0x02, 0x01])
     if (args.pin):
         pin = args.pin.encode()
         try:
@@ -150,7 +151,7 @@ def initialize(card, args):
         except APDUResponse:
             pass
     else:
-            pin = b'57621880'
+            so_pin = b'57621880'
 
     pin_data = [0x81, len(pin)] + list(pin)
     so_pin_data = [0x82, len(so_pin)] + list(so_pin)
