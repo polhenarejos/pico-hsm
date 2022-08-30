@@ -69,7 +69,7 @@ int cmd_key_wrap() {
     }
     else if (*dprkd == P15_KEYTYPE_AES) {
         uint8_t kdata[32]; //maximum AES key size
-        if (wait_button() == true) //timeout
+        if (wait_button_pressed() == true) //timeout
             return SW_SECURE_MESSAGE_EXEC_ERROR();
 
         int key_size = file_get_size(ef), aes_type = HSM_KEY_AES;

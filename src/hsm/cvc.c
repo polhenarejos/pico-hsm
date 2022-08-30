@@ -22,7 +22,6 @@
 #include "mbedtls/ecdsa.h"
 #include <string.h>
 #include "asn1.h"
-#include "ccid2040.h"
 #include "crypto_utils.h"
 #include "random.h"
 #include "oid.h"

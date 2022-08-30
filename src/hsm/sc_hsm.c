@@ -24,6 +24,8 @@
 #include "eac.h"
 #include "cvc.h"
 #include "asn1.h"
+#include "ccid.h"
+#include "usb.h"
 
 const uint8_t sc_hsm_aid[] = {
     11,
@@ -245,13 +247,13 @@ uint16_t get_device_options() {
 
 extern uint32_t board_button_read(void);
 
-bool wait_button() {
+bool wait_button_pressed() {
     uint16_t opts = get_device_options();
     uint32_t val = EV_PRESS_BUTTON;
     if (opts & HSM_OPT_BOOTSEL_BUTTON) {
-        queue_try_add(&card_to_ccid_q, &val);
+        queue_try_add(&card_to_usb_q, &val);
         do {
-            queue_remove_blocking(&ccid_to_card_q, &val);
+            queue_remove_blocking(&usb_to_card_q, &val);
         }
         while (val != EV_BUTTON_PRESSED && val != EV_BUTTON_TIMEOUT);
     }
@@ -259,7 +261,7 @@ bool wait_button() {
 }
 
 int parse_token_info(const file_t *f, int mode) {
-    char *label = "Pico-HSM";
+    char *label = "SmartCard-HSM";
     char *manu = "Pol Henarejos";
     if (mode == 1) {
         uint8_t *p = res_APDU;
@@ -523,7 +525,7 @@ int find_and_store_meta_key(uint8_t key_id) {
 }
 
 int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
-    if (wait_button() == true) //timeout
+    if (wait_button_pressed() == true) //timeout
         return CCID_VERIFICATION_FAILED;
 
     int key_size = file_get_size(fkey);
@@ -566,7 +568,7 @@ int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
 }
 
 int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey) {
-    if (wait_button() == true) //timeout
+    if (wait_button_pressed() == true) //timeout
         return CCID_VERIFICATION_FAILED;
 
     int key_size = file_get_size(fkey);

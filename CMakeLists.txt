@@ -43,20 +43,22 @@ add_definitions(-DDEBUG_APDU=${DEBUG_APDU})
 
 find_package( PythonInterp 3.7 REQUIRED )
 
-configure_file(${CMAKE_CURRENT_LIST_DIR}/pico-ccid/config/mbedtls_config.h ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/include/mbedtls COPYONLY)
+configure_file(${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/config/mbedtls_config.h ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/mbedtls/include/mbedtls COPYONLY)
 
 target_sources(pico_hsm PUBLIC
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/usb/usb.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/usb/usb_descriptors.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/ccid/ccid2040.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/ccid/asn1.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/fs/file.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/fs/flash.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/fs/low_flash.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/rng/random.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/rng/neug.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/ccid/crypto_utils.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/ccid/eac.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/src/usb/usb.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/src/usb/ccid/usb_descriptors.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/src/usb/ccid/ccid.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/src/asn1.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/src/fs/file.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/src/fs/flash.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/src/fs/low_flash.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/src/rng/random.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/src/rng/hwrng.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/src/crypto_utils.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/src/eac.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/src/apdu.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/src/main.c
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/sc_hsm.c
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_select.c
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_list_keys.c
@@ -89,38 +91,39 @@ target_sources(pico_hsm PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/kek.c
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/oid.c
 
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/aes.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/asn1write.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/bignum.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/cmac.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/cipher.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/cipher_wrap.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/constant_time.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/ecdsa.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/ecdh.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/ecp.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/ecp_curves.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/hkdf.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/md.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/md5.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/oid.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/platform_util.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/ripemd160.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/rsa.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/rsa_alt_helpers.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/sha1.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/sha256.c
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library/sha512.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/mbedtls/library/aes.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/mbedtls/library/asn1write.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/mbedtls/library/bignum.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/mbedtls/library/cmac.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/mbedtls/library/cipher.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/mbedtls/library/cipher_wrap.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/mbedtls/library/constant_time.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/mbedtls/library/ecdsa.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/mbedtls/library/ecdh.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/mbedtls/library/ecp.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/mbedtls/library/ecp_curves.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/mbedtls/library/hkdf.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/mbedtls/library/md.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/mbedtls/library/md5.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/mbedtls/library/oid.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/mbedtls/library/platform_util.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/mbedtls/library/ripemd160.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/mbedtls/library/rsa.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/mbedtls/library/rsa_alt_helpers.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/mbedtls/library/sha1.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/mbedtls/library/sha256.c
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/mbedtls/library/sha512.c
         )
 
 target_include_directories(pico_hsm PUBLIC
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/fs
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/src/fs
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/ccid
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/rng
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/src/usb
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/include
-        ${CMAKE_CURRENT_LIST_DIR}/pico-ccid/mbedtls/library
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/src/
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/src/rng
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/src/usb
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/src/usb/ccid
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/mbedtls/include
+        ${CMAKE_CURRENT_LIST_DIR}/pico-hsm-sdk/mbedtls/library
         )
 
 target_compile_options(pico_hsm PUBLIC

@@ -23,7 +23,9 @@
 #include "mbedtls/rsa.h"
 #include "mbedtls/ecdsa.h"
 #include "pico/stdlib.h"
-#include "ccid2040.h"
+#include "file.h"
+#include "apdu.h"
+#include "hsm.h"
 
 extern const uint8_t sc_hsm_aid[];
 
@@ -111,7 +113,7 @@ extern const uint8_t *get_meta_tag(file_t *ef, uint16_t meta_tag, size_t *tag_le
 extern bool key_has_purpose(file_t *ef, uint8_t purpose);
 extern int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey);
 extern int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey);
-extern bool wait_button();
+extern bool wait_button_pressed();
 extern int store_keys(void *key_ctx, int type, uint8_t key_id);
 extern int find_and_store_meta_key(uint8_t key_id);
 extern uint32_t get_key_counter(file_t *fkey);

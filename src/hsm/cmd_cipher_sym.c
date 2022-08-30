@@ -36,7 +36,7 @@ int cmd_cipher_sym() {
     if ((apdu.nc % 16) != 0) {
         return SW_WRONG_LENGTH();
     }
-    if (wait_button() == true) //timeout
+    if (wait_button_pressed() == true) // timeout
         return SW_SECURE_MESSAGE_EXEC_ERROR();
     int key_size = file_get_size(ef);
     uint8_t kdata[32]; //maximum AES key size

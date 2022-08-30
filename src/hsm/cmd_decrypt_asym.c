@@ -72,7 +72,7 @@ int cmd_decrypt_asym() {
     }
     else if (p2 == ALGO_EC_DH || p2 == ALGO_EC_DH_XKEK) {
         mbedtls_ecdh_context ctx;
-        if (wait_button() == true) //timeout
+        if (wait_button_pressed() == true) //timeout
             return SW_SECURE_MESSAGE_EXEC_ERROR();
         int key_size = file_get_size(ef);
         uint8_t *kdata = (uint8_t *)calloc(1,key_size);
