@@ -145,6 +145,30 @@ Note that `PICO_BOARD`, `USB_VID` and `USB_PID` are optional. If not provided, `
 
 After `make` ends, the binary file `pico_hsm.uf2` will be generated. Put your pico board into loading mode, by pushing `BOOTSEL` button while pluging on, and copy the UF2 to the new fresh usb mass storage Pico device. Once copied, the pico mass storage will be disconnected automatically and the pico board will reset with the new firmware. A blinking led will indicate the device is ready to work.
 
+### Docker
+Independent from your Linux distribution or when using another OS that supports Docker, you could build a specific pico-hsm version in a Linux container.
+
+
+```
+sudo docker build \
+    --build-arg VERSION_PICO_SDK=1.4.0 \
+    --build-arg VERSION_MAJOR=2 \
+    --build-arg VERSION_MINOR=6 \
+    --build-arg PICO_BOARD=waveshare_rp2040_zero \
+    --build-arg USB_VID=0xfeff \
+    --build-arg USB_PID=0xfcfd \
+    -t pico-hsm-builder .
+
+sudo docker run \
+    --name mybuild \
+    -it pico-hsm-builder \
+    ls -l /home/builduser/pico-hsm/build_release/pico_hsm.uf2
+
+sudo docker cp mybuild:/home/builduser/pico-hsm/build_release/pico_hsm.uf2 .
+
+sudo docker rm mybuild
+```
+
 ## Usage
 The firmware uploaded to the Pico contains a reader and a virtual smart card. It is like having a physical reader with an inserted SIM card.
 We recommend the use of [OpenSC](http://github.com/opensc/opensc/ "OpenSC") to communicate with the reader. If it is not installed, you can download and build it or install the binaries for your system. The first command is to ensure that the Pico is detected as a HSM:
