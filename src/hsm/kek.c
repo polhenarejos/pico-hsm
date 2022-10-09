@@ -68,7 +68,7 @@ int load_mkek(uint8_t *mkek) {
     int ret = aes_decrypt_cfb_256(pin, MKEK_IV(mkek), MKEK_KEY(mkek), MKEK_KEY_SIZE+MKEK_KEY_CS_SIZE);
     if (ret != 0)
         return CCID_EXEC_ERROR;
-    if (crc32c(MKEK_KEY(mkek), MKEK_KEY_SIZE) != *(uint32_t*)MKEK_CHECKSUM(mkek))
+    if (crc32c(MKEK_KEY(mkek), MKEK_KEY_SIZE) != *(uint32_t *)MKEK_CHECKSUM(mkek))
         return CCID_WRONG_DKEK;
     return CCID_OK;
 }
@@ -97,18 +97,30 @@ int store_mkek(const uint8_t *mkek) {
         memcpy(tmp_mkek, mkek, MKEK_SIZE);
     *(uint32_t*)MKEK_CHECKSUM(tmp_mkek) = crc32c(MKEK_KEY(tmp_mkek), MKEK_KEY_SIZE);
     if (has_session_pin) {
+        uint8_t tmp_mkek_pin[MKEK_SIZE];
+        memcpy(tmp_mkek_pin, tmp_mkek, MKEK_SIZE);
         file_t *tf = search_by_fid(EF_MKEK, NULL, SPECIFY_EF);
-        if (!tf)
+        if (!tf) {
+            release_mkek(tmp_mkek);
+            release_mkek(tmp_mkek_pin);
             return CCID_ERR_FILE_NOT_FOUND;
-        aes_encrypt_cfb_256(session_pin, MKEK_IV(tmp_mkek), MKEK_KEY(tmp_mkek), MKEK_KEY_SIZE+MKEK_KEY_CS_SIZE);
-        flash_write_data_to_file(tf, tmp_mkek, MKEK_SIZE);
+        }
+        aes_encrypt_cfb_256(session_pin, MKEK_IV(tmp_mkek_pin), MKEK_KEY(tmp_mkek_pin), MKEK_KEY_SIZE+MKEK_KEY_CS_SIZE);
+        flash_write_data_to_file(tf, tmp_mkek_pin, MKEK_SIZE);
+        release_mkek(tmp_mkek_pin);
     }
     if (has_session_sopin) {
+        uint8_t tmp_mkek_sopin[MKEK_SIZE];
+        memcpy(tmp_mkek_sopin, tmp_mkek, MKEK_SIZE);
         file_t *tf = search_by_fid(EF_MKEK_SO, NULL, SPECIFY_EF);
-        if (!tf)
+        if (!tf) {
+            release_mkek(tmp_mkek);
+            release_mkek(tmp_mkek_sopin);
             return CCID_ERR_FILE_NOT_FOUND;
-        aes_encrypt_cfb_256(session_sopin, MKEK_IV(tmp_mkek), MKEK_KEY(tmp_mkek), MKEK_KEY_SIZE+MKEK_KEY_CS_SIZE);
-        flash_write_data_to_file(tf, tmp_mkek, MKEK_SIZE);
+        }
+        aes_encrypt_cfb_256(session_sopin, MKEK_IV(tmp_mkek_sopin), MKEK_KEY(tmp_mkek_sopin), MKEK_KEY_SIZE + MKEK_KEY_CS_SIZE);
+        flash_write_data_to_file(tf, tmp_mkek_sopin, MKEK_SIZE);
+        release_mkek(tmp_mkek_sopin);
     }
     low_flash_available();
     release_mkek(tmp_mkek);
