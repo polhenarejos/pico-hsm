@@ -1,7 +1,7 @@
 #!/bin/bash
 
-VERSION_MAJOR="2"
-VERSION_MINOR="6"
+VERSION_MAJOR="3"
+VERSION_MINOR="0"
 
 rm -rf release/*
 cd build_release
@@ -13,7 +13,7 @@ for board in adafruit_feather_rp2040 \
     adafruit_qtpy_rp2040 \
     adafruit_trinkey_qt2040 \
     arduino_nano_rp2040_connect \
-    datanoisetv_rp2040_dsp.h \
+    datanoisetv_rp2040_dsp \
     eetree_gamekit_rp2040 \
     garatronic_pybstick26_rp2040 \
     melopero_shake_rp2040 \
