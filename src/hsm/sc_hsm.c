@@ -353,11 +353,14 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
         return SW_MEMORY_FAILURE();
     if (pka_enabled() == false)
         isUserAuthenticated = true;
-    hash_multi(data, len, session_pin);
-    if (pin == file_pin1)
+    if (pin == file_pin1) {
+        hash_multi(data, len, session_pin);
         has_session_pin = true;
-    else if (pin == file_sopin)
+    }
+    else if (pin == file_sopin) {
+        hash_multi(data, len, session_sopin);
         has_session_sopin = true;
+    }
     return SW_OK();
 }
 
