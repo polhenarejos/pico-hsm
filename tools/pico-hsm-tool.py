@@ -184,7 +184,7 @@ def initialize(card, args):
     print('')
     print('Note that the device is initialized with a default PIN and '
         'configuration.')
-    print('Now you can initialize the device as usual with you chosen PIN '
+    print('Now you can initialize the device as usual with your chosen PIN '
         'and configuration options.')
 
 def attestate(card, args):
