@@ -22,7 +22,7 @@ init=0
 PIN=648219
 ```
 `opensc-pkcs11.so` can be replaced by `libsc-hsm-pkcs11.so` if desired.
-* **sc-hsm-tool**: from OpenSC. Used to initialize the device.
+* **pico-hsm-tool**: Used to initialize the device.
 * **opensc-tool**: from OpenSC. Used to list and detect the reader with the HSM.
 
 [^1]: `openssl version -a` will return the `OPENSSLDIR`, which contains `openssl.cnf` file and `ENGINESDIR`, which contains the p11 engine.
