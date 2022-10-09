@@ -433,16 +433,6 @@ uint32_t decrement_key_counter(file_t *fkey) {
     return 0xffffffff;
 }
 
-int delete_file(file_t *ef) {
-    meta_delete(ef->fid);
-    if (flash_clear_file(ef) != CCID_OK)
-        return CCID_EXEC_ERROR;
-    if (delete_dynamic_file(ef) != CCID_OK)
-        return CCID_EXEC_ERROR;
-    low_flash_available();
-    return CCID_OK;
-}
-
 //Stores the private and public keys in flash
 int store_keys(void *key_ctx, int type, uint8_t key_id) {
     int r, key_size = 0;
