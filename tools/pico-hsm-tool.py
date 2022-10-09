@@ -71,7 +71,6 @@ def parse_args():
 
     parser_attestate = subparser.add_parser('attestate', help='Generates an attestation report for a private key and verifies the private key was generated in the devices or outside.')
     parser_attestate.add_argument('-k', '--key', help='The private key index', metavar='KEY_ID')
-    parser_attestate.add_argument('--key-file', help='The request certificate of key', metavar='FILENAME')
 
     parser_pki = subparser.add_parser('pki', help='Performs PKI operations.')
     subparser_pki = parser_pki.add_subparsers(title='commands', dest='subcommand')
@@ -98,7 +97,7 @@ def get_pki_data(url, data=None, method='GET'):
     method = 'GET'
     if (data is not None):
         method = 'POST'
-    req = urllib.request.Request(f"https://www.henarejos.me/pico-hsm/{url}/",
+    req = urllib.request.Request(f"https://www.henarejos.me/pico/pico-hsm/{url}/",
                                 method=method,
                                 data=data,
                                 headers={'User-Agent': user_agent, })
@@ -119,11 +118,14 @@ def get_pki_certs(certs_dir='certs', force=False):
     if (os.path.exists(dvcap) is False or force is True):
         with open(dvcap, 'wb') as f:
             f.write(base64.urlsafe_b64decode(certs['dvca']['cert']))
+    print(f'All PKI certificates are stored at {certs_dir} folder')
 
 def pki(card, args):
     if (args.subcommand == 'initialize'):
         if (args.default is True):
             get_pki_certs(certs_dir=args.certs_dir, force=args.force)
+        else:
+            print('Error: no PKI is passed. Use --default to retrieve default PKI.')
 
 def initialize(card, args):
     print('********************************')
@@ -201,7 +203,8 @@ def attestate(card, args):
         if (a.sw1 == 0x6a and a.sw2 == 0x82):
             print('ERROR: Key not found')
             sys.exit(1)
-
+    from binascii import hexlify
+    print(hexlify(bytearray(cert)))
     print(f'Details of key {kid}:\n')
     print(f'  CAR: {(CVC().decode(cert).car()).decode()}')
     print('  Public Key:')
@@ -264,7 +267,7 @@ def opts(card, args):
         print(f'Option {args.opt.upper()} is {"ON" if current & opt else "OFF"}')
 
 def main(args):
-    print('Pico HSM Tool v1.2')
+    print('Pico HSM Tool v1.4')
     print('Author: Pol Henarejos')
     print('Report bugs to https://github.com/polhenarejos/pico-hsm/issues')
     print('')
