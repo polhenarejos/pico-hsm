@@ -24,7 +24,6 @@ try:
     from smartcard.CardType import AnyCardType
     from smartcard.CardRequest import CardRequest
     from smartcard.Exceptions import CardRequestTimeoutException
-    from cvc.certificates import CVC
 except:
     print('ERROR: smarctard module not found! Install pyscard package.\nTry with `pip install pyscard`')
     sys.exit(-1)
@@ -33,6 +32,7 @@ try:
     from cvc.asn1 import ASN1
     from cvc.oid import oid2scheme
     from cvc.utils import scheme_rsa
+    from cvc.certificates import CVC
     from cryptography.hazmat.primitives.asymmetric import ec
 except:
     print('ERROR: cvc module not found! Install pycvc package.\nTry with `pip install pycvc`')
