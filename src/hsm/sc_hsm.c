@@ -647,7 +647,9 @@ static const cmd_t cmds[] = {
 };
 
 int sc_hsm_process_apdu() {
-    sm_unwrap();
+    int r = sm_unwrap();
+    if (r != CCID_OK)
+        return SW_DATA_INVALID();
     for (const cmd_t *cmd = cmds; cmd->ins != 0x00; cmd++) {
         if (cmd->ins == INS(apdu)) {
             int r = cmd->cmd_handler();
