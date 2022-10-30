@@ -68,7 +68,7 @@ size_t asn1_cvc_public_key_ecdsa(mbedtls_ecdsa_context *ecdsa, uint8_t *buf, siz
     size_t b_size = mbedtls_mpi_size(&ecdsa->grp.B), g_size = 1+mbedtls_mpi_size(&ecdsa->grp.G.X)+mbedtls_mpi_size(&ecdsa->grp.G.X);
     size_t o_size = mbedtls_mpi_size(&ecdsa->grp.N), y_size = 1+mbedtls_mpi_size(&ecdsa->Q.X)+mbedtls_mpi_size(&ecdsa->Q.X);
     size_t c_size = 1;
-    size_t ptot_size = asn1_len_tag(0x81, p_size), atot_size = asn1_len_tag(0x82, a_size ? a_size : (pointA[ecdsa->grp.id] ? p_size : 0));
+    size_t ptot_size = asn1_len_tag(0x81, p_size), atot_size = asn1_len_tag(0x82, a_size ? a_size : (pointA[ecdsa->grp.id] && ecdsa->grp.id < 6 ? p_size : 1));
     size_t btot_size = asn1_len_tag(0x83, b_size), gtot_size = asn1_len_tag(0x84, g_size);
     size_t otot_size = asn1_len_tag(0x85, o_size), ytot_size = asn1_len_tag(0x86, y_size);
     size_t ctot_size = asn1_len_tag(0x87, c_size);
@@ -90,11 +90,12 @@ size_t asn1_cvc_public_key_ecdsa(mbedtls_ecdsa_context *ecdsa, uint8_t *buf, siz
         *p++ = 0x82; p += format_tlv_len(a_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.A, p, a_size); p += a_size;
     }
     else { //mbedtls does not set point A for some curves
-        if (pointA[ecdsa->grp.id]) {
+        if (pointA[ecdsa->grp.id] && ecdsa->grp.id < 6) {
             *p++ = 0x82; p += format_tlv_len(p_size, p); memcpy(p, pointA[ecdsa->grp.id], p_size); p += p_size;
         }
         else {
-            *p++ = 0x82; p += format_tlv_len(0, p);
+            *p++ = 0x82; p += format_tlv_len(1, p);
+            *p++ = 0x0;
         }
     }
     //B
