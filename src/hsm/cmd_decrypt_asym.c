@@ -120,8 +120,8 @@ int cmd_decrypt_asym() {
         size_t olen = 0;
         res_APDU[0] = 0x04;
         r = mbedtls_ecdh_calc_secret(&ctx, &olen, res_APDU+1, MBEDTLS_ECP_MAX_BYTES, random_gen, NULL);
+        mbedtls_ecdh_free(&ctx);
         if (r != 0) {
-            mbedtls_ecdh_free(&ctx);
             return SW_EXEC_ERROR();
         }
         if (p2 == ALGO_EC_DH)
@@ -161,7 +161,6 @@ int cmd_decrypt_asym() {
             }
             return SW_REFERENCE_NOT_FOUND();
         }
-        mbedtls_ecdh_free(&ctx);
     }
     else
         return SW_WRONG_P1P2();
