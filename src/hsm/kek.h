@@ -18,6 +18,8 @@
 #ifndef _DKEK_H_
 #define _DKEK_H_
 
+#include "crypto_utils.h"
+
 extern int load_mkek(uint8_t *);
 extern int store_mkek(const uint8_t *);
 extern int save_dkek_key(uint8_t, const uint8_t *key);
@@ -44,5 +46,17 @@ extern int dkek_decode_key(uint8_t, void *key_ctx, const uint8_t *in, size_t in_
 #define MKEK_KEY(p)      (MKEK_IV(p)+MKEK_IV_SIZE)
 #define MKEK_CHECKSUM(p) (MKEK_KEY(p)+MKEK_KEY_SIZE)
 #define DKEK_KEY_SIZE    (32)
+
+extern uint8_t mkek_mask[MKEK_KEY_SIZE];
+extern bool has_mkek_mask;
+
+typedef struct mse {
+    uint8_t Qpt[65];
+    uint8_t key_enc[12 + 32];
+    bool init;
+} mse_t;
+extern mse_t mse;
+
+extern int mse_decrypt_ct(uint8_t *, size_t);
 
 #endif

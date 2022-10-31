@@ -33,10 +33,22 @@ try:
     from cvc.oid import oid2scheme
     from cvc.utils import scheme_rsa
     from cvc.certificates import CVC
-    from cryptography.hazmat.primitives.asymmetric import ec
+
 except:
     print('ERROR: cvc module not found! Install pycvc package.\nTry with `pip install pycvc`')
     sys.exit(-1)
+
+try:
+    from cryptography.hazmat.primitives.asymmetric import ec
+    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+    from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+    from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
+    from cryptography.hazmat.primitives import hashes
+except:
+    print('ERROR: cryptography module not found! Install cryptography package.\nTry with `pip install cryptography`')
+    sys.exit(-1)
+
+
 import json
 import urllib.request
 import base64
@@ -44,8 +56,19 @@ from binascii import hexlify
 import sys
 import argparse
 import os
+import platform
 from datetime import datetime
 from argparse import RawTextHelpFormatter
+
+if (platform.system() == 'Windows'):
+    from secure_key import windows as skey
+elif (platform.system() == 'Linux'):
+    from secure_key import linux as skey
+elif (platform.system() == 'Darwin'):
+    from secure_key import macos as skey
+else:
+    print('ERROR: platform not supported')
+    sys.exit(-1)
 
 class APDUResponse(Exception):
     def __init__(self, sw1, sw2):
@@ -97,6 +120,9 @@ def parse_args():
     parser_opts.add_argument('subcommand', choices=['set', 'get'], help='Sets or gets option OPT.')
     parser_opts.add_argument('opt', choices=['button', 'counter'], help='Button: press-to-confirm button.\nCounter: every generated key has an internal counter.')
     parser_opts.add_argument('onoff', choices=['on', 'off'], help='Toggles state ON or OFF', metavar='ON/OFF', nargs='?')
+
+    parser_secure = subparser.add_parser('secure', help='Manages security of Pico Fido.')
+    parser_secure.add_argument('subcommand', choices=['enable', 'disable', 'unlock'], help='Enables, disables or unlocks the security.')
 
     args = parser.parse_args()
     return args
@@ -276,8 +302,68 @@ def opts(card, args):
     elif (args.subcommand == 'get'):
         print(f'Option {args.opt.upper()} is {"ON" if current & opt else "OFF"}')
 
+class SecureLock:
+    def __init__(self, card):
+        self.card = card
+
+    def mse(self):
+        sk = ec.generate_private_key(ec.SECP256R1())
+        pn = sk.public_key().public_numbers()
+        self.__pb = sk.public_key().public_bytes(Encoding.X962, PublicFormat.UncompressedPoint)
+
+
+        ret = send_apdu(self.card, [0x80, 0x64], 0x3A, 0x01, list(self.__pb))
+
+        pk = ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), bytes(ret))
+        shared_key = sk.exchange(ec.ECDH(), pk)
+
+        xkdf = HKDF(
+            algorithm=hashes.SHA256(),
+            length=12+32,
+            salt=None,
+            info=self.__pb
+        )
+        kdf_out = xkdf.derive(shared_key)
+        self.__key_enc = kdf_out[12:]
+        self.__iv = kdf_out[:12]
+
+    def encrypt_chacha(self, data):
+        chacha = ChaCha20Poly1305(self.__key_enc)
+        ct = chacha.encrypt(self.__iv, data, self.__pb)
+        return ct
+
+    def unlock_device(self):
+        ct = self.get_skey()
+        send_apdu(self.card, [0x80, 0x64], 0x3A, 0x03, list(ct))
+
+    def _get_key_device(self):
+        return skey.get_secure_key()
+
+    def get_skey(self):
+        self.mse()
+        ct = self.encrypt_chacha(self._get_key_device())
+        return ct
+
+    def enable_device_aut(self):
+        ct = self.get_skey()
+        send_apdu(self.card, [0x80, 0x64], 0x3A, 0x02, list(ct))
+
+    def disable_device_aut(self):
+        ct = self.get_skey()
+        send_apdu(self.card, [0x80, 0x64], 0x3A, 0x04, list(ct))
+
+
+def secure(card, args):
+    slck = SecureLock(card)
+    if (args.subcommand == 'enable'):
+        slck.enable_device_aut()
+    elif (args.subcommand == 'unlock'):
+        slck.unlock_device()
+    elif (args.subcommand == 'disable'):
+        slck.disable_device_aut()
+
 def main(args):
-    print('Pico HSM Tool v1.4')
+    print('Pico HSM Tool v1.6')
     print('Author: Pol Henarejos')
     print('Report bugs to https://github.com/polhenarejos/pico-hsm/issues')
     print('')
@@ -305,6 +391,8 @@ def main(args):
         rtc(card, args)
     elif (args.command == 'options'):
         opts(card, args)
+    elif (args.command == 'secure'):
+        secure(card, args)
 
 def run():
     args = parse_args()
