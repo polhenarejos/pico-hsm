@@ -59,15 +59,6 @@ import platform
 from datetime import datetime
 from argparse import RawTextHelpFormatter
 
-if (platform.system() == 'Windows'):
-    from secure_key import windows as skey
-elif (platform.system() == 'Linux'):
-    from secure_key import linux as skey
-elif (platform.system() == 'Darwin'):
-    from secure_key import macos as skey
-else:
-    print('ERROR: platform not supported')
-    sys.exit(-1)
 
 class APDUResponse(Exception):
     def __init__(self, sw1, sw2):
@@ -336,6 +327,15 @@ class SecureLock:
         send_apdu(self.card, [0x80, 0x64], 0x3A, 0x03, list(ct))
 
     def _get_key_device(self):
+        if (platform.system() == 'Windows'):
+            from secure_key import windows as skey
+        elif (platform.system() == 'Linux'):
+            from secure_key import linux as skey
+        elif (platform.system() == 'Darwin'):
+            from secure_key import macos as skey
+        else:
+            print('ERROR: platform not supported')
+            sys.exit(-1)
         return skey.get_secure_key()
 
     def get_skey(self):
