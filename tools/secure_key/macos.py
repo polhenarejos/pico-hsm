@@ -2,7 +2,7 @@ import sys
 import keyring
 
 DOMAIN = "PicoKeys.com"
-USERNAME = "Pico-Fido"
+USERNAME = "Pico-HSM"
 
 try:
     import keyring
