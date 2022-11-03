@@ -80,7 +80,7 @@ int cmd_general_authenticate() {
             sm_derive_all_keys(derived, olen);
 
             uint8_t *t = (uint8_t *)calloc(1, pubkey_len+16);
-            memcpy(t, "\x7F\x49\x3F\x06\x0A", 5);
+            memcpy(t, "\x7F\x49\x4F\x06\x0A", 5);
             if (sm_get_protocol() == MSE_AES)
                 memcpy(t+5, OID_ID_CA_ECDH_AES_CBC_CMAC_128, 10);
             t[15] = 0x86;

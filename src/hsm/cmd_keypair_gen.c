@@ -122,14 +122,18 @@ int cmd_keypair_gen() {
                     }
                 }
                 if ((res_APDU_size = asn1_cvc_aut(&ecdsa, HSM_KEY_EC, res_APDU, 4096, ext, ext_len)) == 0) {
-                    return SW_EXEC_ERROR();
-                }
-	            ret = store_keys(&ecdsa, HSM_KEY_EC, key_id);
-	            if (ret != CCID_OK) {
+                    if (ext)
+                        free(ext);
                     mbedtls_ecdsa_free(&ecdsa);
                     return SW_EXEC_ERROR();
                 }
+                if (ext)
+                    free(ext);
+                ret = store_keys(&ecdsa, HSM_KEY_EC, key_id);
                 mbedtls_ecdsa_free(&ecdsa);
+	            if (ret != CCID_OK) {
+                    return SW_EXEC_ERROR();
+                }
             }
 
         }
@@ -142,8 +146,8 @@ int cmd_keypair_gen() {
     ret = flash_write_data_to_file(fpk, res_APDU, res_APDU_size);
     if (ret != 0)
         return SW_EXEC_ERROR();
-    if (apdu.ne == 0)
-        apdu.ne = res_APDU_size;
+    //if (apdu.ne == 0)
+    //    apdu.ne = res_APDU_size;
     low_flash_available();
     return SW_OK();
 }

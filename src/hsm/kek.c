@@ -27,10 +27,13 @@
 #include "mbedtls/cmac.h"
 #include "mbedtls/rsa.h"
 #include "mbedtls/ecdsa.h"
+#include "mbedtls/chachapoly.h"
 #include "files.h"
 
 extern bool has_session_pin, has_session_sopin;
 extern uint8_t session_pin[32], session_sopin[32];
+uint8_t mkek_mask[MKEK_KEY_SIZE];
+bool has_mkek_mask = false;
 
 #define POLY 0xedb88320
 
@@ -65,12 +68,29 @@ int load_mkek(uint8_t *mkek) {
     }
     if (pin == NULL) //Should never happen
         return CCID_EXEC_ERROR;
+
+    if (has_mkek_mask) {
+        for (int i = 0; i < MKEK_KEY_SIZE; i++) {
+            MKEK_KEY(mkek)[i] ^= mkek_mask[i];
+        }
+    }
     int ret = aes_decrypt_cfb_256(pin, MKEK_IV(mkek), MKEK_KEY(mkek), MKEK_KEY_SIZE+MKEK_KEY_CS_SIZE);
     if (ret != 0)
         return CCID_EXEC_ERROR;
     if (crc32c(MKEK_KEY(mkek), MKEK_KEY_SIZE) != *(uint32_t *)MKEK_CHECKSUM(mkek))
         return CCID_WRONG_DKEK;
     return CCID_OK;
+}
+
+mse_t mse = {.init = false};
+
+int mse_decrypt_ct(uint8_t *data, size_t len) {
+    mbedtls_chachapoly_context chatx;
+    mbedtls_chachapoly_init(&chatx);
+    mbedtls_chachapoly_setkey(&chatx, mse.key_enc + 12);
+    int ret = mbedtls_chachapoly_auth_decrypt(&chatx, len - 16, mse.key_enc, mse.Qpt, 65, data + len - 16, data, data);
+    mbedtls_chachapoly_free(&chatx);
+    return ret;
 }
 
 int load_dkek(uint8_t id, uint8_t *dkek) {

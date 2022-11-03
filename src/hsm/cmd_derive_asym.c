@@ -19,7 +19,7 @@
 #include "mbedtls/ecdsa.h"
 #include "crypto_utils.h"
 #include "sc_hsm.h"
-
+#include "cvc.h"
 
 #define MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED -0x006E
 #define MOD_ADD( N )                                                    \
@@ -72,29 +72,24 @@ int cmd_derive_asym() {
             return SW_DATA_INVALID();
         }
         r = mbedtls_mpi_add_mod(&ctx.grp, &nd, &ctx.d, &a);
+        mbedtls_mpi_free(&a);
         if (r != 0) {
             mbedtls_ecdsa_free(&ctx);
-            mbedtls_mpi_free(&a);
             mbedtls_mpi_free(&nd);
             return SW_EXEC_ERROR();
         }
         r = mbedtls_mpi_copy(&ctx.d, &nd);
+        mbedtls_mpi_free(&nd);
         if (r != 0) {
             mbedtls_ecdsa_free(&ctx);
-            mbedtls_mpi_free(&a);
-            mbedtls_mpi_free(&nd);
             return SW_EXEC_ERROR();
         }
         r = store_keys(&ctx, HSM_KEY_EC, dest_id);
         if (r != CCID_OK) {
             mbedtls_ecdsa_free(&ctx);
-            mbedtls_mpi_free(&a);
-            mbedtls_mpi_free(&nd);
             return SW_EXEC_ERROR();
         }
         mbedtls_ecdsa_free(&ctx);
-        mbedtls_mpi_free(&a);
-        mbedtls_mpi_free(&nd);
     }
     else
         return SW_WRONG_DATA();
