@@ -30,7 +30,7 @@ PIN=648219
 ## Initialization
 The first step is to initialize the HSM. To do so, use the `pico-hsm-tool.py` in `tools` folder:
 ```
-$ python3 pico-hsm-tool initialize --so-pin 3537363231383830 --pin 648219
+$ python3 pico-hsm-tool.py initialize --so-pin 3537363231383830 --pin 648219
 ```
 The PIN number is used to manage all private keys in the device. It supports three attemps. After the third PIN failure, it gets blocked.
 The PIN accepts from 6 to 16 characters.
