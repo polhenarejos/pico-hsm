@@ -23,7 +23,7 @@ import sys
 try:
     from smartcard.CardType import AnyCardType
     from smartcard.CardRequest import CardRequest
-    from smartcard.Exceptions import CardRequestTimeoutException
+    from smartcard.Exceptions import CardRequestTimeoutException, CardConnectionException
 except ModuleNotFoundError:
     print('ERROR: smarctard module not found! Install pyscard package.\nTry with `pip install pyscard`')
     sys.exit(-1)
@@ -59,6 +59,7 @@ import platform
 from datetime import datetime
 from argparse import RawTextHelpFormatter
 
+pin = None
 
 class APDUResponse(Exception):
     def __init__(self, sw1, sw2):
@@ -82,10 +83,20 @@ def send_apdu(card, command, p1, p2, data=None):
         apdu = [0x00, command]
 
     apdu = apdu + [p1, p2] + lc + dataf + le
-    response, sw1, sw2 = card.connection.transmit(apdu)
+    try:
+        response, sw1, sw2 = card.connection.transmit(apdu)
+    except CardConnectionException:
+        card.connection.reconnect()
+        response, sw1, sw2 = card.connection.transmit(apdu)
     if (sw1 != 0x90):
         if (sw1 == 0x6A and sw2 == 0x82):
             response, sw1, sw2 = card.connection.transmit([0x00, 0xA4, 0x04, 0x00, 0xB, 0xE8, 0x2B, 0x06, 0x01, 0x04, 0x01, 0x81, 0xC3, 0x1F, 0x02, 0x01, 0x0])
+            if (sw1 == 0x90):
+                response, sw1, sw2 = card.connection.transmit(apdu)
+                if (sw1 == 0x90):
+                    return response
+        elif (sw1 == 0x69 and sw2 == 0x82):
+            response, sw1, sw2 = card.connection.transmit([0x00, 0x20, 0x00, 0x81, len(pin)] + list(pin.encode()) + [0x0])
             if (sw1 == 0x90):
                 response, sw1, sw2 = card.connection.transmit(apdu)
                 if (sw1 == 0x90):
@@ -173,6 +184,8 @@ def pki(card, args):
             print('Error: no PKI is passed. Use --default to retrieve default PKI.')
 
 def login(card, args):
+    global pin
+    pin = args.pin
     try:
         response = send_apdu(card, 0x20, 0x00, 0x81, list(args.pin.encode()))
     except APDUResponse:
@@ -418,11 +431,10 @@ def cipher(card, args):
         sys.stdout.buffer.write(bytes(ret))
 
 def main(args):
-    print('Pico HSM Tool v1.8')
-    print('Author: Pol Henarejos')
-    print('Report bugs to https://github.com/polhenarejos/pico-hsm/issues')
-    print('')
-    print('')
+    sys.stderr.buffer.write(b'Pico HSM Tool v1.8\n')
+    sys.stderr.buffer.write(b'Author: Pol Henarejos\n')
+    sys.stderr.buffer.write(b'Report bugs to https://github.com/polhenarejos/pico-hsm/issues\n')
+    sys.stderr.buffer.write(b'\n\n')
     cardtype = AnyCardType()
     try:
         # request card insertion
