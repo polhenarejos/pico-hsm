@@ -66,6 +66,8 @@ extern const uint8_t sc_hsm_aid[];
 #define ALGO_AES_CBC_ENCRYPT	0x10
 #define ALGO_AES_CBC_DECRYPT	0x11
 #define ALGO_AES_CMAC		    0x18
+#define ALGO_EXT_CIPHER_ENCRYPT 0x51        /* Extended ciphering Encrypt */
+#define ALGO_EXT_CIPHER_DECRYPT 0x52        /* Extended ciphering Decrypt */
 #define ALGO_AES_DERIVE		    0x99
 
 #define HSM_OPT_RRC                 0x0001

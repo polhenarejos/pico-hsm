@@ -103,4 +103,7 @@
 #define OID_CC_FF_PKA                   OID_CC_FORMAT "\x03"
 #define OID_CC_FF_KDA                   OID_CC_FORMAT "\x04"
 
+#define OID_CHACHA20_POLY1305           "\x2A\x86\x48\x86\xF7\x0D\x01\x09\x10\x03\x12"
+
+
 #endif

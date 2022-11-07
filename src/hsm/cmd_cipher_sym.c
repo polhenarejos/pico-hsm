@@ -19,9 +19,12 @@
 #include "mbedtls/aes.h"
 #include "mbedtls/cmac.h"
 #include "mbedtls/hkdf.h"
+#include "mbedtls/chachapoly.h"
 #include "crypto_utils.h"
 #include "sc_hsm.h"
 #include "kek.h"
+#include "asn1.h"
+#include "oid.h"
 
 int cmd_cipher_sym() {
     int key_id = P1(apdu);
@@ -33,9 +36,6 @@ int cmd_cipher_sym() {
         return SW_FILE_NOT_FOUND();
     if (key_has_purpose(ef, algo) == false)
         return SW_CONDITIONS_NOT_SATISFIED();
-    if ((apdu.nc % 16) != 0) {
-        return SW_WRONG_LENGTH();
-    }
     if (wait_button_pressed() == true) // timeout
         return SW_SECURE_MESSAGE_EXEC_ERROR();
     int key_size = file_get_size(ef);
@@ -45,6 +45,9 @@ int cmd_cipher_sym() {
         return SW_EXEC_ERROR();
     }
     if (algo == ALGO_AES_CBC_ENCRYPT || algo == ALGO_AES_CBC_DECRYPT) {
+        if ((apdu.nc % 16) != 0) {
+            return SW_WRONG_LENGTH();
+        }
         mbedtls_aes_context aes;
         mbedtls_aes_init(&aes);
         uint8_t tmp_iv[IV_SIZE];
@@ -104,6 +107,43 @@ int cmd_cipher_sym() {
         if (r != 0)
             return SW_EXEC_ERROR();
         res_APDU_size = apdu.nc;
+    }
+    else if (algo == ALGO_EXT_CIPHER_ENCRYPT || algo == ALGO_EXT_CIPHER_DECRYPT) {
+        size_t oid_len = 0, aad_len = 0, iv_len = 0, enc_len = 0;
+        uint8_t *oid = NULL, *aad = NULL, *iv = NULL, *enc = NULL;
+        if (!asn1_find_tag(apdu.data, apdu.nc, 0x6, &oid_len, &oid) || oid_len == 0 || oid == NULL) {
+            mbedtls_platform_zeroize(kdata, sizeof(kdata));
+            return SW_WRONG_DATA();
+        }
+        asn1_find_tag(apdu.data, apdu.nc, 0x81, &enc_len, &enc);
+        asn1_find_tag(apdu.data, apdu.nc, 0x82, &iv_len, &iv);
+        asn1_find_tag(apdu.data, apdu.nc, 0x83, &aad_len, &aad);
+        uint8_t tmp_iv[16];
+        memset(tmp_iv, 0, sizeof(tmp_iv));
+        if (memcmp(oid, OID_CHACHA20_POLY1305, oid_len) == 0)
+        {
+            if (algo == ALGO_EXT_CIPHER_DECRYPT && enc_len < 16) {
+                mbedtls_platform_zeroize(kdata, sizeof(kdata));
+                return SW_WRONG_DATA();
+            }
+            int r = 0;
+            mbedtls_chachapoly_context ctx;
+            mbedtls_chachapoly_init(&ctx);
+            if (algo == ALGO_EXT_CIPHER_ENCRYPT) {
+                r = mbedtls_chachapoly_encrypt_and_tag(&ctx, enc_len, iv ? iv : tmp_iv, aad, aad_len, enc, res_APDU, res_APDU + enc_len);
+            }
+            else if (algo == ALGO_EXT_CIPHER_DECRYPT) {
+                r = mbedtls_chachapoly_auth_decrypt(&ctx, enc_len - 16, iv ? iv : tmp_iv, aad, aad_len, enc + enc_len - 16, enc, res_APDU);
+            }
+            mbedtls_platform_zeroize(kdata, sizeof(kdata));
+            mbedtls_chachapoly_free(&ctx);
+            if (r != 0)
+                return SW_EXEC_ERROR();
+            if (algo == ALGO_EXT_CIPHER_ENCRYPT)
+                res_APDU_size = enc_len + 16;
+            else if (algo == ALGO_EXT_CIPHER_DECRYPT)
+                res_APDU_size = enc_len - 16;
+        }
     }
     else {
         mbedtls_platform_zeroize(kdata, sizeof(kdata));

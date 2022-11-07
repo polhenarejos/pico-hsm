@@ -51,7 +51,7 @@ except ModuleNotFoundError:
 import json
 import urllib.request
 import base64
-from binascii import hexlify
+from binascii import hexlify, unhexlify
 import sys
 import argparse
 import os
@@ -66,6 +66,8 @@ class APDUResponse(Exception):
         self.sw2 = sw2
         super().__init__(f'SW:{sw1:02X}{sw2:02X}')
 
+def hexy(a):
+    return [hex(i) for i in a]
 
 def send_apdu(card, command, p1, p2, data=None):
     lc = []
@@ -89,7 +91,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     subparser = parser.add_subparsers(title="commands", dest="command")
     parser_init = subparser.add_parser('initialize', help='Performs the first initialization of the Pico HSM.')
-    parser_init.add_argument('--pin', help='PIN number')
+    parser.add_argument('--pin', help='PIN number')
     parser_init.add_argument('--so-pin', help='SO-PIN number')
 
     parser_attestate = subparser.add_parser('attestate', help='Generates an attestation report for a private key and verifies the private key was generated in the devices or outside.')
@@ -111,8 +113,19 @@ def parse_args():
     parser_opts.add_argument('opt', choices=['button', 'counter'], help='Button: press-to-confirm button.\nCounter: every generated key has an internal counter.')
     parser_opts.add_argument('onoff', choices=['on', 'off'], help='Toggles state ON or OFF', metavar='ON/OFF', nargs='?')
 
-    parser_secure = subparser.add_parser('secure', help='Manages security of Pico Fido.')
+    parser_secure = subparser.add_parser('secure', help='Manages security of Pico HSM.')
     parser_secure.add_argument('subcommand', choices=['enable', 'disable', 'unlock'], help='Enables, disables or unlocks the security.')
+
+    parser_cipher = subparser.add_parser('cipher', help='Implements extended symmetric ciphering with new algorithms and options.\n\tIf no file input/output is specified, stdin/stoud will be used.')
+    parser_cipher.add_argument('subcommand', choices=['encrypt','decrypt','e','d','keygen'], help='Encrypts, decrypts or generates a new key.')
+    parser_cipher.add_argument('--alg', choices=['CHACHAPOLY'], help='Selects the algorithm.', required='keygen' not in sys.argv)
+    parser_cipher.add_argument('--iv', help='Sets the IV/nonce (hex string).')
+    parser_cipher.add_argument('--file-in', help='File to encrypt or decrypt.')
+    parser_cipher.add_argument('--file-out', help='File to write the result.')
+    parser_cipher.add_argument('--aad', help='Specifies the authentication data (it can be a string or hex string. Combine with --hex if necesary).')
+    parser_cipher.add_argument('--hex', help='Parses the AAD parameter as a hex string (for binary data).', action='store_true')
+    parser_cipher.add_argument('-k', '--key', help='The private key index', metavar='KEY_ID', required=True)
+    parser_cipher.add_argument('-s', '--key-size', default=32, help='Size of the key in bytes.')
 
     args = parser.parse_args()
     return args
@@ -153,6 +166,12 @@ def pki(card, args):
         else:
             print('Error: no PKI is passed. Use --default to retrieve default PKI.')
 
+def login(card, args):
+    try:
+        response = send_apdu(card, 0x20, 0x00, 0x81, list(args.pin.encode()))
+    except APDUResponse:
+        pass
+
 def initialize(card, args):
     print('********************************')
     print('*   PLEASE READ IT CAREFULLY   *')
@@ -164,14 +183,9 @@ def initialize(card, args):
     _ = input('[Press enter to confirm]')
 
     send_apdu(card, 0xA4, 0x04, 0x00, [0xE8, 0x2B, 0x06, 0x01, 0x04, 0x01, 0x81, 0xC3, 0x1F, 0x02, 0x01])
-    if (args.pin):
-        pin = args.pin.encode()
-        try:
-            response = send_apdu(card, 0x20, 0x00, 0x81, list(pin))
-        except APDUResponse:
-            pass
-    else:
-            pin = b'648219'
+    if (not args.pin):
+        pin = b'648219'
+
     if (args.so_pin):
         so_pin = args.so_pin.encode()
         try:
@@ -179,7 +193,7 @@ def initialize(card, args):
         except APDUResponse:
             pass
     else:
-            so_pin = b'57621880'
+        so_pin = b'57621880'
 
     pin_data = [0x81, len(pin)] + list(pin)
     so_pin_data = [0x82, len(so_pin)] + list(so_pin)
@@ -229,7 +243,7 @@ def attestate(card, args):
         if (a.sw1 == 0x6a and a.sw2 == 0x82):
             print('ERROR: Key not found')
             sys.exit(1)
-    from binascii import hexlify
+
     print(hexlify(bytearray(cert)))
     print(f'Details of key {kid}:\n')
     print(f'  CAR: {(CVC().decode(cert).car()).decode()}')
@@ -359,8 +373,46 @@ def secure(card, args):
     elif (args.subcommand == 'disable'):
         slck.disable_device_aut()
 
+
+def cipher(card, args):
+    if (args.subcommand == 'keygen'):
+        ksize = 0xB2
+        if (args.key_size == 24):
+            ksize = 0xB1
+        elif (args.key_size == 16):
+            ksize = 0xB0
+        ret = send_apdu(card, 0x48, int(args.key), ksize)
+
+    else:
+        if (args.alg == 'CHACHAPOLY'):
+            oid = b'\x2A\x86\x48\x86\xF7\x0D\x01\x09\x10\x03\x12'
+
+        if (args.subcommand[0] == 'e'):
+            alg = 0x51
+        elif (args.subcommand[0] == 'd'):
+            alg = 0x52
+
+        if (args.file_in):
+            fin = open(args.file_in, 'rb')
+        else:
+            fin = sys.stdin.buffer
+        enc = fin.read()
+        fin.close()
+
+        data = [0x06, len(oid)] + list(oid) + [0x81, len(enc)] + list(enc)
+        if (args.iv):
+            data += [0x82, len(args.iv)/2] + list(unhexlify(args.iv))
+        if (args.aad):
+            if (args.hex):
+                data += [0x83, len(args.aad)/2] + list(unhexlify(args.aad))
+            else:
+                data += [0x83, len(args.aad)] + list(args.aad)
+
+        ret = send_apdu(card, [0x80, 0x78], int(args.key), alg, data)
+        sys.stdout.buffer.write(bytes(ret))
+
 def main(args):
-    print('Pico HSM Tool v1.6')
+    print('Pico HSM Tool v1.8')
     print('Author: Pol Henarejos')
     print('Report bugs to https://github.com/polhenarejos/pico-hsm/issues')
     print('')
@@ -377,6 +429,9 @@ def main(args):
     except CardRequestTimeoutException:
         print('time-out: no card inserted during last 10s')
 
+    if (args.pin):
+        login(card, args)
+
     # Following commands may raise APDU exception on error
     if (args.command == 'initialize'):
         initialize(card, args)
@@ -390,6 +445,9 @@ def main(args):
         opts(card, args)
     elif (args.command == 'secure'):
         secure(card, args)
+    elif (args.command == 'cipher'):
+        cipher(card, args)
+
 
 def run():
     args = parse_args()
