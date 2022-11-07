@@ -428,7 +428,13 @@ def cipher(card, args):
                 data += [0x83, len(args.aad)] + list(args.aad)
 
         ret = send_apdu(card, [0x80, 0x78], int(args.key), alg, data)
-        sys.stdout.buffer.write(bytes(ret))
+        if (args.file_out):
+            fout = open(args.file_out, 'wb')
+        else:
+            fout = sys.stdout.buffer
+        fout.write(bytes(ret))
+        if (args.file_out):
+            fout.close()
 
 def main(args):
     sys.stderr.buffer.write(b'Pico HSM Tool v1.8\n')
