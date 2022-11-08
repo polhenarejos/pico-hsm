@@ -20,6 +20,8 @@
 #include "mbedtls/cmac.h"
 #include "mbedtls/hkdf.h"
 #include "mbedtls/chachapoly.h"
+#include "md_wrap.h"
+#include "mbedtls/md.h"
 #include "crypto_utils.h"
 #include "sc_hsm.h"
 #include "kek.h"
@@ -120,8 +122,7 @@ int cmd_cipher_sym() {
         asn1_find_tag(apdu.data, apdu.nc, 0x83, &aad_len, &aad);
         uint8_t tmp_iv[16];
         memset(tmp_iv, 0, sizeof(tmp_iv));
-        if (memcmp(oid, OID_CHACHA20_POLY1305, oid_len) == 0)
-        {
+        if (memcmp(oid, OID_CHACHA20_POLY1305, oid_len) == 0) {
             if (algo == ALGO_EXT_CIPHER_DECRYPT && enc_len < 16) {
                 mbedtls_platform_zeroize(kdata, sizeof(kdata));
                 return SW_WRONG_DATA();
@@ -143,6 +144,25 @@ int cmd_cipher_sym() {
                 res_APDU_size = enc_len + 16;
             else if (algo == ALGO_EXT_CIPHER_DECRYPT)
                 res_APDU_size = enc_len - 16;
+        }
+        else if (memcmp(oid, OID_HMAC, 7) == 0) {
+            const mbedtls_md_info_t *md_info = NULL;
+            if (memcmp(oid, OID_HMAC_SHA1, oid_len) == 0)
+                md_info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA1);
+            else if (memcmp(oid, OID_HMAC_SHA224, oid_len) == 0)
+                md_info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA224);
+            else if (memcmp(oid, OID_HMAC_SHA256, oid_len) == 0)
+                md_info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
+            else if (memcmp(oid, OID_HMAC_SHA384, oid_len) == 0)
+                md_info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA384);
+            else if (memcmp(oid, OID_HMAC_SHA512, oid_len) == 0)
+                md_info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA512);
+            if (md_info == NULL)
+                return SW_WRONG_DATA();
+            int r = mbedtls_md_hmac(md_info, kdata, key_size, apdu.data, apdu.nc, res_APDU);
+            if (r != 0)
+                return SW_EXEC_ERROR();
+            res_APDU_size = md_info->size;
         }
     }
     else {

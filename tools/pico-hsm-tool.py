@@ -134,8 +134,8 @@ def parse_args():
     parser_secure.add_argument('subcommand', choices=['enable', 'disable', 'unlock'], help='Enables, disables or unlocks the security.')
 
     parser_cipher = subparser.add_parser('cipher', help='Implements extended symmetric ciphering with new algorithms and options.\n\tIf no file input/output is specified, stdin/stoud will be used.')
-    parser_cipher.add_argument('subcommand', choices=['encrypt','decrypt','e','d','keygen'], help='Encrypts, decrypts or generates a new key.')
-    parser_cipher.add_argument('--alg', choices=['CHACHAPOLY'], help='Selects the algorithm.', required='keygen' not in sys.argv)
+    parser_cipher.add_argument('subcommand', choices=['encrypt','decrypt','keygen','mac'], help='Encrypts, decrypts or generates a new key.')
+    parser_cipher.add_argument('--alg', choices=['CHACHAPOLY','HMAC-SHA1','HMAC-SHA224','HMAC-SHA256','HMAC-SHA384','HMAC-SHA512'], help='Selects the algorithm.', required='keygen' not in sys.argv)
     parser_cipher.add_argument('--iv', help='Sets the IV/nonce (hex string).')
     parser_cipher.add_argument('--file-in', help='File to encrypt or decrypt.')
     parser_cipher.add_argument('--file-out', help='File to write the result.')
@@ -405,8 +405,18 @@ def cipher(card, args):
     else:
         if (args.alg == 'CHACHAPOLY'):
             oid = b'\x2A\x86\x48\x86\xF7\x0D\x01\x09\x10\x03\x12'
+        elif (args.alg == 'HMAC-SHA1'):
+            oid = b'\x2A\x86\x48\x86\xF7\x0D\x02\x07'
+        elif (args.alg == 'HMAC-SHA224'):
+            oid = b'\x2A\x86\x48\x86\xF7\x0D\x02\x08'
+        elif (args.alg == 'HMAC-SHA256'):
+            oid = b'\x2A\x86\x48\x86\xF7\x0D\x02\x09'
+        elif (args.alg == 'HMAC-SHA384'):
+            oid = b'\x2A\x86\x48\x86\xF7\x0D\x02\x0A'
+        elif (args.alg == 'HMAC-SHA512'):
+            oid = b'\x2A\x86\x48\x86\xF7\x0D\x02\x0B'
 
-        if (args.subcommand[0] == 'e'):
+        if (args.subcommand[0] == 'e' or args.subcommand == 'mac'):
             alg = 0x51
         elif (args.subcommand[0] == 'd'):
             alg = 0x52
@@ -432,7 +442,10 @@ def cipher(card, args):
             fout = open(args.file_out, 'wb')
         else:
             fout = sys.stdout.buffer
-        fout.write(bytes(ret))
+        if (args.hex):
+            fout.write(hexlify(bytes(ret)))
+        else:
+            fout.write(bytes(ret))
         if (args.file_out):
             fout.close()
 
