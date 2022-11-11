@@ -189,7 +189,7 @@ size_t asn1_cvc_cert(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf
     p += format_tlv_len(key_size, p);
     if (key_type == HSM_KEY_RSA) {
         if (mbedtls_rsa_rsassa_pkcs1_v15_sign(rsa_ecdsa, random_gen, NULL, MBEDTLS_MD_SHA256, 32, hsh, p) != 0)
-            return 0;
+            memset(p, 0, key_size);
         p += key_size;
     }
     else if (key_type == HSM_KEY_EC) {
@@ -199,13 +199,14 @@ size_t asn1_cvc_cert(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf
         mbedtls_mpi_init(&r);
         mbedtls_mpi_init(&s);
         ret = mbedtls_ecdsa_sign(&ecdsa->grp, &r, &s, &ecdsa->d, hsh, sizeof(hsh), random_gen, NULL);
-        if (ret != 0) {
-            mbedtls_mpi_free(&r);
-            mbedtls_mpi_free(&s);
-            return 0;
+        if (ret == 0) {
+            mbedtls_mpi_write_binary(&r, p, mbedtls_mpi_size(&r)); p += mbedtls_mpi_size(&r);
+            mbedtls_mpi_write_binary(&s, p, mbedtls_mpi_size(&s)); p += mbedtls_mpi_size(&s);
         }
-        mbedtls_mpi_write_binary(&r, p, mbedtls_mpi_size(&r)); p += mbedtls_mpi_size(&r);
-        mbedtls_mpi_write_binary(&s, p, mbedtls_mpi_size(&s)); p += mbedtls_mpi_size(&s);
+        else {
+            memset(p, 0, key_size);
+            p += key_size;
+        }
         mbedtls_mpi_free(&r);
         mbedtls_mpi_free(&s);
     }
