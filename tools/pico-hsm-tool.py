@@ -144,6 +144,20 @@ def parse_args():
     parser_cipher.add_argument('-k', '--key', help='The private key index', metavar='KEY_ID', required=True)
     parser_cipher.add_argument('-s', '--key-size', default=32, help='Size of the key in bytes.')
 
+    parser_x25519 = argparse.ArgumentParser(add_help=False)
+    parser_x25519.add_argument('subcommand', choices=['keygen'], help='Specifies the subcommand for X25519 or X448.')
+    parser_x25519.add_argument('-k', '--key', help='The private key index', metavar='KEY_ID', required=True)
+
+    # Subparsers based on parent
+
+    parser_create = subparser.add_parser("x25519", parents=[parser_x25519],
+                                        help='X25519 key management.')
+    # Add some arguments exclusively for parser_create
+
+    parser_update = subparser.add_parser("x448", parents=[parser_x25519],
+                                        help='X448 key management.')
+    # Add some arguments exclusively for parser_update
+
     args = parser.parse_args()
     return args
 
@@ -449,6 +463,35 @@ def cipher(card, args):
         if (args.file_out):
             fout.close()
 
+def int_to_bytes(x: int) -> bytes:
+    return x.to_bytes((x.bit_length() + 7) // 8, 'big')
+
+def x25519(card, args):
+    if (args.command == 'x25519'):
+        P = b'\x7f\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xed'
+        A = int_to_bytes(0x01DB42)
+        N = b'\x10\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x14\xDE\xF9\xDE\xA2\xF7\x9C\xD6\x58\x12\x63\x1A\x5C\xF5\xD3\xED'
+        G = b'\x04\x09\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xd9\xd3\xce\x7e\xa2\xc5\xe9\x29\xb2\x61\x7c\x6d\x7e\x4d\x3d\x92\x4c\xd1\x48\x77\x2c\xdd\x1e\xe0\xb4\x86\xa0\xb8\xa1\x19\xae\x20'
+        h = b'\x08'
+    elif (args.command == 'x448'):
+        P = b'\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff'
+        A = int_to_bytes(0x98AA)
+        N = b'\x3f\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\x7c\xca\x23\xe9\xc4\x4e\xdb\x49\xae\xd6\x36\x90\x21\x6c\xc2\x72\x8d\xc5\x8f\x55\x23\x78\xc2\x92\xab\x58\x44\xf3'
+        G = b'\x04\x05\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x1a\x5b\x7b\x45\x3d\x22\xd7\x6f\xf7\x7a\x67\x50\xb1\xc4\x12\x13\x21\x0d\x43\x46\x23\x7e\x02\xb8\xed\xf6\xf3\x8d\xc2\x5d\xf7\x60\xd0\x45\x55\xf5\x34\x5d\xae\xcb\xce\x6f\x32\x58\x6e\xab\x98\x6c\xf6\xb1\xf5\x95\x12\x5d\x23\x7d'
+        h = b'\x04'
+    oid = b'\x06\x0A\x04\x00\x7F\x00\x07\x02\x02\x02\x02\x03'
+    p_data = b'\x81' + bytes([len(P)]) + P
+    a_data = b'\x82' + bytes([len(A)]) + A
+    g_data = b'\x84' + bytes([len(G)]) + G
+    n_data = b'\x85' + bytes([len(N)]) + N
+    h_data = b'\x87' + bytes([len(h)]) + h
+
+    cdata =  b'\x5F\x29\x01\x00'
+    cdata += b'\x42\x0C\x55\x54\x44\x55\x4D\x4D\x59\x30\x30\x30\x30\x31'
+    cdata += b'\x7f\x49\x81' + bytes([len(oid)+len(p_data)+len(a_data)+len(g_data)+len(n_data)+len(h_data)]) + oid + p_data + a_data + g_data + n_data + h_data
+    cdata += b'\x5F\x20\x0C\x55\x54\x44\x55\x4D\x4D\x59\x30\x30\x30\x30\x31'
+    ret = send_apdu(card, 0x46, int(args.key), 0x00, list(cdata))
+
 def main(args):
     sys.stderr.buffer.write(b'Pico HSM Tool v1.8\n')
     sys.stderr.buffer.write(b'Author: Pol Henarejos\n')
@@ -484,6 +527,8 @@ def main(args):
         secure(card, args)
     elif (args.command == 'cipher'):
         cipher(card, args)
+    elif (args.command == 'x25519' or args.command == 'x448'):
+        x25519(card, args)
 
 
 def run():
