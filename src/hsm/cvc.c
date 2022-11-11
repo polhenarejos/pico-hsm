@@ -109,7 +109,13 @@ size_t asn1_cvc_public_key_ecdsa(mbedtls_ecdsa_context *ecdsa, uint8_t *buf, siz
     size_t y_new_size = 0;
     *p++ = 0x86; p += format_tlv_len(y_size, p); mbedtls_ecp_point_write_binary(&ecdsa->grp, &ecdsa->Q, MBEDTLS_ECP_PF_UNCOMPRESSED, &y_new_size, p, y_size); p += y_size;
     //cofactor
-    *p++ = 0x87; p += format_tlv_len(c_size, p); *p++ = 1;
+    *p++ = 0x87; p += format_tlv_len(c_size, p);
+    if (ecdsa->grp.id == MBEDTLS_ECP_DP_CURVE448)
+        *p++ = 4;
+    else if (ecdsa->grp.id == MBEDTLS_ECP_DP_CURVE25519)
+        *p++ = 8;
+    else
+        *p++ = 1;
     return tot_len;
 }
 
