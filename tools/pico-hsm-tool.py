@@ -70,13 +70,16 @@ class APDUResponse(Exception):
 def hexy(a):
     return [hex(i) for i in a]
 
-def send_apdu(card, command, p1, p2, data=None):
+def send_apdu(card, command, p1, p2, data=None, ne=None):
     lc = []
     dataf = []
     if (data):
         lc = [0x00] + list(len(data).to_bytes(2, 'big'))
         dataf = data
-    le = [0x00, 0x00]
+    if (ne is None):
+        le = [0x00, 0x00]
+    else:
+        le = list(ne.to_bytes(2, 'big'))
     if (isinstance(command, list) and len(command) > 1):
         apdu = command
     else:
@@ -146,7 +149,17 @@ def parse_args():
     parser_cipher_decrypt = subparser_cipher.add_parser('decrypt', help='Performs decryption.')
     parser_cipher_keygen = subparser_cipher.add_parser('keygen', help='Generates new AES key.')
     parser_cipher_hmac = subparser_cipher.add_parser('hmac', help='Computes HMAC.')
-    parser_cipher.add_argument('--alg', choices=['CHACHAPOLY','HMAC-SHA1','HMAC-SHA224','HMAC-SHA256','HMAC-SHA384','HMAC-SHA512'], help='Selects the algorithm.', required='keygen' not in sys.argv)
+    parser_cipher_kdf = subparser_cipher.add_parser('kdf', help='Performs key derivation function on a secret key.')
+    parser_cipher_encrypt.add_argument('--alg', choices=['CHACHAPOLY'], required=True)
+    parser_cipher_encrypt.add_argument('--iteration', help='Iteration count.', required=any(['PBKDF2' in s for s in sys.argv]))
+    parser_cipher_decrypt.add_argument('--alg', choices=['CHACHAPOLY'], required=True)
+    parser_cipher_decrypt.add_argument('--iteration', help='Iteration count.', required=any(['PBKDF2' in s for s in sys.argv]))
+
+    parser_cipher_hmac.add_argument('--alg', choices=['HMAC-SHA1', 'HMAC-SHA224', 'HMAC-SHA256', 'HMAC-SHA384', 'HMAC-SHA512'], help='Selects the algorithm.', required=True)
+    parser_cipher_kdf.add_argument('--alg', choices=['HKDF-SHA256', 'HKDF-SHA384', 'HKDF-SHA512', 'PBKDF2-SHA1', 'PBKDF2-SHA224', 'PBKDF2-SHA256', 'PBKDF2-SHA384', 'PBKDF2-SHA512', 'X963-SHA1', 'X963-SHA224', 'X963-SHA256', 'X963-SHA384', 'X963-SHA512'], help='Selects the algorithm.', required=True)
+    parser_cipher_kdf.add_argument('--output-len', help='Specifies the output length of derived material.')
+    parser_cipher_kdf.add_argument('--iteration', help='Iteration count.', required=any(['PBKDF2' in s for s in sys.argv]))
+
     parser_cipher.add_argument('--iv', help='Sets the IV/nonce (hex string).')
     parser_cipher.add_argument('--file-in', help='File to encrypt or decrypt.')
     parser_cipher.add_argument('--file-out', help='File to write the result.')
@@ -429,6 +442,8 @@ def cipher(card, args):
         ret = send_apdu(card, 0x48, int(args.key), ksize)
 
     else:
+        enc = None
+        aad = None
         if (args.alg == 'CHACHAPOLY'):
             oid = b'\x2A\x86\x48\x86\xF7\x0D\x01\x09\x10\x03\x12'
         elif (args.alg == 'HMAC-SHA1'):
@@ -441,29 +456,95 @@ def cipher(card, args):
             oid = b'\x2A\x86\x48\x86\xF7\x0D\x02\x0A'
         elif (args.alg == 'HMAC-SHA512'):
             oid = b'\x2A\x86\x48\x86\xF7\x0D\x02\x0B'
+        elif (args.alg == 'HKDF-SHA256'):
+            oid = b'\x2A\x86\x48\x86\xF7\x0D\x01\x09\x10\x03\x1D'
+        elif (args.alg == 'HKDF-SHA384'):
+            oid = b'\x2A\x86\x48\x86\xF7\x0D\x01\x09\x10\x03\x1E'
+        elif (args.alg == 'HKDF-SHA512'):
+            oid = b'\x2A\x86\x48\x86\xF7\x0D\x01\x09\x10\x03\x1F'
+        elif (args.alg in ['PBKDF2-SHA1', 'PBKDF2-SHA224', 'PBKDF2-SHA256', 'PBKDF2-SHA384', 'PBKDF2-SHA512']):
+            if ('PBKDF2' in args.alg):
+                oid = b'\x2A\x86\x48\x86\xF7\x0D\x01\x05\x0C'
+            salt = b'\x04' + bytes([len(args.iv)//2]) + unhexlify(args.iv)
+            iteration = b'\x02' + bytes([len(int_to_bytes(int(args.iteration)))]) + int_to_bytes(int(args.iteration))
+            prf = b'\x30\x0A\x06\x08\x2A\x86\x48\x86\xF7\x0D\x02'
+            if (args.alg == 'PBKDF2-SHA1'):
+                prf += b'\x07'
+            elif (args.alg == 'PBKDF2-SHA224'):
+                prf += b'\x08'
+            elif (args.alg == 'PBKDF2-SHA256'):
+                prf += b'\x09'
+            elif (args.alg == 'PBKDF2-SHA384'):
+                prf += b'\x0A'
+            elif (args.alg == 'PBKDF2-SHA512'):
+                prf += b'\x0B'
+            enc = list(salt + iteration + prf)
+        elif (args.alg in 'X963-SHA1', 'X963-SHA224', 'X963-SHA256', 'X963-SHA384', 'X963-SHA512'):
+            oid = b'\x2B\x81\x05\x10\x86\x48\x3F'
+            enc = b'\x2A\x86\x48\x86\xF7\x0D\x02'
+            if (args.alg == 'X963-SHA1'):
+                enc += b'\x07'
+            elif (args.alg == 'X963-SHA224'):
+                enc += b'\x08'
+            elif (args.alg == 'X963-SHA256'):
+                enc += b'\x09'
+            elif (args.alg == 'X963-SHA384'):
+                enc += b'\x0A'
+            elif (args.alg == 'X963-SHA512'):
+                enc += b'\x0B'
+        '''
+        # To be finished: it does not work with AES (only supported by HSM)
+        elif (args.alg in ['PBES2-SHA1', 'PBES2-SHA224', 'PBES2-SHA256', 'PBES2-SHA384', 'PBES2-SHA512']):
+            oid = b'\x2A\x86\x48\x86\xF7\x0D\x01\x05\x0D'
+            if (not args.iv):
+                sys.stderr.buffer.write(b'ERROR: --iv required')
+                sys.exit(-1)
+            salt = b'\x04' + bytes([len(args.iv)//2]) + unhexlify(args.iv)
+            iteration = b'\x02' + bytes([len(int_to_bytes(int(args.iteration)))]) + int_to_bytes(int(args.iteration))
+            prf = b'\x30\x0A\x06\x08\x2A\x86\x48\x86\xF7\x0D\x02'
+            if (args.alg == 'PBES2-SHA1'):
+                prf += b'\x07'
+            elif (args.alg == 'PBES2-SHA224'):
+                prf += b'\x08'
+            elif (args.alg == 'PBES2-SHA256'):
+                prf += b'\x09'
+            elif (args.alg == 'PBES2-SHA384'):
+                prf += b'\x0A'
+            elif (args.alg == 'PBES2-SHA512'):
+                prf += b'\x0B'
+            oid_kdf = b'\x06\x09\x2A\x86\x48\x86\xF7\x0D\x01\x05\x0C'
+            aad = hexlify(oid_kdf + b'\x30' + bytes([len(salt)+len(iteration)+len(prf)]) + salt + iteration + prf)
+            args.hex = True
+        '''
 
-        if (args.subcommand[0] == 'e' or args.subcommand == 'hmac'):
+        if (args.subcommand[0] == 'e' or args.subcommand == 'hmac' or args.subcommand == 'kdf'):
             alg = 0x51
         elif (args.subcommand[0] == 'd'):
             alg = 0x52
 
-        if (args.file_in):
-            fin = open(args.file_in, 'rb')
-        else:
-            fin = sys.stdin.buffer
-        enc = fin.read()
-        fin.close()
+        if (not enc):
+            if (args.file_in):
+                fin = open(args.file_in, 'rb')
+            else:
+                fin = sys.stdin.buffer
+            enc = fin.read()
+            fin.close()
 
         data = [0x06, len(oid)] + list(oid) + [0x81, len(enc)] + list(enc)
-        if (args.iv):
-            data += [0x82, len(args.iv)/2] + list(unhexlify(args.iv))
-        if (args.aad):
-            if (args.hex):
-                data += [0x83, len(args.aad)/2] + list(unhexlify(args.aad))
-            else:
-                data += [0x83, len(args.aad)] + list(args.aad)
 
-        ret = send_apdu(card, [0x80, 0x78], int(args.key), alg, data)
+        if (args.iv and not 'PBKDF2' in args.alg and not 'PBES2' in args.alg):
+            data += [0x82, len(args.iv)//2] + list(unhexlify(args.iv))
+        if (not aad):
+            aad = args.aad
+        if (aad):
+            if (args.hex):
+                data += [0x83, len(aad)//2] + list(unhexlify(aad))
+            else:
+                data += [0x83, len(aad)] + list(aad)
+
+        ne = int(args.output_len) if 'output_len' in args and args.output_len else None
+
+        ret = send_apdu(card, [0x80, 0x78], int(args.key), alg, data=data, ne=ne)
         if (args.file_out):
             fout = open(args.file_out, 'wb')
         else:
