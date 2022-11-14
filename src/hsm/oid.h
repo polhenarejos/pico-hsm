@@ -23,6 +23,22 @@
 
 #define OID_BSI_DE                      "\x04\x00\x7F\x00\x07"
 
+#define OID_ECKA                        OID_BSI_DE "\x01\x01\x05"
+#define OID_ECKA_EG                     OID_ECKA "\x01"
+#define OID_ECKA_EG_X963KDF             OID_ECKA_EG "\x01"
+#define OID_ECKA_EG_X963KDF_SHA1        OID_ECKA_EG_X963KDF "\x01"
+#define OID_ECKA_EG_X963KDF_SHA224      OID_ECKA_EG_X963KDF "\x02"
+#define OID_ECKA_EG_X963KDF_SHA256      OID_ECKA_EG_X963KDF "\x03"
+#define OID_ECKA_EG_X963KDF_SHA384      OID_ECKA_EG_X963KDF "\x04"
+#define OID_ECKA_EG_X963KDF_SHA512      OID_ECKA_EG_X963KDF "\x05"
+#define OID_ECKA_DH                     OID_ECKA "\x02"
+#define OID_ECKA_DH_X963KDF             OID_ECKA_DH "\x01"
+#define OID_ECKA_DH_X963KDF_SHA1        OID_ECKA_DH_X963KDF "\x01"
+#define OID_ECKA_DH_X963KDF_SHA224      OID_ECKA_DH_X963KDF "\x02"
+#define OID_ECKA_DH_X963KDF_SHA256      OID_ECKA_DH_X963KDF "\x03"
+#define OID_ECKA_DH_X963KDF_SHA384      OID_ECKA_DH_X963KDF "\x04"
+#define OID_ECKA_DH_X963KDF_SHA512      OID_ECKA_DH_X963KDF "\x05"
+
 #define OID_ID_PK                       OID_BSI_DE "\x02\x02\x01"
 #define OID_ID_PK_DH                    OID_ID_PK "\x01"
 #define OID_ID_PK_ECDH                  OID_ID_PK "\x02"
@@ -128,5 +144,7 @@
 #define OID_HMAC_SHA256                 OID_DIGEST "\x09"
 #define OID_HMAC_SHA384                 OID_DIGEST "\x0A"
 #define OID_HMAC_SHA512                 OID_DIGEST "\x0B"
+
+#define OID_KDF_X963                    "\x2B\x81\x05\x10\x86\x48\x3F"
 
 #endif

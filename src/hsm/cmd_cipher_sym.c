@@ -92,6 +92,59 @@ static int pkcs5_parse_pbkdf2_params( const mbedtls_asn1_buf *params,
     return( 0 );
 }
 
+/* Taken from https://github.com/Mbed-TLS/mbedtls/issues/2335 */
+int mbedtls_ansi_x936_kdf(mbedtls_md_type_t md_type, size_t input_len, uint8_t *input, size_t shared_info_len, uint8_t *shared_info, size_t output_len, uint8_t *output) {
+    mbedtls_md_context_t md_ctx;
+    const mbedtls_md_info_t *md_info = NULL;
+    int hashlen = 0, exit_code = MBEDTLS_ERR_MD_BAD_INPUT_DATA;
+    uint8_t counter_buf[4], tmp_output[64]; //worst case
+
+    mbedtls_md_init(&md_ctx);
+
+    md_info = mbedtls_md_info_from_type(md_type);
+
+    if (md_info == NULL) {
+        return exit_code;
+    }
+
+    if (mbedtls_md_setup(&md_ctx, md_info, 0)) {
+        return exit_code;
+    }
+
+    if (input_len + shared_info_len + 4 >= (1ULL<<61)-1) {
+        return exit_code;
+    }
+
+    // keydatalen equals output_len
+    hashlen = md_info->size;
+    if (output_len >= hashlen * ((1ULL<<32)-1)) {
+        return exit_code;
+    }
+
+    for (int i = 0, counter = 1; i < output_len; counter++) {
+        mbedtls_md_starts(&md_ctx);
+        mbedtls_md_update(&md_ctx, input, input_len);
+
+        //TODO: be careful with architecture little vs. big
+        counter_buf[0] = (uint8_t) ((counter >> 24) & 0xff);
+        counter_buf[1] = (uint8_t) ((counter >> 16) & 0xff);
+        counter_buf[2] = (uint8_t) ((counter >> 8) & 0xff);
+        counter_buf[3] = (uint8_t) ((counter >> 0) & 0xff);
+
+        mbedtls_md_update(&md_ctx, counter_buf, 4);
+
+        if (shared_info_len > 0 && shared_info != NULL) {
+            mbedtls_md_update(&md_ctx, shared_info, shared_info_len);
+        }
+        mbedtls_md_finish(&md_ctx, tmp_output);
+        memcpy(&output[i], tmp_output, (output_len - i < hashlen) ? output_len - i : hashlen);
+        i += hashlen;
+        counter++;
+    }
+    mbedtls_md_free(&md_ctx);
+    return 0;
+}
+
 int cmd_cipher_sym() {
     int key_id = P1(apdu);
     int algo = P2(apdu);
@@ -237,11 +290,11 @@ int cmd_cipher_sym() {
                 md_info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA384);
             else if (memcmp(oid, OID_HKDF_SHA512, oid_len) == 0)
                 md_info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA512);
-            int r = mbedtls_hkdf(md_info, iv, iv_len, kdata, key_size, enc, enc_len, res_APDU, apdu.ne > 0 ? apdu.ne : apdu.nc);
+            int r = mbedtls_hkdf(md_info, iv, iv_len, kdata, key_size, enc, enc_len, res_APDU, apdu.ne > 0 ? apdu.ne : md_info->size);
             mbedtls_platform_zeroize(kdata, sizeof(kdata));
             if (r != 0)
                 return SW_EXEC_ERROR();
-            res_APDU_size = apdu.ne > 0 ? apdu.ne : apdu.nc;
+            res_APDU_size = apdu.ne > 0 ? apdu.ne : md_info->size;
         }
         else if (memcmp(oid, OID_PKCS5_PBKDF2, oid_len) == 0) {
             int iterations = 0, keylen = 0;
@@ -261,12 +314,12 @@ int cmd_cipher_sym() {
                 mbedtls_platform_zeroize(kdata, sizeof(kdata));
                 return SW_WRONG_DATA();
             }
-            r = mbedtls_pkcs5_pbkdf2_hmac(&md_ctx, kdata, key_size, salt.p, salt.len, iterations, keylen ? keylen : (apdu.ne ? apdu.ne : apdu.nc), res_APDU);
+            r = mbedtls_pkcs5_pbkdf2_hmac(&md_ctx, kdata, key_size, salt.p, salt.len, iterations, keylen ? keylen : (apdu.ne ? apdu.ne : 32), res_APDU);
             mbedtls_platform_zeroize(kdata, sizeof(kdata));
             mbedtls_md_free(&md_ctx);
             if (r != 0)
                 return SW_EXEC_ERROR();
-            res_APDU_size = keylen ? keylen : (apdu.ne ? apdu.ne : apdu.nc);
+            res_APDU_size = keylen ? keylen : (apdu.ne ? apdu.ne : 32);
         }
         else if (memcmp(oid, OID_PKCS5_PBES2, oid_len) == 0) {
             mbedtls_asn1_buf params = { .p = aad, .len = aad_len };
@@ -276,6 +329,25 @@ int cmd_cipher_sym() {
                 return SW_WRONG_DATA();
             }
             res_APDU_size = enc_len;
+        }
+        else if (memcmp(oid, OID_KDF_X963, oid_len) == 0) {
+            mbedtls_md_type_t md_type = MBEDTLS_MD_SHA1;
+            if (memcmp(enc, OID_ECKA_DH_X963KDF_SHA1, enc_len) == 0)
+                md_type = MBEDTLS_MD_SHA1;
+            else if (memcmp(enc, OID_ECKA_DH_X963KDF_SHA224, enc_len) == 0)
+                md_type = MBEDTLS_MD_SHA224;
+            else if (memcmp(enc, OID_ECKA_DH_X963KDF_SHA256, enc_len) == 0)
+                md_type = MBEDTLS_MD_SHA256;
+            else if (memcmp(enc, OID_ECKA_DH_X963KDF_SHA384, enc_len) == 0)
+                md_type = MBEDTLS_MD_SHA384;
+            else if (memcmp(enc, OID_ECKA_DH_X963KDF_SHA512, enc_len) == 0)
+                md_type = MBEDTLS_MD_SHA512;
+            int r = mbedtls_ansi_x936_kdf(md_type, key_size, kdata, aad_len, aad, apdu.ne > 0 ? apdu.ne : 32, res_APDU);
+            mbedtls_platform_zeroize(kdata, sizeof(kdata));
+            if (r != 0) {
+                return SW_WRONG_DATA();
+            }
+            res_APDU_size = apdu.ne > 0 ? apdu.ne : 32;
         }
     }
     else {
