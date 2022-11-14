@@ -164,6 +164,19 @@ int cmd_cipher_sym() {
                 return SW_EXEC_ERROR();
             res_APDU_size = md_info->size;
         }
+        else if (memcmp(oid, OID_HKDF_SHA256, oid_len) == 0 || memcmp(oid, OID_HKDF_SHA384, oid_len) == 0 || memcmp(oid, OID_HKDF_SHA512, oid_len) == 0) {
+            const mbedtls_md_info_t *md_info = NULL;
+            if (memcmp(oid, OID_HKDF_SHA256, oid_len) == 0)
+                md_info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
+            else if (memcmp(oid, OID_HKDF_SHA384, oid_len) == 0)
+                md_info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA384);
+            else if (memcmp(oid, OID_HKDF_SHA512, oid_len) == 0)
+                md_info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA512);
+            int r = mbedtls_hkdf(md_info, iv, iv_len, kdata, key_size, enc, enc_len, res_APDU, apdu.ne > 0 ? apdu.ne : apdu.nc);
+            mbedtls_platform_zeroize(kdata, sizeof(kdata));
+            if (r != 0)
+                return SW_EXEC_ERROR();
+        }
     }
     else {
         mbedtls_platform_zeroize(kdata, sizeof(kdata));

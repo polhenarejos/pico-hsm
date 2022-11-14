@@ -103,16 +103,20 @@
 #define OID_CC_FF_PKA                   OID_CC_FORMAT "\x03"
 #define OID_CC_FF_KDA                   OID_CC_FORMAT "\x04"
 
-#define OID_CHACHA20_POLY1305           "\x2A\x86\x48\x86\xF7\x0D\x01\x09\x10\x03\x12"
+#define OID_PKCS1_RSADSI                "\x2A\x86\x48\x86\xF7\x0D"
+#define OID_PKCS9_SMIME_ALG             OID_PKCS1_RSADSI "\x01\x09\x10\x03"
 
+#define OID_CHACHA20_POLY1305           OID_PKCS9_SMIME_ALG "\x12"
+#define OID_HKDF_SHA256                 OID_PKCS9_SMIME_ALG "\x1D"
+#define OID_HKDF_SHA384                 OID_PKCS9_SMIME_ALG "\x1E"
+#define OID_HKDF_SHA512                 OID_PKCS9_SMIME_ALG "\x1F"
 
-#define OID_HMAC                    "\x2A\x86\x48\x86\xF7\x0D\x02"
+#define OID_HMAC                    OID_PKCS1_RSADSI "\x02"
 
 #define OID_HMAC_SHA1               OID_HMAC "\x07"
 #define OID_HMAC_SHA224             OID_HMAC "\x08"
 #define OID_HMAC_SHA256             OID_HMAC "\x09"
 #define OID_HMAC_SHA384             OID_HMAC "\x0A"
 #define OID_HMAC_SHA512             OID_HMAC "\x0B"
-
 
 #endif
