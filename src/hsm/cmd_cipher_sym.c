@@ -45,7 +45,7 @@ static int pkcs5_parse_pbkdf2_params( const mbedtls_asn1_buf *params,
     unsigned char *p = params->p;
     const unsigned char *end = params->p + params->len;
 
-    if( params->tag != ( MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE ) )
+    if (params->tag != (MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE))
         return( MBEDTLS_ERROR_ADD( MBEDTLS_ERR_PKCS5_INVALID_FORMAT,
                 MBEDTLS_ERR_ASN1_UNEXPECTED_TAG ) );
     /*
@@ -70,8 +70,7 @@ static int pkcs5_parse_pbkdf2_params( const mbedtls_asn1_buf *params,
     if( p == end )
         return( 0 );
 
-    if( ( ret = mbedtls_asn1_get_int( &p, end, keylen ) ) != 0 )
-    {
+    if( ( ret = mbedtls_asn1_get_int( &p, end, keylen ) ) != 0 ) {
         if( ret != MBEDTLS_ERR_ASN1_UNEXPECTED_TAG )
             return( MBEDTLS_ERROR_ADD( MBEDTLS_ERR_PKCS5_INVALID_FORMAT, ret ) );
     }
@@ -298,7 +297,7 @@ int cmd_cipher_sym() {
         }
         else if (memcmp(oid, OID_PKCS5_PBKDF2, oid_len) == 0) {
             int iterations = 0, keylen = 0;
-            mbedtls_asn1_buf salt, params = { .p = enc, .len = enc_len };
+            mbedtls_asn1_buf salt, params = { .p = enc, .len = enc_len, .tag = (MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE) };
             mbedtls_md_type_t md_type = MBEDTLS_MD_SHA1;
             mbedtls_md_context_t md_ctx;
 
@@ -322,7 +321,7 @@ int cmd_cipher_sym() {
             res_APDU_size = keylen ? keylen : (apdu.ne > 0 && apdu.ne < 65536 ? apdu.ne : 32);
         }
         else if (memcmp(oid, OID_PKCS5_PBES2, oid_len) == 0) {
-            mbedtls_asn1_buf params = { .p = aad, .len = aad_len };
+            mbedtls_asn1_buf params = { .p = aad, .len = aad_len, .tag = (MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE) };
             int r = mbedtls_pkcs5_pbes2(&params, algo == ALGO_EXT_CIPHER_ENCRYPT ? MBEDTLS_PKCS5_ENCRYPT : MBEDTLS_PKCS5_DECRYPT, kdata, key_size, enc, enc_len, res_APDU);
             mbedtls_platform_zeroize(kdata, sizeof(kdata));
             if (r != 0) {
@@ -332,15 +331,15 @@ int cmd_cipher_sym() {
         }
         else if (memcmp(oid, OID_KDF_X963, oid_len) == 0) {
             mbedtls_md_type_t md_type = MBEDTLS_MD_SHA1;
-            if (memcmp(enc, OID_ECKA_DH_X963KDF_SHA1, enc_len) == 0)
+            if (memcmp(enc, OID_HMAC_SHA1, enc_len) == 0)
                 md_type = MBEDTLS_MD_SHA1;
-            else if (memcmp(enc, OID_ECKA_DH_X963KDF_SHA224, enc_len) == 0)
+            else if (memcmp(enc, OID_HMAC_SHA224, enc_len) == 0)
                 md_type = MBEDTLS_MD_SHA224;
-            else if (memcmp(enc, OID_ECKA_DH_X963KDF_SHA256, enc_len) == 0)
+            else if (memcmp(enc, OID_HMAC_SHA256, enc_len) == 0)
                 md_type = MBEDTLS_MD_SHA256;
-            else if (memcmp(enc, OID_ECKA_DH_X963KDF_SHA384, enc_len) == 0)
+            else if (memcmp(enc, OID_HMAC_SHA384, enc_len) == 0)
                 md_type = MBEDTLS_MD_SHA384;
-            else if (memcmp(enc, OID_ECKA_DH_X963KDF_SHA512, enc_len) == 0)
+            else if (memcmp(enc, OID_HMAC_SHA512, enc_len) == 0)
                 md_type = MBEDTLS_MD_SHA512;
             int r = mbedtls_ansi_x936_kdf(md_type, key_size, kdata, aad_len, aad, apdu.ne > 0 && apdu.ne < 65536 ? apdu.ne : 32, res_APDU);
             mbedtls_platform_zeroize(kdata, sizeof(kdata));
