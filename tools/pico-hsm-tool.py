@@ -123,18 +123,29 @@ def parse_args():
     parser_pki_init.add_argument('--force', help='Forces the download of certificates.', action='store_true')
 
     parser_rtc = subparser.add_parser('datetime', help='Datetime operations with the integrated Real Time Clock (RTC).')
-    parser_rtc.add_argument('subcommand', choices=['set', 'get'], help='Sets or gets current datetime.')
+    subparser_rtc = parser_rtc.add_subparsers(title='commands', dest='subcommand')
+    parser_rtc_set = subparser_rtc.add_parser('set', help='Sets the current datetime.')
+    parser_rtc_get = subparser_rtc.add_parser('set', help='Gets the current datetime.')
 
     parser_opts = subparser.add_parser('options', help='Manage extra options.', formatter_class=RawTextHelpFormatter)
-    parser_opts.add_argument('subcommand', choices=['set', 'get'], help='Sets or gets option OPT.')
-    parser_opts.add_argument('opt', choices=['button', 'counter'], help='Button: press-to-confirm button.\nCounter: every generated key has an internal counter.')
-    parser_opts.add_argument('onoff', choices=['on', 'off'], help='Toggles state ON or OFF', metavar='ON/OFF', nargs='?')
+    subparser_opts = parser_opts.add_subparsers(title='commands', dest='subcommand')
+    parser_opts_set = subparser_opts.add_parser('set', help='Sets option OPT.')
+    parser_opts_get = subparser_opts.add_parser('get', help='Gets optiont OPT.')
+    parser_opts.add_argument('opt', choices=['button', 'counter'], help='button: press-to-confirm button.\ncounter: every generated key has an internal counter.', metavar='OPT')
+    parser_opts_set.add_argument('onoff', choices=['on', 'off'], help='Toggles state ON or OFF', metavar='ON/OFF', nargs='?')
 
     parser_secure = subparser.add_parser('secure', help='Manages security of Pico HSM.')
-    parser_secure.add_argument('subcommand', choices=['enable', 'disable', 'unlock'], help='Enables, disables or unlocks the security.')
+    subparser_secure = parser_secure.add_subparsers(title='commands', dest='subcommand')
+    parser_opts_enable = subparser_secure.add_parser('enable', help='Enables secure lock.')
+    parser_opts_unlock = subparser_secure.add_parser('unlock', help='Unlocks the secure lock.')
+    parser_opts_disable = subparser_secure.add_parser('disable', help='Disables secure lock.')
 
     parser_cipher = subparser.add_parser('cipher', help='Implements extended symmetric ciphering with new algorithms and options.\n\tIf no file input/output is specified, stdin/stoud will be used.')
-    parser_cipher.add_argument('subcommand', choices=['encrypt','decrypt','keygen','mac'], help='Encrypts, decrypts or generates a new key.')
+    subparser_cipher = parser_cipher.add_subparsers(title='commands', dest='subcommand')
+    parser_cipher_encrypt = subparser_cipher.add_parser('encrypt', help='Performs encryption.')
+    parser_cipher_decrypt = subparser_cipher.add_parser('decrypt', help='Performs decryption.')
+    parser_cipher_keygen = subparser_cipher.add_parser('keygen', help='Generates new AES key.')
+    parser_cipher_hmac = subparser_cipher.add_parser('hmac', help='Computes HMAC.')
     parser_cipher.add_argument('--alg', choices=['CHACHAPOLY','HMAC-SHA1','HMAC-SHA224','HMAC-SHA256','HMAC-SHA384','HMAC-SHA512'], help='Selects the algorithm.', required='keygen' not in sys.argv)
     parser_cipher.add_argument('--iv', help='Sets the IV/nonce (hex string).')
     parser_cipher.add_argument('--file-in', help='File to encrypt or decrypt.')
@@ -145,7 +156,8 @@ def parse_args():
     parser_cipher.add_argument('-s', '--key-size', default=32, help='Size of the key in bytes.')
 
     parser_x25519 = argparse.ArgumentParser(add_help=False)
-    parser_x25519.add_argument('subcommand', choices=['keygen'], help='Specifies the subcommand for X25519 or X448.')
+    subparser_x25519 = parser_x25519.add_subparsers(title='commands', dest='subcommand')
+    parser_x25519_keygen = subparser_x25519.add_parser('keygen', help='Generates a keypair for X25519 or X448.')
     parser_x25519.add_argument('-k', '--key', help='The private key index', metavar='KEY_ID', required=True)
 
     # Subparsers based on parent
@@ -430,7 +442,7 @@ def cipher(card, args):
         elif (args.alg == 'HMAC-SHA512'):
             oid = b'\x2A\x86\x48\x86\xF7\x0D\x02\x0B'
 
-        if (args.subcommand[0] == 'e' or args.subcommand == 'mac'):
+        if (args.subcommand[0] == 'e' or args.subcommand == 'hmac'):
             alg = 0x51
         elif (args.subcommand[0] == 'd'):
             alg = 0x52
