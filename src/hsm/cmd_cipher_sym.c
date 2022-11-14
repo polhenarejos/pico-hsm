@@ -27,6 +27,70 @@
 #include "kek.h"
 #include "asn1.h"
 #include "oid.h"
+#include "mbedtls/pkcs5.h"
+#include "mbedtls/error.h"
+#include "mbedtls/asn1.h"
+#include "mbedtls/cipher.h"
+#include "mbedtls/oid.h"
+
+/* This is copied from pkcs5.c Mbedtls */
+/** Unfortunately it is declared as static, so I cannot call it. **/
+
+static int pkcs5_parse_pbkdf2_params( const mbedtls_asn1_buf *params,
+                                      mbedtls_asn1_buf *salt, int *iterations,
+                                      int *keylen, mbedtls_md_type_t *md_type )
+{
+    int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
+    mbedtls_asn1_buf prf_alg_oid;
+    unsigned char *p = params->p;
+    const unsigned char *end = params->p + params->len;
+
+    if( params->tag != ( MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE ) )
+        return( MBEDTLS_ERROR_ADD( MBEDTLS_ERR_PKCS5_INVALID_FORMAT,
+                MBEDTLS_ERR_ASN1_UNEXPECTED_TAG ) );
+    /*
+     *  PBKDF2-params ::= SEQUENCE {
+     *    salt              OCTET STRING,
+     *    iterationCount    INTEGER,
+     *    keyLength         INTEGER OPTIONAL
+     *    prf               AlgorithmIdentifier DEFAULT algid-hmacWithSHA1
+     *  }
+     *
+     */
+    if( ( ret = mbedtls_asn1_get_tag( &p, end, &salt->len,
+                                      MBEDTLS_ASN1_OCTET_STRING ) ) != 0 )
+        return( MBEDTLS_ERROR_ADD( MBEDTLS_ERR_PKCS5_INVALID_FORMAT, ret ) );
+
+    salt->p = p;
+    p += salt->len;
+
+    if( ( ret = mbedtls_asn1_get_int( &p, end, iterations ) ) != 0 )
+        return( MBEDTLS_ERROR_ADD( MBEDTLS_ERR_PKCS5_INVALID_FORMAT, ret ) );
+
+    if( p == end )
+        return( 0 );
+
+    if( ( ret = mbedtls_asn1_get_int( &p, end, keylen ) ) != 0 )
+    {
+        if( ret != MBEDTLS_ERR_ASN1_UNEXPECTED_TAG )
+            return( MBEDTLS_ERROR_ADD( MBEDTLS_ERR_PKCS5_INVALID_FORMAT, ret ) );
+    }
+
+    if( p == end )
+        return( 0 );
+
+    if( ( ret = mbedtls_asn1_get_alg_null( &p, end, &prf_alg_oid ) ) != 0 )
+        return( MBEDTLS_ERROR_ADD( MBEDTLS_ERR_PKCS5_INVALID_FORMAT, ret ) );
+
+    if( mbedtls_oid_get_md_hmac( &prf_alg_oid, md_type ) != 0 )
+        return( MBEDTLS_ERR_PKCS5_FEATURE_UNAVAILABLE );
+
+    if( p != end )
+        return( MBEDTLS_ERROR_ADD( MBEDTLS_ERR_PKCS5_INVALID_FORMAT,
+                MBEDTLS_ERR_ASN1_LENGTH_MISMATCH ) );
+
+    return( 0 );
+}
 
 int cmd_cipher_sym() {
     int key_id = P1(apdu);
@@ -145,7 +209,7 @@ int cmd_cipher_sym() {
             else if (algo == ALGO_EXT_CIPHER_DECRYPT)
                 res_APDU_size = enc_len - 16;
         }
-        else if (memcmp(oid, OID_HMAC, 7) == 0) {
+        else if (memcmp(oid, OID_DIGEST, 7) == 0) {
             const mbedtls_md_info_t *md_info = NULL;
             if (memcmp(oid, OID_HMAC_SHA1, oid_len) == 0)
                 md_info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA1);
@@ -160,6 +224,7 @@ int cmd_cipher_sym() {
             if (md_info == NULL)
                 return SW_WRONG_DATA();
             int r = mbedtls_md_hmac(md_info, kdata, key_size, apdu.data, apdu.nc, res_APDU);
+            mbedtls_platform_zeroize(kdata, sizeof(kdata));
             if (r != 0)
                 return SW_EXEC_ERROR();
             res_APDU_size = md_info->size;
@@ -174,6 +239,30 @@ int cmd_cipher_sym() {
                 md_info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA512);
             int r = mbedtls_hkdf(md_info, iv, iv_len, kdata, key_size, enc, enc_len, res_APDU, apdu.ne > 0 ? apdu.ne : apdu.nc);
             mbedtls_platform_zeroize(kdata, sizeof(kdata));
+            if (r != 0)
+                return SW_EXEC_ERROR();
+        }
+        else if (memcmp(oid, OID_PKCS5_PBKDF2, oid_len) == 0) {
+            int iterations = 0, keylen = 0;
+            mbedtls_asn1_buf salt, params = { .p = enc, .len = enc_len };
+            mbedtls_md_type_t md_type = MBEDTLS_MD_SHA1;
+            mbedtls_md_context_t md_ctx;
+
+            int r = pkcs5_parse_pbkdf2_params(&params, &salt, &iterations, &keylen, &md_type);
+            if (r != 0) {
+                mbedtls_platform_zeroize(kdata, sizeof(kdata));
+                return SW_WRONG_DATA();
+            }
+
+            mbedtls_md_init(&md_ctx);
+            if (mbedtls_md_setup(&md_ctx, mbedtls_md_info_from_type(md_type), 1) != 0) {
+                mbedtls_md_free(&md_ctx);
+                mbedtls_platform_zeroize(kdata, sizeof(kdata));
+                return SW_WRONG_DATA();
+            }
+            r = mbedtls_pkcs5_pbkdf2_hmac(&md_ctx, kdata, key_size, salt.p, salt.len, iterations, keylen ? keylen : (apdu.ne ? apdu.ne : apdu.nc), res_APDU);
+            mbedtls_platform_zeroize(kdata, sizeof(kdata));
+            mbedtls_md_free(&md_ctx);
             if (r != 0)
                 return SW_EXEC_ERROR();
         }
