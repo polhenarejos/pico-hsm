@@ -111,16 +111,16 @@ Public Key Authentication (PKA) allows to authenticate by using a secondary devi
 
 In PKA, the PIN is used for protecting the DKEK, as classic method with only PIN, and PKA is used for adding an extra security layer. Therefore, this mechanism provides a higher degree of security, since it needs a secondary Pico HSM to authenticate the primary one.
 
-### > Secure Lock
+### > Secure Lock
 An extra layer can be added to the device by adding a private key stored on the computer to lock that Pico HSM to the specific computer. The content will be completely encrypted with a private key only available from a specific computer.
 
-### > ChaCha20-Poly1305
+### > ChaCha20-Poly1305
 This is a novel fast and efficient symmetric encryption algorithm. Similarly to AES, it can be used to cipher your private data.
 
-### > X25519 and X448
+### > X25519 and X448
 Both cruves Curve25519 and Curve448 are supported for doing DH X25519 and X448. Remember that cannot be used for signing.
 
-### > Key Derivation Functions: HKDF, PBKDF2 and X963-KDF
+### > Key Derivation Functions: HKDF, PBKDF2 and X963-KDF
 It supports symmetric key derivations from different standards and RFC.
 
 ### > HMAC
