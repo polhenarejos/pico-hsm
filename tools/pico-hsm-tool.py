@@ -192,7 +192,7 @@ def get_pki_data(url, data=None, method='GET'):
     method = 'GET'
     if (data is not None):
         method = 'POST'
-    req = urllib.request.Request(f"https://www.henarejos.me/pico/pico-hsm/{url}/",
+    req = urllib.request.Request(f"https://www.picokeys.com/pico/pico-hsm/{url}/",
                                 method=method,
                                 data=data,
                                 headers={'User-Agent': user_agent, })
