@@ -56,8 +56,11 @@ int cmd_key_domain() {
             }
             import_dkek_share(p2, apdu.data);
             if (++current_dkeks >= dkeks) {
-                if (save_dkek_key(p2, NULL) != CCID_OK)
+                if (save_dkek_key(p2, NULL) != CCID_OK) {
+                    /* On fail, it will return to previous dkek state. */
+                    import_dkek_share(p2, apdu.data);
                     return SW_FILE_NOT_FOUND();
+                }
             }
             uint8_t t[MAX_KEY_DOMAINS*2];
             memcpy(t, kdata, tf_kd_size);
