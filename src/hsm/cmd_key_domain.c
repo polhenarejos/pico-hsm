@@ -33,7 +33,7 @@ int cmd_key_domain() {
     //if (dkeks == 0)
     //    return SW_COMMAND_NOT_ALLOWED();
     uint8_t p1 = P1(apdu), p2 = P2(apdu);
-    if ((has_session_pin == false || isUserAuthenticated == false) && apdu.nc > 0)
+    if ((has_session_pin == false || isUserAuthenticated == false) && apdu.nc > 0 && !(p1 == 0x0 && p2 == 0x0))
         return SW_CONDITIONS_NOT_SATISFIED();
     if (p2 >= MAX_KEY_DOMAINS)
         return SW_WRONG_P1P2();
