@@ -51,6 +51,9 @@ int cmd_key_domain() {
                 return SW_MEMORY_FAILURE();
             if (apdu.nc < 32)
                 return SW_WRONG_LENGTH();
+            if (current_dkeks == dkeks) {
+                return SW_COMMAND_NOT_ALLOWED();
+            }
             import_dkek_share(p2, apdu.data);
             if (++current_dkeks >= dkeks) {
                 if (save_dkek_key(p2, NULL) != CCID_OK)
