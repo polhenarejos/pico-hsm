@@ -62,7 +62,7 @@ target_sources(pico_hsm PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/oid.c
 
         )
-set(HSM_DRIVER "ccid")
+set(USB_ITF_CCID 1)
 include(pico-hsm-sdk/pico_hsm_sdk_import.cmake)
 
 target_include_directories(pico_hsm PUBLIC
