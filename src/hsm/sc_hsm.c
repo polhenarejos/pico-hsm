@@ -75,8 +75,8 @@ extern int cmd_session_pin();
 extern int cmd_puk_auth();
 extern int cmd_pso();
 
-app_t *sc_hsm_select_aid(app_t *a) {
-    if (!memcmp(apdu.data, sc_hsm_aid+1, MIN(apdu.nc,sc_hsm_aid[0]))) {
+app_t *sc_hsm_select_aid(app_t *a, const uint8_t *aid, uint8_t aid_len) {
+    if (!memcmp(aid, sc_hsm_aid+1, MIN(aid_len,sc_hsm_aid[0]))) {
         a->aid = sc_hsm_aid;
         a->process_apdu = sc_hsm_process_apdu;
         a->unload = sc_hsm_unload;
@@ -580,12 +580,6 @@ int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey) {
     mbedtls_platform_zeroize(kdata, sizeof(kdata));
     return CCID_OK;
 }
-
-typedef struct cmd
-{
-  uint8_t ins;
-  int (*cmd_handler)();
-} cmd_t;
 
 #define INS_VERIFY                  0x20
 #define INS_MSE                     0x22
