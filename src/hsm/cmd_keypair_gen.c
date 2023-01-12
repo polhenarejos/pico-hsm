@@ -55,7 +55,7 @@ int cmd_keypair_gen() {
                         key_size = (key_size << 8) | *dt++;
                     }
                 }
-                printf("KEYPAIR RSA %ld (%lx)\r\n",key_size,exponent);
+                printf("KEYPAIR RSA %lu (%lx)\r\n",(unsigned long)key_size,(unsigned long)exponent);
                 mbedtls_rsa_context rsa;
                 mbedtls_rsa_init(&rsa);
                 uint8_t index = 0;
