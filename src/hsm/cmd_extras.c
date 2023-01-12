@@ -18,7 +18,9 @@
 #include "common.h"
 #include "mbedtls/ecdh.h"
 #include "sc_hsm.h"
+#ifndef ENABLE_EMULATION
 #include "hardware/rtc.h"
+#endif
 #include "files.h"
 #include "random.h"
 #include "kek.h"
@@ -30,6 +32,7 @@ int cmd_extras() {
         if (P2(apdu) != 0x0)
             return SW_INCORRECT_P1P2();
         if (apdu.nc == 0) {
+#ifndef ENABLE_EMULATION
             datetime_t dt;
             if (!rtc_get_datetime(&dt))
                 return SW_EXEC_ERROR();
@@ -41,10 +44,12 @@ int cmd_extras() {
             res_APDU[res_APDU_size++] = dt.hour;
             res_APDU[res_APDU_size++] = dt.min;
             res_APDU[res_APDU_size++] = dt.sec;
+#endif
         }
         else {
             if (apdu.nc != 8)
                 return SW_WRONG_LENGTH();
+#ifndef ENABLE_EMULATION
             datetime_t dt;
             dt.year = (apdu.data[0] << 8) | (apdu.data[1]);
             dt.month = apdu.data[2];
@@ -55,6 +60,7 @@ int cmd_extras() {
             dt.sec = apdu.data[7];
             if (!rtc_set_datetime(&dt))
                 return SW_WRONG_DATA();
+#endif
         }
     }
     else if (P1(apdu) == 0x6) { //dynamic options
