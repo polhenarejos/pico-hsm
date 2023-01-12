@@ -138,7 +138,6 @@ int mbedtls_ansi_x936_kdf(mbedtls_md_type_t md_type, size_t input_len, uint8_t *
         mbedtls_md_finish(&md_ctx, tmp_output);
         memcpy(&output[i], tmp_output, (output_len - i < hashlen) ? output_len - i : hashlen);
         i += hashlen;
-        counter++;
     }
     mbedtls_md_free(&md_ctx);
     return 0;
