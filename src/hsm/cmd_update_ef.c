@@ -69,7 +69,7 @@ int cmd_update_ef() {
                 return SW_MEMORY_FAILURE();
         }
         else {
-            if (!ef->data)
+            if (!file_has_data(ef))
                 return SW_DATA_INVALID();
 
             uint8_t *data_merge = (uint8_t *)calloc(1, offset+data_len);
