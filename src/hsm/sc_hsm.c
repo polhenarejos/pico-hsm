@@ -24,7 +24,7 @@
 #include "eac.h"
 #include "cvc.h"
 #include "asn1.h"
-#include "ccid.h"
+#include "hsm.h"
 #include "usb.h"
 
 const uint8_t sc_hsm_aid[] = {
@@ -74,6 +74,8 @@ extern int cmd_general_authenticate();
 extern int cmd_session_pin();
 extern int cmd_puk_auth();
 extern int cmd_pso();
+
+extern const uint8_t *ccid_atr;
 
 app_t *sc_hsm_select_aid(app_t *a, const uint8_t *aid, uint8_t aid_len) {
     if (!memcmp(aid, sc_hsm_aid+1, MIN(aid_len,sc_hsm_aid[0]))) {
@@ -240,7 +242,7 @@ int sc_hsm_unload() {
 
 uint16_t get_device_options() {
     file_t *ef = search_by_fid(EF_DEVOPS, NULL, SPECIFY_EF);
-    if (ef && ef->data && file_get_size(ef))
+    if (file_has_data(ef))
         return (file_read_uint8(file_get_data(ef)) << 8) | file_read_uint8(file_get_data(ef)+1);
     return 0x0;
 }
@@ -248,8 +250,9 @@ uint16_t get_device_options() {
 extern uint32_t board_button_read(void);
 
 bool wait_button_pressed() {
-    uint16_t opts = get_device_options();
     uint32_t val = EV_PRESS_BUTTON;
+#ifndef ENABLE_EMULATION
+    uint16_t opts = get_device_options();
     if (opts & HSM_OPT_BOOTSEL_BUTTON) {
         queue_try_add(&card_to_usb_q, &val);
         do {
@@ -257,6 +260,7 @@ bool wait_button_pressed() {
         }
         while (val != EV_BUTTON_PRESSED && val != EV_BUTTON_TIMEOUT);
     }
+#endif
     return val == EV_BUTTON_TIMEOUT;
 }
 
@@ -268,7 +272,11 @@ int parse_token_info(const file_t *f, int mode) {
         *p++ = 0x30;
         *p++ = 0; //set later
         *p++ = 0x2; *p++ = 1; *p++ = HSM_VERSION_MAJOR;
+#ifndef ENABLE_EMULATION
         *p++ = 0x4; *p++ = 8; pico_get_unique_board_id((pico_unique_board_id_t *)p); p += 8;
+#else
+        *p++ = 0x4; *p++ = 8; memset(p, 0, 8); p += 8;
+#endif
         *p++ = 0xC; *p++ = strlen(manu); strcpy((char *)p, manu); p += strlen(manu);
         *p++ = 0x80; *p++ = strlen(label); strcpy((char *)p, label); p += strlen(label);
         *p++ = 0x3; *p++ = 2; *p++ = 4; *p++ = 0x30;
@@ -316,11 +324,11 @@ int pin_wrong_retry(const file_t *pin) {
 
 bool pka_enabled() {
     file_t *ef_puk = search_by_fid(EF_PUKAUT, NULL, SPECIFY_EF);
-    return ef_puk && ef_puk->data && file_get_size(ef_puk) > 0 && file_read_uint8(file_get_data(ef_puk)) > 0;
+    return file_has_data(ef_puk) && file_read_uint8(file_get_data(ef_puk)) > 0;
 }
 
 int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
-    if (!pin || !pin->data || file_get_size(pin) == 0) {
+    if (!file_has_data((file_t *)pin)) {
         return SW_REFERENCE_NOT_FOUND();
     }
     if (pka_enabled() == false)
