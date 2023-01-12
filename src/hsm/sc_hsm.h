@@ -22,7 +22,9 @@
 #include "common.h"
 #include "mbedtls/rsa.h"
 #include "mbedtls/ecdsa.h"
+#ifndef ENABLE_EMULATION
 #include "pico/stdlib.h"
+#endif
 #include "file.h"
 #include "apdu.h"
 #include "hsm.h"

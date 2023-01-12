@@ -19,7 +19,11 @@
 #define _CVC_H_
 
 #include <stdlib.h>
+#ifndef ENABLE_EMULATION
 #include "pico/stdlib.h"
+#else
+#include <stdbool.h>
+#endif
 #include "mbedtls/ecp.h"
 
 typedef struct PUK {
