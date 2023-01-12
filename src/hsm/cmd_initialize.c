@@ -28,9 +28,13 @@ extern void scan_all();
 
 extern char __StackLimit;
 int heapLeft() {
+#ifndef ENABLE_EMULATION
     char *p = malloc(256);   // try to avoid undue fragmentation
     int left = &__StackLimit - p;
     free(p);
+#else
+    int left = 1024*1024;
+#endif
     return left;
 }
 
