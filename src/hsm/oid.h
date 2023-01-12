@@ -18,9 +18,6 @@
 #ifndef _OID_H_
 #define _OID_H_
 
-#include <stdlib.h>
-#include "pico/stdlib.h"
-
 #define OID_BSI_DE                      "\x04\x00\x7F\x00\x07"
 
 #define OID_ECKA                        OID_BSI_DE "\x01\x01\x05"
