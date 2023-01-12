@@ -18,7 +18,9 @@
 #include <string.h>
 #include "common.h"
 #include "stdlib.h"
+#ifndef ENABLE_EMULATION
 #include "pico/stdlib.h"
+#endif
 #include "kek.h"
 #include "crypto_utils.h"
 #include "random.h"
@@ -54,14 +56,14 @@ int load_mkek(uint8_t *mkek) {
     const uint8_t *pin = NULL;
     if (pin == NULL && has_session_pin == true) {
         file_t *tf = search_by_fid(EF_MKEK, NULL, SPECIFY_EF);
-        if (tf) {
+        if (file_has_data(tf)) {
             memcpy(mkek, file_get_data(tf), MKEK_SIZE);
             pin = session_pin;
         }
     }
     if (pin == NULL && has_session_sopin == true) {
         file_t *tf = search_by_fid(EF_MKEK_SO, NULL, SPECIFY_EF);
-        if (tf) {
+        if (file_has_data(tf)) {
             memcpy(mkek, file_get_data(tf), MKEK_SIZE);
             pin = session_sopin;
         }
