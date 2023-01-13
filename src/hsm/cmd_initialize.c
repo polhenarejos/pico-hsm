@@ -169,7 +169,7 @@ int cmd_initialize() {
         if (!fdkey)
             return SW_EXEC_ERROR();
         int ret = 0;
-        if (ret_mkek != CCID_OK || file_get_size(fdkey) == 0 || file_get_data(fdkey) == NULL) {
+        if (ret_mkek != CCID_OK || !file_has_data(fdkey)) {
             mbedtls_ecdsa_context ecdsa;
             mbedtls_ecdsa_init(&ecdsa);
             mbedtls_ecp_group_id ec_id = MBEDTLS_ECP_DP_SECP256R1;

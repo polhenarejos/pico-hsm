@@ -32,7 +32,7 @@ int cmd_external_authenticate() {
     if (apdu.nc == 0)
         return SW_WRONG_LENGTH();
     file_t *ef_puk = search_by_fid(EF_PUKAUT, NULL, SPECIFY_EF);
-    if (!ef_puk || !ef_puk->data || file_get_size(ef_puk) == 0)
+    if (!file_has_data(ef_puk))
         return SW_FILE_NOT_FOUND();
     uint8_t *puk_data = file_get_data(ef_puk);
     uint8_t *input = (uint8_t *)calloc(dev_name_len+challenge_len, sizeof(uint8_t)), hash[32];

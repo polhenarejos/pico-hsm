@@ -22,7 +22,7 @@
 int cmd_puk_auth() {
     uint8_t p1 = P1(apdu), p2 = P2(apdu);
     file_t *ef_puk = search_by_fid(EF_PUKAUT, NULL, SPECIFY_EF);
-    if (!ef_puk || !ef_puk->data || file_get_size(ef_puk) == 0)
+    if (!file_has_data(ef_puk))
         return SW_FILE_NOT_FOUND();
     uint8_t *puk_data = file_get_data(ef_puk);
     if (apdu.nc > 0) {
@@ -35,7 +35,7 @@ int cmd_puk_auth() {
                     ef = search_dynamic_file(EF_PUK+i);
                     if (!ef) /* Never should not happen */
                         return SW_MEMORY_FAILURE();
-                    if (ef->data == NULL || file_get_size(ef) == 0) /* found first empty slot */
+                    if (!file_has_data(ef)) /* found first empty slot */
                         break;
                 }
                 uint8_t *tmp = (uint8_t *)calloc(file_get_size(ef_puk), sizeof(uint8_t));
@@ -64,7 +64,7 @@ int cmd_puk_auth() {
         file_t *ef = search_dynamic_file(EF_PUK+p2);
         if (!ef)
             return SW_INCORRECT_P1P2();
-        if (ef->data == NULL || file_get_size(ef) == 0)
+        if (!file_has_data(ef))
             return SW_REFERENCE_NOT_FOUND();
         size_t chr_len = 0;
         const uint8_t *chr = cvc_get_chr(file_get_data(ef), file_get_size(ef), &chr_len);

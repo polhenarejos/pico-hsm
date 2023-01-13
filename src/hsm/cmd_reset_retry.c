@@ -25,7 +25,7 @@ int cmd_reset_retry() {
     if (!file_sopin || !file_pin1) {
         return SW_FILE_NOT_FOUND();
     }
-    if (!file_sopin->data) {
+    if (!file_has_data(file_sopin)) {
         return SW_REFERENCE_NOT_FOUND();
     }
     uint16_t opts = get_device_options();

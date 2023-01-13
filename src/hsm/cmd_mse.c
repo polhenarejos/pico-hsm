@@ -54,7 +54,7 @@ int cmd_mse() {
                             file_t *ef = search_dynamic_file(EF_PUK+i);
                             if (!ef)
                                 break;
-                            if (ef->data == NULL || file_get_size(ef) == 0)
+                            if (!file_has_data(ef))
                                 break;
                             size_t chr_len = 0;
                             const uint8_t *chr = cvc_get_chr(file_get_data(ef), file_get_size(ef), &chr_len);

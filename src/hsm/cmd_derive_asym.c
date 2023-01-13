@@ -43,7 +43,7 @@ int cmd_derive_asym() {
     file_t *fkey;
     if (!isUserAuthenticated)
         return SW_SECURITY_STATUS_NOT_SATISFIED();
-    if (!(fkey = search_dynamic_file((KEY_PREFIX << 8) | key_id)) || !fkey->data || file_get_size(fkey) == 0)
+    if (!(fkey = search_dynamic_file((KEY_PREFIX << 8) | key_id)) || !file_has_data(fkey))
         return SW_FILE_NOT_FOUND();
     if (key_has_purpose(fkey, ALGO_EC_DERIVE) == false)
         return SW_CONDITIONS_NOT_SATISFIED();
