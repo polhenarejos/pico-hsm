@@ -178,7 +178,7 @@ size_t asn1_cvc_cert(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf
     if (key_type == HSM_KEY_RSA)
         key_size = mbedtls_mpi_size(&((mbedtls_rsa_context *)rsa_ecdsa)->N);
     else if (key_type == HSM_KEY_EC)
-        key_size = 2*mbedtls_mpi_size(&((mbedtls_ecdsa_context *)rsa_ecdsa)->d);
+        key_size = 2*(int)((mbedtls_ecp_curve_info_from_grp_id(((mbedtls_ecdsa_context *)rsa_ecdsa)->grp.id)->bit_size + 7)/8);
     size_t body_size = asn1_cvc_cert_body(rsa_ecdsa, key_type, NULL, 0, ext, ext_len), sig_size = asn1_len_tag(0x5f37, key_size);
     size_t tot_len = asn1_len_tag(0x7f21, body_size+sig_size);
     if (buf_len == 0 || buf == NULL)
@@ -207,8 +207,8 @@ size_t asn1_cvc_cert(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, size_t buf
         mbedtls_mpi_init(&s);
         ret = mbedtls_ecdsa_sign(&ecdsa->grp, &r, &s, &ecdsa->d, hsh, sizeof(hsh), random_gen, NULL);
         if (ret == 0) {
-            mbedtls_mpi_write_binary(&r, p, mbedtls_mpi_size(&r)); p += mbedtls_mpi_size(&r);
-            mbedtls_mpi_write_binary(&s, p, mbedtls_mpi_size(&s)); p += mbedtls_mpi_size(&s);
+            mbedtls_mpi_write_binary(&r, p, key_size/2); p += key_size/2;
+            mbedtls_mpi_write_binary(&s, p, key_size/2); p += key_size/2;
         }
         else {
             memset(p, 0, key_size);
