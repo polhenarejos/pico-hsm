@@ -52,5 +52,5 @@ extern int cvc_verify(const uint8_t *cert, size_t cert_len, const uint8_t *ca, s
 extern mbedtls_ecp_group_id cvc_inherite_ec_group(const uint8_t *ca, size_t ca_len);
 extern int puk_verify(const uint8_t *sig, size_t sig_len, const uint8_t *hash, size_t hash_len, const uint8_t *ca, size_t ca_len);
 extern size_t asn1_build_prkd_ecc(const uint8_t *label, size_t label_len, const uint8_t *keyid, size_t keyid_len, size_t keysize, uint8_t *buf, size_t buf_len);
-
+extern size_t asn1_build_prkd_rsa(const uint8_t *label, size_t label_len, const uint8_t *keyid, size_t keyid_len, size_t keysize, uint8_t *buf, size_t buf_len);
 #endif
