@@ -63,10 +63,12 @@ const uint8_t *pointA[] = {
 };
 
 size_t asn1_cvc_public_key_ecdsa(mbedtls_ecdsa_context *ecdsa, uint8_t *buf, size_t buf_len) {
+    uint8_t Y_buf[MBEDTLS_ECP_MAX_PT_LEN];
     const uint8_t oid_ecdsa[] = { 0x04, 0x00, 0x7F, 0x00, 0x07, 0x02, 0x02, 0x02, 0x02, 0x03 };
     size_t p_size = mbedtls_mpi_size(&ecdsa->grp.P), a_size = mbedtls_mpi_size(&ecdsa->grp.A);
     size_t b_size = mbedtls_mpi_size(&ecdsa->grp.B), g_size = 1+mbedtls_mpi_size(&ecdsa->grp.G.X)+mbedtls_mpi_size(&ecdsa->grp.G.X);
-    size_t o_size = mbedtls_mpi_size(&ecdsa->grp.N), y_size = 1+mbedtls_mpi_size(&ecdsa->Q.X)+mbedtls_mpi_size(&ecdsa->Q.X);
+    size_t o_size = mbedtls_mpi_size(&ecdsa->grp.N), y_size = 0;
+    mbedtls_ecp_point_write_binary(&ecdsa->grp, &ecdsa->Q, MBEDTLS_ECP_PF_UNCOMPRESSED, &y_size, Y_buf, sizeof(Y_buf));
     size_t c_size = 1;
     size_t ptot_size = asn1_len_tag(0x81, p_size), atot_size = asn1_len_tag(0x82, a_size ? a_size : (pointA[ecdsa->grp.id] && ecdsa->grp.id < 6 ? p_size : 1));
     size_t btot_size = asn1_len_tag(0x83, b_size), gtot_size = asn1_len_tag(0x84, g_size);
@@ -106,8 +108,7 @@ size_t asn1_cvc_public_key_ecdsa(mbedtls_ecdsa_context *ecdsa, uint8_t *buf, siz
     //order
     *p++ = 0x85; p += format_tlv_len(o_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.N, p, o_size); p += o_size;
     //Y
-    size_t y_new_size = 0;
-    *p++ = 0x86; p += format_tlv_len(y_size, p); mbedtls_ecp_point_write_binary(&ecdsa->grp, &ecdsa->Q, MBEDTLS_ECP_PF_UNCOMPRESSED, &y_new_size, p, y_size); p += y_size;
+    *p++ = 0x86; p += format_tlv_len(y_size, p); memcpy(p, Y_buf, y_size); p += y_size;
     //cofactor
     *p++ = 0x87; p += format_tlv_len(c_size, p);
     if (ecdsa->grp.id == MBEDTLS_ECP_DP_CURVE448)
@@ -312,9 +313,9 @@ size_t asn1_build_cert_description(const uint8_t *label, size_t label_len, const
     return p-buf;
 }
 
-size_t asn1_build_prkd_ecc(const uint8_t *label, size_t label_len, const uint8_t *keyid, size_t keyid_len, size_t keysize, uint8_t *buf, size_t buf_len) {
+size_t asn1_build_prkd_generic(const uint8_t *label, size_t label_len, const uint8_t *keyid, size_t keyid_len, size_t keysize, const uint8_t *seq, size_t seq_len, uint8_t *buf, size_t buf_len) {
     size_t seq1_size = asn1_len_tag(0x30, asn1_len_tag(0xC, label_len));
-    size_t seq2_size = asn1_len_tag(0x30, asn1_len_tag(0x4, keyid_len)+asn1_len_tag(0x3, 3));
+    size_t seq2_size = asn1_len_tag(0x30, asn1_len_tag(0x4, keyid_len)+asn1_len_tag(0x3, seq_len));
     size_t seq3_size = asn1_len_tag(0xA1, asn1_len_tag(0x30, asn1_len_tag(0x30, asn1_len_tag(0x4, 0))+asn1_len_tag(0x2,2)));
     size_t tot_len = asn1_len_tag(0xA0, seq1_size+seq2_size+seq3_size);
     if (buf_len == 0 || buf == NULL)
@@ -333,13 +334,13 @@ size_t asn1_build_prkd_ecc(const uint8_t *label, size_t label_len, const uint8_t
 
     //Seq 2
     *p++ = 0x30;
-    p += format_tlv_len(asn1_len_tag(0x4, keyid_len)+asn1_len_tag(0x3, 3), p);
+    p += format_tlv_len(asn1_len_tag(0x4, keyid_len)+asn1_len_tag(0x3, seq_len), p);
     *p++ = 0x4;
     p += format_tlv_len(keyid_len, p);
     memcpy(p, keyid, keyid_len); p += keyid_len;
     *p++ = 0x3;
-    p += format_tlv_len(3, p);
-    memcpy(p, "\x07\x20\x80", 3); p += 3;
+    p += format_tlv_len(seq_len, p);
+    memcpy(p, seq, seq_len); p += seq_len;
 
     //Seq 3
     *p++ = 0xA1;
@@ -355,6 +356,14 @@ size_t asn1_build_prkd_ecc(const uint8_t *label, size_t label_len, const uint8_t
     *p++ = (keysize >> 8) & 0xff;
     *p++ = keysize & 0xff;
     return p-buf;
+}
+
+size_t asn1_build_prkd_ecc(const uint8_t *label, size_t label_len, const uint8_t *keyid, size_t keyid_len, size_t keysize, uint8_t *buf, size_t buf_len) {
+    return asn1_build_prkd_generic(label, label_len, keyid, keyid_len, keysize, (const uint8_t *)"\x07\x20\x80", 3, buf, buf_len);
+}
+
+size_t asn1_build_prkd_rsa(const uint8_t *label, size_t label_len, const uint8_t *keyid, size_t keyid_len, size_t keysize, uint8_t *buf, size_t buf_len) {
+    return asn1_build_prkd_generic(label, label_len, keyid, keyid_len, keysize, (const uint8_t *)"\x02\x74", 2, buf, buf_len);
 }
 
 const uint8_t *cvc_get_field(const uint8_t *data, size_t len, size_t *olen, uint16_t tag) {
