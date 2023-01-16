@@ -107,7 +107,11 @@ int cmd_signature() {
         md = MBEDTLS_MD_SHA256;
     else if (p2 == ALGO_EC_SHA224)
         md = MBEDTLS_MD_SHA224;
-    if (p2 == ALGO_RSA_PKCS1_SHA1 || p2 == ALGO_RSA_PSS_SHA1 || p2 == ALGO_EC_SHA1 || p2 == ALGO_RSA_PKCS1_SHA256 || p2 == ALGO_RSA_PSS_SHA256 || p2 == ALGO_EC_SHA256 || p2 == ALGO_EC_SHA224) {
+    else if (p2 == ALGO_EC_SHA384)
+        md = MBEDTLS_MD_SHA384;
+    else if (p2 == ALGO_EC_SHA512)
+        md = MBEDTLS_MD_SHA512;
+    if (p2 == ALGO_RSA_PKCS1_SHA1 || p2 == ALGO_RSA_PSS_SHA1 || p2 == ALGO_EC_SHA1 || p2 == ALGO_RSA_PKCS1_SHA256 || p2 == ALGO_RSA_PSS_SHA256 || p2 == ALGO_EC_SHA256 || p2 == ALGO_EC_SHA224 || p2 == ALGO_EC_SHA384 || p2 == ALGO_EC_SHA512) {
         generic_hash(md, apdu.data, apdu.nc, apdu.data);
         apdu.nc = mbedtls_md_get_size(mbedtls_md_info_from_type(md));
     }
@@ -216,8 +220,7 @@ int cmd_signature() {
             md = MBEDTLS_MD_SHA384;
         else if (p2 == ALGO_EC_SHA512)
             md = MBEDTLS_MD_SHA512;
-        int r;
-        r = load_private_key_ecdsa(&ctx, fkey);
+        int r = load_private_key_ecdsa(&ctx, fkey);
         if (r != CCID_OK) {
             mbedtls_ecdsa_free(&ctx);
             if (r == CCID_VERIFICATION_FAILED)
