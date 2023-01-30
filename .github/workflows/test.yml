@@ -26,8 +26,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
-    - name: build
+    - name: Checkout repository and submodules
+      uses: actions/checkout@v3
+      with:
+        submodules: recursive
+    - name: Build in container
       run: ./tests/build-in-docker.sh
-    - name: run and test
+    - name: Start emulation and test
       run: ./tests/run-test-in-docker.sh
