@@ -95,7 +95,7 @@ run_in_docker()
         shift 2
     fi
 
-    ${DOCKER} container run -it --rm \
+    ${DOCKER} container run --rm \
         --cap-add SYS_PTRACE \
         --volume $PWD:$PWD \
         --workdir ${WORKDIR} \
