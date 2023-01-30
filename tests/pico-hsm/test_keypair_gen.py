@@ -24,6 +24,7 @@ from utils import KeyType, DOPrefixes
     "curve", ['secp192r1', 'secp256r1', 'secp384r1', 'secp521r1', 'brainpoolP256r1', 'brainpoolP384r1', 'brainpoolP512r1', 'secp192k1', 'secp256k1']
 )
 def test_gen_ecc(device, curve):
+    device.initialize(retries=3)
     keyid = device.keypair_generation(KeyType.ECC, curve)
     resp = device.list_keys()
     assert((DOPrefixes.KEY_PREFIX.value, keyid) in resp)
@@ -33,6 +34,7 @@ def test_gen_ecc(device, curve):
     "modulus", [1024, 2048, 4096]
 )
 def test_gen_rsa(device, modulus):
+    device.initialize(retries=3)
     keyid = device.keypair_generation(KeyType.RSA, modulus)
     resp = device.list_keys()
     assert((DOPrefixes.KEY_PREFIX.value, keyid) in resp)
