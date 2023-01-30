@@ -89,9 +89,15 @@ target_compile_options(pico_hsm PUBLIC
         -fdata-sections
         -ffunction-sections
         )
-        target_link_options(pico_hsm PUBLIC
+if(APPLE)
+target_link_options(pico_hsm PUBLIC
         -Wl,-dead_strip
         )
+else()
+target_link_options(pico_hsm PUBLIC
+        -Wl,--gc-sections
+        )
+endif (APPLE)
 else()
 pico_add_extra_outputs(pico_hsm)
 
