@@ -33,10 +33,17 @@ int cmd_list_keys()
     //first CC
     for (int i = 0; i < dynamic_files; i++) {
         file_t *f = &dynamic_file[i];
-        if ((f->fid & 0xff00) == (PRKD_PREFIX << 8)) {
-            res_APDU[res_APDU_size++] = PRKD_PREFIX;
-            res_APDU[res_APDU_size++] = f->fid & 0xff;
+        if ((f->fid & 0xff00) == (KEY_PREFIX << 8))
+        {
             res_APDU[res_APDU_size++] = KEY_PREFIX;
+            res_APDU[res_APDU_size++] = f->fid & 0xff;
+        }
+    }
+    for (int i = 0; i < dynamic_files; i++) {
+        file_t *f = &dynamic_file[i];
+        if ((f->fid & 0xff00) == (PRKD_PREFIX << 8))
+        {
+            res_APDU[res_APDU_size++] = PRKD_PREFIX;
             res_APDU[res_APDU_size++] = f->fid & 0xff;
         }
     }
