@@ -42,7 +42,7 @@ int cmd_decrypt_asym() {
         mbedtls_rsa_context ctx;
         mbedtls_rsa_init(&ctx);
         if (p2 == ALGO_RSA_DECRYPT_OEP)
-            mbedtls_rsa_set_padding(&ctx, MBEDTLS_RSA_PKCS_V21, MBEDTLS_MD_NONE);
+            mbedtls_rsa_set_padding(&ctx, MBEDTLS_RSA_PKCS_V21, MBEDTLS_MD_SHA256);
         int r = load_private_key_rsa(&ctx, ef);
         if (r != CCID_OK) {
             mbedtls_rsa_free(&ctx);
