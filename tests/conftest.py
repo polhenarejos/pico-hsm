@@ -2,7 +2,7 @@
 import sys
 import pytest
 from binascii import hexlify
-from utils import APDUResponse, DOPrefixes, KeyType, Algorithm
+from utils import APDUResponse, DOPrefixes, KeyType, Algorithm, Padding
 import hashlib
 
 try:
@@ -239,6 +239,16 @@ class Device:
                     salt_length=padding.PSS.AUTO
                 )
             return pubkey.verify(signature, data, padd, hsh)
+
+    def decrypt(self, keyid, data, pad):
+        if (isinstance(pad, padding.OAEP)):
+            p2 = Padding.OAEP.value
+        elif (isinstance(pad, padding.PKCS1v15)):
+            p2 = Padding.PKCS.value
+        else:
+            p2 = Padding.RAW.value
+        resp = self.send(command=0x62, p1=keyid, p2=p2, data=list(data))
+        return bytes(resp)
 
 @pytest.fixture(scope="session")
 def device():
