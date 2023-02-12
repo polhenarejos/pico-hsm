@@ -26,7 +26,7 @@ data = b'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam neque u
 
 
 @pytest.mark.parametrize(
-    "curve", ['secp192r1', 'secp256r1', 'secp384r1', 'secp521r1',]
+    "curve", ['secp192r1', 'secp256r1', 'secp384r1', 'secp521r1', 'brainpoolP256r1', 'brainpoolP384r1', 'brainpoolP512r1', 'secp256k1']
 )
 @pytest.mark.parametrize(
     "scheme", [Algorithm.ALGO_EC_RAW, Algorithm.ALGO_EC_SHA1, Algorithm.ALGO_EC_SHA224, Algorithm.ALGO_EC_SHA256, Algorithm.ALGO_EC_SHA384, Algorithm.ALGO_EC_SHA512]
@@ -43,7 +43,7 @@ def test_signature_ecc(device, curve, scheme):
     device.verify(pubkey, datab, signature, scheme)
 
 @pytest.mark.parametrize(
-    "modulus", [1024,2048]
+    "modulus", [1024,2048,4096]
 )
 @pytest.mark.parametrize(
     "scheme", [Algorithm.ALGO_RSA_PKCS1_SHA1, Algorithm.ALGO_RSA_PKCS1_SHA224, Algorithm.ALGO_RSA_PKCS1_SHA256, Algorithm.ALGO_RSA_PKCS1_SHA384, Algorithm.ALGO_RSA_PKCS1_SHA512, Algorithm.ALGO_RSA_PSS_SHA1, Algorithm.ALGO_RSA_PSS_SHA224, Algorithm.ALGO_RSA_PSS_SHA256, Algorithm.ALGO_RSA_PSS_SHA384, Algorithm.ALGO_RSA_PSS_SHA512]
