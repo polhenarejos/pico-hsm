@@ -123,3 +123,6 @@ class Padding(Enum):
     RAW =       0x21
     PKCS =      0x22
     OAEP =       0x23
+
+def int_to_bytes(x, length=None, byteorder='big'):
+    return x.to_bytes(length or (x.bit_length() + 7) // 8, byteorder=byteorder)

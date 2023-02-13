@@ -1,8 +1,28 @@
+"""
+/*
+ * This file is part of the Pico HSM distribution (https://github.com/polhenarejos/pico-hsm).
+ * Copyright (c) 2022 Pol Henarejos.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, version 3.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+"""
 
 import sys
 import pytest
+import os
 from binascii import hexlify
-from utils import APDUResponse, DOPrefixes, KeyType, Algorithm, Padding
+from utils import APDUResponse, DOPrefixes, KeyType, Algorithm, Padding, int_to_bytes
+from const import *
 import hashlib
 
 try:
@@ -24,13 +44,13 @@ except ModuleNotFoundError:
 
 try:
     from cryptography.hazmat.primitives.asymmetric import ec, rsa, utils, padding
-    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+    from cryptography.hazmat.primitives import hashes, cmac
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
     from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
-    from cryptography.hazmat.primitives.ciphers.aead import ChaCha20Poly1305
-    from cryptography.hazmat.primitives import hashes, serialization
 except ModuleNotFoundError:
     print('ERROR: cryptography module not found! Install cryptography package.\nTry with `pip install cryptography`')
     sys.exit(-1)
+
 
 class Device:
     class EcDummy:
@@ -104,7 +124,7 @@ class Device:
                 return e.sw2 & 0x0F
             raise e
 
-    def initialize(self, pin='648219', sopin='57621880', options=None, retries=3, dkek_shares=None, puk_auts=None, puk_min_auts=None, key_domains=None):
+    def initialize(self, pin=DEFAULT_PIN, sopin=DEFAULT_SOPIN, options=None, retries=DEFAULT_RETRIES, dkek_shares=None, puk_auts=None, puk_min_auts=None, key_domains=None):
         if (retries is not None and not 0 < retries <= 10):
             raise ValueError('Retries must be in the range (0,10]')
         if (dkek_shares is not None and not 0 <= dkek_shares <= 10):
@@ -183,8 +203,8 @@ class Device:
     def delete_file(self, fid):
         self.send(command=0xE4, data=[fid >> 8, fid & 0xff])
 
-    def public_key(self, type, keyid, param=None):
-        response = self.send(command=0xB1, p1=0xCE, p2=keyid, data=[0x54, 0x02, 0x00, 0x00])
+    def public_key(self, keyid, param=None):
+        response = self.send(command=0xB1, p1=DOPrefixes.EE_CERTIFICATE_PREFIX.value, p2=keyid, data=[0x54, 0x02, 0x00, 0x00])
 
         cert = bytearray(response)
         roid = CVC().decode(cert).pubkey().oid()
@@ -249,6 +269,75 @@ class Device:
             p2 = Padding.RAW.value
         resp = self.send(command=0x62, p1=keyid, p2=p2, data=list(data))
         return bytes(resp)
+
+    def import_dkek(self, dkek):
+        resp = self.send(cla=0x80, command=0x52, p1=0x0, p2=0x0, data=dkek)
+        return resp
+
+    def import_key(self, pkey, dkek=None):
+        data = b''
+        kcv = hashlib.sha256(dkek or b'\x00'*32).digest()[:8]
+        kenc = hashlib.sha256((dkek or b'\x00'*32) + b'\x00\x00\x00\x01').digest()
+        kmac = hashlib.sha256((dkek or b'\x00'*32) + b'\x00\x00\x00\x02').digest()
+        data += kcv
+        pubnum = pkey.public_key().public_numbers()
+        if (isinstance(pkey, rsa.RSAPrivateKey)):
+            data += b'\x05'
+            algo = b'\x00\x0A\x04\x00\x7F\x00\x07\x02\x02\x02\x01\x02'
+        elif (isinstance(pkey, ec.EllipticCurvePrivateKey)):
+            data += b'\x0C'
+            algo = b'\x00\x0A\x04\x00\x7F\x00\x07\x02\x02\x02\x02\x03'
+
+        data += algo
+        data += b'\x00'*6
+
+        kb = os.urandom(8)
+        if (isinstance(pkey, rsa.RSAPrivateKey)):
+            kb += int_to_bytes(pkey.key_size, length=2)
+            pnum = pkey.private_numbers()
+            kb += int_to_bytes((pnum.d.bit_length()+7)//8, length=2)
+            kb += int_to_bytes(pnum.d)
+            kb += int_to_bytes((pubnum.n.bit_length()+7)//8, length=2)
+            kb += int_to_bytes(pubnum.n)
+            kb += int_to_bytes((pubnum.e.bit_length()+7)//8, length=2)
+            kb += int_to_bytes(pubnum.e)
+        elif (isinstance(pkey, ec.EllipticCurvePrivateKey)):
+            curve = ec_domain(pkey.curve)
+            kb += int_to_bytes(len(curve.P)*8, length=2)
+            kb += int_to_bytes(len(curve.A), length=2)
+            kb += curve.A
+            kb += int_to_bytes(len(curve.B), length=2)
+            kb += curve.B
+            kb += int_to_bytes(len(curve.P), length=2)
+            kb += curve.P
+            kb += int_to_bytes(len(curve.O), length=2)
+            kb += curve.O
+            kb += int_to_bytes(len(curve.G), length=2)
+            kb += curve.G
+            kb += int_to_bytes((pkey.private_numbers().private_value.bit_length()+7)//8, length=2)
+            kb += int_to_bytes(pkey.private_numbers().private_value)
+            p = pkey.public_key().public_bytes(Encoding.X962, PublicFormat.UncompressedPoint)
+            kb += int_to_bytes(len(p), length=2)
+            kb += p
+
+        kb_len_pad = (len(kb)//16)*16
+        if (len(kb) % 16 > 0):
+            kb_len_pad = (len(kb)//16 + 1)*16
+        if (len(kb) < kb_len_pad):
+            kb += b'\x80'
+            kb += b'\x00' * (kb_len_pad-len(kb))
+        cipher = Cipher(algorithms.AES(kenc), modes.CBC(b'\x00'*16))
+        encryptor = cipher.encryptor()
+        ct = encryptor.update(kb) + encryptor.finalize()
+        data += ct
+        c = cmac.CMAC(algorithms.AES(kmac))
+        c.update(data)
+        data += c.finalize()
+
+        p1 = self.get_first_free_id()
+        resp = self.send(cla=0x80, command=0x74, p1=p1, p2=0x93, data=data)
+        return p1
+
 
 @pytest.fixture(scope="session")
 def device():
