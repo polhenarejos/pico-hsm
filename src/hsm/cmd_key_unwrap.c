@@ -18,6 +18,7 @@
 #include "crypto_utils.h"
 #include "sc_hsm.h"
 #include "kek.h"
+#include "cvc.h"
 
 int cmd_key_unwrap() {
     int key_id = P1(apdu), r = 0;
@@ -35,12 +36,16 @@ int cmd_key_unwrap() {
         mbedtls_rsa_init(&ctx);
         do {
             r = dkek_decode_key(++kdom, &ctx, apdu.data, apdu.nc, NULL, &allowed, &allowed_len);
-        } while((r == CCID_ERR_FILE_NOT_FOUND || r == CCID_WRONG_DKEK) && kdom < MAX_KEY_DOMAINS);
+        } while ((r == CCID_ERR_FILE_NOT_FOUND || r == CCID_WRONG_DKEK) && kdom < MAX_KEY_DOMAINS);
         if (r != CCID_OK) {
             mbedtls_rsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
         r = store_keys(&ctx, HSM_KEY_RSA, key_id);
+        if ((res_APDU_size = asn1_cvc_aut(&ctx, HSM_KEY_RSA, res_APDU, 4096, NULL, 0)) == 0) {
+            mbedtls_rsa_free(&ctx);
+            return SW_EXEC_ERROR();
+        }
         mbedtls_rsa_free(&ctx);
         if (r != CCID_OK) {
             return SW_EXEC_ERROR();
@@ -57,6 +62,10 @@ int cmd_key_unwrap() {
             return SW_EXEC_ERROR();
         }
         r = store_keys(&ctx, HSM_KEY_EC, key_id);
+        if ((res_APDU_size = asn1_cvc_aut(&ctx, HSM_KEY_EC, res_APDU, 4096, NULL, 0)) == 0) {
+            mbedtls_ecdsa_free(&ctx);
+            return SW_EXEC_ERROR();
+        }
         mbedtls_ecdsa_free(&ctx);
         if (r != CCID_OK) {
             return SW_EXEC_ERROR();
@@ -101,6 +110,14 @@ int cmd_key_unwrap() {
         free(meta);
         if (r != CCID_OK)
             return r;
+    }
+    if (res_APDU_size > 0) {
+        file_t *fpk = file_new((EE_CERTIFICATE_PREFIX << 8) | key_id);
+        r = flash_write_data_to_file(fpk, res_APDU, res_APDU_size);
+        if (r != 0)
+            return SW_EXEC_ERROR();
+        low_flash_available();
+        res_APDU_size = 0;
     }
     return SW_OK();
 }
