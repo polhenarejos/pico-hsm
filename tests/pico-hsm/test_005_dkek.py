@@ -18,31 +18,20 @@
 """
 
 import pytest
+import hashlib
 from utils import APDUResponse, SWCodes
+from const import DEFAULT_PIN, DEFAULT_RETRIES, DEFAULT_DKEK, DEFAULT_DKEK_SHARES
 
-PIN = '648219'
+def test_dkek(device):
+    device.initialize(retries=DEFAULT_RETRIES, dkek_shares=DEFAULT_DKEK_SHARES)
+    device.login(DEFAULT_PIN)
+    resp = device.import_dkek(DEFAULT_DKEK)
+    assert(resp[0] == DEFAULT_DKEK_SHARES)
+    assert(resp[1] == DEFAULT_DKEK_SHARES-1)
 
-def test_pin(device):
-    device.initialize(retries=3)
-    retries = device.get_login_retries()
-    assert(retries == 3)
+    resp = device.import_dkek(DEFAULT_DKEK)
+    assert(resp[1] == DEFAULT_DKEK_SHARES-2)
 
-    device.login(PIN)
-
-    with pytest.raises(APDUResponse) as e:
-        device.login('112233')
-    assert(e.value.sw1 == 0x63 and e.value.sw2 == 0xC2)
-
-    with pytest.raises(APDUResponse) as e:
-        device.login('112233')
-    assert(e.value.sw1 == 0x63 and e.value.sw2 == 0xC1)
-
-    with pytest.raises(APDUResponse) as e:
-        device.login('112233')
-    assert(e.value.sw == SWCodes.SW_PIN_BLOCKED.value)
-
-    device.initialize(retries=3)
-    retries = device.get_login_retries()
-    assert(retries == 3)
-
+    kcv = hashlib.sha256(b'\x00'*32).digest()[:8]
+    assert(bytes(resp[2:]) == kcv)
 

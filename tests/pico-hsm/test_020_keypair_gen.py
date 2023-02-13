@@ -29,6 +29,7 @@ def test_gen_ecc(device, curve):
     resp = device.list_keys()
     assert((DOPrefixes.KEY_PREFIX.value, keyid) in resp)
     device.delete_file(DOPrefixes.KEY_PREFIX.value << 8 | keyid)
+    device.delete_file(DOPrefixes.EE_CERTIFICATE_PREFIX.value << 8 | keyid)
 
 @pytest.mark.parametrize(
     "modulus", [1024, 2048, 4096]
@@ -39,4 +40,5 @@ def test_gen_rsa(device, modulus):
     resp = device.list_keys()
     assert((DOPrefixes.KEY_PREFIX.value, keyid) in resp)
     device.delete_file(DOPrefixes.KEY_PREFIX.value << 8 | keyid)
+    device.delete_file(DOPrefixes.EE_CERTIFICATE_PREFIX.value << 8 | keyid)
 

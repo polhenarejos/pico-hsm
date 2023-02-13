@@ -33,7 +33,7 @@ data = b'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam neque u
 )
 def test_signature_ecc(device, curve, scheme):
     keyid = device.keypair_generation(KeyType.ECC, curve)
-    pubkey = device.public_key(type=KeyType.ECC, keyid=keyid, param=curve)
+    pubkey = device.public_key(keyid=keyid, param=curve)
     if (scheme == Algorithm.ALGO_EC_RAW):
         datab = hashlib.sha512(data).digest()
     else:
@@ -50,7 +50,7 @@ def test_signature_ecc(device, curve, scheme):
 )
 def test_signature_rsa(device, modulus, scheme):
     keyid = device.keypair_generation(KeyType.RSA, modulus)
-    pubkey = device.public_key(type=KeyType.RSA, keyid=keyid)
+    pubkey = device.public_key(keyid=keyid)
     signature = device.sign(keyid=keyid, scheme=scheme, data=data)
     device.delete_file(DOPrefixes.KEY_PREFIX.value << 8 | keyid)
     device.verify(pubkey, data, signature, scheme)
