@@ -589,6 +589,12 @@ int dkek_decode_key(uint8_t id, void *key_ctx, const uint8_t *in, size_t in_len,
             mbedtls_ecdsa_free(ecdsa);
             return CCID_EXEC_ERROR;
         }
+
+        r = mbedtls_ecp_mul(&ecdsa->grp, &ecdsa->Q, &ecdsa->d, &ecdsa->grp.G, random_gen, NULL);
+        if (r != 0) {
+            mbedtls_ecdsa_free(ecdsa);
+            return CCID_EXEC_ERROR;
+        }
     }
     else if (key_type == 15) {
         memcpy(key_ctx, kb+ofs, key_size);
