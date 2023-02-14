@@ -118,14 +118,13 @@ int cmd_decrypt_asym() {
             return SW_DATA_INVALID();
         }
         size_t olen = 0;
-        res_APDU[0] = 0x04;
-        r = mbedtls_ecdh_calc_secret(&ctx, &olen, res_APDU+1, MBEDTLS_ECP_MAX_BYTES, random_gen, NULL);
+        r = mbedtls_ecdh_calc_secret(&ctx, &olen, res_APDU, MBEDTLS_ECP_MAX_BYTES, random_gen, NULL);
         mbedtls_ecdh_free(&ctx);
         if (r != 0) {
             return SW_EXEC_ERROR();
         }
         if (p2 == ALGO_EC_DH)
-            res_APDU_size = olen+1;
+            res_APDU_size = olen;
         else {
             res_APDU_size = 0;
             size_t ext_len = 0;
@@ -153,7 +152,7 @@ int cmd_decrypt_asym() {
                 if (tf) {
                     if (file_get_size(tf) == kdom_uid_len && memcmp(file_get_data(tf), kdom_uid, kdom_uid_len) == 0) {
                         file_new(EF_DKEK+n);
-                        if (store_dkek_key(n, res_APDU+1) != CCID_OK)
+                        if (store_dkek_key(n, res_APDU) != CCID_OK)
                             return SW_EXEC_ERROR();
                         return SW_OK();
                     }
