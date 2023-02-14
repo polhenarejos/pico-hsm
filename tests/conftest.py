@@ -81,6 +81,8 @@ class Device:
         if (data):
             lc = [0x00] + list(len(data).to_bytes(2, 'big'))
             dataf = list(data)
+        else:
+            lc = [0x00*3]
         if (ne is None):
             le = [0x00, 0x00]
         else:
@@ -397,6 +399,9 @@ class Device:
 
     def delete_key_domain(self, key_domain=0):
         self.send(cla=0x80, command=0x52, p1=0x3, p2=key_domain, codes=[0x6A88])
+
+    def get_challenge(self, length):
+        return self.send(cla=0x80, command=0x84, ne=length)
 
 
 @pytest.fixture(scope="session")
