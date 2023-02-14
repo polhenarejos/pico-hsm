@@ -335,8 +335,12 @@ class Device:
         data += c.finalize()
 
         p1 = self.get_first_free_id()
-        resp = self.send(cla=0x80, command=0x74, p1=p1, p2=0x93, data=data)
+        _ = self.send(cla=0x80, command=0x74, p1=p1, p2=0x93, data=data)
         return p1
+
+    def exchange(self, keyid, pubkey):
+        resp = self.send(cla=0x80, command=0x62, p1=keyid, p2=Algorithm.ALGO_EC_DH.value, data=pubkey.public_bytes(Encoding.X962, PublicFormat.UncompressedPoint))
+        return resp
 
 
 @pytest.fixture(scope="session")

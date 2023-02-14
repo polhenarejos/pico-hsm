@@ -101,6 +101,7 @@ class Algorithm(Enum):
     ALGO_EC_SHA256          = 0x73
     ALGO_EC_SHA384          = 0x74
     ALGO_EC_SHA512          = 0x75
+    ALGO_EC_DH              = 0x80
 
     ALGO_RSA_RAW            = 0x20
     ALGO_RSA_DECRYPT        = 0x21
