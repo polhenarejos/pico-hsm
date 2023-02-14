@@ -111,6 +111,8 @@ int cmd_key_domain() {
                 return SW_EXEC_ERROR();
         }
         low_flash_available();
+        if (p1 == 0x3)
+            return SW_REFERENCE_NOT_FOUND();
     }
     else if (p1 == 0x2) { //XKEK Key Domain creation
         if (apdu.nc > 0) {
