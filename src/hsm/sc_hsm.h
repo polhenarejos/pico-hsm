@@ -31,31 +31,31 @@
 
 extern const uint8_t sc_hsm_aid[];
 
-#define ALGO_RSA_RAW			0x20		/* RSA signature with external padding */
-#define ALGO_RSA_DECRYPT		0x21		/* RSA raw decrypt */
+#define ALGO_RSA_RAW            0x20        /* RSA signature with external padding */
+#define ALGO_RSA_DECRYPT        0x21        /* RSA raw decrypt */
 #define ALGO_RSA_DECRYPT_PKCS1  0x22
 #define ALGO_RSA_DECRYPT_OEP    0x23
-#define ALGO_RSA_PKCS1			0x30		/* RSA signature with DigestInfo input and PKCS#1 V1.5 padding */
-#define ALGO_RSA_PKCS1_SHA1		0x31		/* RSA signature with SHA-1 hash and PKCS#1 V1.5 padding */
+#define ALGO_RSA_PKCS1          0x30        /* RSA signature with DigestInfo input and PKCS#1 V1.5 padding */
+#define ALGO_RSA_PKCS1_SHA1     0x31        /* RSA signature with SHA-1 hash and PKCS#1 V1.5 padding */
 #define ALGO_RSA_PKCS1_SHA224   0x32
-#define ALGO_RSA_PKCS1_SHA256	0x33		/* RSA signature with SHA-256 hash and PKCS#1 V1.5 padding */
+#define ALGO_RSA_PKCS1_SHA256   0x33        /* RSA signature with SHA-256 hash and PKCS#1 V1.5 padding */
 #define ALGO_RSA_PKCS1_SHA384   0x34
 #define ALGO_RSA_PKCS1_SHA512   0x35
 
-#define ALGO_RSA_PSS			0x40		/* RSA signature with external hash and PKCS#1 PSS padding*/
-#define ALGO_RSA_PSS_SHA1		0x41		/* RSA signature with SHA-1 hash and PKCS#1 PSS padding */
+#define ALGO_RSA_PSS            0x40        /* RSA signature with external hash and PKCS#1 PSS padding*/
+#define ALGO_RSA_PSS_SHA1       0x41        /* RSA signature with SHA-1 hash and PKCS#1 PSS padding */
 #define ALGO_RSA_PSS_SHA224     0x42
-#define ALGO_RSA_PSS_SHA256		0x43		/* RSA signature with SHA-256 hash and PKCS#1 PSS padding */
+#define ALGO_RSA_PSS_SHA256     0x43        /* RSA signature with SHA-256 hash and PKCS#1 PSS padding */
 #define ALGO_RSA_PSS_SHA384     0x44
 #define ALGO_RSA_PSS_SHA512     0x45
 
-#define ALGO_EC_RAW				0x70		/* ECDSA signature with hash input */
-#define ALGO_EC_SHA1			0x71		/* ECDSA signature with SHA-1 hash */
-#define ALGO_EC_SHA224			0x72		/* ECDSA signature with SHA-224 hash */
-#define ALGO_EC_SHA256			0x73		/* ECDSA signature with SHA-256 hash */
+#define ALGO_EC_RAW             0x70        /* ECDSA signature with hash input */
+#define ALGO_EC_SHA1            0x71        /* ECDSA signature with SHA-1 hash */
+#define ALGO_EC_SHA224          0x72        /* ECDSA signature with SHA-224 hash */
+#define ALGO_EC_SHA256          0x73        /* ECDSA signature with SHA-256 hash */
 #define ALGO_EC_SHA384          0x74
 #define ALGO_EC_SHA512          0x75
-#define ALGO_EC_DH				0x80        /* ECDH key derivation */
+#define ALGO_EC_DH              0x80        /* ECDH key derivation */
 #define ALGO_EC_DH_AUTPUK       0x83
 #define ALGO_EC_DH_XKEK         0x84
 
@@ -63,14 +63,14 @@ extern const uint8_t sc_hsm_aid[];
 #define ALGO_UNWRAP             0x93
 #define ALGO_REPLACE            0x94
 
-#define ALGO_EC_DERIVE		    0x98		/* Derive EC key from EC key */
+#define ALGO_EC_DERIVE          0x98        /* Derive EC key from EC key */
 
-#define ALGO_AES_CBC_ENCRYPT	0x10
-#define ALGO_AES_CBC_DECRYPT	0x11
-#define ALGO_AES_CMAC		    0x18
+#define ALGO_AES_CBC_ENCRYPT    0x10
+#define ALGO_AES_CBC_DECRYPT    0x11
+#define ALGO_AES_CMAC           0x18
 #define ALGO_EXT_CIPHER_ENCRYPT 0x51        /* Extended ciphering Encrypt */
 #define ALGO_EXT_CIPHER_DECRYPT 0x52        /* Extended ciphering Decrypt */
-#define ALGO_AES_DERIVE		    0x99
+#define ALGO_AES_DERIVE         0x99
 
 #define HSM_OPT_RRC                 0x0001
 #define HSM_OPT_TRANSPORT_PIN       0x0002
@@ -83,14 +83,14 @@ extern const uint8_t sc_hsm_aid[];
 #define HSM_OPT_KEY_COUNTER_ALL     0x0200
 #define HSM_OPT_SECURE_LOCK         0x0400
 
-#define PRKD_PREFIX				0xC4		/* Hi byte in file identifier for PKCS#15 PRKD objects */
-#define CD_PREFIX				0xC8		/* Hi byte in file identifier for PKCS#15 CD objects */
-#define DCOD_PREFIX				0xC9		/* Hi byte in file identifier for PKCS#15 DCOD objects */
-#define CA_CERTIFICATE_PREFIX	0xCA		/* Hi byte in file identifier for CA certificates */
-#define KEY_PREFIX				0xCC		/* Hi byte in file identifier for key objects */
-#define PROT_DATA_PREFIX		0xCD		/* Hi byte in file identifier for PIN protected data objects */
-#define EE_CERTIFICATE_PREFIX	0xCE		/* Hi byte in file identifier for EE certificates */
-#define DATA_PREFIX				0xCF		/* Hi byte in file identifier for readable data objects */
+#define PRKD_PREFIX             0xC4        /* Hi byte in file identifier for PKCS#15 PRKD objects */
+#define CD_PREFIX               0xC8        /* Hi byte in file identifier for PKCS#15 CD objects */
+#define DCOD_PREFIX             0xC9        /* Hi byte in file identifier for PKCS#15 DCOD objects */
+#define CA_CERTIFICATE_PREFIX   0xCA        /* Hi byte in file identifier for CA certificates */
+#define KEY_PREFIX              0xCC        /* Hi byte in file identifier for key objects */
+#define PROT_DATA_PREFIX        0xCD        /* Hi byte in file identifier for PIN protected data objects */
+#define EE_CERTIFICATE_PREFIX   0xCE        /* Hi byte in file identifier for EE certificates */
+#define DATA_PREFIX             0xCF        /* Hi byte in file identifier for readable data objects */
 
 #define P15_KEYTYPE_RSA     0x30
 #define P15_KEYTYPE_ECC     0xA0

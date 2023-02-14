@@ -19,14 +19,16 @@
 #include "sc_hsm.h"
 #include "kek.h"
 
-int cmd_change_pin() {
+int cmd_change_pin()
+{
     if (P1(apdu) == 0x0) {
         if (P2(apdu) == 0x81 || P2(apdu) == 0x88) {
             file_t *file_pin = NULL;
-            if (P2(apdu) == 0x81)
+            if (P2(apdu) == 0x81) {
                 file_pin = file_pin1;
-            else if (P2(apdu) == 0x88)
+            } else if (P2(apdu) == 0x88) {
                 file_pin = file_sopin;
+            }
             if (!file_pin) {
                 return SW_FILE_NOT_FOUND();
             }
@@ -35,26 +37,28 @@ int cmd_change_pin() {
             }
             uint8_t pin_len = file_read_uint8(file_get_data(file_pin));
             int r = check_pin(file_pin, apdu.data, pin_len);
-            if (r != 0x9000)
+            if (r != 0x9000) {
                 return r;
+            }
             uint8_t mkek[MKEK_SIZE];
             r = load_mkek(mkek); //loads the MKEK with old pin
-            if (r != CCID_OK)
+            if (r != CCID_OK) {
                 return SW_EXEC_ERROR();
+            }
             //encrypt MKEK with new pin
 
             if (P2(apdu) == 0x81) {
                 hash_multi(apdu.data+pin_len, apdu.nc-pin_len, session_pin);
                 has_session_pin = true;
-            }
-            else if (P2(apdu) == 0x88) {
+            } else if (P2(apdu) == 0x88) {
                 hash_multi(apdu.data+pin_len, apdu.nc-pin_len, session_sopin);
                 has_session_sopin = true;
             }
             r = store_mkek(mkek);
             release_mkek(mkek);
-            if (r != CCID_OK)
+            if (r != CCID_OK) {
                 return SW_EXEC_ERROR();
+            }
             uint8_t dhash[33];
             dhash[0] = apdu.nc-pin_len;
             double_hash_pin(apdu.data+pin_len, apdu.nc-pin_len, dhash+1);

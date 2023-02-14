@@ -24,11 +24,13 @@
 
 file_t *ef_puk_aut = NULL;
 
-int cmd_mse() {
+int cmd_mse()
+{
     int p1 = P1(apdu);
     int p2 = P2(apdu);
-    if (p2 != 0xA4 && p2 != 0xA6 && p2 != 0xAA && p2 != 0xB4 && p2 != 0xB6 && p2 != 0xB8)
+    if (p2 != 0xA4 && p2 != 0xA6 && p2 != 0xAA && p2 != 0xB4 && p2 != 0xB6 && p2 != 0xB8) {
         return SW_INCORRECT_P1P2();
+    }
     if (p1 & 0x1) { //SET
         uint16_t tag = 0x0;
         uint8_t *tag_data = NULL, *p = NULL;
@@ -36,28 +38,32 @@ int cmd_mse() {
         while (walk_tlv(apdu.data, apdu.nc, &p, &tag, &tag_len, &tag_data)) {
             if (tag == 0x80) {
                 if (p2 == 0xA4) {
-                    if (tag_len == 10 && memcmp(tag_data, OID_ID_CA_ECDH_AES_CBC_CMAC_128, tag_len) == 0)
+                    if (tag_len == 10 &&
+                        memcmp(tag_data, OID_ID_CA_ECDH_AES_CBC_CMAC_128, tag_len) == 0) {
                         sm_set_protocol(MSE_AES);
+                    }
                 }
-            }
-            else if (tag == 0x83) {
+            } else if (tag == 0x83) {
                 if (tag_len == 1) {
 
-                }
-                else {
+                } else {
                     if (p2 == 0xB6) {
-                        if (puk_store_select_chr(tag_data) == CCID_OK)
+                        if (puk_store_select_chr(tag_data) == CCID_OK) {
                             return SW_OK();
-                    }
-                    else if (p2 == 0xA4) { /* Aut */
+                        }
+                    } else if (p2 == 0xA4) { /* Aut */
                         for (int i = 0; i < MAX_PUK; i++) {
                             file_t *ef = search_dynamic_file(EF_PUK+i);
-                            if (!ef)
+                            if (!ef) {
                                 break;
-                            if (!file_has_data(ef))
+                            }
+                            if (!file_has_data(ef)) {
                                 break;
+                            }
                             size_t chr_len = 0;
-                            const uint8_t *chr = cvc_get_chr(file_get_data(ef), file_get_size(ef), &chr_len);
+                            const uint8_t *chr = cvc_get_chr(file_get_data(ef),
+                                                             file_get_size(ef),
+                                                             &chr_len);
                             if (memcmp(chr, tag_data, chr_len) == 0) {
                                 ef_puk_aut = ef;
                                 return SW_OK();
@@ -68,8 +74,8 @@ int cmd_mse() {
                 }
             }
         }
-    }
-    else
+    } else {
         return SW_INCORRECT_P1P2();
+    }
     return SW_OK();
 }

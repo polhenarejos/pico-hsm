@@ -24,4 +24,3 @@
 #define HSM_VERSION_MINOR (HSM_VERSION & 0xff)
 
 #endif
-

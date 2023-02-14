@@ -23,13 +23,16 @@
 extern int add_cert_puk_store(const uint8_t *data, size_t data_len, bool copy);
 extern PUK *current_puk;
 
-int cmd_pso() {
+int cmd_pso()
+{
     uint8_t p1 = P1(apdu), p2 = P2(apdu);
     if (p1 == 0x0 && (p2 == 0x92 || p2 == 0xAE || p2 == 0xBE)) { /* Verify certificate */
-        if (apdu.nc == 0)
+        if (apdu.nc == 0) {
             return SW_WRONG_LENGTH();
-        if (current_puk == NULL)
+        }
+        if (current_puk == NULL) {
             return SW_REFERENCE_NOT_FOUND();
+        }
         if (apdu.data[0] != 0x7F || apdu.data[1] != 0x21) {
             uint8_t tlv_len = 2+format_tlv_len(apdu.nc, NULL);
             memmove(apdu.data+tlv_len, apdu.data, apdu.nc);
@@ -39,10 +42,11 @@ int cmd_pso() {
         }
         int r = cvc_verify(apdu.data, apdu.nc, current_puk->cvcert, current_puk->cvcert_len);
         if (r != CCID_OK) {
-            if (r == CCID_WRONG_DATA)
+            if (r == CCID_WRONG_DATA) {
                 return SW_DATA_INVALID();
-            else if (r == CCID_WRONG_SIGNATURE)
+            } else if (r == CCID_WRONG_SIGNATURE) {
                 return SW_CONDITIONS_NOT_SATISFIED();
+            }
             return SW_EXEC_ERROR();
         }
         for (int i = 0; i < 0xfe; i++) {
@@ -51,27 +55,32 @@ int cmd_pso() {
             if (!ca_ef) {
                 ca_ef = file_new(fid);
                 flash_write_data_to_file(ca_ef, apdu.data, apdu.nc);
-                if (add_cert_puk_store(file_get_data(ca_ef), file_get_size(ca_ef), false) != CCID_OK)
+                if (add_cert_puk_store(file_get_data(ca_ef), file_get_size(ca_ef),
+                                       false) != CCID_OK) {
                     return SW_FILE_FULL();
+                }
 
                 size_t chr_len = 0;
                 const uint8_t *chr = cvc_get_chr(apdu.data, apdu.nc, &chr_len);
-                if (chr == NULL)
+                if (chr == NULL) {
                     return SW_WRONG_DATA();
+                }
                 size_t puk_len = 0, puk_bin_len = 0;
                 const uint8_t *puk = cvc_get_pub(apdu.data, apdu.nc, &puk_len), *puk_bin = NULL;
-                if (puk == NULL)
+                if (puk == NULL) {
                     return SW_WRONG_DATA();
+                }
                 size_t oid_len = 0;
                 const uint8_t *oid = cvc_get_field(puk, puk_len, &oid_len, 0x6);
-                if (oid == NULL)
+                if (oid == NULL) {
                     return SW_WRONG_DATA();
+                }
                 if (memcmp(oid, OID_ID_TA_RSA, 9) == 0) { //RSA
                     puk_bin = cvc_get_field(puk, puk_len, &puk_bin_len, 0x81);
-                    if (!puk_bin)
+                    if (!puk_bin) {
                         return SW_WRONG_DATA();
-                }
-                else if (memcmp(oid, OID_ID_TA_ECDSA, 9) == 0) { //ECC
+                    }
+                } else if (memcmp(oid, OID_ID_TA_ECDSA, 9) == 0) { //ECC
                     mbedtls_ecp_group_id ec_id = cvc_inherite_ec_group(apdu.data, apdu.nc);
                     mbedtls_ecp_group grp;
                     mbedtls_ecp_group_init(&grp);
@@ -89,21 +98,18 @@ int cmd_pso() {
                         }
                         puk_bin = t86;
                         puk_bin_len = t86_len;
-                    }
-                    else if (mbedtls_ecp_get_type(&grp) == MBEDTLS_ECP_TYPE_SHORT_WEIERSTRASS) {
+                    } else if (mbedtls_ecp_get_type(&grp) == MBEDTLS_ECP_TYPE_SHORT_WEIERSTRASS) {
                         if (t86[0] == 0x2 || t86[0] == 0x3) {
                             if (t86_len != plen+1) {
                                 mbedtls_ecp_group_free(&grp);
                                 return SW_WRONG_DATA();
                             }
-                        }
-                        else if (t86[0] == 0x4) {
+                        } else if (t86[0] == 0x4) {
                             if (t86_len != 2*plen+1) {
                                 mbedtls_ecp_group_free(&grp);
                                 return SW_WRONG_DATA();
                             }
-                        }
-                        else {
+                        } else {
                             mbedtls_ecp_group_free(&grp);
                             return SW_WRONG_DATA();
                         }
@@ -111,26 +117,41 @@ int cmd_pso() {
                         puk_bin_len = plen;
                     }
                     mbedtls_ecp_group_free(&grp);
-                    if (!puk_bin)
+                    if (!puk_bin) {
                         return SW_WRONG_DATA();
+                    }
                 }
                 file_t *cd_ef = file_new((CD_PREFIX << 8) | i);
-                size_t cd_len = asn1_build_cert_description(chr, chr_len, puk_bin, puk_bin_len, fid, NULL, 0);
-                if (cd_len == 0)
+                size_t cd_len = asn1_build_cert_description(chr,
+                                                            chr_len,
+                                                            puk_bin,
+                                                            puk_bin_len,
+                                                            fid,
+                                                            NULL,
+                                                            0);
+                if (cd_len == 0) {
                     return SW_EXEC_ERROR();
-                uint8_t *buf = (uint8_t *)calloc(cd_len, sizeof(uint8_t));
-                int r = asn1_build_cert_description(chr, chr_len, puk_bin, puk_bin_len, fid, buf, cd_len);
+                }
+                uint8_t *buf = (uint8_t *) calloc(cd_len, sizeof(uint8_t));
+                int r = asn1_build_cert_description(chr,
+                                                    chr_len,
+                                                    puk_bin,
+                                                    puk_bin_len,
+                                                    fid,
+                                                    buf,
+                                                    cd_len);
                 flash_write_data_to_file(cd_ef, buf, cd_len);
                 free(buf);
-                if (r == 0)
+                if (r == 0) {
                     return SW_EXEC_ERROR();
+                }
                 low_flash_available();
                 break;
             }
         }
         return SW_OK();
-    }
-    else
+    } else {
         return SW_INCORRECT_P1P2();
+    }
     return SW_OK();
 }

@@ -24,7 +24,8 @@
 #include "eac.h"
 #include "files.h"
 
-int cmd_general_authenticate() {
+int cmd_general_authenticate()
+{
     if (P1(apdu) == 0x0 && P2(apdu) == 0x0) {
         if (apdu.data[0] == 0x7C) {
             int r = 0;
@@ -40,8 +41,9 @@ int cmd_general_authenticate() {
                 }
             }
             file_t *fkey = search_by_fid(EF_KEY_DEV, NULL, SPECIFY_EF);
-            if (!fkey)
+            if (!fkey) {
                 return SW_EXEC_ERROR();
+            }
             mbedtls_ecdsa_context ectx;
             mbedtls_ecdsa_init(&ectx);
             r = load_private_key_ecdsa(&ectx, fkey);
@@ -71,7 +73,12 @@ int cmd_general_authenticate() {
             }
             size_t olen = 0;
             uint8_t derived[MBEDTLS_ECP_MAX_BYTES];
-            r = mbedtls_ecdh_calc_secret(&ctx, &olen, derived, MBEDTLS_ECP_MAX_BYTES, random_gen, NULL);
+            r = mbedtls_ecdh_calc_secret(&ctx,
+                                         &olen,
+                                         derived,
+                                         MBEDTLS_ECP_MAX_BYTES,
+                                         random_gen,
+                                         NULL);
             mbedtls_ecdh_free(&ctx);
             if (r != 0) {
                 return SW_EXEC_ERROR();
@@ -79,10 +86,11 @@ int cmd_general_authenticate() {
 
             sm_derive_all_keys(derived, olen);
 
-            uint8_t *t = (uint8_t *)calloc(1, pubkey_len+16);
+            uint8_t *t = (uint8_t *) calloc(1, pubkey_len+16);
             memcpy(t, "\x7F\x49\x4F\x06\x0A", 5);
-            if (sm_get_protocol() == MSE_AES)
+            if (sm_get_protocol() == MSE_AES) {
                 memcpy(t+5, OID_ID_CA_ECDH_AES_CBC_CMAC_128, 10);
+            }
             t[15] = 0x86;
             memcpy(t+16, pubkey, pubkey_len);
 
@@ -98,8 +106,9 @@ int cmd_general_authenticate() {
             r = sm_sign(t, pubkey_len+16, res_APDU+res_APDU_size);
 
             free(t);
-            if (r != CCID_OK)
+            if (r != CCID_OK) {
                 return SW_EXEC_ERROR();
+            }
             res_APDU_size += 8;
         }
     }
