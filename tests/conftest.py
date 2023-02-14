@@ -75,7 +75,7 @@ class Device:
     def select_applet(self):
         self.__card.connection.transmit([0x00, 0xA4, 0x04, 0x00, 0xB, 0xE8, 0x2B, 0x06, 0x01, 0x04, 0x01, 0x81, 0xC3, 0x1F, 0x02, 0x01, 0x0])
 
-    def send(self, command, cla=0x00, p1=0x00, p2=0x00, ne=None, data=None):
+    def send(self, command, cla=0x00, p1=0x00, p2=0x00, ne=None, data=None, codes=[]):
         lc = []
         dataf = []
         if (data):
@@ -97,22 +97,26 @@ class Device:
             self.__card.connection.reconnect()
             response, sw1, sw2 = self.__card.connection.transmit(apdu)
 
+        code = (sw1<<8|sw2)
         if (sw1 != 0x90):
             if (sw1 == 0x63 and sw2 & 0xF0 == 0xC0):
                 pass
-            elif (sw1 == 0x6A and sw2 == 0x82):
+            elif (code == 0x6A82):
                 self.select_applet()
                 if (sw1 == 0x90):
                     response, sw1, sw2 = self.__card.connection.transmit(apdu)
                     if (sw1 == 0x90):
                         return response
-            elif (sw1 == 0x69 and sw2 == 0x82):
+            elif (code == 0x6982):
                 response, sw1, sw2 = self.__card.connection.transmit([0x00, 0x20, 0x00, 0x81, len(self.__pin)] + list(self.__pin.encode()) + [0x0])
                 if (sw1 == 0x90):
                     response, sw1, sw2 = self.__card.connection.transmit(apdu)
                     if (sw1 == 0x90):
                         return response
-            raise APDUResponse(sw1, sw2)
+            if (code not in codes):
+                raise APDUResponse(sw1, sw2)
+        if (len(codes) > 1):
+            return response, code
         return response
 
     def get_login_retries(self):
@@ -203,8 +207,15 @@ class Device:
     def delete_file(self, fid):
         self.send(command=0xE4, data=[fid >> 8, fid & 0xff])
 
+    def get_contents(self, p1, p2=None):
+        if (p2):
+            resp = self.send(command=0xB1, p1=p1, p2=p2, data=[0x54, 0x02, 0x00, 0x00])
+        else:
+            resp = self.get_contents(p1=p1 >> 8, p2=p1 & 0xff)
+        return bytes(resp)
+
     def public_key(self, keyid, param=None):
-        response = self.send(command=0xB1, p1=DOPrefixes.EE_CERTIFICATE_PREFIX.value, p2=keyid, data=[0x54, 0x02, 0x00, 0x00])
+        response = self.get_contents(p1=DOPrefixes.EE_CERTIFICATE_PREFIX, p2=keyid)
 
         cert = bytearray(response)
         roid = CVC().decode(cert).pubkey().oid()
@@ -341,6 +352,51 @@ class Device:
     def exchange(self, keyid, pubkey):
         resp = self.send(cla=0x80, command=0x62, p1=keyid, p2=Algorithm.ALGO_EC_DH.value, data=pubkey.public_bytes(Encoding.X962, PublicFormat.UncompressedPoint))
         return resp
+
+    def parse_cvc(self, data):
+        car = CVC().decode(data).car()
+        chr = CVC().decode(data).chr()
+        return {'car': car, 'chr': chr}
+
+    def get_termca(self):
+        resp = self.get_contents(EF_TERMCA)
+        cv_data = self.parse_cvc(resp)
+        a = ASN1().decode(resp).find(0x7f21).data()
+        tlen = len(ASN1.calculate_len(len(a)))
+        ret = {'cv': cv_data}
+        if (len(a)+2+tlen < len(resp)): # There's more certificate
+            resp = resp[2+len(a)+tlen:]
+            dv_data = self.parse_cvc(resp)
+            ret['dv'] = dv_data
+        return ret
+
+    def get_version(self):
+        resp = self.send(cla=0x80, command=0x50)
+        return resp[5]+0.1*resp[6]
+
+    def get_key_domain(self, key_domain=0):
+        resp, code = self.send(cla=0x80, command=0x52, p2=key_domain, codes=[0x9000, 0x6A88, 0x6A86])
+        if (code == 0x9000):
+            return {'dkek': { 'total': resp[0], 'missing': resp[1]}, 'kcv': resp[2:10]}
+        return {'error': code}
+
+    def get_key_domains(self):
+        for k in range(0xFF):
+            _, code = self.send(cla=0x80, command=0x52, p2=k, codes=[0x9000, 0x6A88, 0x6A86])
+            if (code == 0x6A86):
+                return k
+        return 0
+
+    def set_key_domain(self, key_domain=0, total=DEFAULT_DKEK_SHARES):
+        resp = self.send(cla=0x80, command=0x52, p1=0x1, p2=key_domain, data=[total])
+        return resp
+
+    def clear_key_domain(self, key_domain=0):
+        resp = self.send(cla=0x80, command=0x52, p1=0x4, p2=key_domain)
+        return resp
+
+    def delete_key_domain(self, key_domain=0):
+        self.send(cla=0x80, command=0x52, p1=0x3, p2=key_domain, codes=[0x6A88])
 
 
 @pytest.fixture(scope="session")
