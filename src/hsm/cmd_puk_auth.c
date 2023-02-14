@@ -19,8 +19,7 @@
 #include "files.h"
 #include "cvc.h"
 
-int cmd_puk_auth()
-{
+int cmd_puk_auth() {
     uint8_t p1 = P1(apdu), p2 = P2(apdu);
     file_t *ef_puk = search_by_fid(EF_PUKAUT, NULL, SPECIFY_EF);
     if (!file_has_data(ef_puk)) {
@@ -35,7 +34,7 @@ int cmd_puk_auth()
                     return SW_INCORRECT_P1P2();
                 }
                 for (int i = 0; i < puk_data[0]; i++) {
-                    ef = search_dynamic_file(EF_PUK+i);
+                    ef = search_dynamic_file(EF_PUK + i);
                     if (!ef) { /* Never should not happen */
                         return SW_MEMORY_FAILURE();
                     }
@@ -45,22 +44,24 @@ int cmd_puk_auth()
                 }
                 uint8_t *tmp = (uint8_t *) calloc(file_get_size(ef_puk), sizeof(uint8_t));
                 memcpy(tmp, puk_data, file_get_size(ef_puk));
-                tmp[1] = puk_data[1]-1;
+                tmp[1] = puk_data[1] - 1;
                 flash_write_data_to_file(ef_puk, tmp, file_get_size(ef_puk));
                 puk_data = file_get_data(ef_puk);
                 free(tmp);
-            } else if (p1 == 0x1) { /* Replace */
+            }
+            else if (p1 == 0x1) {   /* Replace */
                 if (p2 >= puk_data[0]) {
                     return SW_INCORRECT_P1P2();
                 }
-                ef = search_dynamic_file(EF_PUK+p2);
+                ef = search_dynamic_file(EF_PUK + p2);
                 if (!ef) { /* Never should not happen */
                     return SW_MEMORY_FAILURE();
                 }
             }
             flash_write_data_to_file(ef, apdu.data, apdu.nc);
             low_flash_available();
-        } else {
+        }
+        else {
             return SW_INCORRECT_P1P2();
         }
     }
@@ -68,7 +69,7 @@ int cmd_puk_auth()
         if (p2 >= puk_data[0]) {
             return SW_INCORRECT_P1P2();
         }
-        file_t *ef = search_dynamic_file(EF_PUK+p2);
+        file_t *ef = search_dynamic_file(EF_PUK + p2);
         if (!ef) {
             return SW_INCORRECT_P1P2();
         }
@@ -82,7 +83,8 @@ int cmd_puk_auth()
             res_APDU_size = chr_len;
         }
         return set_res_sw(0x90, puk_status[p2]);
-    } else {
+    }
+    else {
         memcpy(res_APDU, puk_data, 3);
         res_APDU[3] = 0;
         for (int i = 0; i < puk_data[0]; i++) {

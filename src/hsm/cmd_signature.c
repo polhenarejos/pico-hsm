@@ -70,8 +70,7 @@ int pkcs1_strip_digest_info_prefix(mbedtls_md_type_t *algorithm,
                                    const uint8_t *in_dat,
                                    size_t in_len,
                                    uint8_t *out_dat,
-                                   size_t *out_len)
-{
+                                   size_t *out_len) {
     for (int i = 0; digest_info_prefix[i].algorithm != 0; i++) {
         size_t hdr_len = digest_info_prefix[i].hdr_len, hash_len = digest_info_prefix[i].hash_len;
         const uint8_t *hdr = digest_info_prefix[i].hdr;
@@ -94,8 +93,7 @@ int pkcs1_strip_digest_info_prefix(mbedtls_md_type_t *algorithm,
 }
 //-----
 
-int cmd_signature()
-{
+int cmd_signature() {
     uint8_t key_id = P1(apdu);
     uint8_t p2 = P2(apdu);
     mbedtls_md_type_t md = MBEDTLS_MD_NONE;
@@ -115,13 +113,17 @@ int cmd_signature()
     int key_size = file_get_size(fkey);
     if (p2 == ALGO_RSA_PKCS1_SHA1 || p2 == ALGO_RSA_PSS_SHA1 || p2 == ALGO_EC_SHA1) {
         md = MBEDTLS_MD_SHA1;
-    } else if (p2 == ALGO_RSA_PKCS1_SHA256 || p2 == ALGO_RSA_PSS_SHA256 || p2 == ALGO_EC_SHA256) {
+    }
+    else if (p2 == ALGO_RSA_PKCS1_SHA256 || p2 == ALGO_RSA_PSS_SHA256 || p2 == ALGO_EC_SHA256) {
         md = MBEDTLS_MD_SHA256;
-    } else if (p2 == ALGO_EC_SHA224 || p2 == ALGO_RSA_PKCS1_SHA224 || p2 == ALGO_RSA_PSS_SHA224) {
+    }
+    else if (p2 == ALGO_EC_SHA224 || p2 == ALGO_RSA_PKCS1_SHA224 || p2 == ALGO_RSA_PSS_SHA224) {
         md = MBEDTLS_MD_SHA224;
-    } else if (p2 == ALGO_EC_SHA384 || p2 == ALGO_RSA_PKCS1_SHA384 || p2 == ALGO_RSA_PSS_SHA384) {
+    }
+    else if (p2 == ALGO_EC_SHA384 || p2 == ALGO_RSA_PKCS1_SHA384 || p2 == ALGO_RSA_PSS_SHA384) {
         md = MBEDTLS_MD_SHA384;
-    } else if (p2 == ALGO_EC_SHA512 || p2 == ALGO_RSA_PKCS1_SHA512 || p2 == ALGO_RSA_PSS_SHA512) {
+    }
+    else if (p2 == ALGO_EC_SHA512 || p2 == ALGO_RSA_PKCS1_SHA512 || p2 == ALGO_RSA_PSS_SHA512) {
         md = MBEDTLS_MD_SHA512;
     }
     if (p2 == ALGO_RSA_PKCS1_SHA1 || p2 == ALGO_RSA_PSS_SHA1 || p2 == ALGO_EC_SHA1 ||
@@ -153,7 +155,8 @@ int cmd_signature()
                 return SW_EXEC_ERROR();
             }
             apdu.nc = nc;
-        } else {
+        }
+        else {
             //sc_asn1_print_tags(apdu.data, apdu.nc);
             size_t tout = 0, oid_len = 0;
             uint8_t *p = NULL, *oid = NULL;
@@ -168,13 +171,17 @@ int cmd_signature()
             if (oid && oid_len > 0) {
                 if (memcmp(oid, MBEDTLS_OID_DIGEST_ALG_SHA1, oid_len) == 0) {
                     md = MBEDTLS_MD_SHA1;
-                } else if (memcmp(oid, MBEDTLS_OID_DIGEST_ALG_SHA224, oid_len) == 0) {
+                }
+                else if (memcmp(oid, MBEDTLS_OID_DIGEST_ALG_SHA224, oid_len) == 0) {
                     md = MBEDTLS_MD_SHA224;
-                } else if (memcmp(oid, MBEDTLS_OID_DIGEST_ALG_SHA256, oid_len) == 0) {
+                }
+                else if (memcmp(oid, MBEDTLS_OID_DIGEST_ALG_SHA256, oid_len) == 0) {
                     md = MBEDTLS_MD_SHA256;
-                } else if (memcmp(oid, MBEDTLS_OID_DIGEST_ALG_SHA384, oid_len) == 0) {
+                }
+                else if (memcmp(oid, MBEDTLS_OID_DIGEST_ALG_SHA384, oid_len) == 0) {
                     md = MBEDTLS_MD_SHA384;
-                } else if (memcmp(oid, MBEDTLS_OID_DIGEST_ALG_SHA512, oid_len) == 0) {
+                }
+                else if (memcmp(oid, MBEDTLS_OID_DIGEST_ALG_SHA512, oid_len) == 0) {
                     md = MBEDTLS_MD_SHA512;
                 }
             }
@@ -182,13 +189,17 @@ int cmd_signature()
                 if (p2 == ALGO_RSA_PSS && !oid) {
                     if (apdu.nc == 20) { //default is sha1
                         md = MBEDTLS_MD_SHA1;
-                    } else if (apdu.nc == 28) {
+                    }
+                    else if (apdu.nc == 28) {
                         md = MBEDTLS_MD_SHA224;
-                    } else if (apdu.nc == 32) {
+                    }
+                    else if (apdu.nc == 32) {
                         md = MBEDTLS_MD_SHA256;
-                    } else if (apdu.nc == 48) {
+                    }
+                    else if (apdu.nc == 48) {
                         md = MBEDTLS_MD_SHA384;
-                    } else if (apdu.nc == 64) {
+                    }
+                    else if (apdu.nc == 64) {
                         md = MBEDTLS_MD_SHA512;
                     }
                 }
@@ -197,10 +208,11 @@ int cmd_signature()
         }
         if (md == MBEDTLS_MD_NONE) {
             if (apdu.nc < key_size) { //needs padding
-                memset(apdu.data+apdu.nc, 0, key_size-apdu.nc);
+                memset(apdu.data + apdu.nc, 0, key_size - apdu.nc);
             }
             r = mbedtls_rsa_private(&ctx, random_gen, NULL, apdu.data, res_APDU);
-        } else {
+        }
+        else {
             uint8_t *signature = (uint8_t *) calloc(key_size, sizeof(uint8_t));
             r = mbedtls_rsa_pkcs1_sign(&ctx, random_gen, NULL, md, hash_len, hash, signature);
             memcpy(res_APDU, signature, key_size);
@@ -213,32 +225,41 @@ int cmd_signature()
         res_APDU_size = key_size;
         apdu.ne = key_size;
         mbedtls_rsa_free(&ctx);
-    } else if (p2 >= ALGO_EC_RAW && p2 <= ALGO_EC_SHA512) {
+    }
+    else if (p2 >= ALGO_EC_RAW && p2 <= ALGO_EC_SHA512) {
         mbedtls_ecdsa_context ctx;
         mbedtls_ecdsa_init(&ctx);
         md = MBEDTLS_MD_SHA256;
         if (p2 == ALGO_EC_RAW) {
             if (apdu.nc == 32) {
                 md = MBEDTLS_MD_SHA256;
-            } else if (apdu.nc == 20) {
+            }
+            else if (apdu.nc == 20) {
                 md = MBEDTLS_MD_SHA1;
-            } else if (apdu.nc == 28) {
+            }
+            else if (apdu.nc == 28) {
                 md = MBEDTLS_MD_SHA224;
-            } else if (apdu.nc == 48) {
+            }
+            else if (apdu.nc == 48) {
                 md = MBEDTLS_MD_SHA384;
-            } else if (apdu.nc == 64) {
+            }
+            else if (apdu.nc == 64) {
                 md = MBEDTLS_MD_SHA512;
             }
         }
         if (p2 == ALGO_EC_SHA1) {
             md = MBEDTLS_MD_SHA1;
-        } else if (p2 == ALGO_EC_SHA224) {
+        }
+        else if (p2 == ALGO_EC_SHA224) {
             md = MBEDTLS_MD_SHA224;
-        } else if (p2 == ALGO_EC_SHA256) {
+        }
+        else if (p2 == ALGO_EC_SHA256) {
             md = MBEDTLS_MD_SHA256;
-        } else if (p2 == ALGO_EC_SHA384) {
+        }
+        else if (p2 == ALGO_EC_SHA384) {
             md = MBEDTLS_MD_SHA384;
-        } else if (p2 == ALGO_EC_SHA512) {
+        }
+        else if (p2 == ALGO_EC_SHA512) {
             md = MBEDTLS_MD_SHA512;
         }
         int r = load_private_key_ecdsa(&ctx, fkey);
@@ -259,7 +280,8 @@ int cmd_signature()
         memcpy(res_APDU, buf, olen);
         res_APDU_size = olen;
         mbedtls_ecdsa_free(&ctx);
-    } else {
+    }
+    else {
         return SW_INCORRECT_P1P2();
     }
     decrement_key_counter(fkey);

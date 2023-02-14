@@ -24,8 +24,7 @@ extern file_t *ef_puk_aut;
 extern uint8_t challenge[256];
 extern uint8_t challenge_len;
 
-int cmd_external_authenticate()
-{
+int cmd_external_authenticate() {
     if (P1(apdu) != 0x0 || P2(apdu) != 0x0) {
         return SW_INCORRECT_P1P2();
     }
@@ -40,10 +39,10 @@ int cmd_external_authenticate()
         return SW_FILE_NOT_FOUND();
     }
     uint8_t *puk_data = file_get_data(ef_puk);
-    uint8_t *input = (uint8_t *) calloc(dev_name_len+challenge_len, sizeof(uint8_t)), hash[32];
+    uint8_t *input = (uint8_t *) calloc(dev_name_len + challenge_len, sizeof(uint8_t)), hash[32];
     memcpy(input, dev_name, dev_name_len);
-    memcpy(input+dev_name_len, challenge, challenge_len);
-    hash256(input, dev_name_len+challenge_len, hash);
+    memcpy(input + dev_name_len, challenge, challenge_len);
+    hash256(input, dev_name_len + challenge_len, hash);
     int r =
         puk_verify(apdu.data,
                    apdu.nc,
@@ -55,7 +54,7 @@ int cmd_external_authenticate()
     if (r != 0) {
         return SW_CONDITIONS_NOT_SATISFIED();
     }
-    puk_status[ef_puk_aut->fid & (MAX_PUK-1)] = 1;
+    puk_status[ef_puk_aut->fid & (MAX_PUK - 1)] = 1;
     uint8_t auts = 0;
     for (int i = 0; i < puk_data[0]; i++) {
         auts += puk_status[i];

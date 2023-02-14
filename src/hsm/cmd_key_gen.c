@@ -19,8 +19,7 @@
 #include "sc_hsm.h"
 #include "random.h"
 
-int cmd_key_gen()
-{
+int cmd_key_gen() {
     uint8_t key_id = P1(apdu);
     uint8_t p2 = P2(apdu);
     uint8_t key_size = 32;
@@ -30,9 +29,11 @@ int cmd_key_gen()
     }
     if (p2 == 0xB2) {
         key_size = 32;
-    } else if (p2 == 0xB1) {
+    }
+    else if (p2 == 0xB1) {
         key_size = 24;
-    } else if (p2 == 0xB0) {
+    }
+    else if (p2 == 0xB0) {
         key_size = 16;
     }
     //at this moment, we do not use the template, as only CBC is supported by the driver (encrypt, decrypt and CMAC)
@@ -41,9 +42,11 @@ int cmd_key_gen()
     int aes_type = 0x0;
     if (key_size == 16) {
         aes_type = HSM_KEY_AES_128;
-    } else if (key_size == 24) {
+    }
+    else if (key_size == 24) {
         aes_type = HSM_KEY_AES_192;
-    } else if (key_size == 32) {
+    }
+    else if (key_size == 32) {
         aes_type = HSM_KEY_AES_256;
     }
     r = store_keys(aes_key, aes_type, key_id);

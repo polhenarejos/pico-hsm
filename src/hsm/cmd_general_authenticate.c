@@ -24,8 +24,7 @@
 #include "eac.h"
 #include "files.h"
 
-int cmd_general_authenticate()
-{
+int cmd_general_authenticate() {
     if (P1(apdu) == 0x0 && P2(apdu) == 0x0) {
         if (apdu.data[0] == 0x7C) {
             int r = 0;
@@ -34,10 +33,10 @@ int cmd_general_authenticate()
             uint16_t tag = 0x0;
             uint8_t *tag_data = NULL, *p = NULL;
             size_t tag_len = 0;
-            while (walk_tlv(apdu.data+2, apdu.nc-2, &p, &tag, &tag_len, &tag_data)) {
+            while (walk_tlv(apdu.data + 2, apdu.nc - 2, &p, &tag, &tag_len, &tag_data)) {
                 if (tag == 0x80) {
-                    pubkey = tag_data-1; //mbedtls ecdh starts reading one pos before
-                    pubkey_len = tag_len+1;
+                    pubkey = tag_data - 1; //mbedtls ecdh starts reading one pos before
+                    pubkey_len = tag_len + 1;
                 }
             }
             file_t *fkey = search_by_fid(EF_KEY_DEV, NULL, SPECIFY_EF);
@@ -86,24 +85,24 @@ int cmd_general_authenticate()
 
             sm_derive_all_keys(derived, olen);
 
-            uint8_t *t = (uint8_t *) calloc(1, pubkey_len+16);
+            uint8_t *t = (uint8_t *) calloc(1, pubkey_len + 16);
             memcpy(t, "\x7F\x49\x4F\x06\x0A", 5);
             if (sm_get_protocol() == MSE_AES) {
-                memcpy(t+5, OID_ID_CA_ECDH_AES_CBC_CMAC_128, 10);
+                memcpy(t + 5, OID_ID_CA_ECDH_AES_CBC_CMAC_128, 10);
             }
             t[15] = 0x86;
-            memcpy(t+16, pubkey, pubkey_len);
+            memcpy(t + 16, pubkey, pubkey_len);
 
             res_APDU[res_APDU_size++] = 0x7C;
             res_APDU[res_APDU_size++] = 20;
             res_APDU[res_APDU_size++] = 0x81;
             res_APDU[res_APDU_size++] = 8;
-            memcpy(res_APDU+res_APDU_size, sm_get_nonce(), 8);
+            memcpy(res_APDU + res_APDU_size, sm_get_nonce(), 8);
             res_APDU_size += 8;
             res_APDU[res_APDU_size++] = 0x82;
             res_APDU[res_APDU_size++] = 8;
 
-            r = sm_sign(t, pubkey_len+16, res_APDU+res_APDU_size);
+            r = sm_sign(t, pubkey_len + 16, res_APDU + res_APDU_size);
 
             free(t);
             if (r != CCID_OK) {

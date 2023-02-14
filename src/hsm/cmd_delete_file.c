@@ -17,8 +17,7 @@
 
 #include "sc_hsm.h"
 
-int cmd_delete_file()
-{
+int cmd_delete_file() {
     file_t *ef = NULL;
     if (!isUserAuthenticated) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
@@ -29,7 +28,8 @@ int cmd_delete_file()
         if (!(ef = search_dynamic_file(ef->fid))) {
             return SW_FILE_NOT_FOUND();
         }
-    } else {
+    }
+    else {
         uint16_t fid = (apdu.data[0] << 8) | apdu.data[1];
         if (!(ef = search_dynamic_file(fid))) {
             return SW_FILE_NOT_FOUND();

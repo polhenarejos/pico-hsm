@@ -49,17 +49,17 @@ extern int dkek_decode_key(uint8_t,
                            uint8_t **,
                            size_t *);
 
-#define MAX_DKEK_ENCODE_KEY_BUFFER (8+1+12+6+(8+2*4+2*4096/8+3+13)+16)
+#define MAX_DKEK_ENCODE_KEY_BUFFER (8 + 1 + 12 + 6 + (8 + 2 * 4 + 2 * 4096 / 8 + 3 + 13) + 16)
 
 #define MAX_KEY_DOMAINS 16
 
 #define MKEK_IV_SIZE     (IV_SIZE)
 #define MKEK_KEY_SIZE    (32)
 #define MKEK_KEY_CS_SIZE (4)
-#define MKEK_SIZE        (MKEK_IV_SIZE+MKEK_KEY_SIZE+MKEK_KEY_CS_SIZE)
+#define MKEK_SIZE        (MKEK_IV_SIZE + MKEK_KEY_SIZE + MKEK_KEY_CS_SIZE)
 #define MKEK_IV(p)       (p)
-#define MKEK_KEY(p)      (MKEK_IV(p)+MKEK_IV_SIZE)
-#define MKEK_CHECKSUM(p) (MKEK_KEY(p)+MKEK_KEY_SIZE)
+#define MKEK_KEY(p)      (MKEK_IV(p) + MKEK_IV_SIZE)
+#define MKEK_CHECKSUM(p) (MKEK_KEY(p) + MKEK_KEY_SIZE)
 #define DKEK_KEY_SIZE    (32)
 
 extern uint8_t mkek_mask[MKEK_KEY_SIZE];

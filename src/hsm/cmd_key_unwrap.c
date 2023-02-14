@@ -20,8 +20,7 @@
 #include "kek.h"
 #include "cvc.h"
 
-int cmd_key_unwrap()
-{
+int cmd_key_unwrap() {
     int key_id = P1(apdu), r = 0;
     if (P2(apdu) != 0x93) {
         return SW_WRONG_P1P2();
@@ -54,7 +53,8 @@ int cmd_key_unwrap()
         if (r != CCID_OK) {
             return SW_EXEC_ERROR();
         }
-    } else if (key_type == HSM_KEY_EC) {
+    }
+    else if (key_type == HSM_KEY_EC) {
         mbedtls_ecdsa_context ctx;
         mbedtls_ecdsa_init(&ctx);
         do {
@@ -73,7 +73,8 @@ int cmd_key_unwrap()
         if (r != CCID_OK) {
             return SW_EXEC_ERROR();
         }
-    } else if (key_type == HSM_KEY_AES) {
+    }
+    else if (key_type == HSM_KEY_AES) {
         uint8_t aes_key[32];
         int key_size = 0, aes_type = 0;
         do {
@@ -90,11 +91,14 @@ int cmd_key_unwrap()
         }
         if (key_size == 32) {
             aes_type = HSM_KEY_AES_256;
-        } else if (key_size == 24) {
+        }
+        else if (key_size == 24) {
             aes_type = HSM_KEY_AES_192;
-        } else if (key_size == 16) {
+        }
+        else if (key_size == 16) {
             aes_type = HSM_KEY_AES_128;
-        } else {
+        }
+        else {
             return SW_EXEC_ERROR();
         }
         r = store_keys(aes_key, aes_type, key_id);
@@ -103,7 +107,7 @@ int cmd_key_unwrap()
         }
     }
     if ((allowed != NULL && allowed_len > 0) || kdom >= 0) {
-        size_t meta_len = (allowed_len > 0 ? 2+allowed_len : 0) + (kdom >= 0 ? 3 : 0);
+        size_t meta_len = (allowed_len > 0 ? 2 + allowed_len : 0) + (kdom >= 0 ? 3 : 0);
         uint8_t *meta = (uint8_t *) calloc(1, meta_len), *m = meta;
         if (allowed_len > 0) {
             *m++ = 0x91;

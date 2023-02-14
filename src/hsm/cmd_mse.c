@@ -24,8 +24,7 @@
 
 file_t *ef_puk_aut = NULL;
 
-int cmd_mse()
-{
+int cmd_mse() {
     int p1 = P1(apdu);
     int p2 = P2(apdu);
     if (p2 != 0xA4 && p2 != 0xA6 && p2 != 0xAA && p2 != 0xB4 && p2 != 0xB6 && p2 != 0xB8) {
@@ -43,17 +42,20 @@ int cmd_mse()
                         sm_set_protocol(MSE_AES);
                     }
                 }
-            } else if (tag == 0x83) {
+            }
+            else if (tag == 0x83) {
                 if (tag_len == 1) {
 
-                } else {
+                }
+                else {
                     if (p2 == 0xB6) {
                         if (puk_store_select_chr(tag_data) == CCID_OK) {
                             return SW_OK();
                         }
-                    } else if (p2 == 0xA4) { /* Aut */
+                    }
+                    else if (p2 == 0xA4) {   /* Aut */
                         for (int i = 0; i < MAX_PUK; i++) {
-                            file_t *ef = search_dynamic_file(EF_PUK+i);
+                            file_t *ef = search_dynamic_file(EF_PUK + i);
                             if (!ef) {
                                 break;
                             }
@@ -74,7 +76,8 @@ int cmd_mse()
                 }
             }
         }
-    } else {
+    }
+    else {
         return SW_INCORRECT_P1P2();
     }
     return SW_OK();

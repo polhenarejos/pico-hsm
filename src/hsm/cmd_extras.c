@@ -27,8 +27,7 @@
 #include "mbedtls/hkdf.h"
 #include "mbedtls/chachapoly.h"
 
-int cmd_extras()
-{
+int cmd_extras() {
     if (P1(apdu) == 0xA) { //datetime operations
         if (P2(apdu) != 0x0) {
             return SW_INCORRECT_P1P2();
@@ -48,7 +47,8 @@ int cmd_extras()
             res_APDU[res_APDU_size++] = dt.min;
             res_APDU[res_APDU_size++] = dt.sec;
 #endif
-        } else {
+        }
+        else {
             if (apdu.nc != 8) {
                 return SW_WRONG_LENGTH();
             }
@@ -66,7 +66,8 @@ int cmd_extras()
             }
 #endif
         }
-    } else if (P1(apdu) == 0x6) { //dynamic options
+    }
+    else if (P1(apdu) == 0x6) {   //dynamic options
         if (P2(apdu) != 0x0) {
             return SW_INCORRECT_P1P2();
         }
@@ -77,13 +78,15 @@ int cmd_extras()
         if (apdu.nc == 0) {
             res_APDU[res_APDU_size++] = opts >> 8;
             res_APDU[res_APDU_size++] = opts & 0xff;
-        } else {
+        }
+        else {
             uint8_t newopts[] = { apdu.data[0], (opts & 0xff) };
             file_t *tf = search_by_fid(EF_DEVOPS, NULL, SPECIFY_EF);
             flash_write_data_to_file(tf, newopts, sizeof(newopts));
             low_flash_available();
         }
-    } else if (P1(apdu) == 0x3A) { // secure lock
+    }
+    else if (P1(apdu) == 0x3A) {   // secure lock
         if (apdu.nc == 0) {
             return SW_WRONG_LENGTH();
         }
@@ -147,7 +150,8 @@ int cmd_extras()
             }
             mse.init = true;
             res_APDU_size = olen;
-        } else if (P2(apdu) == 0x02 || P2(apdu) == 0x03 || P2(apdu) == 0x04) {
+        }
+        else if (P2(apdu) == 0x02 || P2(apdu) == 0x03 || P2(apdu) == 0x04) {
             if (mse.init == false) {
                 return SW_COMMAND_NOT_ALLOWED();
             }
@@ -162,7 +166,7 @@ int cmd_extras()
                 if ((P2(apdu) == 0x02 && !(opts & HSM_OPT_SECURE_LOCK)) ||
                     (P2(apdu) == 0x04 && (opts & HSM_OPT_SECURE_LOCK))) {
                     uint16_t tfids[] = { EF_MKEK, EF_MKEK_SO };
-                    for (int t = 0; t < sizeof(tfids)/sizeof(uint16_t); t++) {
+                    for (int t = 0; t < sizeof(tfids) / sizeof(uint16_t); t++) {
                         file_t *tf = search_by_fid(tfids[t], NULL, SPECIFY_EF);
                         if (tf) {
                             uint8_t *tmp = (uint8_t *) calloc(1, file_get_size(tf));
@@ -177,18 +181,21 @@ int cmd_extras()
                 }
                 if (P2(apdu) == 0x02) {
                     newopts[0] |= HSM_OPT_SECURE_LOCK >> 8;
-                } else if (P2(apdu) == 0x04) {
+                }
+                else if (P2(apdu) == 0x04) {
                     newopts[0] &= ~HSM_OPT_SECURE_LOCK >> 8;
                 }
                 file_t *tf = search_by_fid(EF_DEVOPS, NULL, SPECIFY_EF);
                 flash_write_data_to_file(tf, newopts, sizeof(newopts));
                 low_flash_available();
-            } else if (P2(apdu) == 0x03) {
+            }
+            else if (P2(apdu) == 0x03) {
                 memcpy(mkek_mask, apdu.data, apdu.nc);
                 has_mkek_mask = true;
             }
         }
-    } else {
+    }
+    else {
         return SW_INCORRECT_P1P2();
     }
     return SW_OK();

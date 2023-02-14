@@ -18,15 +18,16 @@
 #include "sc_hsm.h"
 #include "version.h"
 
-void select_file(file_t *pe)
-{
+void select_file(file_t *pe) {
     if (!pe) {
         currentDF = (file_t *) MF;
         currentEF = NULL;
-    } else if (pe->type & FILE_TYPE_INTERNAL_EF) {
+    }
+    else if (pe->type & FILE_TYPE_INTERNAL_EF) {
         currentEF = pe;
         currentDF = &file_entries[pe->parent];
-    } else {
+    }
+    else {
         currentDF = pe;
     }
     if (currentEF == file_openpgp || currentEF == file_sc_hsm) {
@@ -35,8 +36,7 @@ void select_file(file_t *pe)
     }
 }
 
-int cmd_select()
-{
+int cmd_select() {
     uint8_t p1 = P1(apdu);
     uint8_t p2 = P2(apdu);
     file_t *pe = NULL;
@@ -72,35 +72,42 @@ int cmd_select()
             if (apdu.nc == 0) {
                 pe = (file_t *) MF;
                 //ac_fini();
-            } else if (apdu.nc == 2) {
+            }
+            else if (apdu.nc == 2) {
                 if (!(pe = search_by_fid(fid, NULL, SPECIFY_ANY))) {
                     return SW_FILE_NOT_FOUND();
                 }
             }
-        } else if (p1 == 0x01) { //Select child DF - DF identifier
+        }
+        else if (p1 == 0x01) {   //Select child DF - DF identifier
             if (!(pe = search_by_fid(fid, currentDF, SPECIFY_DF))) {
                 return SW_FILE_NOT_FOUND();
             }
-        } else if (p1 == 0x02) { //Select EF under the current DF - EF identifier
+        }
+        else if (p1 == 0x02) {   //Select EF under the current DF - EF identifier
             if (!(pe = search_by_fid(fid, currentDF, SPECIFY_EF))) {
                 return SW_FILE_NOT_FOUND();
             }
-        } else if (p1 == 0x03) { //Select parent DF of the current DF - Absent
+        }
+        else if (p1 == 0x03) {   //Select parent DF of the current DF - Absent
             if (apdu.nc != 0) {
                 return SW_FILE_NOT_FOUND();
             }
-        } else if (p1 == 0x04) { //Select by DF name - e.g., [truncated] application identifier
+        }
+        else if (p1 == 0x04) {   //Select by DF name - e.g., [truncated] application identifier
             if (!(pe = search_by_name(apdu.data, apdu.nc))) {
                 return SW_FILE_NOT_FOUND();
             }
             if (card_terminated) {
                 return set_res_sw(0x62, 0x85);
             }
-        } else if (p1 == 0x08) { //Select from the MF - Path without the MF identifier
+        }
+        else if (p1 == 0x08) {   //Select from the MF - Path without the MF identifier
             if (!(pe = search_by_path(apdu.data, apdu.nc, MF))) {
                 return SW_FILE_NOT_FOUND();
             }
-        } else if (p1 == 0x09) { //Select from the current DF - Path without the current DF identifier
+        }
+        else if (p1 == 0x09) {   //Select from the current DF - Path without the current DF identifier
             if (!(pe = search_by_path(apdu.data, apdu.nc, currentDF))) {
                 return SW_FILE_NOT_FOUND();
             }
@@ -117,9 +124,10 @@ int cmd_select()
             res_APDU[res_APDU_size++] = 0xFF;
             res_APDU[res_APDU_size++] = HSM_VERSION_MAJOR;
             res_APDU[res_APDU_size++] = HSM_VERSION_MINOR;
-            res_APDU[1] = res_APDU_size-2;
+            res_APDU[1] = res_APDU_size - 2;
         }
-    } else {
+    }
+    else {
         return SW_INCORRECT_P1P2();
     }
     select_file(pe);

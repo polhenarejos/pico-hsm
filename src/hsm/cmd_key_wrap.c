@@ -22,8 +22,7 @@
 
 extern uint8_t get_key_domain(file_t *fkey);
 
-int cmd_key_wrap()
-{
+int cmd_key_wrap() {
     int key_id = P1(apdu), r = 0;
     if (P2(apdu) != 0x92) {
         return SW_WRONG_P1P2();
@@ -61,7 +60,8 @@ int cmd_key_wrap()
         }
         r = dkek_encode_key(kdom, &ctx, HSM_KEY_RSA, res_APDU, &wrap_len, meta_tag, tag_len);
         mbedtls_rsa_free(&ctx);
-    } else if (*dprkd == P15_KEYTYPE_ECC) {
+    }
+    else if (*dprkd == P15_KEYTYPE_ECC) {
         mbedtls_ecdsa_context ctx;
         mbedtls_ecdsa_init(&ctx);
         r = load_private_key_ecdsa(&ctx, ef);
@@ -74,7 +74,8 @@ int cmd_key_wrap()
         }
         r = dkek_encode_key(kdom, &ctx, HSM_KEY_EC, res_APDU, &wrap_len, meta_tag, tag_len);
         mbedtls_ecdsa_free(&ctx);
-    } else if (*dprkd == P15_KEYTYPE_AES) {
+    }
+    else if (*dprkd == P15_KEYTYPE_AES) {
         uint8_t kdata[32]; //maximum AES key size
         if (wait_button_pressed() == true) { //timeout
             return SW_SECURE_MESSAGE_EXEC_ERROR();
@@ -87,9 +88,11 @@ int cmd_key_wrap()
         }
         if (key_size == 32) {
             aes_type = HSM_KEY_AES_256;
-        } else if (key_size == 24) {
+        }
+        else if (key_size == 24) {
             aes_type = HSM_KEY_AES_192;
-        } else if (key_size == 16) {
+        }
+        else if (key_size == 16) {
             aes_type = HSM_KEY_AES_128;
         }
         r = dkek_encode_key(kdom, kdata, aes_type, res_APDU, &wrap_len, meta_tag, tag_len);

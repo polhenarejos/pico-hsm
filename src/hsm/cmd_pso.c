@@ -23,8 +23,7 @@
 extern int add_cert_puk_store(const uint8_t *data, size_t data_len, bool copy);
 extern PUK *current_puk;
 
-int cmd_pso()
-{
+int cmd_pso() {
     uint8_t p1 = P1(apdu), p2 = P2(apdu);
     if (p1 == 0x0 && (p2 == 0x92 || p2 == 0xAE || p2 == 0xBE)) { /* Verify certificate */
         if (apdu.nc == 0) {
@@ -34,17 +33,18 @@ int cmd_pso()
             return SW_REFERENCE_NOT_FOUND();
         }
         if (apdu.data[0] != 0x7F || apdu.data[1] != 0x21) {
-            uint8_t tlv_len = 2+format_tlv_len(apdu.nc, NULL);
-            memmove(apdu.data+tlv_len, apdu.data, apdu.nc);
+            uint8_t tlv_len = 2 + format_tlv_len(apdu.nc, NULL);
+            memmove(apdu.data + tlv_len, apdu.data, apdu.nc);
             memcpy(apdu.data, "\x7F\x21", 2);
-            format_tlv_len(apdu.nc, apdu.data+2);
+            format_tlv_len(apdu.nc, apdu.data + 2);
             apdu.nc += tlv_len;
         }
         int r = cvc_verify(apdu.data, apdu.nc, current_puk->cvcert, current_puk->cvcert_len);
         if (r != CCID_OK) {
             if (r == CCID_WRONG_DATA) {
                 return SW_DATA_INVALID();
-            } else if (r == CCID_WRONG_SIGNATURE) {
+            }
+            else if (r == CCID_WRONG_SIGNATURE) {
                 return SW_CONDITIONS_NOT_SATISFIED();
             }
             return SW_EXEC_ERROR();
@@ -80,7 +80,8 @@ int cmd_pso()
                     if (!puk_bin) {
                         return SW_WRONG_DATA();
                     }
-                } else if (memcmp(oid, OID_ID_TA_ECDSA, 9) == 0) { //ECC
+                }
+                else if (memcmp(oid, OID_ID_TA_ECDSA, 9) == 0) {   //ECC
                     mbedtls_ecp_group_id ec_id = cvc_inherite_ec_group(apdu.data, apdu.nc);
                     mbedtls_ecp_group grp;
                     mbedtls_ecp_group_init(&grp);
@@ -98,22 +99,25 @@ int cmd_pso()
                         }
                         puk_bin = t86;
                         puk_bin_len = t86_len;
-                    } else if (mbedtls_ecp_get_type(&grp) == MBEDTLS_ECP_TYPE_SHORT_WEIERSTRASS) {
+                    }
+                    else if (mbedtls_ecp_get_type(&grp) == MBEDTLS_ECP_TYPE_SHORT_WEIERSTRASS) {
                         if (t86[0] == 0x2 || t86[0] == 0x3) {
-                            if (t86_len != plen+1) {
+                            if (t86_len != plen + 1) {
                                 mbedtls_ecp_group_free(&grp);
                                 return SW_WRONG_DATA();
                             }
-                        } else if (t86[0] == 0x4) {
-                            if (t86_len != 2*plen+1) {
+                        }
+                        else if (t86[0] == 0x4) {
+                            if (t86_len != 2 * plen + 1) {
                                 mbedtls_ecp_group_free(&grp);
                                 return SW_WRONG_DATA();
                             }
-                        } else {
+                        }
+                        else {
                             mbedtls_ecp_group_free(&grp);
                             return SW_WRONG_DATA();
                         }
-                        puk_bin = t86+1;
+                        puk_bin = t86 + 1;
                         puk_bin_len = plen;
                     }
                     mbedtls_ecp_group_free(&grp);
@@ -150,7 +154,8 @@ int cmd_pso()
             }
         }
         return SW_OK();
-    } else {
+    }
+    else {
         return SW_INCORRECT_P1P2();
     }
     return SW_OK();

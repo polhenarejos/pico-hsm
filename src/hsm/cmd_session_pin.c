@@ -19,8 +19,7 @@
 #include "random.h"
 #include "eac.h"
 
-int cmd_session_pin()
-{
+int cmd_session_pin() {
     if (P1(apdu) == 0x01 && P2(apdu) == 0x81) {
         memcpy(sm_session_pin, random_bytes_get(8), 8);
         sm_session_pin_len = 8;
@@ -28,7 +27,8 @@ int cmd_session_pin()
         memcpy(res_APDU, sm_session_pin, sm_session_pin_len);
         res_APDU_size = sm_session_pin_len;
         apdu.ne = sm_session_pin_len;
-    } else {
+    }
+    else {
         return SW_INCORRECT_P1P2();
     }
     return SW_OK();

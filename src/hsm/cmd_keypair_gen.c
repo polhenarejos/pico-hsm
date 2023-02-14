@@ -24,8 +24,7 @@
 #include "random.h"
 #include "kek.h"
 
-int cmd_keypair_gen()
-{
+int cmd_keypair_gen() {
     uint8_t key_id = P1(apdu);
     if (!isUserAuthenticated) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
@@ -79,7 +78,8 @@ int cmd_keypair_gen()
                     return SW_EXEC_ERROR();
                 }
                 mbedtls_rsa_free(&rsa);
-            } else if (memcmp(oid, OID_ID_TA_ECDSA_SHA_256, MIN(oid_len, 10)) == 0) { //ECC
+            }
+            else if (memcmp(oid, OID_ID_TA_ECDSA_SHA_256, MIN(oid_len, 10)) == 0) {   //ECC
                 size_t prime_len;
                 uint8_t *prime = NULL;
                 if (asn1_find_tag(p, tout, 0x81, &prime_len, &prime) != true) {
@@ -112,15 +112,16 @@ int cmd_keypair_gen()
                             if (p92[0] > MAX_KEY_DOMAINS) {
                                 return SW_WRONG_DATA();
                             }
-                            file_t *tf_xkek = search_dynamic_file(EF_XKEK+p92[0]);
+                            file_t *tf_xkek = search_dynamic_file(EF_XKEK + p92[0]);
                             if (!tf_xkek) {
                                 return SW_WRONG_DATA();
                             }
-                            ext_len = 2+2+strlen(OID_ID_KEY_DOMAIN_UID)+2+file_get_size(tf_xkek);
+                            ext_len = 2 + 2 + strlen(OID_ID_KEY_DOMAIN_UID) + 2 + file_get_size(
+                                tf_xkek);
                             ext = (uint8_t *) calloc(1, ext_len);
                             uint8_t *pe = ext;
                             *pe++ = 0x73;
-                            *pe++ = ext_len-2;
+                            *pe++ = ext_len - 2;
                             *pe++ = 0x6;
                             *pe++ = strlen(OID_ID_KEY_DOMAIN_UID);
                             memcpy(pe, OID_ID_KEY_DOMAIN_UID, strlen(OID_ID_KEY_DOMAIN_UID));
@@ -150,7 +151,8 @@ int cmd_keypair_gen()
             }
 
         }
-    } else {
+    }
+    else {
         return SW_WRONG_DATA();
     }
     if (find_and_store_meta_key(key_id) != CCID_OK) {

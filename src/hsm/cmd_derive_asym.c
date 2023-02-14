@@ -28,8 +28,7 @@
 static inline int mbedtls_mpi_add_mod(const mbedtls_ecp_group *grp,
                                       mbedtls_mpi *X,
                                       const mbedtls_mpi *A,
-                                      const mbedtls_mpi *B)
-{
+                                      const mbedtls_mpi *B) {
     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
     MBEDTLS_MPI_CHK(mbedtls_mpi_add_mpi(X, A, B));
     MOD_ADD(*X);
@@ -37,8 +36,7 @@ cleanup:
     return ret;
 }
 
-int cmd_derive_asym()
-{
+int cmd_derive_asym() {
     uint8_t key_id = P1(apdu);
     uint8_t dest_id = P2(apdu);
     file_t *fkey;
@@ -70,7 +68,7 @@ int cmd_derive_asym()
         mbedtls_mpi a, nd;
         mbedtls_mpi_init(&a);
         mbedtls_mpi_init(&nd);
-        r = mbedtls_mpi_read_binary(&a, apdu.data+1, apdu.nc-1);
+        r = mbedtls_mpi_read_binary(&a, apdu.data + 1, apdu.nc - 1);
         if (r != 0) {
             mbedtls_ecdsa_free(&ctx);
             mbedtls_mpi_free(&a);
@@ -96,7 +94,8 @@ int cmd_derive_asym()
             return SW_EXEC_ERROR();
         }
         mbedtls_ecdsa_free(&ctx);
-    } else {
+    }
+    else {
         return SW_WRONG_DATA();
     }
     return SW_OK();

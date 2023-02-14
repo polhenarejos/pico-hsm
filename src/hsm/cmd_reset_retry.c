@@ -19,8 +19,7 @@
 #include "sc_hsm.h"
 #include "kek.h"
 
-int cmd_reset_retry()
-{
+int cmd_reset_retry() {
     if (P2(apdu) != 0x81) {
         return SW_REFERENCE_NOT_FOUND();
     }
@@ -44,10 +43,11 @@ int cmd_reset_retry()
             if (r != 0x9000) {
                 return r;
             }
-            newpin_len = apdu.nc-8;
+            newpin_len = apdu.nc - 8;
             has_session_sopin = true;
             hash_multi(apdu.data, 8, session_sopin);
-        } else if (P1(apdu) == 0x2) {
+        }
+        else if (P1(apdu) == 0x2) {
             if (!has_session_sopin) {
                 return SW_CONDITIONS_NOT_SATISFIED();
             }
@@ -58,7 +58,7 @@ int cmd_reset_retry()
         }
         uint8_t dhash[33];
         dhash[0] = newpin_len;
-        double_hash_pin(apdu.data+(apdu.nc-newpin_len), newpin_len, dhash+1);
+        double_hash_pin(apdu.data + (apdu.nc - newpin_len), newpin_len, dhash + 1);
         flash_write_data_to_file(file_pin1, dhash, sizeof(dhash));
         if (pin_reset_retries(file_pin1, true) != CCID_OK) {
             return SW_MEMORY_FAILURE();
@@ -68,7 +68,7 @@ int cmd_reset_retry()
         if (r != CCID_OK) {
             return SW_EXEC_ERROR();
         }
-        hash_multi(apdu.data+(apdu.nc-newpin_len), newpin_len, session_pin);
+        hash_multi(apdu.data + (apdu.nc - newpin_len), newpin_len, session_pin);
         has_session_pin = true;
         r = store_mkek(mkek);
         release_mkek(mkek);
@@ -77,7 +77,8 @@ int cmd_reset_retry()
         }
         low_flash_available();
         return SW_OK();
-    } else if (P1(apdu) == 0x1 || P1(apdu) == 0x3) {
+    }
+    else if (P1(apdu) == 0x1 || P1(apdu) == 0x3) {
         if (!(opts & HSM_OPT_RRC_RESET_ONLY)) {
             return SW_COMMAND_NOT_ALLOWED();
         }
@@ -91,7 +92,8 @@ int cmd_reset_retry()
             }
             has_session_sopin = true;
             hash_multi(apdu.data, 8, session_sopin);
-        } else if (P1(apdu) == 0x3) {
+        }
+        else if (P1(apdu) == 0x3) {
             if (!has_session_sopin) {
                 return SW_CONDITIONS_NOT_SATISFIED();
             }

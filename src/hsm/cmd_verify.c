@@ -17,8 +17,7 @@
 
 #include "sc_hsm.h"
 
-int cmd_verify()
-{
+int cmd_verify() {
     uint8_t p1 = P1(apdu);
     uint8_t p2 = P2(apdu);
 
@@ -44,7 +43,8 @@ int cmd_verify()
             return SW_PIN_BLOCKED();
         }
         return set_res_sw(0x63, 0xc0 | file_read_uint8(file_get_data(file_retries_pin1)));
-    } else if (p2 == 0x88) { //SOPin
+    }
+    else if (p2 == 0x88) {   //SOPin
         if (file_read_uint8(file_get_data(file_sopin)) == 0) { //not initialized
             return SW_REFERENCE_NOT_FOUND();
         }
@@ -58,7 +58,8 @@ int cmd_verify()
             return SW_OK();
         }
         return set_res_sw(0x63, 0xc0 | file_read_uint8(file_get_data(file_retries_sopin)));
-    } else if (p2 == 0x85) {
+    }
+    else if (p2 == 0x85) {
         return SW_OK();
     }
     return SW_REFERENCE_NOT_FOUND();

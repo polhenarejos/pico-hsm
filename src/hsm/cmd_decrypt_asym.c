@@ -26,8 +26,7 @@
 #include "random.h"
 #include "oid.h"
 
-int cmd_decrypt_asym()
-{
+int cmd_decrypt_asym() {
     int key_id = P1(apdu);
     uint8_t p2 = P2(apdu);
     if (!isUserAuthenticated) {
@@ -59,7 +58,7 @@ int cmd_decrypt_asym()
         }
         int key_size = file_get_size(ef);
         if (apdu.nc < key_size) { //needs padding
-            memset(apdu.data+apdu.nc, 0, key_size-apdu.nc);
+            memset(apdu.data + apdu.nc, 0, key_size - apdu.nc);
         }
         if (p2 == ALGO_RSA_DECRYPT_PKCS1 || p2 == ALGO_RSA_DECRYPT_OEP) {
             size_t olen = apdu.nc;
@@ -67,7 +66,8 @@ int cmd_decrypt_asym()
             if (r == 0) {
                 res_APDU_size = olen;
             }
-        } else {
+        }
+        else {
             r = mbedtls_rsa_private(&ctx, random_gen, NULL, apdu.data, res_APDU);
             if (r == 0) {
                 res_APDU_size = key_size;
@@ -78,7 +78,8 @@ int cmd_decrypt_asym()
             return SW_EXEC_ERROR();
         }
         mbedtls_rsa_free(&ctx);
-    } else if (p2 == ALGO_EC_DH || p2 == ALGO_EC_DH_XKEK) {
+    }
+    else if (p2 == ALGO_EC_DH || p2 == ALGO_EC_DH_XKEK) {
         mbedtls_ecdh_context ctx;
         if (wait_button_pressed() == true) { //timeout
             return SW_SECURE_MESSAGE_EXEC_ERROR();
@@ -101,7 +102,7 @@ int cmd_decrypt_asym()
             free(kdata);
             return SW_DATA_INVALID();
         }
-        r = mbedtls_mpi_read_binary(&ctx.ctx.mbed_ecdh.d, kdata+1, key_size-1);
+        r = mbedtls_mpi_read_binary(&ctx.ctx.mbed_ecdh.d, kdata + 1, key_size - 1);
         mbedtls_platform_zeroize(kdata, key_size);
         free(kdata);
         if (r != 0) {
@@ -110,15 +111,16 @@ int cmd_decrypt_asym()
         }
         r = -1;
         if (p2 == ALGO_EC_DH) {
-            r = mbedtls_ecdh_read_public(&ctx, apdu.data-1, apdu.nc+1);
-        } else if (p2 == ALGO_EC_DH_XKEK) {
+            r = mbedtls_ecdh_read_public(&ctx, apdu.data - 1, apdu.nc + 1);
+        }
+        else if (p2 == ALGO_EC_DH_XKEK) {
             size_t pub_len = 0;
             const uint8_t *pub = cvc_get_pub(apdu.data, apdu.nc, &pub_len);
             if (pub) {
                 size_t t86_len = 0;
                 const uint8_t *t86 = cvc_get_field(pub, pub_len, &t86_len, 0x86);
                 if (t86) {
-                    r = mbedtls_ecdh_read_public(&ctx, t86-1, t86_len+1);
+                    r = mbedtls_ecdh_read_public(&ctx, t86 - 1, t86_len + 1);
                 }
             }
         }
@@ -136,7 +138,8 @@ int cmd_decrypt_asym()
         }
         if (p2 == ALGO_EC_DH) {
             res_APDU_size = olen;
-        } else {
+        }
+        else {
             res_APDU_size = 0;
             size_t ext_len = 0;
             const uint8_t *ext = NULL;
@@ -167,11 +170,11 @@ int cmd_decrypt_asym()
                 return SW_WRONG_DATA();
             }
             for (int n = 0; n < MAX_KEY_DOMAINS; n++) {
-                file_t *tf = search_dynamic_file(EF_XKEK+n);
+                file_t *tf = search_dynamic_file(EF_XKEK + n);
                 if (tf) {
                     if (file_get_size(tf) == kdom_uid_len &&
                         memcmp(file_get_data(tf), kdom_uid, kdom_uid_len) == 0) {
-                        file_new(EF_DKEK+n);
+                        file_new(EF_DKEK + n);
                         if (store_dkek_key(n, res_APDU) != CCID_OK) {
                             return SW_EXEC_ERROR();
                         }
@@ -181,7 +184,8 @@ int cmd_decrypt_asym()
             }
             return SW_REFERENCE_NOT_FOUND();
         }
-    } else {
+    }
+    else {
         return SW_WRONG_P1P2();
     }
     decrement_key_counter(ef);

@@ -18,8 +18,7 @@
 #include "sc_hsm.h"
 #include "files.h"
 
-int cmd_list_keys()
-{
+int cmd_list_keys() {
     /* First we send DEV private key */
     /* Both below conditions should be always TRUE */
     if (search_by_fid(EF_PRKD_DEV, NULL, SPECIFY_EF)) {
