@@ -71,7 +71,7 @@ int cmd_key_domain() {
         }
         else {
             file_t *tf = search_dynamic_file(EF_XKEK+p2);
-            if (2*p2 >= tf_kd_size || current_dkeks == 0)
+            if (2*p2 >= tf_kd_size)
                 return SW_INCORRECT_P1P2();
             if (current_dkeks == 0xff && !tf) //XKEK have always 0xff
                 return SW_REFERENCE_NOT_FOUND();
