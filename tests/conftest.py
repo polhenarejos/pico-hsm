@@ -217,7 +217,7 @@ class Device:
         return bytes(resp)
 
     def public_key(self, keyid, param=None):
-        response = self.get_contents(p1=DOPrefixes.EE_CERTIFICATE_PREFIX, p2=keyid)
+        response = self.get_contents(p1=DOPrefixes.EE_CERTIFICATE_PREFIX.value, p2=keyid)
 
         cert = bytearray(response)
         roid = CVC().decode(cert).pubkey().oid()
