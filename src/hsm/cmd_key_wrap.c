@@ -31,7 +31,6 @@ int cmd_key_wrap() {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
     file_t *ef = search_dynamic_file((KEY_PREFIX << 8) | key_id);
-    printf("%d %p\n", key_id, ef);
     uint8_t kdom = get_key_domain(ef);
     if (!ef) {
         return SW_FILE_NOT_FOUND();
