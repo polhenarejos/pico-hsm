@@ -20,26 +20,11 @@
 import pytest
 from utils import KeyType, DOPrefixes
 
-def test_gen_initialize(device):
-    device.initialize()
-
 @pytest.mark.parametrize(
-    "curve", ['secp192r1', 'secp256r1', 'secp384r1', 'secp521r1', 'brainpoolP256r1', 'brainpoolP384r1', 'brainpoolP512r1', 'secp192k1', 'secp256k1']
+    "size", [128, 192, 256]
 )
-def test_gen_ecc(device, curve):
-    keyid = device.key_generation(KeyType.ECC, curve)
+def test_gen_aes(device, size):
+    keyid = device.key_generation(KeyType.AES, size)
     resp = device.list_keys()
     assert((DOPrefixes.KEY_PREFIX.value, keyid) in resp)
     device.delete_file(DOPrefixes.KEY_PREFIX.value << 8 | keyid)
-    device.delete_file(DOPrefixes.EE_CERTIFICATE_PREFIX.value << 8 | keyid)
-
-@pytest.mark.parametrize(
-    "modulus", [1024, 2048, 4096]
-)
-def test_gen_rsa(device, modulus):
-    keyid = device.key_generation(KeyType.RSA, modulus)
-    resp = device.list_keys()
-    assert((DOPrefixes.KEY_PREFIX.value, keyid) in resp)
-    device.delete_file(DOPrefixes.KEY_PREFIX.value << 8 | keyid)
-    device.delete_file(DOPrefixes.EE_CERTIFICATE_PREFIX.value << 8 | keyid)
-

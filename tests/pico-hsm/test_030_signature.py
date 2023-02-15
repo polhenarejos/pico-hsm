@@ -32,7 +32,7 @@ data = b'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam neque u
     "scheme", [Algorithm.ALGO_EC_RAW, Algorithm.ALGO_EC_SHA1, Algorithm.ALGO_EC_SHA224, Algorithm.ALGO_EC_SHA256, Algorithm.ALGO_EC_SHA384, Algorithm.ALGO_EC_SHA512]
 )
 def test_signature_ecc(device, curve, scheme):
-    keyid = device.keypair_generation(KeyType.ECC, curve)
+    keyid = device.key_generation(KeyType.ECC, curve)
     pubkey = device.public_key(keyid=keyid, param=curve)
     if (scheme == Algorithm.ALGO_EC_RAW):
         datab = hashlib.sha512(data).digest()
@@ -49,7 +49,7 @@ def test_signature_ecc(device, curve, scheme):
     "scheme", [Algorithm.ALGO_RSA_PKCS1_SHA1, Algorithm.ALGO_RSA_PKCS1_SHA224, Algorithm.ALGO_RSA_PKCS1_SHA256, Algorithm.ALGO_RSA_PKCS1_SHA384, Algorithm.ALGO_RSA_PKCS1_SHA512, Algorithm.ALGO_RSA_PSS_SHA1, Algorithm.ALGO_RSA_PSS_SHA224, Algorithm.ALGO_RSA_PSS_SHA256, Algorithm.ALGO_RSA_PSS_SHA384, Algorithm.ALGO_RSA_PSS_SHA512]
 )
 def test_signature_rsa(device, modulus, scheme):
-    keyid = device.keypair_generation(KeyType.RSA, modulus)
+    keyid = device.key_generation(KeyType.RSA, modulus)
     pubkey = device.public_key(keyid=keyid)
     signature = device.sign(keyid=keyid, scheme=scheme, data=data)
     device.delete_file(DOPrefixes.KEY_PREFIX.value << 8 | keyid)

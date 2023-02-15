@@ -186,24 +186,38 @@ class Device:
             return kids
         return [(resp[i],resp[i+1]) for i in range(0, len(resp), 2)]
 
-    def keypair_generation(self, type, param):
-        a = ASN1().add_tag(0x5f29, bytes([0])).add_tag(0x42, 'UTCA00001'.encode())
-        if (type == KeyType.RSA):
-            if (not 1024 <= param <= 4096):
-                raise ValueError('RSA bits must be in the range [1024,4096]')
-            a.add_tag(0x7f49, ASN1().add_oid(oid.ID_TA_RSA_V1_5_SHA_256).add_tag(0x2, param.to_bytes(2, 'big')).encode())
-        elif (type == KeyType.ECC):
-            if (param not in ('secp192r1', 'secp256r1', 'secp384r1', 'secp521r1', 'brainpoolP256r1', 'brainpoolP384r1', 'brainpoolP512r1', 'secp192k1', 'secp256k1')):
-                raise ValueError('Wrong elliptic curve name')
+    def key_generation(self, type, param):
+        if (type in [KeyType.RSA, KeyType.ECC]):
+            a = ASN1().add_tag(0x5f29, bytes([0])).add_tag(0x42, 'UTCA00001'.encode())
+            if (type == KeyType.RSA):
+                if (not 1024 <= param <= 4096):
+                    raise ValueError('RSA bits must be in the range [1024,4096]')
+                a.add_tag(0x7f49, ASN1().add_oid(oid.ID_TA_RSA_V1_5_SHA_256).add_tag(0x2, param.to_bytes(2, 'big')).encode())
+            elif (type == KeyType.ECC):
+                if (param not in ('secp192r1', 'secp256r1', 'secp384r1', 'secp521r1', 'brainpoolP256r1', 'brainpoolP384r1', 'brainpoolP512r1', 'secp192k1', 'secp256k1')):
+                    raise ValueError('Bad elliptic curve name')
 
-            dom = ec_domain(Device.EcDummy(param))
-            pubctx = [dom.P, dom.A, dom.B, dom.G, dom.O, None, dom.F]
-            a.add_object(0x7f49, oid.ID_TA_ECDSA_SHA_256, pubctx)
-        a.add_tag(0x5f20, 'UTCDUMMY00001'.encode())
-        data = a.encode()
+                dom = ec_domain(Device.EcDummy(param))
+                pubctx = [dom.P, dom.A, dom.B, dom.G, dom.O, None, dom.F]
+                a.add_object(0x7f49, oid.ID_TA_ECDSA_SHA_256, pubctx)
+            a.add_tag(0x5f20, 'UTCDUMMY00001'.encode())
+            data = a.encode()
 
-        keyid = self.get_first_free_id()
-        self.send(command=0x46, p1=keyid, data=list(data))
+            keyid = self.get_first_free_id()
+            self.send(command=0x46, p1=keyid, data=list(data))
+        elif (type == KeyType.AES):
+            if (param == 128):
+                p2 = 0xB0
+            elif (param == 192):
+                p2 = 0xB1
+            elif (param == 256):
+                p2 = 0xB2
+            else:
+                raise ValueError('Bad AES key size')
+            keyid = self.get_first_free_id()
+            self.send(command=0x48, p1=keyid, p2=p2)
+        else:
+            raise ValueError('Bad KeyType')
         return keyid
 
     def delete_file(self, fid):
@@ -293,20 +307,26 @@ class Device:
         kenc = hashlib.sha256((dkek or b'\x00'*32) + b'\x00\x00\x00\x01').digest()
         kmac = hashlib.sha256((dkek or b'\x00'*32) + b'\x00\x00\x00\x02').digest()
         data += kcv
-        pubnum = pkey.public_key().public_numbers()
         if (isinstance(pkey, rsa.RSAPrivateKey)):
             data += b'\x05'
             algo = b'\x00\x0A\x04\x00\x7F\x00\x07\x02\x02\x02\x01\x02'
         elif (isinstance(pkey, ec.EllipticCurvePrivateKey)):
             data += b'\x0C'
             algo = b'\x00\x0A\x04\x00\x7F\x00\x07\x02\x02\x02\x02\x03'
+        elif (isinstance(pkey, bytes)):
+            data += b'\x0F'
+            algo = b'\x00\x08\x60\x86\x48\x01\x65\x03\x04\x01'
 
         data += algo
-        data += b'\x00'*6
+        if (isinstance(pkey, bytes)):
+            data += b'\x00\x04\x10\x11\x18\x99' + b'\x00'*4
+        else:
+            data += b'\x00'*6
 
         kb = os.urandom(8)
         if (isinstance(pkey, rsa.RSAPrivateKey)):
             kb += int_to_bytes(pkey.key_size, length=2)
+            pubnum = pkey.public_key().public_numbers()
             pnum = pkey.private_numbers()
             kb += int_to_bytes((pnum.d.bit_length()+7)//8, length=2)
             kb += int_to_bytes(pnum.d)
@@ -332,6 +352,9 @@ class Device:
             p = pkey.public_key().public_bytes(Encoding.X962, PublicFormat.UncompressedPoint)
             kb += int_to_bytes(len(p), length=2)
             kb += p
+        elif (isinstance(pkey, bytes)):
+            kb += int_to_bytes(len(pkey), length=2)
+            kb += pkey
 
         kb_len_pad = (len(kb)//16)*16
         if (len(kb) % 16 > 0):
@@ -402,6 +425,10 @@ class Device:
 
     def get_challenge(self, length):
         return self.send(cla=0x80, command=0x84, ne=length)
+
+    def cipher(self, algo, keyid, data):
+        resp = self.send(cla=0x80, command=0x78, p1=keyid, p2=algo.value, data=data)
+        return resp
 
 
 @pytest.fixture(scope="session")

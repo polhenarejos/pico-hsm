@@ -19,6 +19,7 @@
 
 import pytest
 import hashlib
+import os
 from utils import KeyType, DOPrefixes
 from cryptography.hazmat.primitives.asymmetric import rsa, ec
 from const import DEFAULT_RETRIES, DEFAULT_DKEK_SHARES, DEFAULT_DKEK
@@ -55,3 +56,10 @@ def test_import_ecc(device, curve):
     assert(pubkey.public_numbers() == pkey.public_key().public_numbers())
     device.delete_file(DOPrefixes.KEY_PREFIX.value << 8 | keyid)
     device.delete_file(DOPrefixes.EE_CERTIFICATE_PREFIX.value << 8 | keyid)
+
+@pytest.mark.parametrize(
+    "size", [128, 192, 256]
+)
+def test_import_aes(device, size):
+    pkey = os.urandom(size // 8)
+    keyid = device.import_key(pkey)

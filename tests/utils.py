@@ -93,8 +93,16 @@ class DOPrefixes(Enum):
 class KeyType(Enum):
     RSA                     = 1
     ECC                     = 2
+    AES                     = 3
 
 class Algorithm(Enum):
+    ALGO_AES_CBC_ENCRYPT    = 0x10
+    ALGO_AES_CBC_DECRYPT    = 0x11
+    ALGO_AES_CMAC           = 0x18
+    ALGO_EXT_CIPHER_ENCRYPT = 0x51
+    ALGO_EXT_CIPHER_DECRYPT = 0x52
+    ALGO_AES_DERIVE         = 0x99
+
     ALGO_EC_RAW             = 0x70
     ALGO_EC_SHA1            = 0x71
     ALGO_EC_SHA224          = 0x72
@@ -102,6 +110,7 @@ class Algorithm(Enum):
     ALGO_EC_SHA384          = 0x74
     ALGO_EC_SHA512          = 0x75
     ALGO_EC_DH              = 0x80
+    ALGO_EC_DERIVE          = 0x98
 
     ALGO_RSA_RAW            = 0x20
     ALGO_RSA_DECRYPT        = 0x21

@@ -38,7 +38,7 @@ data = b'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nullam neque u
 )
 def test_decrypt_rsa(device, modulus, pad):
 
-    keyid = device.keypair_generation(KeyType.RSA, modulus)
+    keyid = device.key_generation(KeyType.RSA, modulus)
     pubkey = device.public_key(keyid=keyid)
     message = data[:(modulus//8)-100]
     ciphered = pubkey.encrypt(message, pad)
