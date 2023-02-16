@@ -382,7 +382,6 @@ int cmd_cipher_sym() {
                              params =
             { .p = enc, .len = enc_len, .tag = (MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE) };
             mbedtls_md_type_t md_type = MBEDTLS_MD_SHA1;
-            mbedtls_md_context_t md_ctx;
 
             int r = pkcs5_parse_pbkdf2_params(&params, &salt, &iterations, &keylen, &md_type);
             if (r != 0) {
@@ -390,13 +389,7 @@ int cmd_cipher_sym() {
                 return SW_WRONG_DATA();
             }
 
-            mbedtls_md_init(&md_ctx);
-            if (mbedtls_md_setup(&md_ctx, mbedtls_md_info_from_type(md_type), 1) != 0) {
-                mbedtls_md_free(&md_ctx);
-                mbedtls_platform_zeroize(kdata, sizeof(kdata));
-                return SW_WRONG_DATA();
-            }
-            r = mbedtls_pkcs5_pbkdf2_hmac(&md_ctx,
+            r = mbedtls_pkcs5_pbkdf2_hmac_ext(md_type,
                                           kdata,
                                           key_size,
                                           salt.p,
@@ -406,7 +399,6 @@ int cmd_cipher_sym() {
                                                              apdu.ne < 65536 ? apdu.ne : 32),
                                           res_APDU);
             mbedtls_platform_zeroize(kdata, sizeof(kdata));
-            mbedtls_md_free(&md_ctx);
             if (r != 0) {
                 return SW_EXEC_ERROR();
             }
