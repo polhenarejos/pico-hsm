@@ -606,7 +606,7 @@ def main(args):
         card.connection.connect()
 
     except CardRequestTimeoutException:
-        print('time-out: no card inserted during last 10s')
+        raise Exception('time-out: no card inserted during last 10s')
 
     if (args.pin):
         login(card, args)
