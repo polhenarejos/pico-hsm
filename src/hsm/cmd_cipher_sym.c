@@ -339,7 +339,7 @@ int cmd_cipher_sym() {
             if (md_info == NULL) {
                 return SW_WRONG_DATA();
             }
-            int r = mbedtls_md_hmac(md_info, kdata, key_size, apdu.data, apdu.nc, res_APDU);
+            int r = mbedtls_md_hmac(md_info, kdata, key_size, enc, enc_len, res_APDU);
             mbedtls_platform_zeroize(kdata, sizeof(kdata));
             if (r != 0) {
                 return SW_EXEC_ERROR();
