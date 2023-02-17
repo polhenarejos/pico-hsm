@@ -44,6 +44,7 @@ def test_mac_hmac(device, size, algo):
     h = hmac.HMAC(pkey, algo())
     h.update(MESSAGE)
     resB = h.finalize()
+    device.delete_file(DOPrefixes.KEY_PREFIX.value << 8 | keyid)
     assert(bytes(resA) == resB)
 
 @pytest.mark.parametrize(
@@ -56,5 +57,6 @@ def test_mac_cmac(device, size):
     c = cmac.CMAC(algorithms.AES(pkey))
     c.update(MESSAGE)
     resB = c.finalize()
+    device.delete_file(DOPrefixes.KEY_PREFIX.value << 8 | keyid)
     assert(bytes(resA) == resB)
 

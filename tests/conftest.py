@@ -443,6 +443,8 @@ class Device:
             algo = b'\x2A\x86\x48\x86\xF7\x0D\x02\x0A'
         elif (hash == hashes.SHA512):
             algo = b'\x2A\x86\x48\x86\xF7\x0D\x02\x0B'
+        else:
+            raise ValueError("Hash not supported")
         data = [0x06, len(algo)] + list(algo) + [0x81, len(data)] + list(data)
         resp = self.send(cla=0x80, command=0x78, p1=keyid, p2=0x51, data=data)
         return resp
@@ -451,6 +453,55 @@ class Device:
         resp = self.send(cla=0x80, command=0x78, p1=keyid, p2=Algorithm.ALGO_AES_CMAC.value, data=data)
         return resp
 
+    def hkdf(self, hash, keyid, data, salt, out_len=None):
+        if (hash == hashes.SHA256):
+            algo = b'\x2A\x86\x48\x86\xF7\x0D\x01\x09\x10\x03\x1D'
+        elif (hash == hashes.SHA384):
+            algo = b'\x2A\x86\x48\x86\xF7\x0D\x01\x09\x10\x03\x1E'
+        elif (hash == hashes.SHA512):
+            algo = b'\x2A\x86\x48\x86\xF7\x0D\x01\x09\x10\x03\x1F'
+        data = [0x06, len(algo)] + list(algo) + [0x81, len(data)] + list(data) + [0x82, len(salt)] + list(salt)
+        resp = self.send(cla=0x80, command=0x78, p1=keyid, p2=0x51, data=data, ne=out_len)
+        return resp
+
+    def pbkdf2(self, hash, keyid, salt, iterations, out_len=None):
+        oid = b'\x2A\x86\x48\x86\xF7\x0D\x01\x05\x0C'
+        salt = b'\x04' + bytes([len(salt)]) + salt
+        iteration = b'\x02' + bytes([len(int_to_bytes(iterations))]) + int_to_bytes(iterations)
+        prf = b'\x30\x0A\x06\x08\x2A\x86\x48\x86\xF7\x0D\x02'
+        if (hash == hashes.SHA1):
+            prf += b'\x07'
+        elif (hash == hashes.SHA224):
+            prf += b'\x08'
+        elif (hash == hashes.SHA256):
+            prf += b'\x09'
+        elif (hash == hashes.SHA384):
+            prf += b'\x0A'
+        elif (hash == hashes.SHA512):
+            prf += b'\x0B'
+        data = list(salt + iteration + prf)
+        data = [0x06, len(oid)] + list(oid) + [0x81, len(data)] + list(data)
+        resp = self.send(cla=0x80, command=0x78, p1=keyid, p2=0x51, data=data, ne=out_len)
+        return resp
+
+    def x963(self, hash, keyid, data, out_len=None):
+        oid =  b'\x2B\x81\x05\x10\x86\x48\x3F'
+        enc = b'\x2A\x86\x48\x86\xF7\x0D\x02'
+        if (hash == hashes.SHA1):
+            enc += b'\x07'
+        elif (hash == hashes.SHA224):
+            enc += b'\x08'
+        elif (hash == hashes.SHA256):
+            enc += b'\x09'
+        elif (hash == hashes.SHA384):
+            enc += b'\x0A'
+        elif (hash == hashes.SHA512):
+            enc += b'\x0B'
+        else:
+            raise ValueError("Hash not supported")
+        data = [0x06, len(oid)] + list(oid) + [0x81, len(enc)] + list(enc) + [0x83, len(data)] + list(data)
+        resp = self.send(cla=0x80, command=0x78, p1=keyid, p2=0x51, data=data, ne=out_len)
+        return resp
 
 @pytest.fixture(scope="session")
 def device():
