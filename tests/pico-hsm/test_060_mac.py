@@ -19,7 +19,8 @@
 
 import pytest
 import os
-from cryptography.hazmat.primitives import hashes, hmac
+from cryptography.hazmat.primitives import hashes, hmac, cmac
+from cryptography.hazmat.primitives.ciphers import algorithms
 from utils import Algorithm, DOPrefixes
 from const import DEFAULT_DKEK_SHARES, DEFAULT_DKEK
 
@@ -44,3 +45,16 @@ def test_mac_hmac(device, size, algo):
     h.update(MESSAGE)
     resB = h.finalize()
     assert(bytes(resA) == resB)
+
+@pytest.mark.parametrize(
+    "size", [128, 192, 256]
+)
+def test_mac_cmac(device, size):
+    pkey = os.urandom(size // 8)
+    keyid = device.import_key(pkey)
+    resA = device.cmac(keyid, MESSAGE)
+    c = cmac.CMAC(algorithms.AES(pkey))
+    c.update(MESSAGE)
+    resB = c.finalize()
+    assert(bytes(resA) == resB)
+

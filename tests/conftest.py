@@ -447,6 +447,10 @@ class Device:
         resp = self.send(cla=0x80, command=0x78, p1=keyid, p2=0x51, data=data)
         return resp
 
+    def cmac(self, keyid, data):
+        resp = self.send(cla=0x80, command=0x78, p1=keyid, p2=Algorithm.ALGO_AES_CMAC.value, data=data)
+        return resp
+
 
 @pytest.fixture(scope="session")
 def device():
