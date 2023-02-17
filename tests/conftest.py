@@ -301,7 +301,7 @@ class Device:
         resp = self.send(cla=0x80, command=0x52, p1=0x0, p2=0x0, data=dkek)
         return resp
 
-    def import_key(self, pkey, dkek=None):
+    def import_key(self, pkey, dkek=None, purposes=None):
         data = b''
         kcv = hashlib.sha256(dkek or b'\x00'*32).digest()[:8]
         kenc = hashlib.sha256((dkek or b'\x00'*32) + b'\x00\x00\x00\x01').digest()
@@ -318,8 +318,10 @@ class Device:
             algo = b'\x00\x08\x60\x86\x48\x01\x65\x03\x04\x01'
 
         data += algo
-        if (isinstance(pkey, bytes)):
-            data += b'\x00\x04\x10\x11\x18\x99' + b'\x00'*4
+        if (not purposes and isinstance(pkey, bytes)):
+            purposes = [Algorithm.ALGO_AES_CBC_ENCRYPT.value, Algorithm.ALGO_AES_CBC_DECRYPT.value, Algorithm.ALGO_AES_CMAC.value, Algorithm.ALGO_AES_DERIVE.value, Algorithm.ALGO_EXT_CIPHER_ENCRYPT.value, Algorithm.ALGO_EXT_CIPHER_DECRYPT.value]
+        if (purposes):
+            data += b'\x00' + bytes([len(purposes)]) + bytes(purposes) + b'\x00'*4
         else:
             data += b'\x00'*6
 
@@ -428,6 +430,21 @@ class Device:
 
     def cipher(self, algo, keyid, data):
         resp = self.send(cla=0x80, command=0x78, p1=keyid, p2=algo.value, data=data)
+        return resp
+
+    def hmac(self, hash, keyid, data):
+        if (hash == hashes.SHA1):
+            algo = b'\x2A\x86\x48\x86\xF7\x0D\x02\x07'
+        elif (hash == hashes.SHA224):
+            algo = b'\x2A\x86\x48\x86\xF7\x0D\x02\x08'
+        elif (hash == hashes.SHA256):
+            algo = b'\x2A\x86\x48\x86\xF7\x0D\x02\x09'
+        elif (hash == hashes.SHA384):
+            algo = b'\x2A\x86\x48\x86\xF7\x0D\x02\x0A'
+        elif (hash == hashes.SHA512):
+            algo = b'\x2A\x86\x48\x86\xF7\x0D\x02\x0B'
+        data = [0x06, len(algo)] + list(algo) + [0x81, len(data)] + list(data)
+        resp = self.send(cla=0x80, command=0x78, p1=keyid, p2=0x51, data=data)
         return resp
 
 
