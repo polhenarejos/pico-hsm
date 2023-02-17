@@ -100,7 +100,7 @@ static int pkcs5_parse_pbkdf2_params(const mbedtls_asn1_buf *params,
 }
 
 /* Taken from https://github.com/Mbed-TLS/mbedtls/issues/2335 */
-int mbedtls_ansi_x936_kdf(mbedtls_md_type_t md_type,
+int mbedtls_ansi_x963_kdf(mbedtls_md_type_t md_type,
                           size_t input_len,
                           uint8_t *input,
                           size_t shared_info_len,
@@ -437,7 +437,7 @@ int cmd_cipher_sym() {
             else if (memcmp(enc, OID_HMAC_SHA512, enc_len) == 0) {
                 md_type = MBEDTLS_MD_SHA512;
             }
-            int r = mbedtls_ansi_x936_kdf(md_type,
+            int r = mbedtls_ansi_x963_kdf(md_type,
                                           key_size,
                                           kdata,
                                           aad_len,
