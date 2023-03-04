@@ -278,7 +278,7 @@ bool wait_button_pressed() {
 }
 
 int parse_token_info(const file_t *f, int mode) {
-    char *label = "SmartCard-HSM";
+    char *label = "Pico-HSM";
     char *manu = "Pol Henarejos";
     if (mode == 1) {
         uint8_t *p = res_APDU;

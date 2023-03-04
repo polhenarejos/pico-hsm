@@ -390,14 +390,14 @@ int cmd_cipher_sym() {
             }
 
             r = mbedtls_pkcs5_pbkdf2_hmac_ext(md_type,
-                                          kdata,
-                                          key_size,
-                                          salt.p,
-                                          salt.len,
-                                          iterations,
-                                          keylen ? keylen : (apdu.ne > 0 &&
-                                                             apdu.ne < 65536 ? apdu.ne : 32),
-                                          res_APDU);
+                                              kdata,
+                                              key_size,
+                                              salt.p,
+                                              salt.len,
+                                              iterations,
+                                              keylen ? keylen : (apdu.ne > 0 &&
+                                                                 apdu.ne < 65536 ? apdu.ne : 32),
+                                              res_APDU);
             mbedtls_platform_zeroize(kdata, sizeof(kdata));
             if (r != 0) {
                 return SW_EXEC_ERROR();
