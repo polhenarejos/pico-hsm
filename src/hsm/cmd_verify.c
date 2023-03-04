@@ -21,34 +21,42 @@ int cmd_verify() {
     uint8_t p1 = P1(apdu);
     uint8_t p2 = P2(apdu);
 
-    if (p1 != 0x0 || (p2 & 0x60) != 0x0)
+    if (p1 != 0x0 || (p2 & 0x60) != 0x0) {
         return SW_WRONG_P1P2();
+    }
 
     if (p2 == 0x81) { //UserPin
         uint16_t opts = get_device_options();
-        if (opts & HSM_OPT_TRANSPORT_PIN)
+        if (opts & HSM_OPT_TRANSPORT_PIN) {
             return SW_DATA_INVALID();
-        if (has_session_pin && apdu.nc == 0)
+        }
+        if (has_session_pin && apdu.nc == 0) {
             return SW_OK();
-        if (*file_get_data(file_pin1) == 0 && pka_enabled() == false) //not initialized
+        }
+        if (*file_get_data(file_pin1) == 0 && pka_enabled() == false) { //not initialized
             return SW_REFERENCE_NOT_FOUND();
+        }
         if (apdu.nc > 0) {
             return check_pin(file_pin1, apdu.data, apdu.nc);
         }
-        if (file_read_uint8(file_get_data(file_retries_pin1)) == 0)
+        if (file_read_uint8(file_get_data(file_retries_pin1)) == 0) {
             return SW_PIN_BLOCKED();
+        }
         return set_res_sw(0x63, 0xc0 | file_read_uint8(file_get_data(file_retries_pin1)));
     }
-    else if (p2 == 0x88) { //SOPin
-        if (file_read_uint8(file_get_data(file_sopin)) == 0) //not initialized
+    else if (p2 == 0x88) {   //SOPin
+        if (file_read_uint8(file_get_data(file_sopin)) == 0) { //not initialized
             return SW_REFERENCE_NOT_FOUND();
+        }
         if (apdu.nc > 0) {
             return check_pin(file_sopin, apdu.data, apdu.nc);
         }
-        if (file_read_uint8(file_get_data(file_retries_sopin)) == 0)
+        if (file_read_uint8(file_get_data(file_retries_sopin)) == 0) {
             return SW_PIN_BLOCKED();
-        if (has_session_sopin)
+        }
+        if (has_session_sopin) {
             return SW_OK();
+        }
         return set_res_sw(0x63, 0xc0 | file_read_uint8(file_get_data(file_retries_sopin)));
     }
     else if (p2 == 0x85) {

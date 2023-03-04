@@ -28,7 +28,8 @@ int cmd_session_pin() {
         res_APDU_size = sm_session_pin_len;
         apdu.ne = sm_session_pin_len;
     }
-    else
+    else {
         return SW_INCORRECT_P1P2();
+    }
     return SW_OK();
 }

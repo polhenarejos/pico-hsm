@@ -19,22 +19,27 @@
 
 int cmd_delete_file() {
     file_t *ef = NULL;
-    if (!isUserAuthenticated)
+    if (!isUserAuthenticated) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
+    }
 
     if (apdu.nc == 0) {
         ef = currentEF;
-        if (!(ef = search_dynamic_file(ef->fid)))
+        if (!(ef = search_dynamic_file(ef->fid))) {
             return SW_FILE_NOT_FOUND();
+        }
     }
     else {
         uint16_t fid = (apdu.data[0] << 8) | apdu.data[1];
-        if (!(ef = search_dynamic_file(fid)))
+        if (!(ef = search_dynamic_file(fid))) {
             return SW_FILE_NOT_FOUND();
+        }
     }
-    if (!authenticate_action(ef, ACL_OP_DELETE_SELF))
+    if (!authenticate_action(ef, ACL_OP_DELETE_SELF)) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
-    if (delete_file(ef) != CCID_OK)
+    }
+    if (delete_file(ef) != CCID_OK) {
         return SW_EXEC_ERROR();
+    }
     return SW_OK();
 }

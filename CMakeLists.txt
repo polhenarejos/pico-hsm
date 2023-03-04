@@ -17,18 +17,24 @@
 
 cmake_minimum_required(VERSION 3.13)
 
+if(ENABLE_EMULATION)
+else()
 include(pico_sdk_import.cmake)
+endif()
 
 project(pico_hsm C CXX ASM)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 
+if(ENABLE_EMULATION)
+else()
 pico_sdk_init()
+endif()
 
 add_executable(pico_hsm)
 
-target_sources(pico_hsm PUBLIC
+set(SOURCES ${SOURCES}
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/sc_hsm.c
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_select.c
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_list_keys.c
@@ -62,39 +68,38 @@ target_sources(pico_hsm PUBLIC
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/oid.c
 
         )
-set(HSM_DRIVER "ccid")
+set(USB_ITF_CCID 1)
 include(pico-hsm-sdk/pico_hsm_sdk_import.cmake)
 
-target_include_directories(pico_hsm PUBLIC
+set(INCLUDES ${INCLUDES}
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm
         )
+
+target_sources(pico_hsm PUBLIC ${SOURCES})
+target_include_directories(pico_hsm PUBLIC ${INCLUDES})
 
 target_compile_options(pico_hsm PUBLIC
     -Wall
     -Werror
 )
 
+if(ENABLE_EMULATION)
+
+target_compile_options(pico_hsm PUBLIC
+        -fdata-sections
+        -ffunction-sections
+        )
+if(APPLE)
+target_link_options(pico_hsm PUBLIC
+        -Wl,-dead_strip
+        )
+else()
+target_link_options(pico_hsm PUBLIC
+        -Wl,--gc-sections
+        )
+endif (APPLE)
+else()
 pico_add_extra_outputs(pico_hsm)
 
 target_link_libraries(pico_hsm PRIVATE pico_hsm_sdk pico_stdlib pico_multicore hardware_flash hardware_sync hardware_adc pico_unique_id hardware_rtc tinyusb_device tinyusb_board)
-
-#
-#project(flash_nuke C CXX ASM)
-#add_executable(flash_nuke nuke.c)
-#target_link_libraries(flash_nuke
-#        pico_stdlib
-#        hardware_flash
-#        )
-#pico_set_binary_type(flash_nuke no_flash)
-#
-#pico_add_extra_outputs(flash_nuke)
-
-#project(memory C CXX ASM)
-#add_executable(memory memory.c)
-#target_link_libraries(memory
-#        pico_stdlib
-#        hardware_flash
-#        )
-#pico_set_binary_type(memory no_flash)
-#
-#pico_add_extra_outputs(memory)
+endif()

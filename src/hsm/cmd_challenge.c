@@ -22,9 +22,10 @@ uint8_t challenge[256];
 uint8_t challenge_len = 0;
 
 int cmd_challenge() {
-    uint8_t *rb = (uint8_t *)random_bytes_get(apdu.ne);
-    if (!rb)
+    uint8_t *rb = (uint8_t *) random_bytes_get(apdu.ne);
+    if (!rb) {
         return SW_WRONG_LENGTH();
+    }
     memcpy(res_APDU, rb, apdu.ne);
     challenge_len = MIN(apdu.ne, sizeof(challenge));
     memcpy(challenge, rb, challenge_len);

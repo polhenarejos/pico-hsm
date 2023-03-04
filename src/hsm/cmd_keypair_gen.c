@@ -26,13 +26,15 @@
 
 int cmd_keypair_gen() {
     uint8_t key_id = P1(apdu);
-    if (!isUserAuthenticated)
+    if (!isUserAuthenticated) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
+    }
     int ret = 0;
 
     size_t tout = 0;
     //sc_asn1_print_tags(apdu.data, apdu.nc);
     uint8_t *p = NULL;
+    //DEBUG_DATA(apdu.data,apdu.nc);
     if (asn1_find_tag(apdu.data, apdu.nc, 0x7f49, &tout, &p) && tout > 0 && p != NULL) {
         size_t oid_len = 0;
         uint8_t *oid = NULL;
@@ -55,32 +57,36 @@ int cmd_keypair_gen() {
                         key_size = (key_size << 8) | *dt++;
                     }
                 }
-                printf("KEYPAIR RSA %ld (%lx)\r\n",key_size,exponent);
+                printf("KEYPAIR RSA %lu (%lx)\r\n",
+                       (unsigned long) key_size,
+                       (unsigned long) exponent);
                 mbedtls_rsa_context rsa;
                 mbedtls_rsa_init(&rsa);
                 uint8_t index = 0;
                 ret = mbedtls_rsa_gen_key(&rsa, random_gen, &index, key_size, exponent);
                 if (ret != 0) {
-                        mbedtls_rsa_free(&rsa);
+                    mbedtls_rsa_free(&rsa);
                     return SW_EXEC_ERROR();
                 }
-                if ((res_APDU_size = asn1_cvc_aut(&rsa, HSM_KEY_RSA, res_APDU, 4096, NULL, 0)) == 0) {
+                if ((res_APDU_size =
+                         asn1_cvc_aut(&rsa, HSM_KEY_RSA, res_APDU, 4096, NULL, 0)) == 0) {
                     return SW_EXEC_ERROR();
                 }
-	            ret = store_keys(&rsa, HSM_KEY_RSA, key_id);
-	            if (ret != CCID_OK) {
+                ret = store_keys(&rsa, HSM_KEY_RSA, key_id);
+                if (ret != CCID_OK) {
                     mbedtls_rsa_free(&rsa);
                     return SW_EXEC_ERROR();
                 }
                 mbedtls_rsa_free(&rsa);
             }
-            else if (memcmp(oid, OID_ID_TA_ECDSA_SHA_256,MIN(oid_len,10)) == 0) { //ECC
+            else if (memcmp(oid, OID_ID_TA_ECDSA_SHA_256, MIN(oid_len, 10)) == 0) {   //ECC
                 size_t prime_len;
                 uint8_t *prime = NULL;
-                if (asn1_find_tag(p, tout, 0x81, &prime_len, &prime) != true)
+                if (asn1_find_tag(p, tout, 0x81, &prime_len, &prime) != true) {
                     return SW_WRONG_DATA();
+                }
                 mbedtls_ecp_group_id ec_id = ec_get_curve_from_prime(prime, prime_len);
-                printf("KEYPAIR ECC %d\r\n",ec_id);
+                printf("KEYPAIR ECC %d\r\n", ec_id);
                 if (ec_id == MBEDTLS_ECP_DP_NONE) {
                     return SW_FUNC_NOT_SUPPORTED();
                 }
@@ -99,18 +105,23 @@ int cmd_keypair_gen() {
                         if (p91[n] == ALGO_EC_DH_XKEK) {
                             size_t l92 = 0;
                             uint8_t *p92 = NULL;
-                            if (!asn1_find_tag(apdu.data, apdu.nc, 0x92, &l92, &p92) || p92 == NULL || l92 == 0)
+                            if (!asn1_find_tag(apdu.data, apdu.nc, 0x92, &l92,
+                                               &p92) || p92 == NULL || l92 == 0) {
                                 return SW_WRONG_DATA();
-                            if (p92[0] > MAX_KEY_DOMAINS)
+                            }
+                            if (p92[0] > MAX_KEY_DOMAINS) {
                                 return SW_WRONG_DATA();
-                            file_t *tf_xkek = search_dynamic_file(EF_XKEK+p92[0]);
-                            if (!tf_xkek)
+                            }
+                            file_t *tf_xkek = search_dynamic_file(EF_XKEK + p92[0]);
+                            if (!tf_xkek) {
                                 return SW_WRONG_DATA();
-                            ext_len = 2+2+strlen(OID_ID_KEY_DOMAIN_UID)+2+file_get_size(tf_xkek);
-                            ext = (uint8_t *)calloc(1, ext_len);
+                            }
+                            ext_len = 2 + 2 + strlen(OID_ID_KEY_DOMAIN_UID) + 2 + file_get_size(
+                                tf_xkek);
+                            ext = (uint8_t *) calloc(1, ext_len);
                             uint8_t *pe = ext;
                             *pe++ = 0x73;
-                            *pe++ = ext_len-2;
+                            *pe++ = ext_len - 2;
                             *pe++ = 0x6;
                             *pe++ = strlen(OID_ID_KEY_DOMAIN_UID);
                             memcpy(pe, OID_ID_KEY_DOMAIN_UID, strlen(OID_ID_KEY_DOMAIN_UID));
@@ -121,33 +132,40 @@ int cmd_keypair_gen() {
                         }
                     }
                 }
-                if ((res_APDU_size = asn1_cvc_aut(&ecdsa, HSM_KEY_EC, res_APDU, 4096, ext, ext_len)) == 0) {
-                    if (ext)
+                if ((res_APDU_size =
+                         asn1_cvc_aut(&ecdsa, HSM_KEY_EC, res_APDU, 4096, ext, ext_len)) == 0) {
+                    if (ext) {
                         free(ext);
+                    }
                     mbedtls_ecdsa_free(&ecdsa);
                     return SW_EXEC_ERROR();
                 }
-                if (ext)
+                if (ext) {
                     free(ext);
+                }
                 ret = store_keys(&ecdsa, HSM_KEY_EC, key_id);
                 mbedtls_ecdsa_free(&ecdsa);
-	            if (ret != CCID_OK) {
+                if (ret != CCID_OK) {
                     return SW_EXEC_ERROR();
                 }
             }
 
         }
     }
-    else
+    else {
         return SW_WRONG_DATA();
-    if (find_and_store_meta_key(key_id) != CCID_OK)
+    }
+    if (find_and_store_meta_key(key_id) != CCID_OK) {
         return SW_EXEC_ERROR();
+    }
     file_t *fpk = file_new((EE_CERTIFICATE_PREFIX << 8) | key_id);
     ret = flash_write_data_to_file(fpk, res_APDU, res_APDU_size);
-    if (ret != 0)
+    if (ret != 0) {
         return SW_EXEC_ERROR();
-    //if (apdu.ne == 0)
-    //    apdu.ne = res_APDU_size;
+    }
+    if (apdu.ne == 0) {
+        apdu.ne = res_APDU_size;
+    }
     low_flash_available();
     return SW_OK();
 }

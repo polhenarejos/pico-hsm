@@ -33,15 +33,16 @@ int cmd_general_authenticate() {
             uint16_t tag = 0x0;
             uint8_t *tag_data = NULL, *p = NULL;
             size_t tag_len = 0;
-            while (walk_tlv(apdu.data+2, apdu.nc-2, &p, &tag, &tag_len, &tag_data)) {
+            while (walk_tlv(apdu.data + 2, apdu.nc - 2, &p, &tag, &tag_len, &tag_data)) {
                 if (tag == 0x80) {
-                    pubkey = tag_data-1; //mbedtls ecdh starts reading one pos before
-                    pubkey_len = tag_len+1;
+                    pubkey = tag_data - 1; //mbedtls ecdh starts reading one pos before
+                    pubkey_len = tag_len + 1;
                 }
             }
             file_t *fkey = search_by_fid(EF_KEY_DEV, NULL, SPECIFY_EF);
-            if (!fkey)
+            if (!fkey) {
                 return SW_EXEC_ERROR();
+            }
             mbedtls_ecdsa_context ectx;
             mbedtls_ecdsa_init(&ectx);
             r = load_private_key_ecdsa(&ectx, fkey);
@@ -71,7 +72,12 @@ int cmd_general_authenticate() {
             }
             size_t olen = 0;
             uint8_t derived[MBEDTLS_ECP_MAX_BYTES];
-            r = mbedtls_ecdh_calc_secret(&ctx, &olen, derived, MBEDTLS_ECP_MAX_BYTES, random_gen, NULL);
+            r = mbedtls_ecdh_calc_secret(&ctx,
+                                         &olen,
+                                         derived,
+                                         MBEDTLS_ECP_MAX_BYTES,
+                                         random_gen,
+                                         NULL);
             mbedtls_ecdh_free(&ctx);
             if (r != 0) {
                 return SW_EXEC_ERROR();
@@ -79,27 +85,29 @@ int cmd_general_authenticate() {
 
             sm_derive_all_keys(derived, olen);
 
-            uint8_t *t = (uint8_t *)calloc(1, pubkey_len+16);
+            uint8_t *t = (uint8_t *) calloc(1, pubkey_len + 16);
             memcpy(t, "\x7F\x49\x4F\x06\x0A", 5);
-            if (sm_get_protocol() == MSE_AES)
-                memcpy(t+5, OID_ID_CA_ECDH_AES_CBC_CMAC_128, 10);
+            if (sm_get_protocol() == MSE_AES) {
+                memcpy(t + 5, OID_ID_CA_ECDH_AES_CBC_CMAC_128, 10);
+            }
             t[15] = 0x86;
-            memcpy(t+16, pubkey, pubkey_len);
+            memcpy(t + 16, pubkey, pubkey_len);
 
             res_APDU[res_APDU_size++] = 0x7C;
             res_APDU[res_APDU_size++] = 20;
             res_APDU[res_APDU_size++] = 0x81;
             res_APDU[res_APDU_size++] = 8;
-            memcpy(res_APDU+res_APDU_size, sm_get_nonce(), 8);
+            memcpy(res_APDU + res_APDU_size, sm_get_nonce(), 8);
             res_APDU_size += 8;
             res_APDU[res_APDU_size++] = 0x82;
             res_APDU[res_APDU_size++] = 8;
 
-            r = sm_sign(t, pubkey_len+16, res_APDU+res_APDU_size);
+            r = sm_sign(t, pubkey_len + 16, res_APDU + res_APDU_size);
 
             free(t);
-            if (r != CCID_OK)
+            if (r != CCID_OK) {
                 return SW_EXEC_ERROR();
+            }
             res_APDU_size += 8;
         }
     }

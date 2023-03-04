@@ -241,7 +241,13 @@ def initialize(card, args):
     _ = input('[Press enter to confirm]')
 
     send_apdu(card, 0xA4, 0x04, 0x00, [0xE8, 0x2B, 0x06, 0x01, 0x04, 0x01, 0x81, 0xC3, 0x1F, 0x02, 0x01])
-    if (not args.pin):
+    if (args.pin):
+        pin = args.pin.encode()
+        try:
+            response = send_apdu(card, 0x20, 0x00, 0x81, list(pin))
+        except APDUResponse:
+            pass
+    else:
         pin = b'648219'
 
     if (args.so_pin):
@@ -600,7 +606,7 @@ def main(args):
         card.connection.connect()
 
     except CardRequestTimeoutException:
-        print('time-out: no card inserted during last 10s')
+        raise Exception('time-out: no card inserted during last 10s')
 
     if (args.pin):
         login(card, args)

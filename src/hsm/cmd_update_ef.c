@@ -27,25 +27,32 @@ int cmd_update_ef() {
     uint16_t offset = 0;
     uint16_t data_len = 0;
     file_t *ef = NULL;
-    if (!isUserAuthenticated)
+    if (!isUserAuthenticated) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
-    if (fid == 0x0)
+    }
+    if (fid == 0x0) {
         ef = currentEF;
-    else if (p1 != EE_CERTIFICATE_PREFIX && p1 != PRKD_PREFIX && p1 != CA_CERTIFICATE_PREFIX && p1 != CD_PREFIX && p1 != DATA_PREFIX && p1 != DCOD_PREFIX && p1 != PROT_DATA_PREFIX)
+    }
+    else if (p1 != EE_CERTIFICATE_PREFIX && p1 != PRKD_PREFIX && p1 != CA_CERTIFICATE_PREFIX &&
+             p1 != CD_PREFIX && p1 != DATA_PREFIX && p1 != DCOD_PREFIX &&
+             p1 != PROT_DATA_PREFIX) {
         return SW_INCORRECT_P1P2();
+    }
 
-    if (ef && !authenticate_action(ef, ACL_OP_UPDATE_ERASE))
+    if (ef && !authenticate_action(ef, ACL_OP_UPDATE_ERASE)) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
+    }
 
     uint16_t tag = 0x0;
     uint8_t *tag_data = NULL, *p = NULL;
     size_t tag_len = 0;
     while (walk_tlv(apdu.data, apdu.nc, &p, &tag, &tag_len, &tag_data)) {
         if (tag == 0x54) { //ofset tag
-            for (int i = 1; i <= tag_len; i++)
-                offset |= (*tag_data++ << (8*(tag_len-i)));
+            for (int i = 1; i <= tag_len; i++) {
+                offset |= (*tag_data++ << (8 * (tag_len - i)));
+            }
         }
-        else if (tag == 0x53) { //data
+        else if (tag == 0x53) {   //data
             data_len = tag_len;
             data = tag_data;
         }
@@ -57,28 +64,35 @@ int cmd_update_ef() {
         select_file(ef);
     }
     else {
-        if (fid == 0x0 && !ef)
+        if (fid == 0x0 && !ef) {
             return SW_FILE_NOT_FOUND();
-        else if (fid != 0x0 && !(ef = search_by_fid(fid, NULL, SPECIFY_EF)) && !(ef = search_dynamic_file(fid))) { //if does not exist, create it
+        }
+        else if (fid != 0x0 &&
+                 !(ef =
+                       search_by_fid(fid, NULL,
+                                     SPECIFY_EF)) && !(ef = search_dynamic_file(fid))) {                           //if does not exist, create it
             //return SW_FILE_NOT_FOUND();
             ef = file_new(fid);
         }
         if (offset == 0) {
             int r = flash_write_data_to_file(ef, data, data_len);
-            if (r != CCID_OK)
+            if (r != CCID_OK) {
                 return SW_MEMORY_FAILURE();
+            }
         }
         else {
-            if (!ef->data)
+            if (!file_has_data(ef)) {
                 return SW_DATA_INVALID();
+            }
 
-            uint8_t *data_merge = (uint8_t *)calloc(1, offset+data_len);
+            uint8_t *data_merge = (uint8_t *) calloc(1, offset + data_len);
             memcpy(data_merge, file_get_data(ef), offset);
-            memcpy(data_merge+offset, data, data_len);
-            int r = flash_write_data_to_file(ef, data_merge, offset+data_len);
+            memcpy(data_merge + offset, data, data_len);
+            int r = flash_write_data_to_file(ef, data_merge, offset + data_len);
             free(data_merge);
-            if (r != CCID_OK)
+            if (r != CCID_OK) {
                 return SW_MEMORY_FAILURE();
+            }
         }
         low_flash_available();
     }
