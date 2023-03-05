@@ -234,7 +234,12 @@ void init_sc_hsm() {
     puk_store_entries = 0;
     file_t *fterm = search_by_fid(EF_TERMCA, NULL, SPECIFY_EF);
     if (fterm) {
-        add_cert_puk_store(file_get_data(fterm), file_get_size(fterm), false);
+        uint8_t *p = NULL, *fterm_data = file_get_data(fterm), *pq = fterm_data;
+        size_t fterm_data_len = file_get_size(fterm);
+        while (walk_tlv(fterm_data, fterm_data_len, &p, NULL, NULL, NULL)) {
+            add_cert_puk_store(pq, p - pq, false);
+            pq = p;
+        }
     }
     for (int i = 0; i < 0xfe; i++) {
         file_t *ef = search_dynamic_file((CA_CERTIFICATE_PREFIX << 8) | i);
@@ -269,7 +274,7 @@ bool wait_button_pressed() {
     uint16_t opts = get_device_options();
     if (opts & HSM_OPT_BOOTSEL_BUTTON) {
         queue_try_add(&card_to_usb_q, &val);
-        do {
+        do{
             queue_remove_blocking(&usb_to_card_q, &val);
         } while (val != EV_BUTTON_PRESSED && val != EV_BUTTON_TIMEOUT);
     }
@@ -309,7 +314,7 @@ int pin_reset_retries(const file_t *pin, bool force) {
         return CCID_ERR_FILE_NOT_FOUND;
     }
     uint8_t retries = file_read_uint8(file_get_data(act));
-    if (retries == 0 && force == false) { //blocked
+    if (retries == 0 && force == false) { // blocked
         return CCID_ERR_BLOCKED;
     }
     retries = file_read_uint8(file_get_data(max));
@@ -367,7 +372,7 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
     else {
         uint8_t dhash[32];
         double_hash_pin(data, len, dhash);
-        if (sizeof(dhash) != file_get_size(pin) - 1) { //1 byte for pin len
+        if (sizeof(dhash) != file_get_size(pin) - 1) { // 1 byte for pin len
             return SW_CONDITIONS_NOT_SATISFIED();
         }
         if (memcmp(file_get_data(pin) + 1, dhash, sizeof(dhash)) != 0) {
@@ -454,7 +459,7 @@ uint32_t decrement_key_counter(file_t *fkey) {
         /* We cannot modify meta_data, as it comes from flash memory. It must be cpied to an aux buffer */
         memcpy(cmeta, meta_data, meta_size);
         while (walk_tlv(cmeta, meta_size, &p, &tag, &tag_len, &tag_data)) {
-            if (tag == 0x90) { //ofset tag
+            if (tag == 0x90) { // ofset tag
                 uint32_t val =
                     (tag_data[0] << 24) | (tag_data[1] << 16) | (tag_data[2] << 8) | tag_data[3];
                 val--;
@@ -477,10 +482,10 @@ uint32_t decrement_key_counter(file_t *fkey) {
     return 0xffffffff;
 }
 
-//Stores the private and public keys in flash
+// Stores the private and public keys in flash
 int store_keys(void *key_ctx, int type, uint8_t key_id) {
     int r, key_size = 0;
-    uint8_t kdata[4096 / 8]; //worst case
+    uint8_t kdata[4096 / 8]; // worst case
     if (type == HSM_KEY_RSA) {
         mbedtls_rsa_context *rsa = (mbedtls_rsa_context *) key_ctx;
         key_size = mbedtls_mpi_size(&rsa->P) + mbedtls_mpi_size(&rsa->Q);
@@ -566,7 +571,7 @@ int find_and_store_meta_key(uint8_t key_id) {
 }
 
 int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
-    if (wait_button_pressed() == true) { //timeout
+    if (wait_button_pressed() == true) { // timeout
         return CCID_VERIFICATION_FAILED;
     }
 
@@ -610,12 +615,12 @@ int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
 }
 
 int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey) {
-    if (wait_button_pressed() == true) { //timeout
+    if (wait_button_pressed() == true) { // timeout
         return CCID_VERIFICATION_FAILED;
     }
 
     int key_size = file_get_size(fkey);
-    uint8_t kdata[67]; //Worst case, 521 bit + 1byte
+    uint8_t kdata[67]; // Worst case, 521 bit + 1byte
     memcpy(kdata, file_get_data(fkey), key_size);
     if (mkek_decrypt(kdata, key_size) != 0) {
         return CCID_EXEC_ERROR;
