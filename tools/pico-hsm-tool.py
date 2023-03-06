@@ -275,7 +275,7 @@ def initialize(card, args):
     j = get_pki_data('cvc', data=data)
     print('Device name: '+j['devname'])
     dataef = base64.urlsafe_b64decode(
-        j['cvcert']) + base64.urlsafe_b64decode(j['dvcert'])
+        j['cvcert']) + base64.urlsafe_b64decode(j['dvcert']) + base64.urlsafe_b64decode(j['cacert'])
 
     response = send_apdu(card, 0xa4, 0x00, 0x00, [0x2f, 0x02])
     response = send_apdu(card, 0x20, 0x00, 0x81, list(pin))
