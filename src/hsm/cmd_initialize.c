@@ -38,6 +38,7 @@ int heapLeft() {
     return left;
 }
 
+extern void reset_puk_store();
 int cmd_initialize() {
     if (apdu.nc > 0) {
         uint8_t mkek[MKEK_SIZE];
@@ -221,6 +222,7 @@ int cmd_initialize() {
             return SW_EXEC_ERROR();
         }
         low_flash_available();
+        reset_puk_store();
     }
     else {   //free memory bytes request
         int heap_left = heapLeft();
