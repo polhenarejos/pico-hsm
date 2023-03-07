@@ -27,7 +27,7 @@ uint8_t get_key_domain(file_t *fkey) {
     if (meta_tag) {
         return *meta_tag;
     }
-    return 0;
+    return 0xff;
 }
 
 int cmd_key_domain() {

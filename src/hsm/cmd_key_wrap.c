@@ -32,6 +32,9 @@ int cmd_key_wrap() {
     }
     file_t *ef = search_dynamic_file((KEY_PREFIX << 8) | key_id);
     uint8_t kdom = get_key_domain(ef);
+    if (kdom == 0xff) {
+        return SW_REFERENCE_NOT_FOUND();
+    }
     if (!ef) {
         return SW_FILE_NOT_FOUND();
     }
