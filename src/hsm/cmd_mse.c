@@ -68,8 +68,9 @@ int cmd_mse() {
                                                              &chr_len);
                             if (memcmp(chr, tag_data, chr_len) == 0) {
                                 ef_puk_aut = ef;
-                                if (puk_status[i] == 1)
+                                if (puk_status[i] == 1) {
                                     return SW_CONDITIONS_NOT_SATISFIED(); // It is correct
+                                }
                                 return SW_OK();
                             }
                         }

@@ -23,8 +23,9 @@ int cmd_puk_auth() {
     uint8_t p1 = P1(apdu), p2 = P2(apdu);
     file_t *ef_puk = search_by_fid(EF_PUKAUT, NULL, SPECIFY_EF);
     if (!file_has_data(ef_puk)) {
-        if (apdu.nc > 0)
+        if (apdu.nc > 0) {
             return SW_FILE_NOT_FOUND();
+        }
         return SW_INCORRECT_P1P2();
     }
     uint8_t *puk_data = file_get_data(ef_puk);
