@@ -38,6 +38,7 @@ int cmd_external_authenticate() {
     if (!file_has_data(ef_puk)) {
         return SW_FILE_NOT_FOUND();
     }
+    puk_status[ef_puk_aut->fid & (MAX_PUK - 1)] = 0;
     uint8_t *puk_data = file_get_data(ef_puk);
     uint8_t *input = (uint8_t *) calloc(dev_name_len + challenge_len, sizeof(uint8_t)), hash[32];
     memcpy(input, dev_name, dev_name_len);
