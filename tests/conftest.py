@@ -71,6 +71,8 @@ class Device:
         except CardRequestTimeoutException:
             raise Exception('time-out: no card inserted during last 10s')
         self.select_applet()
+        data = self.get_contents(p1=0x2f02)
+        self.device_id = CVC().decode(data).chr()
 
     def select_applet(self):
         self.__card.connection.transmit([0x00, 0xA4, 0x04, 0x00, 0xB, 0xE8, 0x2B, 0x06, 0x01, 0x04, 0x01, 0x81, 0xC3, 0x1F, 0x02, 0x01, 0x0])
@@ -129,6 +131,17 @@ class Device:
             if (e.sw1 == 0x63 and e.sw2 & 0xF0 == 0xC0):
                 return e.sw2 & 0x0F
             raise e
+
+    def is_logged(self):
+        try:
+            self.send(command=0x20, p2=0x81)
+            return True
+        except APDUResponse:
+            pass
+        return False
+
+    def logout(self):
+        self.select_applet()
 
     def initialize(self, pin=DEFAULT_PIN, sopin=DEFAULT_SOPIN, options=None, retries=DEFAULT_RETRIES, dkek_shares=None, puk_auts=None, puk_min_auts=None, key_domains=None):
         if (retries is not None and not 0 < retries <= 10):
@@ -502,6 +515,76 @@ class Device:
         data = [0x06, len(oid)] + list(oid) + [0x81, len(enc)] + list(enc) + [0x83, len(data)] + list(data)
         resp = self.send(cla=0x80, command=0x78, p1=keyid, p2=0x51, data=data, ne=out_len)
         return resp
+
+    def verify_certificate(self, cert):
+        chr = CVC().decode(cert).chr()
+        pukref = ASN1().add_tag(0x83, chr).encode()
+        _, code = self.send(command=0x22, p1=0x81, p2=0xB6, data=pukref, codes=[0x9000, 0x6A88])
+        if (code == 0x9000):
+            return
+
+        car = CVC().decode(cert).car()
+        pukref = ASN1().add_tag(0x83, car).encode()
+        self.send(command=0x22, p1=0x81, p2=0xB6, data=pukref)
+
+        data = ASN1().decode(cert).find(0x7F21).data()
+        self.send(command=0x2A, p2=0xBE, data=data)
+
+    def register_puk(self, puk, devcert, dicacert, replace=0):
+        self.verify_certificate(devcert)
+        self.verify_certificate(dicacert)
+
+        car = CVC().decode(puk).outer_car()
+        pukref = ASN1().add_tag(0x83, car).encode()
+        self.send(command=0x22, p1=0x81, p2=0xB6, data=pukref)
+
+        data = ASN1().decode(puk).find(0x67).data()
+        p1,p2 = 0,0
+        if (replace > 0):
+            p1 = 0x1
+            p2 = replace
+        status = self.send(cla=0x80, command=0x54, p1=p1, p2=p2, data=data)
+        return status
+
+    def get_puk_status(self):
+        status = self.send(cla=0x80, command=0x54)
+        return status
+
+    def enumerate_puk(self):
+        puk_no = self.get_puk_status()[0]
+        puks = []
+        for i in range(puk_no):
+            bin, code = self.send(cla=0x80, command=0x54, p1=0x02, p2=i, codes=[0x9000, 0x9001, 0x6A88])
+            if (code == 0x6A88):
+                puks.append({'status': -1})
+            else:
+                puks.append({'status': code & 0x1, 'chr': bin})
+        return puks
+
+    def is_puk(self):
+        _, code = self.send(cla=0x80, command=0x54, p1=0x02, codes=[0x9000, 0x9001, 0x6A88, 0x6A86])
+        return code != 0x6A86
+
+    def check_puk_key(self, chr):
+        pukref = ASN1().add_tag(0x83, chr).encode()
+        _, code = self.send(command=0x22, p1=0x81, p2=0xA4, data=pukref, codes=[0x9000, 0x6A88, 0x6985])
+        if (code == 0x9000):
+            return 0
+        elif (code == 0x6985):
+            return 1
+        return -1
+
+    def puk_prepare_signature(self):
+        challenge = self.send(command=0x84, ne=8)
+        input = self.device_id + bytes(challenge)
+        return input
+
+    def authenticate_puk(self, chr, signature):
+        pukref = ASN1().add_tag(0x83, chr).encode()
+        self.send(command=0x22, p1=0x81, p2=0xA4, data=pukref)
+        self.send(command=0x82, data=signature)
+
+
 
 @pytest.fixture(scope="session")
 def device():
