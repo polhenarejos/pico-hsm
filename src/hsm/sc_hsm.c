@@ -218,11 +218,7 @@ int puk_store_select_chr(const uint8_t *chr) {
     return CCID_ERR_FILE_NOT_FOUND;
 }
 
-void init_sc_hsm() {
-    scan_all();
-    has_session_pin = has_session_sopin = false;
-    isUserAuthenticated = false;
-    cmd_select();
+void reset_puk_store() {
     if (puk_store_entries > 0) { /* From previous session */
         for (int i = 0; i < puk_store_entries; i++) {
             if (puk_store[i].copied == true) {
@@ -249,6 +245,14 @@ void init_sc_hsm() {
     }
     dev_name = cvc_get_chr(file_get_data(fterm), file_get_size(fterm), &dev_name_len);
     memset(puk_status, 0, sizeof(puk_status));
+}
+
+void init_sc_hsm() {
+    scan_all();
+    has_session_pin = has_session_sopin = false;
+    isUserAuthenticated = false;
+    cmd_select();
+    reset_puk_store();
 }
 
 int sc_hsm_unload() {
