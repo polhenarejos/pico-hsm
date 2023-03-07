@@ -704,8 +704,11 @@ int dkek_decode_key(uint8_t id,
         len = get_uint16_t(kb, ofs); ofs += 2;
         r = mbedtls_ecp_point_read_binary(&ecdsa->grp, &ecdsa->Q, kb + ofs, len);
         if (r != 0) {
-            mbedtls_ecdsa_free(ecdsa);
-            return CCID_EXEC_ERROR;
+            r = mbedtls_ecp_mul(&ecdsa->grp, &ecdsa->Q, &ecdsa->d, &ecdsa->grp.G, random_gen, NULL);
+            if (r != 0) {
+                mbedtls_ecdsa_free(ecdsa);
+                return CCID_EXEC_ERROR;
+            }
         }
         r = mbedtls_ecp_check_pub_priv(ecdsa, ecdsa, random_gen, NULL);
         if (r != 0) {
