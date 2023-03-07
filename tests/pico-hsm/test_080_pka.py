@@ -47,6 +47,12 @@ def test_register_puk(device):
 
     status = device.register_puk(AUT_PUK, TERM_CERT, DICA_CERT)
     assert(status == [1,0,1,0])
+    assert(device.check_puk_key(term_chr) == 0)
+
+def test_enumerate_puk_reg(device):
+    puks = device.enumerate_puk()
+    assert(len(puks) == 1)
+    assert(puks[0]['status'] == 0)
 
 def test_authentication(device):
     input = device.puk_prepare_signature()
@@ -54,6 +60,39 @@ def test_authentication(device):
     r,s = utils.decode_dss_signature(signature)
     signature = list(int_to_bytes(r) + int_to_bytes(s))
     device.authenticate_puk(term_chr, signature)
+    status = device.get_puk_status()
+    assert(status == [1,0,1,1])
+
+def test_enumerate_puk_ok(device):
+    puks = device.enumerate_puk()
+    assert(len(puks) == 1)
+    assert(puks[0]['status'] == 1)
+
+def test_check_key(device):
+    assert(device.check_puk_key(term_chr) == 1)
+    bad_chr = b'XXXXX'
+    assert(device.check_puk_key(bad_chr) == -1)
+    assert(device.check_puk_key(bad_chr) != 0)
+    assert(device.check_puk_key(bad_chr) != 1)
+
+def test_puk_reset(device):
+    device.logout()
+    status = device.get_puk_status()
+    assert(status == [1,0,1,0])
+    assert(device.check_puk_key(term_chr) == 0)
+
+def test_authentication_fail(device):
+    input = b'this is a fake input'
+    signature = aut_pk.sign(input, ec.ECDSA(hashes.SHA256()))
+    r,s = utils.decode_dss_signature(signature)
+    signature = list(int_to_bytes(r) + int_to_bytes(s))
+    with pytest.raises(APDUResponse) as e:
+        device.authenticate_puk(term_chr, signature)
+    assert(e.value.sw == SWCodes.SW_CONDITIONS_NOT_SATISFIED.value)
+
+    status = device.get_puk_status()
+    assert(status == [1,0,1,0])
+    assert(device.check_puk_key(term_chr) == 0)
 
 def test_enumerate_puk_1(device):
     device.initialize(puk_auts=1, puk_min_auts=1)
