@@ -178,6 +178,7 @@ int cmd_decrypt_asym() {
                         if (store_dkek_key(n, res_APDU) != CCID_OK) {
                             return SW_EXEC_ERROR();
                         }
+                        mbedtls_platform_zeroize(res_APDU, 32);
                         return SW_OK();
                     }
                 }
