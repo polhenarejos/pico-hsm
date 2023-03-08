@@ -109,7 +109,8 @@ class Algorithm(Enum):
     ALGO_EC_SHA256          = 0x73
     ALGO_EC_SHA384          = 0x74
     ALGO_EC_SHA512          = 0x75
-    ALGO_EC_DH              = 0x80
+    ALGO_EC_ECDH            = 0x80
+    ALGO_EC_ECDH_XKEK       = 0x84
     ALGO_EC_DERIVE          = 0x98
 
     ALGO_RSA_RAW            = 0x20
@@ -128,6 +129,8 @@ class Algorithm(Enum):
     ALGO_RSA_PSS_SHA256     = 0x43
     ALGO_RSA_PSS_SHA384     = 0x44
     ALGO_RSA_PSS_SHA512     = 0x45
+
+
 
 class Padding(Enum):
     RAW =       0x21

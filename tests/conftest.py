@@ -199,7 +199,7 @@ class Device:
             return kids
         return [(resp[i],resp[i+1]) for i in range(0, len(resp), 2)]
 
-    def key_generation(self, type, param):
+    def key_generation(self, type, param, meta_data=b''):
         if (type in [KeyType.RSA, KeyType.ECC]):
             a = ASN1().add_tag(0x5f29, bytes([0])).add_tag(0x42, 'UTCA00001'.encode())
             if (type == KeyType.RSA):
@@ -211,13 +211,13 @@ class Device:
                     raise ValueError('Bad elliptic curve name')
 
                 dom = ec_domain(Device.EcDummy(param))
-                pubctx = [dom.P, dom.A, dom.B, dom.G, dom.O, None, dom.F]
+                pubctx = {1: dom.P, 2: dom.A, 3: dom.B, 4: dom.G, 5: dom.O, 7: dom.F}
                 a.add_object(0x7f49, oid.ID_TA_ECDSA_SHA_256, pubctx)
             a.add_tag(0x5f20, 'UTCDUMMY00001'.encode())
             data = a.encode()
 
             keyid = self.get_first_free_id()
-            self.send(command=0x46, p1=keyid, data=list(data))
+            self.send(command=0x46, p1=keyid, data=list(data + meta_data))
         elif (type == KeyType.AES):
             if (param == 128):
                 p2 = 0xB0
@@ -390,7 +390,7 @@ class Device:
         return p1
 
     def exchange(self, keyid, pubkey):
-        resp = self.send(cla=0x80, command=0x62, p1=keyid, p2=Algorithm.ALGO_EC_DH.value, data=pubkey.public_bytes(Encoding.X962, PublicFormat.UncompressedPoint))
+        resp = self.send(cla=0x80, command=0x62, p1=keyid, p2=Algorithm.ALGO_EC_ECDH.value, data=pubkey.public_bytes(Encoding.X962, PublicFormat.UncompressedPoint))
         return resp
 
     def parse_cvc(self, data):
@@ -417,7 +417,16 @@ class Device:
     def get_key_domain(self, key_domain=0):
         resp, code = self.send(cla=0x80, command=0x52, p2=key_domain, codes=[0x9000, 0x6A88, 0x6A86])
         if (code == 0x9000):
-            return {'dkek': { 'total': resp[0], 'missing': resp[1]}, 'kcv': resp[2:10]}
+            ret = {
+                    'dkek': {
+                        'total': resp[0],
+                        'missing': resp[1]
+                    },
+                    'kcv': resp[2:10]
+                }
+            if (len(resp) > 10):
+                ret.update({'xkek': resp[10:]})
+            return ret
         return {'error': code}
 
     def get_key_domains(self):
@@ -584,6 +593,24 @@ class Device:
         self.send(command=0x22, p1=0x81, p2=0xA4, data=pukref)
         self.send(command=0x82, data=signature)
 
+    def create_xkek(self, kdm):
+        dicacert = ASN1().decode(kdm).find(0x30).find(0x61).data()
+        devcert = ASN1().decode(kdm).find(0x30).find(0x62).data()
+        gskcert = ASN1().decode(kdm).find(0x30).find(0x63).data()
+        gsksign = ASN1().decode(kdm).find(0x30).find(0x54).data(return_tag=True)
+        gskdata = CVC().decode(gskcert).req().data()
+        self.verify_certificate(devcert)
+        self.verify_certificate(dicacert)
+        status = self.send(cla=0x80, command=0x52, p1=0x02, data=gskdata + gsksign)
+        return status[2:10], status[10:]
+
+    def generate_xkek_key(self, key_domain=0):
+        meta_data = b'\x91\x01\x84\x92\x01' + bytes([key_domain])
+        key_id = self.key_generation(KeyType.ECC, 'brainpoolP256r1', meta_data=meta_data)
+        return key_id
+
+    def derive_xkek(self, keyid, cert):
+        self.send(cla=0x80, command=0x62, p1=keyid, p2=Algorithm.ALGO_EC_ECDH_XKEK.value, data=cert)
 
 
 @pytest.fixture(scope="session")
