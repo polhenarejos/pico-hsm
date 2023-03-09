@@ -105,12 +105,12 @@ class Device:
         if (sw1 != 0x90):
             if (sw1 == 0x63 and sw2 & 0xF0 == 0xC0):
                 pass
-            elif (code == 0x6A82):
-                self.select_applet()
-                if (sw1 == 0x90):
-                    response, sw1, sw2 = self.__card.connection.transmit(apdu)
-                    if (sw1 == 0x90):
-                        return response
+            # elif (code == 0x6A82):
+            #     self.select_applet()
+            #     if (sw1 == 0x90):
+            #         response, sw1, sw2 = self.__card.connection.transmit(apdu)
+            #         if (sw1 == 0x90):
+            #             return response
             elif (code == 0x6982):
                 response, sw1, sw2 = self.__card.connection.transmit([0x00, 0x20, 0x00, 0x81, len(self.__pin)] + list(self.__pin.encode()) + [0x0])
                 if (sw1 == 0x90):
@@ -249,6 +249,12 @@ class Device:
         else:
             resp = self.get_contents(p1=p1 >> 8, p2=p1 & 0xff)
         return bytes(resp)
+
+    def put_contents(self, p1, p2=None, data=None):
+        if (p2):
+            self.send(command=0xD7, p1=p1, p2=p2, data=[0x54, 0x02, 0x00, 0x00, 0x53, len(data) if data else 0] + list(data) if data else [])
+        else:
+            self.put_contents(p1=p1 >> 8, p2=p1 & 0xff, data=data)
 
     def public_key(self, keyid, param=None):
         response = self.get_contents(p1=DOPrefixes.EE_CERTIFICATE_PREFIX.value, p2=keyid)
@@ -395,6 +401,10 @@ class Device:
         p1 = self.get_first_free_id()
         _ = self.send(cla=0x80, command=0x74, p1=p1, p2=0x93, data=data)
         return p1
+
+    def export_key(self, keyid):
+        resp = self.send(cla=0x80, command=0x72, p1=keyid, p2=0x92)
+        return resp
 
     def exchange(self, keyid, pubkey):
         resp = self.send(cla=0x80, command=0x62, p1=keyid, p2=Algorithm.ALGO_EC_ECDH.value, data=pubkey.public_bytes(Encoding.X962, PublicFormat.UncompressedPoint))
