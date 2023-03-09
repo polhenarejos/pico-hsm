@@ -199,7 +199,7 @@ class Device:
             return kids
         return [(resp[i],resp[i+1]) for i in range(0, len(resp), 2)]
 
-    def key_generation(self, type, param, meta_data=b''):
+    def key_generation(self, type, param, use_counter=None, algorithms=None, key_domain=None):
         if (type in [KeyType.RSA, KeyType.ECC]):
             a = ASN1().add_tag(0x5f29, bytes([0])).add_tag(0x42, 'UTCA00001'.encode())
             if (type == KeyType.RSA):
@@ -217,6 +217,13 @@ class Device:
             data = a.encode()
 
             keyid = self.get_first_free_id()
+            meta_data = b''
+            if (use_counter is not None):
+                meta_data += b'\x90\x04' + use_counter.to_bytes(4, 'big')
+            if (algorithms is not None):
+                meta_data += b'\x91' + bytes([len(algorithms)] + algorithms)
+            if (key_domain is not None):
+                meta_data += b'\x92\x01' + bytes([key_domain])
             self.send(command=0x46, p1=keyid, data=list(data + meta_data))
         elif (type == KeyType.AES):
             if (param == 128):
