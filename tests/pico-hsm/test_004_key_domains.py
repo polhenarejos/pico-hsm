@@ -18,9 +18,12 @@
 """
 
 import pytest
+import hashlib
 from const import DEFAULT_DKEK_SHARES, DEFAULT_DKEK
+from utils import SWCodes, APDUResponse
 
 KEY_DOMAINS = 3
+TEST_KEY_DOMAIN = 1
 
 def test_key_domains(device):
     device.initialize(key_domains=KEY_DOMAINS)
@@ -35,12 +38,12 @@ def test_key_domains(device):
     assert(device.get_key_domains() == KEY_DOMAINS)
 
 def test_set_key_domain(device):
-    kd = device.get_key_domain(key_domain=0)
+    kd = device.get_key_domain(key_domain=TEST_KEY_DOMAIN)
     assert('error' in kd)
     assert(kd['error'] == 0x6A88)
 
-    device.set_key_domain(key_domain=0)
-    kd = device.get_key_domain(key_domain=0)
+    device.set_key_domain(key_domain=TEST_KEY_DOMAIN)
+    kd = device.get_key_domain(key_domain=TEST_KEY_DOMAIN)
     assert('error' not in kd)
     assert('dkek' in kd)
     assert('total' in kd['dkek'])
@@ -48,25 +51,49 @@ def test_set_key_domain(device):
     assert('missing' in kd['dkek'])
     assert(kd['dkek']['missing'] == DEFAULT_DKEK_SHARES)
 
+def test_import_dkek_wrong_key_domain(device):
+    with pytest.raises(APDUResponse) as e:
+        device.import_dkek(DEFAULT_DKEK, key_domain=0)
+    assert(e.value.sw == SWCodes.SW_COMMAND_NOT_ALLOWED.value)
+
+def test_import_dkek(device):
+    resp = device.import_dkek(DEFAULT_DKEK, key_domain=TEST_KEY_DOMAIN)
+    assert(resp[0] == DEFAULT_DKEK_SHARES)
+    assert(resp[1] == DEFAULT_DKEK_SHARES-1)
+
+    resp = device.import_dkek(DEFAULT_DKEK, key_domain=TEST_KEY_DOMAIN)
+    assert(resp[1] == DEFAULT_DKEK_SHARES-2)
+
+    kcv = hashlib.sha256(b'\x00'*32).digest()[:8]
+    assert(bytes(resp[2:]) == kcv)
+
 def test_clear_key_domain(device):
     kd = device.get_key_domain(key_domain=0)
+    assert('error' in kd)
+    assert(kd['error'] == SWCodes.SW_REFERENCE_NOT_FOUND.value)
+
+    kd = device.get_key_domain(key_domain=TEST_KEY_DOMAIN)
     assert(kd['dkek']['total'] == DEFAULT_DKEK_SHARES)
 
-    device.import_dkek(DEFAULT_DKEK)
-    kd = device.get_key_domain(key_domain=0)
-    assert(kd['dkek']['missing'] == DEFAULT_DKEK_SHARES-1)
-
-    device.clear_key_domain(key_domain=0)
-    kd = device.get_key_domain(key_domain=0)
+    device.clear_key_domain(key_domain=TEST_KEY_DOMAIN)
+    kd = device.get_key_domain(key_domain=TEST_KEY_DOMAIN)
     assert(kd['dkek']['missing'] == DEFAULT_DKEK_SHARES)
 
 def test_delete_key_domain(device):
     assert(device.get_key_domains() == KEY_DOMAINS)
-    kd = device.get_key_domain(key_domain=0)
+    kd = device.get_key_domain(key_domain=TEST_KEY_DOMAIN)
+    assert(kd['dkek']['total'] == DEFAULT_DKEK_SHARES)
+    with pytest.raises(APDUResponse) as e:
+        device.delete_key_domain(key_domain=0)
+    assert(e.value.sw == SWCodes.SW_INCORRECT_P1P2.value)
+
+def test_delete_key_domain(device):
+    assert(device.get_key_domains() == KEY_DOMAINS)
+    kd = device.get_key_domain(key_domain=TEST_KEY_DOMAIN)
     assert(kd['dkek']['total'] == DEFAULT_DKEK_SHARES)
 
-    device.delete_key_domain(key_domain=0)
+    device.delete_key_domain(key_domain=TEST_KEY_DOMAIN)
     assert(device.get_key_domains() == KEY_DOMAINS)
-    kd = device.get_key_domain(key_domain=0)
+    kd = device.get_key_domain(key_domain=TEST_KEY_DOMAIN)
     assert('error' in kd)
     assert(kd['error'] == 0x6A88)
