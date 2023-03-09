@@ -310,8 +310,8 @@ class Device:
         resp = self.send(command=0x62, p1=keyid, p2=p2, data=list(data))
         return bytes(resp)
 
-    def import_dkek(self, dkek):
-        resp = self.send(cla=0x80, command=0x52, p1=0x0, p2=0x0, data=dkek)
+    def import_dkek(self, dkek, key_domain=0):
+        resp = self.send(cla=0x80, command=0x52, p1=0x0, p2=key_domain, data=dkek)
         return resp
 
     def import_key(self, pkey, dkek=None, purposes=None):
@@ -612,6 +612,8 @@ class Device:
     def derive_xkek(self, keyid, cert):
         self.send(cla=0x80, command=0x62, p1=keyid, p2=Algorithm.ALGO_EC_ECDH_XKEK.value, data=cert)
 
+    def delete_xkek(self, key_domain=0):
+        self.send(cla=0x80, command=0x52, p1=0x04, p2=key_domain)
 
 @pytest.fixture(scope="session")
 def device():

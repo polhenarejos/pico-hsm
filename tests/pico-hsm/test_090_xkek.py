@@ -48,7 +48,9 @@ def test_create_xkek(device):
     pub = ec.EllipticCurvePublicKey.from_encoded_point(ec.BrainpoolP256R1(), bytes(gskQ))
     assert(bytes(did) == int_to_bytes(pub.public_numbers().x)+int_to_bytes(pub.public_numbers().y))
 
+keyid = -1
 def test_derive_xkek(device):
+    global keyid
     keyid = device.generate_xkek_key()
 
     resp = device.list_keys()
@@ -71,5 +73,27 @@ def test_derive_xkek(device):
     resp = device.get_key_domain()
     assert(bytes(resp['kcv']) != b'\x00'*8)
 
+
+def test_delete_xkek(device):
+    device.delete_xkek()
+
+    resp = device.get_key_domain()
+    assert(bytes(resp['kcv']) == b'\x00'*8)
+
+def test_delete_domain_with_key(device):
+    with pytest.raises(APDUResponse) as e:
+        device.delete_key_domain()
+    assert(e.value.sw == SWCodes.SW_FILE_EXISTS.value)
+
     device.delete_file(DOPrefixes.KEY_PREFIX.value << 8 | keyid)
     device.delete_file(DOPrefixes.EE_CERTIFICATE_PREFIX.value << 8 | keyid)
+
+def test_delete_domain(device):
+    device.delete_key_domain()
+
+    resp = device.get_key_domain()
+    assert('kcv' not in resp)
+    assert('xkek' not in resp)
+    assert('error' in resp)
+    assert(resp['error'] == SWCodes.SW_REFERENCE_NOT_FOUND.value)
+
