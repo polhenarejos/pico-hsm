@@ -19,6 +19,7 @@
 #include "sc_hsm.h"
 #include "asn1.h"
 #include "kek.h"
+#include "files.h"
 
 extern uint8_t get_key_domain(file_t *fkey);
 
@@ -31,12 +32,18 @@ int cmd_key_wrap() {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
     file_t *ef = search_dynamic_file((KEY_PREFIX << 8) | key_id);
+    if (!ef) {
+        return SW_FILE_NOT_FOUND();
+    }
     uint8_t kdom = get_key_domain(ef);
     if (kdom == 0xff) {
         return SW_REFERENCE_NOT_FOUND();
     }
-    if (!ef) {
-        return SW_FILE_NOT_FOUND();
+    file_t *tf_kd = search_by_fid(EF_KEY_DOMAIN, NULL, SPECIFY_EF);
+    uint8_t *kdata = file_get_data(tf_kd), dkeks = kdata ? kdata[2 * kdom] : 0,
+            current_dkeks = kdata ? kdata[2 * kdom + 1] : 0;
+    if (dkeks != current_dkeks || dkeks == 0 || dkeks == 0xff) {
+        return SW_REFERENCE_NOT_FOUND();
     }
     if (key_has_purpose(ef, ALGO_WRAP) == false) {
         return SW_CONDITIONS_NOT_SATISFIED();
