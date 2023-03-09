@@ -107,6 +107,9 @@ int cmd_key_domain() {
             t[2 * p2 + 1] = current_dkeks = 0;
         }
         else if (p1 == 0x3) {
+            if (t[2 * p2] == 0xff || t[2 * p2 + 1] == 0xff) {
+                return SW_INCORRECT_P1P2();
+            }
             t[2 * p2] = dkeks = 0xff;
             t[2 * p2 + 1] = 0xff;
         }
