@@ -622,8 +622,7 @@ class Device:
         return status[2:10], status[10:]
 
     def generate_xkek_key(self, key_domain=0):
-        meta_data = b'\x91\x01\x84\x92\x01' + bytes([key_domain])
-        key_id = self.key_generation(KeyType.ECC, 'brainpoolP256r1', meta_data=meta_data)
+        key_id = self.key_generation(KeyType.ECC, 'brainpoolP256r1', algorithms=[Algorithm.ALGO_EC_ECDH_XKEK.value], key_domain=key_domain)
         return key_id
 
     def derive_xkek(self, keyid, cert):
