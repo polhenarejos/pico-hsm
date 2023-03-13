@@ -240,8 +240,11 @@ class Device:
             raise ValueError('Bad KeyType')
         return keyid
 
-    def delete_file(self, fid):
-        self.send(command=0xE4, data=[fid >> 8, fid & 0xff])
+    def delete_file(self, p1, p2=None):
+        if (p2):
+            self.send(command=0xE4, data=[p1, p2])
+        else:
+            resp = self.delete_file(p1=p1 >> 8, p2=p1 & 0xff)
 
     def get_contents(self, p1, p2=None):
         if (p2):
