@@ -26,6 +26,7 @@
 #include "asn1.h"
 #include "hsm.h"
 #include "usb.h"
+#include "random.h"
 
 const uint8_t sc_hsm_aid[] = {
     11,
@@ -637,6 +638,11 @@ int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey) {
         return CCID_EXEC_ERROR;
     }
     mbedtls_platform_zeroize(kdata, sizeof(kdata));
+    r = mbedtls_ecp_mul(&ctx->grp, &ctx->Q, &ctx->d, &ctx->grp.G, random_gen, NULL);
+    if (r != 0) {
+        mbedtls_ecdsa_free(ctx);
+        return CCID_EXEC_ERROR;
+    }
     return CCID_OK;
 }
 
