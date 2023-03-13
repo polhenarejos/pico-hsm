@@ -381,26 +381,19 @@ int dkek_encode_key(uint8_t id,
         put_uint16_t(mbedtls_mpi_size(&ecdsa->grp.N), kb + 8 + kb_len); kb_len += 2;
         mbedtls_mpi_write_binary(&ecdsa->grp.N, kb + 8 + kb_len, mbedtls_mpi_size(&ecdsa->grp.N));
         kb_len += mbedtls_mpi_size(&ecdsa->grp.N);
-        put_uint16_t(1 + mbedtls_mpi_size(&ecdsa->grp.G.X) + mbedtls_mpi_size(&ecdsa->grp.G.Y),
-                     kb + 8 + kb_len); kb_len += 2;
-        kb[8 + kb_len++] = 0x4;
-        mbedtls_mpi_write_binary(&ecdsa->grp.G.X, kb + 8 + kb_len,
-                                 mbedtls_mpi_size(&ecdsa->grp.G.X));
-        kb_len += mbedtls_mpi_size(&ecdsa->grp.G.X);
-        mbedtls_mpi_write_binary(&ecdsa->grp.G.Y, kb + 8 + kb_len,
-                                 mbedtls_mpi_size(&ecdsa->grp.G.Y));
-        kb_len += mbedtls_mpi_size(&ecdsa->grp.G.Y);
+
+        size_t olen = 0;
+        mbedtls_ecp_point_write_binary(&ecdsa->grp, &ecdsa->grp.G, MBEDTLS_ECP_PF_UNCOMPRESSED, &olen, kb + 8 + kb_len + 2, sizeof(kb) - 8 - kb_len - 2);
+        put_uint16_t(olen, kb + 8 + kb_len);
+        kb_len += 2+olen;
+
         put_uint16_t(mbedtls_mpi_size(&ecdsa->d), kb + 8 + kb_len); kb_len += 2;
         mbedtls_mpi_write_binary(&ecdsa->d, kb + 8 + kb_len, mbedtls_mpi_size(&ecdsa->d));
         kb_len += mbedtls_mpi_size(&ecdsa->d);
-        put_uint16_t(1 + mbedtls_mpi_size(&ecdsa->Q.X) + mbedtls_mpi_size(&ecdsa->Q.Y),
-                     kb + 8 + kb_len);
-        kb_len += 2;
-        kb[8 + kb_len++] = 0x4;
-        mbedtls_mpi_write_binary(&ecdsa->Q.X, kb + 8 + kb_len, mbedtls_mpi_size(&ecdsa->Q.X));
-        kb_len += mbedtls_mpi_size(&ecdsa->Q.X);
-        mbedtls_mpi_write_binary(&ecdsa->Q.Y, kb + 8 + kb_len, mbedtls_mpi_size(&ecdsa->Q.Y));
-        kb_len += mbedtls_mpi_size(&ecdsa->Q.Y);
+
+        mbedtls_ecp_point_write_binary(&ecdsa->grp, &ecdsa->Q, MBEDTLS_ECP_PF_UNCOMPRESSED, &olen, kb + 8 + kb_len + 2, sizeof(kb) - 8 - kb_len - 2);
+        put_uint16_t(olen, kb + 8 + kb_len);
+        kb_len += 2+olen;
 
         algo = (uint8_t *) "\x00\x0A\x04\x00\x7F\x00\x07\x02\x02\x02\x02\x03";
         algo_len = 12;
