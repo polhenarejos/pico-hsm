@@ -42,8 +42,8 @@ def test_import_rsa(device, modulus):
     keyid = device.import_key(pkey)
     pubkey = device.public_key(keyid)
     assert(pubkey.public_numbers() == pkey.public_key().public_numbers())
-    device.delete_file(DOPrefixes.KEY_PREFIX.value << 8 | keyid)
-    device.delete_file(DOPrefixes.EE_CERTIFICATE_PREFIX.value << 8 | keyid)
+    device.delete_file(DOPrefixes.KEY_PREFIX.value << 8, keyid)
+    device.delete_file(DOPrefixes.EE_CERTIFICATE_PREFIX.value << 8, keyid)
 
 
 @pytest.mark.parametrize(
@@ -54,8 +54,8 @@ def test_import_ecc(device, curve):
     keyid = device.import_key(pkey)
     pubkey = device.public_key(keyid, param=curve().name)
     assert(pubkey.public_numbers() == pkey.public_key().public_numbers())
-    device.delete_file(DOPrefixes.KEY_PREFIX.value << 8 | keyid)
-    device.delete_file(DOPrefixes.EE_CERTIFICATE_PREFIX.value << 8 | keyid)
+    device.delete_file(DOPrefixes.KEY_PREFIX.value << 8, keyid)
+    device.delete_file(DOPrefixes.EE_CERTIFICATE_PREFIX.value << 8, keyid)
 
 @pytest.mark.parametrize(
     "size", [128, 192, 256]
