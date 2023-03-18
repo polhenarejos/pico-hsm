@@ -411,7 +411,7 @@ class Device:
 
     def exchange(self, keyid, pubkey):
         resp = self.send(cla=0x80, command=0x62, p1=keyid, p2=Algorithm.ALGO_EC_ECDH.value, data=pubkey.public_bytes(Encoding.X962, PublicFormat.UncompressedPoint))
-        return resp
+        return resp[1:]
 
     def parse_cvc(self, data):
         car = CVC().decode(data).car()
