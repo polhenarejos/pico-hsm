@@ -85,7 +85,7 @@ int cmd_key_wrap() {
         mbedtls_ecdsa_free(&ctx);
     }
     else if (*dprkd == P15_KEYTYPE_AES) {
-        uint8_t kdata[32]; //maximum AES key size
+        uint8_t kdata[64]; //maximum AES key size
         if (wait_button_pressed() == true) { //timeout
             return SW_SECURE_MESSAGE_EXEC_ERROR();
         }
@@ -95,7 +95,10 @@ int cmd_key_wrap() {
         if (mkek_decrypt(kdata, key_size) != 0) {
             return SW_EXEC_ERROR();
         }
-        if (key_size == 32) {
+        if (key_size == 64) {
+            aes_type = HSM_KEY_AES_512;
+        }
+        else if (key_size == 32) {
             aes_type = HSM_KEY_AES_256;
         }
         else if (key_size == 24) {

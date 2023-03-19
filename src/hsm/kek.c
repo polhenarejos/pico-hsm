@@ -326,11 +326,14 @@ int dkek_encode_key(uint8_t id,
         else if (key_type & HSM_KEY_AES_256) {
             kb_len = 32;
         }
+        else if (key_type & HSM_KEY_AES_512) {
+            kb_len = 64;
+        }
 
-        if (kb_len != 16 && kb_len != 24 && kb_len != 32) {
+        if (kb_len != 16 && kb_len != 24 && kb_len != 32 && kb_len != 64) {
             return CCID_WRONG_DATA;
         }
-        if (*out_len < 8 + 1 + 10 + 6 + 4 + (2 + 32 + 14) + 16) {
+        if (*out_len < 8 + 1 + 10 + 6 + (2 + 64 + 14) + 16) { // 14 bytes padding
             return CCID_WRONG_LENGTH;
         }
 
@@ -385,7 +388,7 @@ int dkek_encode_key(uint8_t id,
         size_t olen = 0;
         mbedtls_ecp_point_write_binary(&ecdsa->grp, &ecdsa->grp.G, MBEDTLS_ECP_PF_UNCOMPRESSED, &olen, kb + 8 + kb_len + 2, sizeof(kb) - 8 - kb_len - 2);
         put_uint16_t(olen, kb + 8 + kb_len);
-        kb_len += 2+olen;
+        kb_len += 2 + olen;
 
         put_uint16_t(mbedtls_mpi_size(&ecdsa->d), kb + 8 + kb_len); kb_len += 2;
         mbedtls_mpi_write_binary(&ecdsa->d, kb + 8 + kb_len, mbedtls_mpi_size(&ecdsa->d));
@@ -393,7 +396,7 @@ int dkek_encode_key(uint8_t id,
 
         mbedtls_ecp_point_write_binary(&ecdsa->grp, &ecdsa->Q, MBEDTLS_ECP_PF_UNCOMPRESSED, &olen, kb + 8 + kb_len + 2, sizeof(kb) - 8 - kb_len - 2);
         put_uint16_t(olen, kb + 8 + kb_len);
-        kb_len += 2+olen;
+        kb_len += 2 + olen;
 
         algo = (uint8_t *) "\x00\x0A\x04\x00\x7F\x00\x07\x02\x02\x02\x02\x03";
         algo_len = 12;

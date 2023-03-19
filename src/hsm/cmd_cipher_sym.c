@@ -175,7 +175,7 @@ int cmd_cipher_sym() {
         return SW_SECURE_MESSAGE_EXEC_ERROR();
     }
     int key_size = file_get_size(ef);
-    uint8_t kdata[32]; //maximum AES key size
+    uint8_t kdata[64]; //maximum AES key size
     memcpy(kdata, file_get_data(ef), key_size);
     if (mkek_decrypt(kdata, key_size) != 0) {
         return SW_EXEC_ERROR();

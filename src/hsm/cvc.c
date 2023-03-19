@@ -170,10 +170,10 @@ size_t asn1_cvc_cert_body(void *rsa_ecdsa,
                           const uint8_t *ext,
                           size_t ext_len) {
     size_t pubkey_size = 0;
-    if (key_type == HSM_KEY_RSA) {
+    if (key_type & HSM_KEY_RSA) {
         pubkey_size = asn1_cvc_public_key_rsa(rsa_ecdsa, NULL, 0);
     }
-    else if (key_type == HSM_KEY_EC) {
+    else if (key_type & HSM_KEY_EC) {
         pubkey_size = asn1_cvc_public_key_ecdsa(rsa_ecdsa, NULL, 0);
     }
     size_t cpi_size = 4;
@@ -213,10 +213,10 @@ size_t asn1_cvc_cert_body(void *rsa_ecdsa,
     //car
     *p++ = 0x42; p += format_tlv_len(lencar, p); memcpy(p, car, lencar); p += lencar;
     //pubkey
-    if (key_type == HSM_KEY_RSA) {
+    if (key_type & HSM_KEY_RSA) {
         p += asn1_cvc_public_key_rsa(rsa_ecdsa, p, pubkey_size);
     }
-    else if (key_type == HSM_KEY_EC) {
+    else if (key_type & HSM_KEY_EC) {
         p += asn1_cvc_public_key_ecdsa(rsa_ecdsa, p, pubkey_size);
     }
     //chr
@@ -237,10 +237,10 @@ size_t asn1_cvc_cert(void *rsa_ecdsa,
                      const uint8_t *ext,
                      size_t ext_len) {
     size_t key_size = 0;
-    if (key_type == HSM_KEY_RSA) {
+    if (key_type & HSM_KEY_RSA) {
         key_size = mbedtls_mpi_size(&((mbedtls_rsa_context *) rsa_ecdsa)->N);
     }
-    else if (key_type == HSM_KEY_EC) {
+    else if (key_type & HSM_KEY_EC) {
         key_size = 2 *
                    (int) ((mbedtls_ecp_curve_info_from_grp_id(((mbedtls_ecdsa_context *) rsa_ecdsa)
                                                               ->grp.id)->
@@ -264,14 +264,14 @@ size_t asn1_cvc_cert(void *rsa_ecdsa,
     hash256(body, body_size, hsh);
     memcpy(p, "\x5F\x37", 2); p += 2;
     p += format_tlv_len(key_size, p);
-    if (key_type == HSM_KEY_RSA) {
+    if (key_type & HSM_KEY_RSA) {
         if (mbedtls_rsa_rsassa_pkcs1_v15_sign(rsa_ecdsa, random_gen, NULL, MBEDTLS_MD_SHA256, 32,
                                               hsh, p) != 0) {
             memset(p, 0, key_size);
         }
         p += key_size;
     }
-    else if (key_type == HSM_KEY_EC) {
+    else if (key_type & HSM_KEY_EC) {
         mbedtls_mpi r, s;
         int ret = 0;
         mbedtls_ecdsa_context *ecdsa = (mbedtls_ecdsa_context *) rsa_ecdsa;

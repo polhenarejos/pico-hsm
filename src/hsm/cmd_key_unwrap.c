@@ -34,7 +34,7 @@ int cmd_key_unwrap() {
     if (key_type == 0x0) {
         return SW_DATA_INVALID();
     }
-    if (key_type == HSM_KEY_RSA) {
+    if (key_type & HSM_KEY_RSA) {
         mbedtls_rsa_context ctx;
         mbedtls_rsa_init(&ctx);
         do {
@@ -54,7 +54,7 @@ int cmd_key_unwrap() {
             return SW_EXEC_ERROR();
         }
     }
-    else if (key_type == HSM_KEY_EC) {
+    else if (key_type & HSM_KEY_EC) {
         mbedtls_ecdsa_context ctx;
         mbedtls_ecdsa_init(&ctx);
         do {
@@ -74,7 +74,7 @@ int cmd_key_unwrap() {
             return SW_EXEC_ERROR();
         }
     }
-    else if (key_type == HSM_KEY_AES) {
+    else if (key_type & HSM_KEY_AES) {
         uint8_t aes_key[32];
         int key_size = 0, aes_type = 0;
         do {
@@ -89,7 +89,10 @@ int cmd_key_unwrap() {
         if (r != CCID_OK) {
             return SW_EXEC_ERROR();
         }
-        if (key_size == 32) {
+        if (key_size == 64) {
+            aes_type = HSM_KEY_AES_512;
+        }
+        else if (key_size == 32) {
             aes_type = HSM_KEY_AES_256;
         }
         else if (key_size == 24) {
