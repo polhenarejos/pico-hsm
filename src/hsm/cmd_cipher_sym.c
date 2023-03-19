@@ -284,6 +284,7 @@ int cmd_cipher_sym() {
             int r = 0;
             mbedtls_chachapoly_context ctx;
             mbedtls_chachapoly_init(&ctx);
+            mbedtls_chachapoly_setkey(&ctx, kdata);
             if (algo == ALGO_EXT_CIPHER_ENCRYPT) {
                 r = mbedtls_chachapoly_encrypt_and_tag(&ctx,
                                                        enc_len,
