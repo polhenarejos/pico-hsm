@@ -144,4 +144,26 @@
 
 #define OID_KDF_X963                    "\x2B\x81\x05\x10\x86\x48\x3F"
 
+#define OID_NIST_ALG                    "\x60\x86\x48\x01\x65\x03\x04"
+#define OID_NIST_AES                    OID_NIST_ALG "\x01"
+#define OID_AES128_ECB                  OID_NIST_AES "\x01"
+#define OID_AES128_CBC                  OID_NIST_AES "\x02"
+#define OID_AES128_OFB                  OID_NIST_AES "\x03"
+#define OID_AES128_CFB                  OID_NIST_AES "\x04"
+#define OID_AES128_GCM                  OID_NIST_AES "\x06"
+#define OID_AES192_ECB                  OID_NIST_AES "\x15"
+#define OID_AES192_CBC                  OID_NIST_AES "\x16"
+#define OID_AES192_OFB                  OID_NIST_AES "\x17"
+#define OID_AES192_CFB                  OID_NIST_AES "\x18"
+#define OID_AES192_GCM                  OID_NIST_AES "\x1A"
+#define OID_AES256_ECB                  OID_NIST_AES "\x29"
+#define OID_AES256_CBC                  OID_NIST_AES "\x2A"
+#define OID_AES256_OFB                  OID_NIST_AES "\x2B"
+#define OID_AES256_CFB                  OID_NIST_AES "\x2C"
+#define OID_AES256_GCM                  OID_NIST_AES "\x2E"
+
+#define OID_IEEE_ALG                    "\x2B\x6F\x02\x8C\x53\x00\x00\x01"
+#define OID_AES128_XTS                  OID_IEEE_ALG "\x01"
+#define OID_AES256_XTS                  OID_IEEE_ALG "\x02"
+
 #endif

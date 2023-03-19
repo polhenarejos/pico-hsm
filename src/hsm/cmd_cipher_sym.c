@@ -20,6 +20,7 @@
 #include "mbedtls/cmac.h"
 #include "mbedtls/hkdf.h"
 #include "mbedtls/chachapoly.h"
+#include "mbedtls/gcm.h"
 #include "md_wrap.h"
 #include "mbedtls/md.h"
 #include "crypto_utils.h"
@@ -189,8 +190,8 @@ int cmd_cipher_sym() {
         memset(tmp_iv, 0, sizeof(tmp_iv));
         if (algo == ALGO_AES_CBC_ENCRYPT) {
             int r = mbedtls_aes_setkey_enc(&aes, kdata, key_size * 8);
+            mbedtls_platform_zeroize(kdata, sizeof(kdata));
             if (r != 0) {
-                mbedtls_platform_zeroize(kdata, sizeof(kdata));
                 mbedtls_aes_free(&aes);
                 return SW_EXEC_ERROR();
             }
@@ -200,16 +201,14 @@ int cmd_cipher_sym() {
                                       tmp_iv,
                                       apdu.data,
                                       res_APDU);
-            mbedtls_platform_zeroize(kdata, sizeof(kdata));
+            mbedtls_aes_free(&aes);
             if (r != 0) {
-                mbedtls_aes_free(&aes);
                 return SW_EXEC_ERROR();
             }
         }
         else if (algo == ALGO_AES_CBC_DECRYPT) {
             int r = mbedtls_aes_setkey_dec(&aes, kdata, key_size * 8);
             if (r != 0) {
-                mbedtls_platform_zeroize(kdata, sizeof(kdata));
                 mbedtls_aes_free(&aes);
                 return SW_EXEC_ERROR();
             }
@@ -219,14 +218,12 @@ int cmd_cipher_sym() {
                                       tmp_iv,
                                       apdu.data,
                                       res_APDU);
-            mbedtls_platform_zeroize(kdata, sizeof(kdata));
+            mbedtls_aes_free(&aes);
             if (r != 0) {
-                mbedtls_aes_free(&aes);
                 return SW_EXEC_ERROR();
             }
         }
         res_APDU_size = apdu.nc;
-        mbedtls_aes_free(&aes);
     }
     else if (algo == ALGO_AES_CMAC) {
         const mbedtls_cipher_info_t *cipher_info;
@@ -449,6 +446,95 @@ int cmd_cipher_sym() {
                 return SW_WRONG_DATA();
             }
             res_APDU_size = apdu.ne > 0 && apdu.ne < 65536 ? apdu.ne : 32;
+        }
+        else if (memcmp(oid, OID_NIST_AES, oid_len) == 0) {
+            if (oid_len != 9) {
+                return SW_WRONG_DATA();
+            }
+            uint8_t aes_algo = oid[8], mode = (algo == ALGO_EXT_CIPHER_ENCRYPT ? MBEDTLS_AES_ENCRYPT : MBEDTLS_AES_DECRYPT);
+            if ((aes_algo >= 0x01 && aes_algo <= 0x06 && key_size != 16) || (aes_algo >= 0x15 && aes_algo <= 0x1A && key_size != 24) || (aes_algo >= 0x29 && aes_algo <= 0x2E && key_size != 32)) {
+                return SW_WRONG_DATA();
+            }
+            mbedtls_aes_context ctx;
+            int r = 0;
+            mbedtls_aes_init(&ctx);
+            uint8_t tmp_iv[16];
+            memset(tmp_iv, 0, sizeof(tmp_iv));
+            if (iv == NULL || iv_len == 0) {
+                iv = tmp_iv;
+                iv_len = sizeof(tmp_iv);
+            }
+            if (aes_algo == 0x01 || aes_algo == 0x15 || aes_algo == 0x29) { /* ECB */
+                if (algo == ALGO_EXT_CIPHER_ENCRYPT) {
+                    r = mbedtls_aes_setkey_enc(&ctx, kdata, key_size * 8);
+                }
+                else if (algo == ALGO_EXT_CIPHER_DECRYPT) {
+                    r = mbedtls_aes_setkey_dec(&ctx, kdata, key_size * 8);
+                }
+                mbedtls_platform_zeroize(kdata, sizeof(kdata));
+                r = mbedtls_aes_crypt_ecb(&ctx, mode, enc, res_APDU);
+                mbedtls_aes_free(&ctx);
+                if (r != 0) {
+                    return SW_EXEC_ERROR();
+                }
+                res_APDU_size = MIN(enc_len, 16); // ECB operates with 16-byte blocks
+            }
+            else if (aes_algo == 0x02 || aes_algo == 0x16 || aes_algo == 0x2A) { /* CBC */
+                if (algo == ALGO_EXT_CIPHER_ENCRYPT) {
+                    r = mbedtls_aes_setkey_enc(&ctx, kdata, key_size * 8);
+                }
+                else if (algo == ALGO_EXT_CIPHER_DECRYPT) {
+                    r = mbedtls_aes_setkey_dec(&ctx, kdata, key_size * 8);
+                }
+                mbedtls_platform_zeroize(kdata, sizeof(kdata));
+                r = mbedtls_aes_crypt_cbc(&ctx, mode, apdu.nc, iv, enc, res_APDU);
+                mbedtls_aes_free(&ctx);
+                if (r != 0) {
+                    return SW_EXEC_ERROR();
+                }
+                res_APDU_size = enc_len;
+            }
+            else if (aes_algo == 0x03 || aes_algo == 0x17 || aes_algo == 0x2B) { /* OFB */
+                size_t iv_off = 0;
+                r = mbedtls_aes_setkey_enc(&ctx, kdata, key_size * 8);
+                mbedtls_platform_zeroize(kdata, sizeof(kdata));
+                r = mbedtls_aes_crypt_ofb(&ctx, apdu.nc, &iv_off, iv, enc, res_APDU);
+                mbedtls_aes_free(&ctx);
+                if (r != 0) {
+                    return SW_EXEC_ERROR();
+                }
+                res_APDU_size = enc_len;
+            }
+            else if (aes_algo == 0x04 || aes_algo == 0x18 || aes_algo == 0x2C) { /* CFB */
+                size_t iv_off = 0;
+                r = mbedtls_aes_setkey_enc(&ctx, kdata, key_size * 8);
+                mbedtls_platform_zeroize(kdata, sizeof(kdata));
+                r = mbedtls_aes_crypt_cfb128(&ctx, mode, apdu.nc, &iv_off, iv, enc, res_APDU);
+                mbedtls_aes_free(&ctx);
+                if (r != 0) {
+                    return SW_EXEC_ERROR();
+                }
+                res_APDU_size = enc_len;
+            }
+            else if (aes_algo == 0x06 || aes_algo == 0x1A || aes_algo == 0x2E) { /* GCM */
+                mbedtls_aes_free(&ctx); // No AES ctx used
+                mbedtls_gcm_context gctx;
+                mbedtls_gcm_init(&gctx);
+                r = mbedtls_gcm_setkey(&gctx, MBEDTLS_CIPHER_ID_AES, kdata, key_size * 8);
+                mbedtls_platform_zeroize(kdata, sizeof(kdata));
+                if (algo == ALGO_EXT_CIPHER_ENCRYPT) {
+                    r = mbedtls_gcm_crypt_and_tag(&gctx, MBEDTLS_GCM_ENCRYPT, enc_len, iv, iv_len, aad, aad_len, enc, res_APDU, 16, res_APDU + enc_len);
+                    res_APDU_size = enc_len + 16;
+                }
+                else if (algo == ALGO_EXT_CIPHER_DECRYPT) {
+                    r = mbedtls_gcm_auth_decrypt(&gctx, enc_len - 16, iv, iv_len, aad, aad_len, enc + enc_len - 16, 16, enc, res_APDU);
+                    res_APDU_size = enc_len - 16;
+                }
+                mbedtls_gcm_free(&gctx);
+                if (r != 0) {
+                    return SW_EXEC_ERROR();
+                }
+            }
         }
     }
     else {
