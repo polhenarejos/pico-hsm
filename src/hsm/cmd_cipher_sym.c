@@ -536,6 +536,37 @@ int cmd_cipher_sym() {
                 }
             }
         }
+        else if (memcmp(oid, OID_IEEE_ALG, oid_len) == 0) {
+            if (oid_len != 9) {
+                return SW_WRONG_DATA();
+            }
+            uint8_t aes_algo = oid[8], mode = (algo == ALGO_EXT_CIPHER_ENCRYPT ? MBEDTLS_AES_ENCRYPT : MBEDTLS_AES_DECRYPT);
+            int r = 0;
+            uint8_t tmp_iv[16];
+            memset(tmp_iv, 0, sizeof(tmp_iv));
+            if (iv == NULL || iv_len == 0) {
+                iv = tmp_iv;
+                iv_len = sizeof(tmp_iv);
+            }
+            if ((aes_algo == 0x01 && key_size != 32) || (aes_algo == 0x02 && key_size != 64)) {
+                return SW_WRONG_DATA();
+            }
+            mbedtls_aes_xts_context ctx;
+            mbedtls_aes_xts_init(&ctx);
+            if (algo == ALGO_EXT_CIPHER_ENCRYPT) {
+                r = mbedtls_aes_xts_setkey_enc(&ctx, kdata, key_size * 8);
+            }
+            else if (algo == ALGO_EXT_CIPHER_DECRYPT) {
+                r = mbedtls_aes_xts_setkey_dec(&ctx, kdata, key_size * 8);
+            }
+            mbedtls_platform_zeroize(kdata, sizeof(kdata));
+            r = mbedtls_aes_crypt_xts(&ctx, mode, enc_len, iv, enc, res_APDU);
+            mbedtls_aes_xts_free(&ctx);
+            if (r != 0) {
+                return SW_EXEC_ERROR();
+            }
+            res_APDU_size = enc_len;
+        }
     }
     else {
         mbedtls_platform_zeroize(kdata, sizeof(kdata));
