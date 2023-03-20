@@ -46,7 +46,7 @@
 
 
 # default values, can be overridden by the environment
-: ${MBEDTLS_DOCKER_GUEST:=jammy}
+: ${MBEDTLS_DOCKER_GUEST:=bullseye}
 
 
 DOCKER_IMAGE_TAG="pico-hsm-test:${MBEDTLS_DOCKER_GUEST}"
