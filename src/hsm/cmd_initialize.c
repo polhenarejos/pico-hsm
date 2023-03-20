@@ -212,7 +212,7 @@ int cmd_initialize() {
                                                   strlen((const char *) label),
                                                   keyid,
                                                   20,
-                                                  192,
+                                                  256,
                                                   res_APDU,
                                                   4096);
             fpk = search_by_fid(EF_PRKD_DEV, NULL, SPECIFY_EF);
