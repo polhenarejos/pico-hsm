@@ -308,6 +308,9 @@ int cmd_cipher_sym() {
             mbedtls_platform_zeroize(kdata, sizeof(kdata));
             mbedtls_chachapoly_free(&ctx);
             if (r != 0) {
+                if (r == MBEDTLS_ERR_CHACHAPOLY_AUTH_FAILED) {
+                    return SW_WRONG_DATA();
+                }
                 return SW_EXEC_ERROR();
             }
             if (algo == ALGO_EXT_CIPHER_ENCRYPT) {
