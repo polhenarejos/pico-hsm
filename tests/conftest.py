@@ -23,7 +23,7 @@ import pytest
 try:
     from picohsm import PicoHSM
 except ModuleNotFoundError:
-    print('ERROR: picohsm module not found! Install picohsm package.\nTry with `pip install picohsm`')
+    print('ERROR: picohsm module not found! Install picohsm package.\nTry with `pip install pypicohsm`')
     sys.exit(-1)
 
 
