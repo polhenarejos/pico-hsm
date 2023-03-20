@@ -386,7 +386,12 @@ int dkek_encode_key(uint8_t id,
         kb_len += mbedtls_mpi_size(&ecdsa->grp.N);
 
         size_t olen = 0;
-        mbedtls_ecp_point_write_binary(&ecdsa->grp, &ecdsa->grp.G, MBEDTLS_ECP_PF_UNCOMPRESSED, &olen, kb + 8 + kb_len + 2, sizeof(kb) - 8 - kb_len - 2);
+        mbedtls_ecp_point_write_binary(&ecdsa->grp,
+                                       &ecdsa->grp.G,
+                                       MBEDTLS_ECP_PF_UNCOMPRESSED,
+                                       &olen,
+                                       kb + 8 + kb_len + 2,
+                                       sizeof(kb) - 8 - kb_len - 2);
         put_uint16_t(olen, kb + 8 + kb_len);
         kb_len += 2 + olen;
 
@@ -394,7 +399,12 @@ int dkek_encode_key(uint8_t id,
         mbedtls_mpi_write_binary(&ecdsa->d, kb + 8 + kb_len, mbedtls_mpi_size(&ecdsa->d));
         kb_len += mbedtls_mpi_size(&ecdsa->d);
 
-        mbedtls_ecp_point_write_binary(&ecdsa->grp, &ecdsa->Q, MBEDTLS_ECP_PF_UNCOMPRESSED, &olen, kb + 8 + kb_len + 2, sizeof(kb) - 8 - kb_len - 2);
+        mbedtls_ecp_point_write_binary(&ecdsa->grp,
+                                       &ecdsa->Q,
+                                       MBEDTLS_ECP_PF_UNCOMPRESSED,
+                                       &olen,
+                                       kb + 8 + kb_len + 2,
+                                       sizeof(kb) - 8 - kb_len - 2);
         put_uint16_t(olen, kb + 8 + kb_len);
         kb_len += 2 + olen;
 

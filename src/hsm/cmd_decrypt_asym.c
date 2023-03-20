@@ -130,7 +130,7 @@ int cmd_decrypt_asym() {
         }
         size_t olen = 0;
         // The SmartCard-HSM returns the point result of the DH operation
-		// with a leading '04'
+        // with a leading '04'
         res_APDU[0] = 0x04;
         r =
             mbedtls_ecdh_calc_secret(&ctx, &olen, res_APDU + 1, MBEDTLS_ECP_MAX_BYTES, random_gen,
