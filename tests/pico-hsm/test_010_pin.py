@@ -18,36 +18,35 @@
 """
 
 import pytest
-from utils import APDUResponse, SWCodes
-from const import DEFAULT_PIN, DEFAULT_RETRIES
+from picohsm import APDUResponse, SWCodes
+from picohsm.const import DEFAULT_PIN, DEFAULT_RETRIES
 
 WRONG_PIN = '112233'
-RETRIES = DEFAULT_RETRIES
 
 def test_pin_init_retries(device):
-    device.initialize(retries=RETRIES)
+    device.initialize(retries=DEFAULT_RETRIES)
     retries = device.get_login_retries()
-    assert(retries == RETRIES)
+    assert(retries == DEFAULT_RETRIES)
 
 def test_pin_login(device):
-    device.initialize(retries=RETRIES)
+    device.initialize(retries=DEFAULT_RETRIES)
     device.login(DEFAULT_PIN)
 
 def test_pin_retries(device):
-    device.initialize(retries=RETRIES)
+    device.initialize(retries=DEFAULT_RETRIES)
     device.login(DEFAULT_PIN)
 
-    for ret in range(RETRIES-1):
+    for ret in range(DEFAULT_RETRIES-1):
         with pytest.raises(APDUResponse) as e:
             device.login(WRONG_PIN)
-        assert(e.value.sw1 == 0x63 and e.value.sw2 == (0xC0 | (RETRIES-1-ret)))
+        assert(e.value.sw1 == 0x63 and e.value.sw2 == (0xC0 | (DEFAULT_RETRIES-1-ret)))
 
     with pytest.raises(APDUResponse) as e:
         device.login(WRONG_PIN)
-    assert(e.value.sw == SWCodes.SW_PIN_BLOCKED.value)
+    assert(e.value.sw == SWCodes.SW_PIN_BLOCKED)
 
-    device.initialize(retries=RETRIES)
+    device.initialize(retries=DEFAULT_RETRIES)
     retries = device.get_login_retries()
-    assert(retries == RETRIES)
+    assert(retries == DEFAULT_RETRIES)
 
 

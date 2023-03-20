@@ -18,7 +18,7 @@
 """
 
 import pytest
-from utils import KeyType, DOPrefixes, Algorithm
+from picohsm import KeyType, DOPrefixes, Algorithm
 from binascii import hexlify
 import hashlib
 
@@ -39,7 +39,7 @@ def test_signature_ecc(device, curve, scheme):
     else:
         datab = data
     signature = device.sign(keyid=keyid, scheme=scheme, data=datab)
-    device.delete_file(DOPrefixes.KEY_PREFIX.value << 8 | keyid)
+    device.delete_file(DOPrefixes.KEY_PREFIX, keyid)
     device.verify(pubkey, datab, signature, scheme)
 
 @pytest.mark.parametrize(
@@ -52,6 +52,6 @@ def test_signature_rsa(device, modulus, scheme):
     keyid = device.key_generation(KeyType.RSA, modulus)
     pubkey = device.public_key(keyid=keyid)
     signature = device.sign(keyid=keyid, scheme=scheme, data=data)
-    device.delete_file(DOPrefixes.KEY_PREFIX.value << 8 | keyid)
+    device.delete_file(DOPrefixes.KEY_PREFIX, keyid)
     device.verify(pubkey, data, signature, scheme)
 

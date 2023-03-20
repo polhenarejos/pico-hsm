@@ -18,9 +18,8 @@
 """
 
 import pytest
-from utils import KeyType, DOPrefixes, Algorithm
+from picohsm import KeyType, DOPrefixes
 from binascii import hexlify
-import hashlib
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives import hashes
 
@@ -43,6 +42,6 @@ def test_decrypt_rsa(device, modulus, pad):
     message = data[:(modulus//8)-100]
     ciphered = pubkey.encrypt(message, pad)
     datab = device.decrypt(keyid, ciphered, pad)
-    device.delete_file(DOPrefixes.KEY_PREFIX.value << 8 | keyid)
+    device.delete_file(DOPrefixes.KEY_PREFIX, keyid)
     assert(datab == message)
 

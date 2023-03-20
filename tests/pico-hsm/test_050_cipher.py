@@ -20,8 +20,9 @@
 import pytest
 import os
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from utils import Algorithm, DOPrefixes
-from const import DEFAULT_DKEK_SHARES, DEFAULT_DKEK
+from picohsm import Algorithm, DOPrefixes
+from picohsm.const import DEFAULT_DKEK_SHARES
+from const import DEFAULT_DKEK
 
 MESSAGE = b'a secret message'
 
@@ -47,6 +48,6 @@ def test_cipher_aes_cipher(device, size):
     decryptor = cipher.decryptor()
     plA = decryptor.update(ctA) + decryptor.finalize()
     plB = device.cipher(Algorithm.ALGO_AES_CBC_DECRYPT, keyid, ctA)
-    device.delete_file(DOPrefixes.KEY_PREFIX.value, keyid)
+    device.delete_file(DOPrefixes.KEY_PREFIX, keyid)
     assert(bytes(plB) == plA)
     assert(bytes(plB) == MESSAGE)

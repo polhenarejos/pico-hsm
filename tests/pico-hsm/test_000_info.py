@@ -18,7 +18,6 @@
 """
 
 import pytest
-from const import EF_TERMCA
 
 def test_select(device):
     device.select_applet()

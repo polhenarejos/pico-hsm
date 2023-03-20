@@ -19,9 +19,10 @@
 
 import pytest
 import hashlib
-from utils import KeyType, DOPrefixes
-from cryptography.hazmat.primitives.asymmetric import rsa, ec
-from const import DEFAULT_RETRIES, DEFAULT_DKEK_SHARES, DEFAULT_DKEK
+from picohsm import DOPrefixes
+from cryptography.hazmat.primitives.asymmetric import  ec
+from picohsm.const import DEFAULT_RETRIES, DEFAULT_DKEK_SHARES
+from const import DEFAULT_DKEK
 
 def test_prepare_dkek(device):
     device.initialize(retries=DEFAULT_RETRIES, dkek_shares=DEFAULT_DKEK_SHARES)
@@ -48,5 +49,5 @@ def test_exchange_ecc(device, curve):
     sharedAA = pkeyA.exchange(ec.ECDH(), pbkeyB)
     assert(bytes(sharedA) == sharedAA)
 
-    device.delete_file(DOPrefixes.KEY_PREFIX.value << 8 | keyid)
-    device.delete_file(DOPrefixes.EE_CERTIFICATE_PREFIX.value << 8 | keyid)
+    device.delete_file(DOPrefixes.KEY_PREFIX, keyid)
+    device.delete_file(DOPrefixes.EE_CERTIFICATE_PREFIX, keyid)

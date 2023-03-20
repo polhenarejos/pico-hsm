@@ -22,8 +22,9 @@ import os
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography import exceptions
-from const import DEFAULT_DKEK_SHARES, DEFAULT_DKEK
-from utils import DOPrefixes
+from picohsm.const import DEFAULT_DKEK_SHARES
+from const import DEFAULT_DKEK
+from picohsm import DOPrefixes
 
 INFO = b'info message'
 
@@ -47,7 +48,7 @@ class TestHKDF:
         keyid = device.import_key(pkey)
         salt = os.urandom(16)
         resA = device.hkdf(algo, keyid, INFO, salt, out_len=out_len)
-        device.delete_file(DOPrefixes.KEY_PREFIX.value << 8 | keyid)
+        device.delete_file(DOPrefixes.KEY_PREFIX, keyid)
         hkdf = HKDF(
             algorithm=algo(),
             length=out_len,
@@ -69,7 +70,7 @@ class TestHKDF:
         keyid = device.import_key(pkey)
         salt = os.urandom(16)
         resA = device.hkdf(algo, keyid, INFO, salt, out_len=out_len)
-        device.delete_file(DOPrefixes.KEY_PREFIX.value << 8 | keyid)
+        device.delete_file(DOPrefixes.KEY_PREFIX, keyid)
         hkdf = HKDF(
             algorithm=algo(),
             length=out_len,

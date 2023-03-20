@@ -18,7 +18,7 @@
 """
 
 import pytest
-from utils import KeyType, DOPrefixes
+from picohsm import KeyType, DOPrefixes
 
 def test_gen_initialize(device):
     device.initialize()
@@ -29,11 +29,11 @@ def test_gen_initialize(device):
 def test_gen_ecc(device, curve):
     keyid = device.key_generation(KeyType.ECC, curve)
     resp = device.list_keys()
-    assert((DOPrefixes.KEY_PREFIX.value, keyid) in resp)
-    device.delete_file(DOPrefixes.KEY_PREFIX.value, keyid)
-    device.delete_file(DOPrefixes.EE_CERTIFICATE_PREFIX.value, keyid)
+    assert((DOPrefixes.KEY_PREFIX, keyid) in resp)
+    device.delete_file(DOPrefixes.KEY_PREFIX, keyid)
+    device.delete_file(DOPrefixes.EE_CERTIFICATE_PREFIX, keyid)
     resp = device.list_keys()
-    assert((DOPrefixes.KEY_PREFIX.value, keyid) not in resp)
+    assert((DOPrefixes.KEY_PREFIX, keyid) not in resp)
 
 @pytest.mark.parametrize(
     "modulus", [1024, 2048, 4096]
@@ -41,7 +41,7 @@ def test_gen_ecc(device, curve):
 def test_gen_rsa(device, modulus):
     keyid = device.key_generation(KeyType.RSA, modulus)
     resp = device.list_keys()
-    assert((DOPrefixes.KEY_PREFIX.value, keyid) in resp)
-    device.delete_file(DOPrefixes.KEY_PREFIX.value, keyid)
-    device.delete_file(DOPrefixes.EE_CERTIFICATE_PREFIX.value, keyid)
+    assert((DOPrefixes.KEY_PREFIX, keyid) in resp)
+    device.delete_file(DOPrefixes.KEY_PREFIX, keyid)
+    device.delete_file(DOPrefixes.EE_CERTIFICATE_PREFIX, keyid)
 

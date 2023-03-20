@@ -22,8 +22,9 @@ import os
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.x963kdf import X963KDF
 from cryptography import exceptions
-from const import DEFAULT_DKEK_SHARES, DEFAULT_DKEK
-from utils import DOPrefixes
+from picohsm.const import DEFAULT_DKEK_SHARES
+from const import DEFAULT_DKEK
+from picohsm import DOPrefixes
 
 INFO = b'shared message'
 
@@ -46,7 +47,7 @@ class TestX963:
         pkey = os.urandom(size // 8)
         keyid = device.import_key(pkey)
         resA = device.x963(algo, keyid, INFO, out_len=out_len)
-        device.delete_file(DOPrefixes.KEY_PREFIX.value << 8 | keyid)
+        device.delete_file(DOPrefixes.KEY_PREFIX, keyid)
         xkdf = X963KDF(
             algorithm=algo(),
             length=out_len,
@@ -65,7 +66,7 @@ class TestX963:
         pkey = os.urandom(size // 8)
         keyid = device.import_key(pkey)
         resA = device.x963(algo, keyid, INFO, out_len=out_len)
-        device.delete_file(DOPrefixes.KEY_PREFIX.value << 8 | keyid)
+        device.delete_file(DOPrefixes.KEY_PREFIX, keyid)
         xkdf = X963KDF(
             algorithm=algo(),
             length=out_len,

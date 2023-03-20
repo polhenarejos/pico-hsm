@@ -19,8 +19,8 @@
 
 import pytest
 import hashlib
-from utils import APDUResponse, SWCodes
-from const import DEFAULT_PIN, DEFAULT_RETRIES, DEFAULT_DKEK, DEFAULT_DKEK_SHARES
+from picohsm.const import DEFAULT_DKEK_SHARES, DEFAULT_PIN, DEFAULT_RETRIES
+from const import  DEFAULT_DKEK
 
 def test_dkek(device):
     device.initialize(retries=DEFAULT_RETRIES, dkek_shares=DEFAULT_DKEK_SHARES)

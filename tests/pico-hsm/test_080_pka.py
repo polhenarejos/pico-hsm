@@ -18,16 +18,13 @@
 """
 
 import pytest
-import os
 from binascii import unhexlify, hexlify
 from cvc.certificates import CVC
-from cvc.asn1 import ASN1
-from utils import int_to_bytes
-from utils import APDUResponse, SWCodes
+from picohsm.utils import int_to_bytes
+from picohsm import APDUResponse, SWCodes
 from const import TERM_CERT, DICA_CERT
 from cryptography.hazmat.primitives.asymmetric import ec, utils
 from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 AUT_KEY = unhexlify('0A40E11E672C28C558B72C25D93BCF28C08D39AFDD5A1A2FD3BAF7A6B27F0C2E')
 aut_pk = ec.derive_private_key(int.from_bytes(AUT_KEY, 'big'), ec.BrainpoolP256R1())
@@ -87,7 +84,7 @@ def test_authentication_fail(device):
     signature = list(int_to_bytes(r) + int_to_bytes(s))
     with pytest.raises(APDUResponse) as e:
         device.authenticate_puk(term_chr, signature)
-    assert(e.value.sw == SWCodes.SW_CONDITIONS_NOT_SATISFIED.value)
+    assert(e.value.sw == SWCodes.SW_CONDITIONS_NOT_SATISFIED)
 
     status = device.get_puk_status()
     assert(status == [1,0,1,0])
@@ -146,4 +143,4 @@ def test_register_puk_with_no_puk(device):
     device.initialize()
     with pytest.raises(APDUResponse) as e:
         device.register_puk(AUT_PUK, TERM_CERT, DICA_CERT)
-    assert(e.value.sw == SWCodes.SW_FILE_NOT_FOUND.value)
+    assert(e.value.sw == SWCodes.SW_FILE_NOT_FOUND)

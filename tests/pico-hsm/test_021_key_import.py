@@ -20,9 +20,10 @@
 import pytest
 import hashlib
 import os
-from utils import KeyType, DOPrefixes
+from picohsm import DOPrefixes
 from cryptography.hazmat.primitives.asymmetric import rsa, ec
-from const import DEFAULT_RETRIES, DEFAULT_DKEK_SHARES, DEFAULT_DKEK
+from picohsm.const import DEFAULT_RETRIES, DEFAULT_DKEK_SHARES
+from const import DEFAULT_DKEK
 
 def test_prepare_dkek(device):
     device.initialize(retries=DEFAULT_RETRIES, dkek_shares=DEFAULT_DKEK_SHARES)
@@ -42,8 +43,8 @@ def test_import_rsa(device, modulus):
     keyid = device.import_key(pkey)
     pubkey = device.public_key(keyid)
     assert(pubkey.public_numbers() == pkey.public_key().public_numbers())
-    device.delete_file(DOPrefixes.KEY_PREFIX.value, keyid)
-    device.delete_file(DOPrefixes.EE_CERTIFICATE_PREFIX.value, keyid)
+    device.delete_file(DOPrefixes.KEY_PREFIX, keyid)
+    device.delete_file(DOPrefixes.EE_CERTIFICATE_PREFIX, keyid)
 
 
 @pytest.mark.parametrize(
@@ -54,8 +55,8 @@ def test_import_ecc(device, curve):
     keyid = device.import_key(pkey)
     pubkey = device.public_key(keyid, param=curve().name)
     assert(pubkey.public_numbers() == pkey.public_key().public_numbers())
-    device.delete_file(DOPrefixes.KEY_PREFIX.value, keyid)
-    device.delete_file(DOPrefixes.EE_CERTIFICATE_PREFIX.value, keyid)
+    device.delete_file(DOPrefixes.KEY_PREFIX, keyid)
+    device.delete_file(DOPrefixes.EE_CERTIFICATE_PREFIX, keyid)
 
 @pytest.mark.parametrize(
     "size", [128, 192, 256]

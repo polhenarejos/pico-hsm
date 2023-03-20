@@ -18,7 +18,7 @@
 """
 
 import pytest
-from utils import KeyType, DOPrefixes, APDUResponse, SWCodes
+from picohsm import KeyType, DOPrefixes, APDUResponse, SWCodes
 from binascii import hexlify
 import hashlib
 from const import DEFAULT_DKEK
@@ -38,28 +38,28 @@ keyid_out = -1
 def test_key_generation_no_key_domain(device):
     global keyid_out
     keyid_out = device.key_generation(KeyType.ECC, 'brainpoolP256r1')
-    device.put_contents(p1=DOPrefixes.PRKD_PREFIX.value, p2=keyid_out, data=[0xA0])
+    device.put_contents(p1=DOPrefixes.PRKD_PREFIX, p2=keyid_out, data=[0xA0])
     resp = device.list_keys()
-    assert((DOPrefixes.KEY_PREFIX.value, keyid_out) in resp)
-    assert((DOPrefixes.PRKD_PREFIX.value, keyid_out) in resp)
+    assert((DOPrefixes.KEY_PREFIX, keyid_out) in resp)
+    assert((DOPrefixes.PRKD_PREFIX, keyid_out) in resp)
 
 def test_key_generation_with_key_domain(device):
     global keyid_in
     keyid_in = device.key_generation(KeyType.ECC, 'brainpoolP256r1', key_domain=0)
-    device.put_contents(p1=DOPrefixes.PRKD_PREFIX.value, p2=keyid_in, data=[0xA0])
+    device.put_contents(p1=DOPrefixes.PRKD_PREFIX, p2=keyid_in, data=[0xA0])
     resp = device.list_keys()
-    assert((DOPrefixes.KEY_PREFIX.value, keyid_in) in resp)
-    assert((DOPrefixes.PRKD_PREFIX.value, keyid_in) in resp)
+    assert((DOPrefixes.KEY_PREFIX, keyid_in) in resp)
+    assert((DOPrefixes.PRKD_PREFIX, keyid_in) in resp)
 
 def test_export_key_out(device):
     with pytest.raises(APDUResponse) as e:
         device.export_key(keyid_out)
-    assert(e.value.sw == SWCodes.SW_REFERENCE_NOT_FOUND.value)
+    assert(e.value.sw == SWCodes.SW_REFERENCE_NOT_FOUND)
 
 def test_export_key_in_fail(device):
     with pytest.raises(APDUResponse) as e:
         device.export_key(keyid_in)
-    assert(e.value.sw == SWCodes.SW_REFERENCE_NOT_FOUND.value)
+    assert(e.value.sw == SWCodes.SW_REFERENCE_NOT_FOUND)
 
 def test_export_import_dkek(device):
     resp = device.import_dkek(DEFAULT_DKEK, key_domain=0)
@@ -79,10 +79,10 @@ def test_export_key_in_ok(device):
     assert(resCMAC == resp[-16:])
 
 def test_delete_keys_in_out(device):
-    device.delete_file(DOPrefixes.KEY_PREFIX.value, keyid_in)
-    device.delete_file(DOPrefixes.EE_CERTIFICATE_PREFIX.value, keyid_in)
-    device.delete_file(DOPrefixes.KEY_PREFIX.value, keyid_out)
-    device.delete_file(DOPrefixes.EE_CERTIFICATE_PREFIX.value, keyid_out)
+    device.delete_file(DOPrefixes.KEY_PREFIX, keyid_in)
+    device.delete_file(DOPrefixes.EE_CERTIFICATE_PREFIX, keyid_in)
+    device.delete_file(DOPrefixes.KEY_PREFIX, keyid_out)
+    device.delete_file(DOPrefixes.EE_CERTIFICATE_PREFIX, keyid_out)
 
 def test_export_import(device):
     pkey_gen = ec.generate_private_key(ec.BrainpoolP256R1())
@@ -133,5 +133,5 @@ def test_export_import(device):
     assert(pkey_gen.private_bytes(serialization.Encoding.DER, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()) == pkey_ex.private_bytes(serialization.Encoding.DER, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
     assert(pkey_gen.public_key().public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint) == pkey_ex.public_key().public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint))
 
-    device.delete_file(DOPrefixes.KEY_PREFIX.value, keyid)
-    device.delete_file(DOPrefixes.EE_CERTIFICATE_PREFIX.value, keyid)
+    device.delete_file(DOPrefixes.KEY_PREFIX, keyid)
+    device.delete_file(DOPrefixes.EE_CERTIFICATE_PREFIX, keyid)

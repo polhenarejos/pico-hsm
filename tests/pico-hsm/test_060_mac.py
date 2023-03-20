@@ -21,8 +21,9 @@ import pytest
 import os
 from cryptography.hazmat.primitives import hashes, hmac, cmac
 from cryptography.hazmat.primitives.ciphers import algorithms
-from utils import Algorithm, DOPrefixes
-from const import DEFAULT_DKEK_SHARES, DEFAULT_DKEK
+from picohsm import DOPrefixes
+from picohsm.const import DEFAULT_DKEK_SHARES
+from const import DEFAULT_DKEK
 
 MESSAGE = b'a secret message'
 
@@ -44,7 +45,7 @@ def test_mac_hmac(device, size, algo):
     h = hmac.HMAC(pkey, algo())
     h.update(MESSAGE)
     resB = h.finalize()
-    device.delete_file(DOPrefixes.KEY_PREFIX.value << 8 | keyid)
+    device.delete_file(DOPrefixes.KEY_PREFIX, keyid)
     assert(bytes(resA) == resB)
 
 @pytest.mark.parametrize(
@@ -57,6 +58,6 @@ def test_mac_cmac(device, size):
     c = cmac.CMAC(algorithms.AES(pkey))
     c.update(MESSAGE)
     resB = c.finalize()
-    device.delete_file(DOPrefixes.KEY_PREFIX.value << 8 | keyid)
+    device.delete_file(DOPrefixes.KEY_PREFIX, keyid)
     assert(bytes(resA) == resB)
 

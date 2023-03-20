@@ -18,7 +18,7 @@
 """
 
 import pytest
-from utils import KeyType, DOPrefixes
+from picohsm import KeyType, DOPrefixes
 
 @pytest.mark.parametrize(
     "size", [128, 192, 256]
@@ -26,5 +26,5 @@ from utils import KeyType, DOPrefixes
 def test_gen_aes(device, size):
     keyid = device.key_generation(KeyType.AES, size)
     resp = device.list_keys()
-    assert((DOPrefixes.KEY_PREFIX.value, keyid) in resp)
-    device.delete_file(DOPrefixes.KEY_PREFIX.value << 8 | keyid)
+    assert((DOPrefixes.KEY_PREFIX, keyid) in resp)
+    device.delete_file(DOPrefixes.KEY_PREFIX, keyid)

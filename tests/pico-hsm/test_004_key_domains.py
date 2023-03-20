@@ -19,8 +19,9 @@
 
 import pytest
 import hashlib
-from const import DEFAULT_DKEK_SHARES, DEFAULT_DKEK
-from utils import SWCodes, APDUResponse
+from const import DEFAULT_DKEK
+from picohsm import APDUResponse, SWCodes
+from picohsm.const import DEFAULT_DKEK_SHARES
 
 KEY_DOMAINS = 3
 TEST_KEY_DOMAIN = 1
@@ -40,17 +41,17 @@ def test_key_domains(device):
 def test_import_dkek_wrong_key_domain(device):
     with pytest.raises(APDUResponse) as e:
         device.import_dkek(DEFAULT_DKEK, key_domain=0)
-    assert(e.value.sw == SWCodes.SW_COMMAND_NOT_ALLOWED.value)
+    assert(e.value.sw == SWCodes.SW_COMMAND_NOT_ALLOWED)
 
 def test_import_dkek_fail(device):
     with pytest.raises(APDUResponse) as e:
         device.import_dkek(DEFAULT_DKEK, key_domain=TEST_KEY_DOMAIN)
-    assert(e.value.sw == SWCodes.SW_COMMAND_NOT_ALLOWED.value)
+    assert(e.value.sw == SWCodes.SW_COMMAND_NOT_ALLOWED)
 
 def test_set_key_domain_fail(device):
     with pytest.raises(APDUResponse) as e:
         device.set_key_domain(key_domain=10)
-    assert(e.value.sw == SWCodes.SW_INCORRECT_P1P2.value)
+    assert(e.value.sw == SWCodes.SW_INCORRECT_P1P2)
 
 def test_set_key_domain_ok(device):
     kd = device.get_key_domain(key_domain=TEST_KEY_DOMAIN)
@@ -80,7 +81,7 @@ def test_import_dkek_ok(device):
 def test_clear_key_domain(device):
     kd = device.get_key_domain(key_domain=0)
     assert('error' in kd)
-    assert(kd['error'] == SWCodes.SW_REFERENCE_NOT_FOUND.value)
+    assert(kd['error'] == SWCodes.SW_REFERENCE_NOT_FOUND)
 
     kd = device.get_key_domain(key_domain=TEST_KEY_DOMAIN)
     assert(kd['dkek']['total'] == DEFAULT_DKEK_SHARES)
@@ -95,7 +96,7 @@ def test_delete_key_domain(device):
     assert(kd['dkek']['total'] == DEFAULT_DKEK_SHARES)
     with pytest.raises(APDUResponse) as e:
         device.delete_key_domain(key_domain=0)
-    assert(e.value.sw == SWCodes.SW_INCORRECT_P1P2.value)
+    assert(e.value.sw == SWCodes.SW_INCORRECT_P1P2)
 
 def test_delete_key_domain(device):
     assert(device.get_key_domains() == KEY_DOMAINS)
