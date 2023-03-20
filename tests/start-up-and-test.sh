@@ -1,5 +1,6 @@
 #!/bin/bash -eu
 
+rm -rf pypicohsm
 git clone https://github.com/polhenarejos/pypicohsm.git
 pip3 install -e pypicohsm
 /usr/sbin/pcscd &
