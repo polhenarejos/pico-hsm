@@ -75,7 +75,7 @@ int cmd_key_unwrap() {
         }
     }
     else if (key_type & HSM_KEY_AES) {
-        uint8_t aes_key[32];
+        uint8_t aes_key[64];
         int key_size = 0, aes_type = 0;
         do {
             r = dkek_decode_key(++kdom,
