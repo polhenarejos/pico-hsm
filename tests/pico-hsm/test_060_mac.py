@@ -46,7 +46,7 @@ def test_mac_hmac(device, size, algo):
     h.update(MESSAGE)
     resB = h.finalize()
     device.delete_file(DOPrefixes.KEY_PREFIX, keyid)
-    assert(bytes(resA) == resB)
+    assert(resA == resB)
 
 @pytest.mark.parametrize(
     "size", [128, 192, 256]
@@ -59,5 +59,5 @@ def test_mac_cmac(device, size):
     c.update(MESSAGE)
     resB = c.finalize()
     device.delete_file(DOPrefixes.KEY_PREFIX, keyid)
-    assert(bytes(resA) == resB)
+    assert(resA == resB)
 

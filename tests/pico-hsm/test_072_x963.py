@@ -54,13 +54,13 @@ class TestX963:
             sharedinfo=INFO,
         )
         resB = xkdf.derive(pkey)
-        assert(bytes(resA) == resB)
+        assert(resA == resB)
         xkdf = X963KDF(
             algorithm=algo(),
             length=out_len,
             sharedinfo=INFO,
         )
-        xkdf.verify(pkey, bytes(resA))
+        xkdf.verify(pkey, resA)
 
     def test_x963_fail(self, device, size, algo, out_len):
         pkey = os.urandom(size // 8)
@@ -74,4 +74,4 @@ class TestX963:
         )
         pkey = os.urandom(size // 8)
         with pytest.raises(exceptions.InvalidKey):
-            xkdf.verify(pkey, bytes(resA))
+            xkdf.verify(pkey, resA)

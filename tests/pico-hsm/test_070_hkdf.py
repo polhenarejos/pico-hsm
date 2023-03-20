@@ -56,14 +56,14 @@ class TestHKDF:
             info=INFO,
         )
         resB = hkdf.derive(pkey)
-        assert(bytes(resA) == resB)
+        assert(resA == resB)
         hkdf = HKDF(
             algorithm=algo(),
             length=out_len,
             salt=salt,
             info=INFO,
         )
-        hkdf.verify(pkey, bytes(resA))
+        hkdf.verify(pkey, resA)
 
     def test_hkdf_fail(self, device, size, algo, out_len):
         pkey = os.urandom(size // 8)
@@ -79,4 +79,4 @@ class TestHKDF:
         )
         pkey = os.urandom(size // 8)
         with pytest.raises(exceptions.InvalidKey):
-            hkdf.verify(pkey, bytes(resA))
+            hkdf.verify(pkey, resA)

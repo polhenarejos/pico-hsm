@@ -76,7 +76,7 @@ def test_import_dkek_ok(device):
     assert(resp[1] == DEFAULT_DKEK_SHARES-2)
 
     kcv = hashlib.sha256(b'\x00'*32).digest()[:8]
-    assert(bytes(resp[2:]) == kcv)
+    assert(resp[2:] == kcv)
 
 def test_clear_key_domain(device):
     kd = device.get_key_domain(key_domain=0)

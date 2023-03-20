@@ -66,7 +66,7 @@ def test_export_import_dkek(device):
     resp = device.import_dkek(DEFAULT_DKEK, key_domain=0)
 
 def test_export_key_in_ok(device):
-    resp = bytes(device.export_key(keyid_in))
+    resp = device.export_key(keyid_in)
     kcv = hashlib.sha256(b'\x00'*32).digest()[:8]
     assert(kcv == resp[:8])
     assert(resp[8] == 12)
@@ -88,7 +88,7 @@ def test_export_import(device):
     pkey_gen = ec.generate_private_key(ec.BrainpoolP256R1())
     keyid = device.import_key(pkey_gen)
 
-    resp = bytes(device.export_key(keyid))
+    resp = device.export_key(keyid)
     kcv = hashlib.sha256(b'\x00'*32).digest()[:8]
     assert(kcv == resp[:8])
     assert(resp[8] == 12)

@@ -49,14 +49,14 @@ def test_cipher_chachapoly_cipher(device):
 
     chacha = aead.ChaCha20Poly1305(pkey)
     ctg = chacha.encrypt(iv, MESSAGE, AAD)
-    assert(bytes(ctd) == ctg)
+    assert(ctd == ctg)
 
     pld = device.chachapoly(keyid, EncryptionMode.DECRYPT, data=ctd, aad=AAD)
 
     plg = chacha.decrypt(iv, ctg, AAD)
     device.delete_file(DOPrefixes.KEY_PREFIX, keyid)
-    assert(bytes(pld) == plg)
-    assert(bytes(pld) == MESSAGE)
+    assert(pld == plg)
+    assert(pld == MESSAGE)
 
 def test_cipher_chachapoly_random_iv(device):
     pkey, keyid = generate_key(device)
@@ -65,14 +65,14 @@ def test_cipher_chachapoly_random_iv(device):
 
     chacha = aead.ChaCha20Poly1305(pkey)
     ctg = chacha.encrypt(iv, MESSAGE, AAD)
-    assert(bytes(ctd) == ctg)
+    assert(ctd == ctg)
 
     pld = device.chachapoly(keyid, EncryptionMode.DECRYPT, data=ctd, iv=iv, aad=AAD)
 
     plg = chacha.decrypt(iv, ctg, AAD)
     device.delete_file(DOPrefixes.KEY_PREFIX, keyid)
-    assert(bytes(pld) == plg)
-    assert(bytes(pld) == MESSAGE)
+    assert(pld == plg)
+    assert(pld == MESSAGE)
 
 def test_cipher_chachapoly_no_aad(device):
     pkey, keyid = generate_key(device)
@@ -81,14 +81,14 @@ def test_cipher_chachapoly_no_aad(device):
 
     chacha = aead.ChaCha20Poly1305(pkey)
     ctg = chacha.encrypt(iv, MESSAGE, b'')
-    assert(bytes(ctd) == ctg)
+    assert(ctd == ctg)
 
     pld = device.chachapoly(keyid, EncryptionMode.DECRYPT, data=ctd, iv=iv)
 
     plg = chacha.decrypt(iv, ctg, b'')
     device.delete_file(DOPrefixes.KEY_PREFIX, keyid)
-    assert(bytes(pld) == plg)
-    assert(bytes(pld) == MESSAGE)
+    assert(pld == plg)
+    assert(pld == MESSAGE)
 
 def test_cipher_chachapoly_bad_random_iv(device):
     pkey, keyid = generate_key(device)
@@ -97,7 +97,7 @@ def test_cipher_chachapoly_bad_random_iv(device):
 
     chacha = aead.ChaCha20Poly1305(pkey)
     ctg = chacha.encrypt(iv, MESSAGE, AAD)
-    assert(bytes(ctd) == ctg)
+    assert(ctd == ctg)
 
     iv = os.urandom(12)
     with pytest.raises(APDUResponse) as e:
@@ -115,7 +115,7 @@ def test_cipher_chachapoly_bad_aad(device):
 
     chacha = aead.ChaCha20Poly1305(pkey)
     ctg = chacha.encrypt(iv, MESSAGE, AAD)
-    assert(bytes(ctd) == ctg)
+    assert(ctd == ctg)
 
     with pytest.raises(APDUResponse) as e:
         pld = device.chachapoly(keyid, EncryptionMode.DECRYPT, data=ctd, iv=iv, aad=AAD + b'bad')

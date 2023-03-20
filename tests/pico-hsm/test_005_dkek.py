@@ -33,5 +33,5 @@ def test_dkek(device):
     assert(resp[1] == DEFAULT_DKEK_SHARES-2)
 
     kcv = hashlib.sha256(b'\x00'*32).digest()[:8]
-    assert(bytes(resp[2:]) == kcv)
+    assert(resp[2:] == kcv)
 

@@ -40,12 +40,12 @@ def test_create_xkek(device):
 
     device.login()
     kcv, did = device.create_xkek(KDM)
-    assert(bytes(kcv) == b'\x00'*8)
+    assert(kcv == b'\x00'*8)
 
     gskcert = ASN1().decode(KDM).find(0x30).find(0x63).data()
     gskQ = CVC().decode(gskcert).pubkey().find(0x86).data()
     pub = ec.EllipticCurvePublicKey.from_encoded_point(ec.BrainpoolP256R1(), bytes(gskQ))
-    assert(bytes(did) == int_to_bytes(pub.public_numbers().x)+int_to_bytes(pub.public_numbers().y))
+    assert(did == int_to_bytes(pub.public_numbers().x)+int_to_bytes(pub.public_numbers().y))
 
 keyid = -1
 def test_derive_xkek(device):
@@ -63,21 +63,21 @@ def test_derive_xkek(device):
                     'tag': 0x73,
                     'oid': b'\x2B\x06\x01\x04\x01\x81\xC3\x1F\x03\x02\x02',
                     'contexts': {
-                        0: bytes(xkek_dom)
+                        0: xkek_dom
                     }
                 }
             ]).encode()
     device.derive_xkek(keyid, cert)
 
     resp = device.get_key_domain()
-    assert(bytes(resp['kcv']) != b'\x00'*8)
+    assert(resp['kcv'] != b'\x00'*8)
 
 
 def test_delete_xkek(device):
     device.delete_xkek()
 
     resp = device.get_key_domain()
-    assert(bytes(resp['kcv']) == b'\x00'*8)
+    assert(resp['kcv'] == b'\x00'*8)
 
 def test_delete_domain_with_key(device):
     with pytest.raises(APDUResponse) as e:

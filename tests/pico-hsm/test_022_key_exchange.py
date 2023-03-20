@@ -29,7 +29,7 @@ def test_prepare_dkek(device):
     resp = device.import_dkek(DEFAULT_DKEK)
     resp = device.import_dkek(DEFAULT_DKEK)
     kcv = hashlib.sha256(b'\x00'*32).digest()[:8]
-    assert(bytes(resp[2:]) == kcv)
+    assert(resp[2:] == kcv)
 
 @pytest.mark.parametrize(
     "curve", [ec.SECP192R1, ec.SECP256R1, ec.SECP384R1, ec.SECP521R1, ec.SECP256K1, ec.BrainpoolP256R1, ec.BrainpoolP384R1, ec.BrainpoolP512R1]
@@ -44,10 +44,10 @@ def test_exchange_ecc(device, curve):
     sharedB = pkeyB.exchange(ec.ECDH(), pbkeyA)
     sharedA = device.exchange(keyid, pbkeyB)
 
-    assert(bytes(sharedA) == sharedB)
+    assert(sharedA == sharedB)
 
     sharedAA = pkeyA.exchange(ec.ECDH(), pbkeyB)
-    assert(bytes(sharedA) == sharedAA)
+    assert(sharedA == sharedAA)
 
     device.delete_file(DOPrefixes.KEY_PREFIX, keyid)
     device.delete_file(DOPrefixes.EE_CERTIFICATE_PREFIX, keyid)

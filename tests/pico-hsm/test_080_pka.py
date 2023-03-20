@@ -39,10 +39,10 @@ def test_initialize(device):
 
 def test_register_puk(device):
     status = device.get_puk_status()
-    assert(status == [1,1,1,0])
+    assert(status == bytes([1,1,1,0]))
 
     status = device.register_puk(AUT_PUK, TERM_CERT, DICA_CERT)
-    assert(status == [1,0,1,0])
+    assert(status == bytes([1,0,1,0]))
     assert(device.check_puk_key(term_chr) == 0)
 
 def test_enumerate_puk_reg(device):
@@ -57,7 +57,7 @@ def test_authentication(device):
     signature = list(int_to_bytes(r) + int_to_bytes(s))
     device.authenticate_puk(term_chr, signature)
     status = device.get_puk_status()
-    assert(status == [1,0,1,1])
+    assert(status == bytes([1,0,1,1]))
 
 def test_enumerate_puk_ok(device):
     puks = device.enumerate_puk()
@@ -74,7 +74,7 @@ def test_check_key(device):
 def test_puk_reset(device):
     device.logout()
     status = device.get_puk_status()
-    assert(status == [1,0,1,0])
+    assert(status == bytes([1,0,1,0]))
     assert(device.check_puk_key(term_chr) == 0)
 
 def test_authentication_fail(device):
@@ -87,7 +87,7 @@ def test_authentication_fail(device):
     assert(e.value.sw == SWCodes.SW_CONDITIONS_NOT_SATISFIED)
 
     status = device.get_puk_status()
-    assert(status == [1,0,1,0])
+    assert(status == bytes([1,0,1,0]))
     assert(device.check_puk_key(term_chr) == 0)
 
 def test_enumerate_puk_1(device):
@@ -117,10 +117,10 @@ def test_enumerate_puk_2(device):
 def test_register_more_puks(device):
     device.initialize(puk_auts=2, puk_min_auts=1)
     status = device.get_puk_status()
-    assert(status == [2,2,1,0])
+    assert(status == bytes([2,2,1,0]))
 
     status = device.register_puk(AUT_PUK, TERM_CERT, DICA_CERT)
-    assert(status == [2,1,1,0])
+    assert(status == bytes([2,1,1,0]))
 
 def test_is_pku(device):
     device.initialize(puk_auts=1, puk_min_auts=1)

@@ -59,14 +59,14 @@ class TestPBKDF2:
             iterations=iterations,
         )
         resB = kdf.derive(pkey)
-        assert(bytes(resA) == resB)
+        assert(resA == resB)
         kdf = PBKDF2HMAC(
             algorithm=algo(),
             length=out_len,
             salt=salt,
             iterations=iterations,
         )
-        kdf.verify(pkey, bytes(resA))
+        kdf.verify(pkey, resA)
 
     def test_pbkdf2_fail(self, device, size, algo, out_len, iterations):
         pkey = os.urandom(size // 8)
@@ -83,4 +83,4 @@ class TestPBKDF2:
         )
         pkey = os.urandom(size // 8)
         with pytest.raises(exceptions.InvalidKey):
-            kdf.verify(pkey, bytes(resA))
+            kdf.verify(pkey, resA)
