@@ -599,6 +599,9 @@ int cmd_cipher_sym() {
             }
             res_APDU_size = enc_len;
         }
+        else {
+            return SW_WRONG_DATA();
+        }
     }
     else {
         mbedtls_platform_zeroize(kdata, sizeof(kdata));
