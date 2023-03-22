@@ -451,7 +451,7 @@ int cmd_cipher_sym() {
             }
             res_APDU_size = apdu.ne > 0 && apdu.ne < 65536 ? apdu.ne : 32;
         }
-        else if (memcmp(oid, OID_NIST_AES, oid_len) == 0) {
+        else if (memcmp(oid, OID_NIST_AES, 8) == 0) {
             if (oid_len != 9) {
                 return SW_WRONG_DATA();
             }
@@ -494,8 +494,11 @@ int cmd_cipher_sym() {
                 else if (algo == ALGO_EXT_CIPHER_DECRYPT) {
                     r = mbedtls_aes_setkey_dec(&ctx, kdata, key_size * 8);
                 }
+                if (r != 0) {
+                    return SW_EXEC_ERROR();
+                }
                 mbedtls_platform_zeroize(kdata, sizeof(kdata));
-                r = mbedtls_aes_crypt_cbc(&ctx, mode, apdu.nc, iv, enc, res_APDU);
+                r = mbedtls_aes_crypt_cbc(&ctx, mode, enc_len, iv, enc, res_APDU);
                 mbedtls_aes_free(&ctx);
                 if (r != 0) {
                     return SW_EXEC_ERROR();
@@ -506,7 +509,7 @@ int cmd_cipher_sym() {
                 size_t iv_off = 0;
                 r = mbedtls_aes_setkey_enc(&ctx, kdata, key_size * 8);
                 mbedtls_platform_zeroize(kdata, sizeof(kdata));
-                r = mbedtls_aes_crypt_ofb(&ctx, apdu.nc, &iv_off, iv, enc, res_APDU);
+                r = mbedtls_aes_crypt_ofb(&ctx, enc_len, &iv_off, iv, enc, res_APDU);
                 mbedtls_aes_free(&ctx);
                 if (r != 0) {
                     return SW_EXEC_ERROR();
@@ -517,7 +520,7 @@ int cmd_cipher_sym() {
                 size_t iv_off = 0;
                 r = mbedtls_aes_setkey_enc(&ctx, kdata, key_size * 8);
                 mbedtls_platform_zeroize(kdata, sizeof(kdata));
-                r = mbedtls_aes_crypt_cfb128(&ctx, mode, apdu.nc, &iv_off, iv, enc, res_APDU);
+                r = mbedtls_aes_crypt_cfb128(&ctx, mode, enc_len, &iv_off, iv, enc, res_APDU);
                 mbedtls_aes_free(&ctx);
                 if (r != 0) {
                     return SW_EXEC_ERROR();
