@@ -428,18 +428,39 @@ size_t asn1_build_prkd_generic(const uint8_t *label,
                                const uint8_t *keyid,
                                size_t keyid_len,
                                size_t keysize,
-                               const uint8_t *seq,
-                               size_t seq_len,
+                               int key_type,
                                uint8_t *buf,
                                size_t buf_len) {
+    size_t seq_len = 0;
+    const uint8_t *seq = NULL;
+    uint8_t first_tag = 0x0;
+    if (key_type & HSM_KEY_EC) {
+        seq = (const uint8_t *)"\x07\x20\x80";
+        seq_len = 3;
+        first_tag = 0xA0;
+    }
+    else if (key_type & HSM_KEY_RSA) {
+        seq = (const uint8_t *)"\x02\x74";
+        seq_len = 2;
+        first_tag = 0x30;
+    }
+    else if (key_type & HSM_KEY_AES) {
+        seq = (const uint8_t *)"\x07\xC0\x10";
+        seq_len = 3;
+        first_tag = 0xA8;
+    }
     size_t seq1_size = asn1_len_tag(0x30, asn1_len_tag(0xC, label_len));
     size_t seq2_size =
         asn1_len_tag(0x30, asn1_len_tag(0x4, keyid_len) + asn1_len_tag(0x3, seq_len));
-    size_t seq3_size =
-        asn1_len_tag(0xA1,
-                     asn1_len_tag(0x30,
-                                  asn1_len_tag(0x30, asn1_len_tag(0x4, 0)) + asn1_len_tag(0x2, 2)));
-    size_t tot_len = asn1_len_tag(0xA0, seq1_size + seq2_size + seq3_size);
+    size_t seq3_size = 0, seq4_size = 0;
+    if (key_type & HSM_KEY_EC || key_type & HSM_KEY_RSA) {
+        seq4_size = asn1_len_tag(0xA1, asn1_len_tag(0x30, asn1_len_tag(0x30, asn1_len_tag(0x4, 0)) + asn1_len_tag(0x2, 2)));
+    }
+    else if (key_type & HSM_KEY_AES) {
+        seq3_size = asn1_len_tag(0xA0, asn1_len_tag(0x30, asn1_len_tag(0x2, 2)));
+        seq4_size = asn1_len_tag(0xA1, asn1_len_tag(0x30, asn1_len_tag(0x30, asn1_len_tag(0x4, 0))));
+    }
+    size_t tot_len = asn1_len_tag(first_tag, seq1_size + seq2_size + seq4_size);
     if (buf_len == 0 || buf == NULL) {
         return tot_len;
     }
@@ -447,8 +468,8 @@ size_t asn1_build_prkd_generic(const uint8_t *label,
         return 0;
     }
     uint8_t *p = buf;
-    *p++ = 0xA0;
-    p += format_tlv_len(seq1_size + seq2_size + seq3_size, p);
+    *p++ = first_tag;
+    p += format_tlv_len(seq1_size + seq2_size + seq3_size + seq4_size, p);
     //Seq 1
     *p++ = 0x30;
     p += format_tlv_len(asn1_len_tag(0xC, label_len), p);
@@ -467,22 +488,32 @@ size_t asn1_build_prkd_generic(const uint8_t *label,
     memcpy(p, seq, seq_len); p += seq_len;
 
     //Seq 3
+    if (key_type & HSM_KEY_AES) {
+        *p++ = 0xA0;
+        p += format_tlv_len(asn1_len_tag(0x30, asn1_len_tag(0x2, 2)), p);
+        *p++ = 0x30;
+        p += format_tlv_len(asn1_len_tag(0x2, 2), p);
+        *p++ = 0x2;
+        p += format_tlv_len(2, p);
+        *p++ = (keysize >> 8) & 0xff;
+        *p++ = keysize & 0xff;
+    }
+
+    //Seq 4
     *p++ = 0xA1;
-    p +=
-        format_tlv_len(asn1_len_tag(0x30,
-                                    asn1_len_tag(0x30, asn1_len_tag(0x4, 0)) + asn1_len_tag(0x2,
-                                                                                            2)),
-                       p);
+    p += format_tlv_len(asn1_len_tag(0x30, asn1_len_tag(0x30, asn1_len_tag(0x4, 0)) + asn1_len_tag(0x2, 2)), p);
     *p++ = 0x30;
     p += format_tlv_len(asn1_len_tag(0x30, asn1_len_tag(0x4, 0)) + asn1_len_tag(0x2, 2), p);
     *p++ = 0x30;
     p += format_tlv_len(asn1_len_tag(0x4, 0), p);
     *p++ = 0x4;
     p += format_tlv_len(0, p);
-    *p++ = 0x2;
-    p += format_tlv_len(2, p);
-    *p++ = (keysize >> 8) & 0xff;
-    *p++ = keysize & 0xff;
+    if (key_type & HSM_KEY_EC || key_type & HSM_KEY_RSA) {
+        *p++ = 0x2;
+        p += format_tlv_len(2, p);
+        *p++ = (keysize >> 8) & 0xff;
+        *p++ = keysize & 0xff;
+    }
     return p - buf;
 }
 
@@ -498,8 +529,7 @@ size_t asn1_build_prkd_ecc(const uint8_t *label,
                                    keyid,
                                    keyid_len,
                                    keysize,
-                                   (const uint8_t *) "\x07\x20\x80",
-                                   3,
+                                   HSM_KEY_EC,
                                    buf,
                                    buf_len);
 }
@@ -516,8 +546,24 @@ size_t asn1_build_prkd_rsa(const uint8_t *label,
                                    keyid,
                                    keyid_len,
                                    keysize,
-                                   (const uint8_t *) "\x02\x74",
-                                   2,
+                                   HSM_KEY_RSA,
+                                   buf,
+                                   buf_len);
+}
+
+size_t asn1_build_prkd_aes(const uint8_t *label,
+                           size_t label_len,
+                           const uint8_t *keyid,
+                           size_t keyid_len,
+                           size_t keysize,
+                           uint8_t *buf,
+                           size_t buf_len) {
+    return asn1_build_prkd_generic(label,
+                                   label_len,
+                                   keyid,
+                                   keyid_len,
+                                   keysize,
+                                   HSM_KEY_AES,
                                    buf,
                                    buf_len);
 }

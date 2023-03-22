@@ -87,4 +87,11 @@ extern size_t asn1_build_prkd_rsa(const uint8_t *label,
                                   size_t keysize,
                                   uint8_t *buf,
                                   size_t buf_len);
+extern size_t asn1_build_prkd_aes(const uint8_t *label,
+                                  size_t label_len,
+                                  const uint8_t *keyid,
+                                  size_t keyid_len,
+                                  size_t keysize,
+                                  uint8_t *buf,
+                                  size_t buf_len);
 #endif
