@@ -15,6 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "common.h"
 #include "crypto_utils.h"
 #include "sc_hsm.h"
 #include "kek.h"
@@ -29,8 +30,8 @@ int cmd_key_unwrap() {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
     int key_type = dkek_type_key(apdu.data);
-    uint8_t kdom = -1, *allowed = NULL;
-    size_t allowed_len = 0;
+    uint8_t kdom = -1, *allowed = NULL, prkd_buf[128];
+    size_t allowed_len = 0, prkd_len = 0;
     if (key_type == 0x0) {
         return SW_DATA_INVALID();
     }
@@ -49,10 +50,12 @@ int cmd_key_unwrap() {
             mbedtls_rsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
+        int key_size = ctx.len;
         mbedtls_rsa_free(&ctx);
         if (r != CCID_OK) {
             return SW_EXEC_ERROR();
         }
+        prkd_len = asn1_build_prkd_ecc(NULL, 0, NULL, 0, key_size * 8, prkd_buf, sizeof(prkd_buf));
     }
     else if (key_type & HSM_KEY_EC) {
         mbedtls_ecdsa_context ctx;
@@ -69,10 +72,12 @@ int cmd_key_unwrap() {
             mbedtls_ecdsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
+        int key_size = ctx.grp.nbits;
         mbedtls_ecdsa_free(&ctx);
         if (r != CCID_OK) {
             return SW_EXEC_ERROR();
         }
+        prkd_len = asn1_build_prkd_ecc(NULL, 0, NULL, 0, key_size, prkd_buf, sizeof(prkd_buf));
     }
     else if (key_type & HSM_KEY_AES) {
         uint8_t aes_key[64];
@@ -108,6 +113,7 @@ int cmd_key_unwrap() {
         if (r != CCID_OK) {
             return SW_EXEC_ERROR();
         }
+        prkd_len = asn1_build_prkd_aes(NULL, 0, NULL, 0, key_size * 8, prkd_buf, sizeof(prkd_buf));
     }
     if ((allowed != NULL && allowed_len > 0) || kdom >= 0) {
         size_t meta_len = (allowed_len > 0 ? 2 + allowed_len : 0) + (kdom >= 0 ? 3 : 0);
@@ -128,14 +134,21 @@ int cmd_key_unwrap() {
             return r;
         }
     }
+    if (prkd_len > 0) {
+        file_t *fpk = file_new((PRKD_PREFIX << 8) | key_id);
+        r = flash_write_data_to_file(fpk, prkd_buf, prkd_len);
+        if (r != 0) {
+            return SW_EXEC_ERROR();
+        }
+    }
     if (res_APDU_size > 0) {
         file_t *fpk = file_new((EE_CERTIFICATE_PREFIX << 8) | key_id);
         r = flash_write_data_to_file(fpk, res_APDU, res_APDU_size);
         if (r != 0) {
             return SW_EXEC_ERROR();
         }
-        low_flash_available();
         res_APDU_size = 0;
     }
+    low_flash_available();
     return SW_OK();
 }
