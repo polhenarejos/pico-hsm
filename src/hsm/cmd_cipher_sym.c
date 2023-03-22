@@ -566,7 +566,7 @@ int cmd_cipher_sym() {
                 }
             }
         }
-        else if (memcmp(oid, OID_IEEE_ALG, oid_len) == 0) {
+        else if (memcmp(oid, OID_IEEE_ALG, 8) == 0) {
             if (oid_len != 9) {
                 return SW_WRONG_DATA();
             }
