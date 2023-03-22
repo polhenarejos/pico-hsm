@@ -501,9 +501,13 @@ size_t asn1_build_prkd_generic(const uint8_t *label,
 
     //Seq 4
     *p++ = 0xA1;
-    p += format_tlv_len(asn1_len_tag(0x30, asn1_len_tag(0x30, asn1_len_tag(0x4, 0)) + asn1_len_tag(0x2, 2)), p);
+    size_t inseq4_len = asn1_len_tag(0x30, asn1_len_tag(0x4, 0));
+    if (key_type & HSM_KEY_EC || key_type & HSM_KEY_RSA) {
+        inseq4_len += asn1_len_tag(0x2, 2);
+    }
+    p += format_tlv_len(asn1_len_tag(0x30, inseq4_len), p);
     *p++ = 0x30;
-    p += format_tlv_len(asn1_len_tag(0x30, asn1_len_tag(0x4, 0)) + asn1_len_tag(0x2, 2), p);
+    p += format_tlv_len(inseq4_len, p);
     *p++ = 0x30;
     p += format_tlv_len(asn1_len_tag(0x4, 0), p);
     *p++ = 0x4;
