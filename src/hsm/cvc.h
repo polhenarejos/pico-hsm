@@ -45,7 +45,8 @@ extern size_t asn1_cvc_cert(void *rsa_ecdsa,
                             uint8_t *buf,
                             size_t buf_len,
                             const uint8_t *ext,
-                            size_t ext_len);
+                            size_t ext_len,
+                            bool full);
 extern size_t asn1_cvc_aut(void *rsa_ecdsa,
                            uint8_t key_type,
                            uint8_t *buf,

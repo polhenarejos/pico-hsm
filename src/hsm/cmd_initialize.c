@@ -197,17 +197,29 @@ int cmd_initialize() {
                 mbedtls_ecdsa_free(&ecdsa);
                 return SW_EXEC_ERROR();
             }
-            mbedtls_ecdsa_free(&ecdsa);
 
             file_t *fpk = search_by_fid(EF_EE_DEV, NULL, SPECIFY_EF);
             ret = flash_write_data_to_file(fpk, res_APDU, cvc_len);
+            if (ret != 0) {
+                mbedtls_ecdsa_free(&ecdsa);
+                return SW_EXEC_ERROR();
+            }
+
+            if ((cvc_len = asn1_cvc_cert(&ecdsa, HSM_KEY_EC, res_APDU, 4096, NULL, 0, true)) == 0) {
+                mbedtls_ecdsa_free(&ecdsa);
+                return SW_EXEC_ERROR();
+            }
+            memcpy(res_APDU + cvc_len, res_APDU, cvc_len);
+            mbedtls_ecdsa_free(&ecdsa);
+            fpk = search_by_fid(EF_TERMCA, NULL, SPECIFY_EF);
+            ret = flash_write_data_to_file(fpk, res_APDU, 2 * cvc_len);
             if (ret != 0) {
                 return SW_EXEC_ERROR();
             }
 
             const uint8_t *keyid =
                 (const uint8_t *) "\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0",
-                          *label = (const uint8_t *) "ESTERMHSM";
+                          *label = (const uint8_t *) "ESPICOHSMTR";
             size_t prkd_len = asn1_build_prkd_ecc(label,
                                                   strlen((const char *) label),
                                                   keyid,
@@ -217,6 +229,7 @@ int cmd_initialize() {
                                                   4096);
             fpk = search_by_fid(EF_PRKD_DEV, NULL, SPECIFY_EF);
             ret = flash_write_data_to_file(fpk, res_APDU, prkd_len);
+
         }
         if (ret != 0) {
             return SW_EXEC_ERROR();
