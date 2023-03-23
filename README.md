@@ -37,7 +37,10 @@ It allows private decryption in place with RSA-OEP and RSA-X-509 algorithms.
 It supports AES key generation in place with keys of 128, 192 and 256 bits.
 
 ### > AES-CBC encryption/decryption
-AES encryption and decryption is performed in place.
+Legacy AES encryption and decryption is performed in place.
+
+### > AES ECB, CBC, CFB, OFB, XTS, CTR, GCM and CCM
+Advanced AES encryption and decryption with multiples modes and customized IV/nonce and additional authenticated data (AAD).[^4]
 
 ### > CMAC
 It supports AES-CMAC authentication.[^1]
@@ -115,7 +118,7 @@ In PKA, the PIN is used for protecting the MKEK, as classic method with only PIN
 An extra layer can be added to the device by adding a private key stored on the computer to lock that Pico HSM to the specific computer. The content will be completely encrypted with a private key only available from a specific computer.
 
 ### > ChaCha20-Poly1305
-This is a novel fast and efficient symmetric encryption algorithm. Similarly to AES, it can be used to cipher your private data.
+This is a novel fast and efficient symmetric encryption algorithm. Similarly to AES, it can be used to cipher your private data.[^4]
 
 ### > X25519 and X448
 Both cruves Curve25519 and Curve448 are supported for doing DH X25519 and X448. Remember that cannot be used for signing.
@@ -134,7 +137,8 @@ A Master Key Encryption Key is used to store safely all the keys. This key is al
 
 [^1]: PKCS11 modules (`pkcs11-tool` and `sc-tool`) do not support CMAC and key derivation. It must be processed through raw APDU command (`opensc-tool -s`).
 [^2]: Available via SCS3 tool. See [SCS3](/doc/scs3.md "SCS3") for more information.
-[^3]: Imports are available only if the Pico HSM is previously initialized with a DKEK and the DKEK shares are available during the import process.
+[^3]: Imports are available only if the Pico HSM is previously initialized with a DKEK and DKEK shares are available during the import process.
+[^4]: Available by using PicoHSM python tool.
 
 ## Security considerations
 All secret keys (asymmetric and symmetric) are stored encrypted in the flash memory of the Raspberry Pico. DKEK is used as a 256 bit AES key to protect private and secret keys. Keys are never stored in RAM except for signature and decryption operations and only during the process. All keys (including DKEK) are loaded and cleared every time to avoid potential security flaws.
