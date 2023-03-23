@@ -33,6 +33,7 @@
 #include "mbedtls/asn1.h"
 #include "mbedtls/cipher.h"
 #include "mbedtls/oid.h"
+#include "mbedtls/ccm.h"
 
 /* This is copied from pkcs5.c Mbedtls */
 /** Unfortunately it is declared as static, so I cannot call it. **/
@@ -576,6 +577,51 @@ int cmd_cipher_sym() {
                     return SW_EXEC_ERROR();
                 }
                 res_APDU_size = enc_len;
+            }
+            else if (aes_algo == 0x07 || aes_algo == 0x1B || aes_algo == 0x2F) { /* CCM */
+                mbedtls_aes_free(&ctx); // No AES ctx used
+                mbedtls_ccm_context gctx;
+                mbedtls_ccm_init(&gctx);
+                r = mbedtls_ccm_setkey(&gctx, MBEDTLS_CIPHER_ID_AES, kdata, key_size * 8);
+                if (r != 0) {
+                    return SW_EXEC_ERROR();
+                }
+                if (iv_len == 16) {
+                    iv_len = 12;
+                }
+                mbedtls_platform_zeroize(kdata, sizeof(kdata));
+                if (algo == ALGO_EXT_CIPHER_ENCRYPT) {
+                    r = mbedtls_ccm_encrypt_and_tag(&gctx,
+                                                  enc_len,
+                                                  iv,
+                                                  iv_len,
+                                                  aad,
+                                                  aad_len,
+                                                  enc,
+                                                  res_APDU,
+                                                  res_APDU + enc_len,
+                                                  16);
+                    res_APDU_size = enc_len + 16;
+                }
+                else if (algo == ALGO_EXT_CIPHER_DECRYPT) {
+                    r = mbedtls_ccm_auth_decrypt(&gctx,
+                                                 enc_len - 16,
+                                                 iv,
+                                                 iv_len,
+                                                 aad,
+                                                 aad_len,
+                                                 enc,
+                                                 res_APDU,
+                                                 enc + enc_len - 16,
+                                                 16);
+                    res_APDU_size = enc_len - 16;
+                }
+                mbedtls_ccm_free(&gctx);
+                printf("r %d\n", r);
+                if (r != 0)
+                {
+                    return SW_EXEC_ERROR();
+                }
             }
         }
         else if (memcmp(oid, OID_IEEE_ALG, 8) == 0) {

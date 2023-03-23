@@ -19,7 +19,7 @@
 
 import pytest
 import os
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes, aead
 import cryptography.exceptions
 from picohsm import APDUResponse, DOPrefixes, EncryptionMode, SWCodes, AES
 from picohsm.const import DEFAULT_DKEK_SHARES
@@ -296,6 +296,47 @@ def test_aes_ctr_iv(device, size):
     dtA = device.aes(keyid, EncryptionMode.DECRYPT, AES.CTR, ctA, iv=iv)
     decryptor = cipher.decryptor()
     dtB = decryptor.update(ctB) + decryptor.finalize()
+    assert(dtA == dtB)
+    assert(dtA == MESSAGE)
+    device.delete_key(keyid)
+
+@pytest.mark.parametrize(
+    "size", [128, 192, 256]
+)
+def test_aes_ccm_no_iv(device, size):
+    pkey, keyid = generate_key(device, size)
+    ctA = device.aes(keyid, EncryptionMode.ENCRYPT, AES.CCM, MESSAGE, aad=AAD)
+
+    iv = b'\x00' * 12
+    encryptor = aead.AESCCM(pkey)
+    ctB = encryptor.encrypt(iv, MESSAGE, AAD)
+    assert(ctA == ctB)
+
+    dtA = device.aes(keyid, EncryptionMode.DECRYPT, AES.CCM, ctA, aad=AAD)
+    decryptor = encryptor
+    dtB = decryptor.decrypt(iv, ctB, AAD)
+    assert(dtA == dtB)
+    assert(dtA == MESSAGE)
+    device.delete_key(keyid)
+
+@pytest.mark.parametrize(
+    "size", [128, 192, 256]
+)
+@pytest.mark.parametrize(
+    "iv_len", [7, 8, 9, 10, 11, 12, 13]
+)
+def test_aes_ccm_iv(device, size, iv_len):
+    pkey, keyid = generate_key(device, size)
+    iv = os.urandom(iv_len)
+    ctA = device.aes(keyid, EncryptionMode.ENCRYPT, AES.CCM, MESSAGE, iv=iv, aad=AAD)
+
+    encryptor = aead.AESCCM(pkey)
+    ctB = encryptor.encrypt(iv, MESSAGE, AAD)
+    assert(ctA == ctB)
+
+    dtA = device.aes(keyid, EncryptionMode.DECRYPT, AES.CCM, ctA, iv=iv, aad=AAD)
+    decryptor = encryptor
+    dtB = decryptor.decrypt(iv, ctB, AAD)
     assert(dtA == dtB)
     assert(dtA == MESSAGE)
     device.delete_key(keyid)
