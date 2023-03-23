@@ -21,16 +21,7 @@
 
 import sys
 try:
-    from smartcard.CardType import AnyCardType
-    from smartcard.CardRequest import CardRequest
-    from smartcard.Exceptions import CardRequestTimeoutException, CardConnectionException
-except ModuleNotFoundError:
-    print('ERROR: smarctard module not found! Install pyscard package.\nTry with `pip install pyscard`')
-    sys.exit(-1)
-
-try:
     from cvc.certificates import CVC
-    from cvc.asn1 import ASN1
     from cvc.oid import oid2scheme
     from cvc.utils import scheme_rsa
 except ModuleNotFoundError:
@@ -47,6 +38,11 @@ except ModuleNotFoundError:
     print('ERROR: cryptography module not found! Install cryptography package.\nTry with `pip install cryptography`')
     sys.exit(-1)
 
+try:
+    from picohsm import PicoHSM, PinType, DOPrefixes, KeyType, EncryptionMode, utils
+except ModuleNotFoundError:
+    print('ERROR: picohsm module not found! Install picohsm package.\nTry with `pip install pypicohsm`')
+    sys.exit(-1)
 
 import json
 import urllib.request
@@ -61,51 +57,8 @@ from argparse import RawTextHelpFormatter
 
 pin = None
 
-class APDUResponse(Exception):
-    def __init__(self, sw1, sw2):
-        self.sw1 = sw1
-        self.sw2 = sw2
-        super().__init__(f'SW:{sw1:02X}{sw2:02X}')
-
 def hexy(a):
     return [hex(i) for i in a]
-
-def send_apdu(card, command, p1, p2, data=None, ne=None):
-    lc = []
-    dataf = []
-    if (data):
-        lc = [0x00] + list(len(data).to_bytes(2, 'big'))
-        dataf = data
-    if (ne is None):
-        le = [0x00, 0x00]
-    else:
-        le = list(ne.to_bytes(2, 'big'))
-    if (isinstance(command, list) and len(command) > 1):
-        apdu = command
-    else:
-        apdu = [0x00, command]
-
-    apdu = apdu + [p1, p2] + lc + dataf + le
-    try:
-        response, sw1, sw2 = card.connection.transmit(apdu)
-    except CardConnectionException:
-        card.connection.reconnect()
-        response, sw1, sw2 = card.connection.transmit(apdu)
-    if (sw1 != 0x90):
-        if (sw1 == 0x6A and sw2 == 0x82):
-            response, sw1, sw2 = card.connection.transmit([0x00, 0xA4, 0x04, 0x00, 0xB, 0xE8, 0x2B, 0x06, 0x01, 0x04, 0x01, 0x81, 0xC3, 0x1F, 0x02, 0x01, 0x0])
-            if (sw1 == 0x90):
-                response, sw1, sw2 = card.connection.transmit(apdu)
-                if (sw1 == 0x90):
-                    return response
-        elif (sw1 == 0x69 and sw2 == 0x82):
-            response, sw1, sw2 = card.connection.transmit([0x00, 0x20, 0x00, 0x81, len(pin)] + list(pin.encode()) + [0x0])
-            if (sw1 == 0x90):
-                response, sw1, sw2 = card.connection.transmit(apdu)
-                if (sw1 == 0x90):
-                    return response
-        raise APDUResponse(sw1, sw2)
-    return response
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -215,22 +168,14 @@ def get_pki_certs(certs_dir='certs', force=False):
             f.write(base64.urlsafe_b64decode(certs['dvca']['cert']))
     print(f'All PKI certificates are stored at {certs_dir} folder')
 
-def pki(card, args):
+def pki(_, args):
     if (args.subcommand == 'initialize'):
         if (args.default is True):
             get_pki_certs(certs_dir=args.certs_dir, force=args.force)
         else:
             print('Error: no PKI is passed. Use --default to retrieve default PKI.')
 
-def login(card, args):
-    global pin
-    pin = args.pin
-    try:
-        response = send_apdu(card, 0x20, 0x00, 0x81, list(args.pin.encode()))
-    except APDUResponse:
-        pass
-
-def initialize(card, args):
+def initialize(picohsm, args):
     print('********************************')
     print('*   PLEASE READ IT CAREFULLY   *')
     print('********************************')
@@ -240,31 +185,20 @@ def initialize(card, args):
     print('Are you sure?')
     _ = input('[Press enter to confirm]')
 
-    send_apdu(card, 0xA4, 0x04, 0x00, [0xE8, 0x2B, 0x06, 0x01, 0x04, 0x01, 0x81, 0xC3, 0x1F, 0x02, 0x01])
     if (args.pin):
-        pin = args.pin.encode()
-        try:
-            response = send_apdu(card, 0x20, 0x00, 0x81, list(pin))
-        except APDUResponse:
-            pass
+        picohsm.login(args.pin)
+        pin = args
     else:
-        pin = b'648219'
+        pin = '648219'
 
     if (args.so_pin):
-        so_pin = args.so_pin.encode()
-        try:
-            response = send_apdu(card, 0x20, 0x00, 0x82, list(so_pin))
-        except APDUResponse:
-            pass
+        picohsm.login(args.pin, who=PinType.SO_PIN)
+        so_pin = args.so_pin
     else:
-        so_pin = b'57621880'
+        so_pin = '57621880'
 
-    pin_data = [0x81, len(pin)] + list(pin)
-    so_pin_data = [0x82, len(so_pin)] + list(so_pin)
-    reset_data = [0x80, 0x02, 0x00, 0x01] + pin_data + so_pin_data + [0x91, 0x01, 0x03]
-    response = send_apdu(card, [0x80, 0x50], 0x00, 0x00, reset_data)
-
-    response = send_apdu(card, 0xB1, 0xCE, 0x00, [0x54, 0x02, 0x00, 0x00])
+    picohsm.initialize(pin=pin, sopin=so_pin)
+    response = picohsm.get_contents(DOPrefixes.EE_CERTIFICATE_PREFIX, 0x00)
 
     cert = bytearray(response)
     Y = CVC().decode(cert).pubkey().find(0x86).data()
@@ -277,12 +211,8 @@ def initialize(card, args):
     dataef = base64.urlsafe_b64decode(
         j['cvcert']) + base64.urlsafe_b64decode(j['dvcert']) + base64.urlsafe_b64decode(j['cacert'])
 
-    response = send_apdu(card, 0xa4, 0x00, 0x00, [0x2f, 0x02])
-    response = send_apdu(card, 0x20, 0x00, 0x81, list(pin))
-
-    apdu_data = [0x54, 0x02, 0x00, 0x00] + \
-        list(ASN1.make_tag(0x53, dataef))
-    response = send_apdu(card, 0xd7, 0x00, 0x00, apdu_data)
+    picohsm.select_file(0x2f02)
+    response = picohsm.put_contents(0x0000, data=dataef)
 
     print('Certificate uploaded successfully!')
     print('')
@@ -291,22 +221,11 @@ def initialize(card, args):
     print('Now you can initialize the device as usual with your chosen PIN '
         'and configuration options.')
 
-def attestate(card, args):
+def attestate(picohsm, args):
     kid = int(args.key)
-    try:
-        response = send_apdu(card, 0xB1, 0x2F, 0x02, [0x54, 0x02, 0x00, 0x00])
-    except APDUResponse as a:
-        print('ERROR: There is an error with the device certificate.')
-        sys.exit(1)
-
-    devcert = ASN1().decode(response).find(0x7f21, pos=0).data(return_tag=True)
-
-    try:
-        cert = send_apdu(card, 0xB1, 0xCE, kid, [0x54, 0x02, 0x00, 0x00])
-    except APDUResponse as a:
-        if (a.sw1 == 0x6a and a.sw2 == 0x82):
-            print('ERROR: Key not found')
-            sys.exit(1)
+    termca = picohsm.get_termca()
+    devcert = termca['cv']['data']
+    cert = picohsm.get_contents(0xCE, kid)
 
     print(hexlify(bytearray(cert)))
     print(f'Details of key {kid}:\n')
@@ -345,42 +264,41 @@ def attestate(card, args):
     else:
         print(f'Key {kid} is NOT generated by device {chr.decode()}')
 
-def rtc(card, args):
+def rtc(picohsm, args):
     if (args.subcommand == 'set'):
         now = datetime.now()
-        _ = send_apdu(card, [0x80, 0x64], 0x0A, 0x00, list(now.year.to_bytes(2, 'big')) + [now.month, now.day, now.weekday(), now.hour, now.minute, now.second ])
+        _ = picohsm.send(cla=0x80, command=0x64, p1=0x0A, data=list(now.year.to_bytes(2, 'big')) + [now.month, now.day, now.weekday(), now.hour, now.minute, now.second ])
     elif (args.subcommand == 'get'):
-        response = send_apdu(card, [0x80, 0x64], 0x0A, 0x00)
+        response = picohsm.send(cla=0x80, command=0x64, p1=0x0A)
         dt = datetime(int.from_bytes(response[:2], 'big'), response[2], response[3], response[5], response[6], response[7])
         print(f'Current date and time is: {dt.ctime()}')
 
-def opts(card, args):
+def opts(picohsm, args):
     opt = 0x0
     if (args.opt == 'button'):
         opt = 0x1
     elif (args.opt == 'counter'):
         opt = 0x2
-    current = send_apdu(card, [0x80, 0x64], 0x6, 0x0)[0]
+    current = picohsm.send(cla=0x80, command=0x64, p1=0x6)[0]
     if (args.subcommand == 'set'):
         if (args.onoff == 'on'):
             newopt = current | opt
         else:
             newopt = current & ~opt
-        send_apdu(card, [0x80, 0x64], 0x6, 0x0, [newopt])
+        picohsm.send(cla=0x80, command=0x64, p1=0x6, data=[newopt])
     elif (args.subcommand == 'get'):
         print(f'Option {args.opt.upper()} is {"ON" if current & opt else "OFF"}')
 
 class SecureLock:
-    def __init__(self, card):
-        self.card = card
+    def __init__(self, picohsm):
+        self.picohsm = picohsm
 
     def mse(self):
         sk = ec.generate_private_key(ec.SECP256R1())
         pn = sk.public_key().public_numbers()
         self.__pb = sk.public_key().public_bytes(Encoding.X962, PublicFormat.UncompressedPoint)
 
-
-        ret = send_apdu(self.card, [0x80, 0x64], 0x3A, 0x01, list(self.__pb))
+        ret = self.picohsm.send(cla=0x80, command=0x64, p1=0x3A, p2=0x01, data=list(self.__pb))
 
         pk = ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), bytes(ret))
         shared_key = sk.exchange(ec.ECDH(), pk)
@@ -402,7 +320,7 @@ class SecureLock:
 
     def unlock_device(self):
         ct = self.get_skey()
-        send_apdu(self.card, [0x80, 0x64], 0x3A, 0x03, list(ct))
+        self.picohsm.send(cla=0x80, command=0x64, p1=0x3A, p2=0x03, data=list(ct))
 
     def _get_key_device(self):
         if (platform.system() == 'Windows' or platform.system() == 'Linux'):
@@ -421,15 +339,14 @@ class SecureLock:
 
     def enable_device_aut(self):
         ct = self.get_skey()
-        send_apdu(self.card, [0x80, 0x64], 0x3A, 0x02, list(ct))
+        self.picohsm.send(cla=0x80, command=0x64, p1=0x3A, p2=0x02, data=list(ct))
 
     def disable_device_aut(self):
         ct = self.get_skey()
-        send_apdu(self.card, [0x80, 0x64], 0x3A, 0x04, list(ct))
+        self.picohsm.send(cla=0x80, command=0x64, p1=0x3A, p2=0x04, p3=list(ct))
 
-
-def secure(card, args):
-    slck = SecureLock(card)
+def secure(picohsm, args):
+    slck = SecureLock(picohsm)
     if (args.subcommand == 'enable'):
         slck.enable_device_aut()
     elif (args.subcommand == 'unlock'):
@@ -437,120 +354,63 @@ def secure(card, args):
     elif (args.subcommand == 'disable'):
         slck.disable_device_aut()
 
-
-def cipher(card, args):
+def cipher(picohsm, args):
     if (args.subcommand == 'keygen'):
-        ksize = 0xB2
-        if (args.key_size == 24):
-            ksize = 0xB1
-        elif (args.key_size == 16):
-            ksize = 0xB0
-        ret = send_apdu(card, 0x48, int(args.key), ksize)
-
+        ret = picohsm.key_generation(KeyType.AES, param=args.key_size * 8)
     else:
-        enc = None
-        aad = None
+        if (args.file_in):
+            fin = open(args.file_in, 'rb')
+        else:
+            fin = sys.stdin.buffer
+        enc = fin.read()
+        fin.close()
+        iv = args.iv
+        if (args.iv and args.hex):
+            iv = unhexlify(iv)
+        aad = args.aad
+        if (args.aad and args.hex):
+                aad = unhexlify(aad)
+
+        mode = EncryptionMode.ENCRYPT if args.subcommand[0] == 'e' else EncryptionMode.DECRYPT
         if (args.alg == 'CHACHAPOLY'):
-            oid = b'\x2A\x86\x48\x86\xF7\x0D\x01\x09\x10\x03\x12'
+            ret = picohsm.chachapoly(args.key, mode, data=enc, iv=iv, aad=aad)
         elif (args.alg == 'HMAC-SHA1'):
-            oid = b'\x2A\x86\x48\x86\xF7\x0D\x02\x07'
+            ret = picohsm.hmac(hashes.SHA1, args.key, data=enc)
         elif (args.alg == 'HMAC-SHA224'):
-            oid = b'\x2A\x86\x48\x86\xF7\x0D\x02\x08'
+            ret = picohsm.hmac(hashes.SHA224, args.key, data=enc)
         elif (args.alg == 'HMAC-SHA256'):
-            oid = b'\x2A\x86\x48\x86\xF7\x0D\x02\x09'
+            ret = picohsm.hmac(hashes.SHA256, args.key, data=enc)
         elif (args.alg == 'HMAC-SHA384'):
-            oid = b'\x2A\x86\x48\x86\xF7\x0D\x02\x0A'
+            ret = picohsm.hmac(hashes.SHA384, args.key, data=enc)
         elif (args.alg == 'HMAC-SHA512'):
-            oid = b'\x2A\x86\x48\x86\xF7\x0D\x02\x0B'
+            ret = picohsm.hmac(hashes.SHA512, args.key, data=enc)
         elif (args.alg == 'HKDF-SHA256'):
-            oid = b'\x2A\x86\x48\x86\xF7\x0D\x01\x09\x10\x03\x1D'
+            ret = picohsm.hkdf(hashes.SHA256, args.key, data=enc, salt=iv, out_len=args.output_len)
         elif (args.alg == 'HKDF-SHA384'):
-            oid = b'\x2A\x86\x48\x86\xF7\x0D\x01\x09\x10\x03\x1E'
+            ret = picohsm.hkdf(hashes.SHA384, args.key, data=enc, salt=iv, out_len=args.output_len)
         elif (args.alg == 'HKDF-SHA512'):
-            oid = b'\x2A\x86\x48\x86\xF7\x0D\x01\x09\x10\x03\x1F'
-        elif (args.alg in ['PBKDF2-SHA1', 'PBKDF2-SHA224', 'PBKDF2-SHA256', 'PBKDF2-SHA384', 'PBKDF2-SHA512']):
-            if ('PBKDF2' in args.alg):
-                oid = b'\x2A\x86\x48\x86\xF7\x0D\x01\x05\x0C'
-            salt = b'\x04' + bytes([len(args.iv)//2]) + unhexlify(args.iv)
-            iteration = b'\x02' + bytes([len(int_to_bytes(int(args.iteration)))]) + int_to_bytes(int(args.iteration))
-            prf = b'\x30\x0A\x06\x08\x2A\x86\x48\x86\xF7\x0D\x02'
-            if (args.alg == 'PBKDF2-SHA1'):
-                prf += b'\x07'
-            elif (args.alg == 'PBKDF2-SHA224'):
-                prf += b'\x08'
-            elif (args.alg == 'PBKDF2-SHA256'):
-                prf += b'\x09'
-            elif (args.alg == 'PBKDF2-SHA384'):
-                prf += b'\x0A'
-            elif (args.alg == 'PBKDF2-SHA512'):
-                prf += b'\x0B'
-            enc = list(salt + iteration + prf)
-        elif (args.alg in 'X963-SHA1', 'X963-SHA224', 'X963-SHA256', 'X963-SHA384', 'X963-SHA512'):
-            oid = b'\x2B\x81\x05\x10\x86\x48\x3F'
-            enc = b'\x2A\x86\x48\x86\xF7\x0D\x02'
-            if (args.alg == 'X963-SHA1'):
-                enc += b'\x07'
-            elif (args.alg == 'X963-SHA224'):
-                enc += b'\x08'
-            elif (args.alg == 'X963-SHA256'):
-                enc += b'\x09'
-            elif (args.alg == 'X963-SHA384'):
-                enc += b'\x0A'
-            elif (args.alg == 'X963-SHA512'):
-                enc += b'\x0B'
-        '''
-        # To be finished: it does not work with AES (only supported by HSM)
-        elif (args.alg in ['PBES2-SHA1', 'PBES2-SHA224', 'PBES2-SHA256', 'PBES2-SHA384', 'PBES2-SHA512']):
-            oid = b'\x2A\x86\x48\x86\xF7\x0D\x01\x05\x0D'
-            if (not args.iv):
-                sys.stderr.buffer.write(b'ERROR: --iv required')
-                sys.exit(-1)
-            salt = b'\x04' + bytes([len(args.iv)//2]) + unhexlify(args.iv)
-            iteration = b'\x02' + bytes([len(int_to_bytes(int(args.iteration)))]) + int_to_bytes(int(args.iteration))
-            prf = b'\x30\x0A\x06\x08\x2A\x86\x48\x86\xF7\x0D\x02'
-            if (args.alg == 'PBES2-SHA1'):
-                prf += b'\x07'
-            elif (args.alg == 'PBES2-SHA224'):
-                prf += b'\x08'
-            elif (args.alg == 'PBES2-SHA256'):
-                prf += b'\x09'
-            elif (args.alg == 'PBES2-SHA384'):
-                prf += b'\x0A'
-            elif (args.alg == 'PBES2-SHA512'):
-                prf += b'\x0B'
-            oid_kdf = b'\x06\x09\x2A\x86\x48\x86\xF7\x0D\x01\x05\x0C'
-            aad = hexlify(oid_kdf + b'\x30' + bytes([len(salt)+len(iteration)+len(prf)]) + salt + iteration + prf)
-            args.hex = True
-        '''
+            ret = picohsm.hkdf(hashes.SHA512, args.key, data=enc, salt=iv, out_len=args.output_len)
+        elif (args.alg == 'PBKDF2-SHA1'):
+            ret = picohsm.pbkdf2(hashes.SHA1, args.key, salt=iv, iterations=args.iteration, out_len=args.output_len)
+        elif (args.alg == 'PBKDF2-SHA224'):
+            ret = picohsm.pbkdf2(hashes.SHA224, args.key, salt=iv, iterations=args.iteration, out_len=args.output_len)
+        elif (args.alg == 'PBKDF2-SHA256'):
+            ret = picohsm.pbkdf2(hashes.SHA256, args.key, salt=iv, iterations=args.iteration, out_len=args.output_len)
+        elif (args.alg == 'PBKDF2-SHA384'):
+            ret = picohsm.pbkdf2(hashes.SHA384, args.key, salt=iv, iterations=args.iteration, out_len=args.output_len)
+        elif (args.alg == 'PBKDF2-SHA512'):
+            ret = picohsm.pbkdf2(hashes.SHA512, args.key, salt=iv, iterations=args.iteration, out_len=args.output_len)
+        elif (args.alg == 'X963-SHA1'):
+            ret = picohsm.x963(hashes.SHA1, args.key, data=enc, out_len=args.output_len)
+        elif (args.alg == 'X963-SHA224'):
+            ret = picohsm.x963(hashes.SHA224, args.key, data=enc, out_len=args.output_len)
+        elif (args.alg == 'X963-SHA256'):
+            ret = picohsm.x963(hashes.SHA256, args.key, data=enc, out_len=args.output_len)
+        elif (args.alg == 'X963-SHA384'):
+            ret = picohsm.x963(hashes.SHA384, args.key, data=enc, out_len=args.output_len)
+        elif (args.alg == 'X963-SHA512'):
+            ret = picohsm.x963(hashes.SHA512, args.key, data=enc, out_len=args.output_len)
 
-        if (args.subcommand[0] == 'e' or args.subcommand == 'hmac' or args.subcommand == 'kdf'):
-            alg = 0x51
-        elif (args.subcommand[0] == 'd'):
-            alg = 0x52
-
-        if (not enc):
-            if (args.file_in):
-                fin = open(args.file_in, 'rb')
-            else:
-                fin = sys.stdin.buffer
-            enc = fin.read()
-            fin.close()
-
-        data = [0x06, len(oid)] + list(oid) + [0x81, len(enc)] + list(enc)
-
-        if (args.iv and not 'PBKDF2' in args.alg and not 'PBES2' in args.alg):
-            data += [0x82, len(args.iv)//2] + list(unhexlify(args.iv))
-        if (not aad):
-            aad = args.aad
-        if (aad):
-            if (args.hex):
-                data += [0x83, len(aad)//2] + list(unhexlify(aad))
-            else:
-                data += [0x83, len(aad)] + list(aad)
-
-        ne = int(args.output_len) if 'output_len' in args and args.output_len else None
-
-        ret = send_apdu(card, [0x80, 0x78], int(args.key), alg, data=data, ne=ne)
         if (args.file_out):
             fout = open(args.file_out, 'wb')
         else:
@@ -562,19 +422,16 @@ def cipher(card, args):
         if (args.file_out):
             fout.close()
 
-def int_to_bytes(x: int) -> bytes:
-    return x.to_bytes((x.bit_length() + 7) // 8, 'big')
-
-def x25519(card, args):
+def x25519(picohsm, args):
     if (args.command == 'x25519'):
         P = b'\x7f\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xed'
-        A = int_to_bytes(0x01DB42)
+        A = utils.int_to_bytes(0x01DB42)
         N = b'\x10\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x14\xDE\xF9\xDE\xA2\xF7\x9C\xD6\x58\x12\x63\x1A\x5C\xF5\xD3\xED'
         G = b'\x04\x09\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xd9\xd3\xce\x7e\xa2\xc5\xe9\x29\xb2\x61\x7c\x6d\x7e\x4d\x3d\x92\x4c\xd1\x48\x77\x2c\xdd\x1e\xe0\xb4\x86\xa0\xb8\xa1\x19\xae\x20'
         h = b'\x08'
     elif (args.command == 'x448'):
         P = b'\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff'
-        A = int_to_bytes(0x98AA)
+        A = utils.int_to_bytes(0x98AA)
         N = b'\x3f\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\x7c\xca\x23\xe9\xc4\x4e\xdb\x49\xae\xd6\x36\x90\x21\x6c\xc2\x72\x8d\xc5\x8f\x55\x23\x78\xc2\x92\xab\x58\x44\xf3'
         G = b'\x04\x05\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x1a\x5b\x7b\x45\x3d\x22\xd7\x6f\xf7\x7a\x67\x50\xb1\xc4\x12\x13\x21\x0d\x43\x46\x23\x7e\x02\xb8\xed\xf6\xf3\x8d\xc2\x5d\xf7\x60\xd0\x45\x55\xf5\x34\x5d\xae\xcb\xce\x6f\x32\x58\x6e\xab\x98\x6c\xf6\xb1\xf5\x95\x12\x5d\x23\x7d'
         h = b'\x04'
@@ -589,45 +446,33 @@ def x25519(card, args):
     cdata += b'\x42\x0C\x55\x54\x44\x55\x4D\x4D\x59\x30\x30\x30\x30\x31'
     cdata += b'\x7f\x49\x81' + bytes([len(oid)+len(p_data)+len(a_data)+len(g_data)+len(n_data)+len(h_data)]) + oid + p_data + a_data + g_data + n_data + h_data
     cdata += b'\x5F\x20\x0C\x55\x54\x44\x55\x4D\x4D\x59\x30\x30\x30\x30\x31'
-    ret = send_apdu(card, 0x46, int(args.key), 0x00, list(cdata))
+    ret = picohsm.send(command=0x46, p1=args.key, data=list(cdata))
 
 def main(args):
-    sys.stderr.buffer.write(b'Pico HSM Tool v1.8\n')
+    sys.stderr.buffer.write(b'Pico HSM Tool v1.10\n')
     sys.stderr.buffer.write(b'Author: Pol Henarejos\n')
     sys.stderr.buffer.write(b'Report bugs to https://github.com/polhenarejos/pico-hsm/issues\n')
     sys.stderr.buffer.write(b'\n\n')
-    cardtype = AnyCardType()
-    try:
-        # request card insertion
-        cardrequest = CardRequest(timeout=10, cardType=cardtype)
-        card = cardrequest.waitforcard()
 
-        # connect to the card and perform a few transmits
-        card.connection.connect()
-
-    except CardRequestTimeoutException:
-        raise Exception('time-out: no card inserted during last 10s')
-
-    if (args.pin):
-        login(card, args)
+    picohsm = PicoHSM(args.pin)
 
     # Following commands may raise APDU exception on error
     if (args.command == 'initialize'):
-        initialize(card, args)
+        initialize(picohsm, args)
     elif (args.command == 'attestate'):
-        attestate(card, args)
+        attestate(picohsm, args)
     elif (args.command == 'pki'):
-        pki(card, args)
+        pki(picohsm, args)
     elif (args.command == 'datetime'):
-        rtc(card, args)
+        rtc(picohsm, args)
     elif (args.command == 'options'):
-        opts(card, args)
+        opts(picohsm, args)
     elif (args.command == 'secure'):
-        secure(card, args)
+        secure(picohsm, args)
     elif (args.command == 'cipher'):
-        cipher(card, args)
+        cipher(picohsm, args)
     elif (args.command == 'x25519' or args.command == 'x448'):
-        x25519(card, args)
+        x25519(picohsm, args)
 
 
 def run():
