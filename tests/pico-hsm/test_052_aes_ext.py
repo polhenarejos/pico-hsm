@@ -259,3 +259,43 @@ def test_aes_xts_iv(device, size):
     assert(dtA == dtB)
     assert(dtA == MESSAGE)
     device.delete_key(keyid)
+
+@pytest.mark.parametrize(
+    "size", [128, 192, 256]
+)
+def test_aes_ctr_no_iv(device, size):
+    pkey, keyid = generate_key(device, size)
+    ctA = device.aes(keyid, EncryptionMode.ENCRYPT, AES.CTR, MESSAGE)
+
+    iv = b'\x00' * 16
+    cipher = Cipher(algorithms.AES(pkey), modes.CTR(iv))
+    encryptor = cipher.encryptor()
+    ctB = encryptor.update(MESSAGE) + encryptor.finalize()
+    assert(ctA == ctB)
+
+    dtA = device.aes(keyid, EncryptionMode.DECRYPT, AES.CTR, ctA)
+    decryptor = cipher.decryptor()
+    dtB = decryptor.update(ctB) + decryptor.finalize()
+    assert(dtA == dtB)
+    assert(dtA == MESSAGE)
+    device.delete_key(keyid)
+
+@pytest.mark.parametrize(
+    "size", [128, 192, 256]
+)
+def test_aes_ctr_iv(device, size):
+    pkey, keyid = generate_key(device, size)
+    iv = os.urandom(16)
+    ctA = device.aes(keyid, EncryptionMode.ENCRYPT, AES.CTR, MESSAGE, iv=iv)
+
+    cipher = Cipher(algorithms.AES(pkey), modes.CTR(iv))
+    encryptor = cipher.encryptor()
+    ctB = encryptor.update(MESSAGE) + encryptor.finalize()
+    assert(ctA == ctB)
+
+    dtA = device.aes(keyid, EncryptionMode.DECRYPT, AES.CTR, ctA, iv=iv)
+    decryptor = cipher.decryptor()
+    dtB = decryptor.update(ctB) + decryptor.finalize()
+    assert(dtA == dtB)
+    assert(dtA == MESSAGE)
+    device.delete_key(keyid)
