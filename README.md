@@ -42,6 +42,9 @@ Legacy AES encryption and decryption is performed in place.
 ### > AES ECB, CBC, CFB, OFB, XTS, CTR, GCM and CCM
 Advanced AES encryption and decryption with multiples modes and customized IV/nonce and additional authenticated data (AAD).[^4]
 
+### > AES key generation of 128, 192, 256 and 512 bits.
+Besides 128, 192 and 256 bits, Pico HSM also supports key generation of 512 bits (64 bytes). These keys are specially indicated for running AES XTS, where two keys of 256 bits are concatenated.
+
 ### > CMAC
 It supports AES-CMAC authentication.[^1]
 
@@ -127,10 +130,13 @@ Both cruves Curve25519 and Curve448 are supported for doing DH X25519 and X448. 
 It supports symmetric key derivations from different standards and RFC.
 
 ### > HMAC
-It supports performing HMAC from a secret key on a arbitrary data with SHA digest algorithm.
+It supports performing HMAC from a secret key on an arbitrary data with SHA digest algorithm.
 
-### > XKEK
-Besides DKEK, it supports a more advanced scheme to share keys. Based on private key domains, it possible to wrap and unwrap private and secret keys inside the domain to only authorized devices. If a device outside the domain tries to unwrap a key, it will fail.
+### > CMAC
+Similarly to HMAC, Pico HSM also supports CMAC with AES algorithm for keys of 128, 192 and 256 bits.
+
+### > XKEK
+Besides DKEK, it supports a more advanced scheme to share keys. Based on private key domains, it is possible to wrap and unwrap private and secret keys inside the domain to only authorized devices. If a device outside the domain tries to unwrap a key, it will fail.
 
 ### > MKEK
 A Master Key Encryption Key is used to store safely all the keys. This key is also ciphered with an ephemereal key derived from the hashed PIN. Therefore, we can ensure all the keys are encrypted and stored.
