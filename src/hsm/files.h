@@ -40,7 +40,9 @@
 #define EF_PRKD_DEV     0xC400
 #define EF_EE_DEV       0xCE00
 
-#define EF_TERMCA       0x2f02
+#define EF_TERMCA       0x2F02
+#define EF_TOKENINFO    0x2F03
+#define EF_STATICTOKEN  0xCB00
 
 extern file_t *file_pin1;
 extern file_t *file_retries_pin1;

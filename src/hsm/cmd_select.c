@@ -47,26 +47,26 @@ int cmd_select() {
     //    return SW_INCORRECT_P1P2();
     //}
 
-    if (apdu.nc >= 2) {
+    if (apdu.nc == 2) {
         fid = get_uint16_t(apdu.data, 0);
     }
 
     //if ((fid & 0xff00) == (KEY_PREFIX << 8))
     //    fid = (PRKD_PREFIX << 8) | (fid & 0xff);
 
-    uint8_t pfx = fid >> 8;
-    if (pfx == PRKD_PREFIX ||
+    /*uint8_t pfx = fid >> 8;*/
+    /*if (pfx == PRKD_PREFIX ||
         pfx == CD_PREFIX ||
         pfx == CA_CERTIFICATE_PREFIX ||
         pfx == KEY_PREFIX ||
         pfx == EE_CERTIFICATE_PREFIX ||
         pfx == DCOD_PREFIX ||
         pfx == DATA_PREFIX ||
-        pfx == PROT_DATA_PREFIX) {
-        if (!(pe = search_dynamic_file(fid)) && !(pe = search_by_fid(fid, NULL, SPECIFY_EF))) {
+        pfx == PROT_DATA_PREFIX) {*/
+        if (fid != 0x0 && !(pe = search_dynamic_file(fid)) && !(pe = search_by_fid(fid, NULL, SPECIFY_EF))) {
             return SW_FILE_NOT_FOUND();
         }
-    }
+    /*}*/
     if (!pe) {
         if (p1 == 0x0) { //Select MF, DF or EF - File identifier or absent
             if (apdu.nc == 0) {
