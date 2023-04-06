@@ -85,7 +85,7 @@ int cmd_read_binary() {
         else {
             uint16_t data_len = file_get_size(ef);
             if (offset > data_len) {
-                return SW_WRONG_P1P2();
+                return SW_WARNING_EOF();
             }
 
             uint16_t maxle = data_len - offset;
