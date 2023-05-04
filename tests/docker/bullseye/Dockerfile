@@ -22,7 +22,7 @@ RUN apt install -y libccid \
     cmake \
     && rm -rf /var/lib/apt/lists/*
 RUN pip3 install pytest pycvc cryptography pyscard
-RUN git clone https://github.com/frankmorgner/vsmartcard.git
+RUN git clone https://github.com/polhenarejos/vsmartcard.git
 WORKDIR /vsmartcard/virtualsmartcard
 RUN autoreconf --verbose --install
 RUN ./configure --sysconfdir=/etc
