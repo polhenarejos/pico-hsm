@@ -62,6 +62,7 @@ set(SOURCES ${SOURCES}
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_session_pin.c
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_puk_auth.c
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_pso.c
+        ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_bip_slip.c
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cvc.c
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/files.c
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/kek.c

@@ -76,6 +76,7 @@ extern int cmd_general_authenticate();
 extern int cmd_session_pin();
 extern int cmd_puk_auth();
 extern int cmd_pso();
+extern int cmd_bip_slip();
 
 extern const uint8_t *ccid_atr;
 
@@ -656,6 +657,7 @@ int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey) {
 #define INS_RESET_RETRY             0x2C
 #define INS_KEYPAIR_GEN             0x46
 #define INS_KEY_GEN                 0x48
+#define INS_BIP_SLIP                0x4A
 #define INS_INITIALIZE              0x50
 #define INS_KEY_DOMAIN              0x52
 #define INS_PUK_AUTH                0x54
@@ -705,6 +707,7 @@ static const cmd_t cmds[] = {
     { INS_PUK_AUTH, cmd_puk_auth },
     { INS_PSO, cmd_pso },
     { INS_EXTERNAL_AUTHENTICATE, cmd_external_authenticate },
+    { INS_BIP_SLIP, cmd_bip_slip },
     { 0x00, 0x0 }
 };
 
