@@ -74,6 +74,7 @@ int node_fingerprint(mbedtls_ecp_keypair *ctx, uint8_t *fingerprint) {
 
 int node_derive_bip_path(const uint32_t *path, size_t path_len, mbedtls_ecp_keypair *ctx, uint8_t chain[32], uint8_t fingerprint[4]) {
     uint8_t mkey[65];
+    mbedtls_ecp_keypair_init(ctx);
     file_t *ef = search_dynamic_file(EF_MASTER_SEED | path[0]);
     if (!file_has_data(ef)) {
         return CCID_ERR_FILE_NOT_FOUND;
@@ -83,7 +84,6 @@ int node_derive_bip_path(const uint32_t *path, size_t path_len, mbedtls_ecp_keyp
     if (r != CCID_OK) {
         return CCID_EXEC_ERROR;
     }
-    mbedtls_ecp_keypair_init(ctx);
     if (mkey[0] == 0x1) {
         mbedtls_ecp_group_load(&ctx->grp, MBEDTLS_ECP_DP_SECP256K1);
     }
