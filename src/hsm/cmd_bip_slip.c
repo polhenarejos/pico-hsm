@@ -188,10 +188,16 @@ int cmd_bip_slip() {
         memcpy(res_APDU + res_APDU_size, fgpt, 4);
         res_APDU_size += 4;
 
-        res_APDU[res_APDU_size++] = path[pos - 1] >> 24;
-        res_APDU[res_APDU_size++] = path[pos - 1] >> 16;
-        res_APDU[res_APDU_size++] = path[pos - 1] >> 8;
-        res_APDU[res_APDU_size++] = path[pos - 1] & 0xff;
+        if (pos > 1) {
+            res_APDU[res_APDU_size++] = path[pos - 1] >> 24;
+            res_APDU[res_APDU_size++] = path[pos - 1] >> 16;
+            res_APDU[res_APDU_size++] = path[pos - 1] >> 8;
+            res_APDU[res_APDU_size++] = path[pos - 1] & 0xff;
+        }
+        else { // Master
+            memset(res_APDU + res_APDU_size, 0, 4);
+            res_APDU_size += 4;
+        }
         memcpy(res_APDU + res_APDU_size, chain, 32);
         res_APDU_size += 32;
         mbedtls_ecp_point_write_binary(&ctx.grp, &ctx.Q, MBEDTLS_ECP_PF_COMPRESSED, &tag_len, pubkey, sizeof(pubkey));
