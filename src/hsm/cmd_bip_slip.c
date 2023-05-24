@@ -53,7 +53,7 @@ int node_derive_bip_child(const mbedtls_ecp_keypair *parent, const uint8_t cpar[
         mbedtls_mpi_mod_mpi(&kchild, &kchild, &parent->grp.N);
         data[0] = 0x01;
         memcpy(data + 1, iR, 32);
-    } while (mbedtls_mpi_cmp_int(&il, 0) == 0 || mbedtls_mpi_cmp_int(&kchild, 0) == 0);
+    } while (mbedtls_mpi_cmp_mpi(&il, &parent->grp.N) != -1 || mbedtls_mpi_cmp_int(&kchild, 0) == 0);
     mbedtls_mpi_copy(&child->d, &kchild);
     mbedtls_ecp_mul(&child->grp, &child->Q, &child->d, &child->grp.G, random_gen, NULL);
     memcpy(cchild, iR, 32);
