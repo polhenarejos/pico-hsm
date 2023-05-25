@@ -24,14 +24,12 @@
 const uint8_t *k1_seed = (const uint8_t *)"Bitcoin seed";
 const uint8_t *p1_seed = (const uint8_t *)"Nist256p1 seed";
 
-#define MAX_PATH_DEPTH      16
-
-int node_derive_bip_child(const mbedtls_ecp_keypair *parent, const uint8_t cpar[32], uint32_t i, mbedtls_ecp_keypair *child, uint8_t cchild[32]) {
+int node_derive_bip_child(const mbedtls_ecp_keypair *parent, const uint8_t cpar[32], const uint8_t *i, mbedtls_ecp_keypair *child, uint8_t cchild[32]) {
     uint8_t data[1+32+4], I[64], *iL = I, *iR = I + 32;
     mbedtls_mpi il, kchild;
     mbedtls_mpi_init(&il);
     mbedtls_mpi_init(&kchild);
-    if (i >= 0x80000000) {
+    if (i[0] >= 0x80) {
         if (mbedtls_mpi_cmp_int(&parent->d, 0) == 0) {
             return CCID_ERR_NULL_PARAM;
         }
@@ -43,10 +41,7 @@ int node_derive_bip_child(const mbedtls_ecp_keypair *parent, const uint8_t cpar[
         mbedtls_ecp_point_write_binary(&parent->grp, &parent->Q, MBEDTLS_ECP_PF_COMPRESSED, &olen, data, 33);
     }
     do {
-        data[33] = i >> 24;
-        data[34] = i >> 16;
-        data[35] = i >> 8;
-        data[36] = i & 0xff;
+        memcpy(data + 33, i, 4);
         mbedtls_md_hmac(mbedtls_md_info_from_type(MBEDTLS_MD_SHA512), cpar, 32, data, sizeof(data), I);
         mbedtls_mpi_read_binary(&il, iL, 32);
         mbedtls_mpi_add_mpi(&kchild, &il, &parent->d);
@@ -72,10 +67,10 @@ int node_fingerprint(mbedtls_ecp_keypair *ctx, uint8_t *fingerprint) {
     return CCID_OK;
 }
 
-int node_derive_bip_path(const uint32_t *path, size_t path_len, mbedtls_ecp_keypair *ctx, uint8_t chain[32], uint8_t fingerprint[4]) {
+int load_master_bip(uint32_t mid, mbedtls_ecp_keypair *ctx, uint8_t chain[32]) {
     uint8_t mkey[65];
     mbedtls_ecp_keypair_init(ctx);
-    file_t *ef = search_dynamic_file(EF_MASTER_SEED | path[0]);
+    file_t *ef = search_dynamic_file(EF_MASTER_SEED | mid);
     if (!file_has_data(ef)) {
         return CCID_ERR_FILE_NOT_FOUND;
     }
@@ -97,12 +92,36 @@ int node_derive_bip_path(const uint32_t *path, size_t path_len, mbedtls_ecp_keyp
     mbedtls_mpi_read_binary(&ctx->d, mkey + 1, 32);
     memcpy(chain, mkey + 33, 32);
     mbedtls_ecp_mul(&ctx->grp, &ctx->Q, &ctx->d, &ctx->grp.G, random_gen, NULL);
+    return CCID_OK;
+}
+
+int node_derive_bip_path(const uint8_t *path, size_t path_len, mbedtls_ecp_keypair *ctx, uint8_t chain[32], uint8_t fingerprint[4], uint8_t *nodes, uint8_t last_node[4]) {
+    uint8_t *tag_data = NULL, *p = NULL;
+    size_t tag_len = 0;
+    uint16_t tag = 0x0;
+    uint8_t node = 0;
+    int r = 0;
+    memset(last_node, 0, 4);
     memset(fingerprint, 0, 4);
-    for (int ix = 1; ix < path_len; ix++) {
-        node_fingerprint(ctx, fingerprint);
-        if ((r = node_derive_bip_child(ctx, chain, path[ix], ctx, chain)) != CCID_OK) {
-            return r;
+    for (; walk_tlv(path, path_len, &p, &tag, &tag_len, &tag_data); node++) {
+        if (tag != 0x02 || (node == 0 && tag_len != 1) || (node != 0 && tag_len != 4)) {
+            return CCID_WRONG_DATA;
         }
+        if (node == 0) {
+            if ((r = load_master_bip(tag_data[0], ctx, chain)) != CCID_OK) {
+                return r;
+            }
+        }
+        else if (node > 0) {
+            node_fingerprint(ctx, fingerprint);
+            if ((r = node_derive_bip_child(ctx, chain, tag_data, ctx, chain)) != CCID_OK) {
+                return r;
+            }
+            memcpy(last_node, tag_data, 4);
+        }
+    }
+    if (nodes) {
+        *nodes = node;
     }
     return CCID_OK;
 }
@@ -155,28 +174,14 @@ int cmd_bip_slip() {
         low_flash_available();
     }
     else if (p1 == 0x3) {
-        uint8_t *tag_data = NULL, *p = NULL;
-        size_t tag_len = 0;
-        uint16_t tag = 0x0;
         if (apdu.nc == 0) {
             return SW_WRONG_LENGTH();
         }
-        uint32_t path[MAX_PATH_DEPTH] = {0};
-        uint8_t pos = 0;
-        for (; walk_tlv(apdu.data, apdu.nc, &p, &tag, &tag_len, &tag_data); pos++) {
-            if (tag != 0x02 || (pos == 0 && tag_len != 1) || (pos != 0 && tag_len != 4)) {
-                return SW_WRONG_DATA();
-            }
-            if (pos == 0 && tag_len == 1) {
-                path[pos] = tag_data[0];
-            }
-            else if (pos != 0 && tag_len == 4) {
-                path[pos] = (tag_data[0] << 24) | (tag_data[1] << 16) | (tag_data[2] << 8) | tag_data[3];
-            }
-        }
+        uint8_t nodes = 0;
         mbedtls_ecp_keypair ctx;
-        uint8_t chain[32], fgpt[4];
-        int r = node_derive_bip_path(path, pos, &ctx, chain, fgpt);
+        uint8_t chain[32], fgpt[4], last_node[4];
+        size_t olen = 0;
+        int r = node_derive_bip_path(apdu.data, apdu.nc, &ctx, chain, fgpt, &nodes, last_node);
         if (r != CCID_OK) {
             mbedtls_ecp_keypair_free(&ctx);
             return SW_EXEC_ERROR();
@@ -184,25 +189,16 @@ int cmd_bip_slip() {
         uint8_t pubkey[33];
         memcpy(res_APDU, "\x04\x88\xB2\x1E", 4);
         res_APDU_size += 4;
-        res_APDU[res_APDU_size++] = pos - 1;
+        res_APDU[res_APDU_size++] = nodes - 1;
         memcpy(res_APDU + res_APDU_size, fgpt, 4);
         res_APDU_size += 4;
-
-        if (pos > 1) {
-            res_APDU[res_APDU_size++] = path[pos - 1] >> 24;
-            res_APDU[res_APDU_size++] = path[pos - 1] >> 16;
-            res_APDU[res_APDU_size++] = path[pos - 1] >> 8;
-            res_APDU[res_APDU_size++] = path[pos - 1] & 0xff;
-        }
-        else { // Master
-            memset(res_APDU + res_APDU_size, 0, 4);
-            res_APDU_size += 4;
-        }
+        memcpy(res_APDU + res_APDU_size, last_node, 4);
+        res_APDU_size += 4;
         memcpy(res_APDU + res_APDU_size, chain, 32);
         res_APDU_size += 32;
-        mbedtls_ecp_point_write_binary(&ctx.grp, &ctx.Q, MBEDTLS_ECP_PF_COMPRESSED, &tag_len, pubkey, sizeof(pubkey));
-        memcpy(res_APDU + res_APDU_size, pubkey, tag_len);
-        res_APDU_size += tag_len;
+        mbedtls_ecp_point_write_binary(&ctx.grp, &ctx.Q, MBEDTLS_ECP_PF_COMPRESSED, &olen, pubkey, sizeof(pubkey));
+        memcpy(res_APDU + res_APDU_size, pubkey, olen);
+        res_APDU_size += olen;
         mbedtls_ecp_keypair_free(&ctx);
     }
     return SW_OK();
