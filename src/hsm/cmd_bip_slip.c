@@ -23,6 +23,7 @@
 
 const uint8_t *k1_seed = (const uint8_t *)"Bitcoin seed";
 const uint8_t *p1_seed = (const uint8_t *)"Nist256p1 seed";
+const uint8_t *sym_seed = (const uint8_t *)"Symmetric key seed";
 
 int node_derive_bip_child(const mbedtls_ecp_keypair *parent, const uint8_t cpar[32], const uint8_t *i, mbedtls_ecp_keypair *child, uint8_t cchild[32]) {
     uint8_t data[1+32+4], I[64], *iL = I, *iR = I + 32;
@@ -128,7 +129,7 @@ int node_derive_bip_path(const uint8_t *path, size_t path_len, mbedtls_ecp_keypa
 
 int cmd_bip_slip() {
     uint8_t p1 = P1(apdu), p2 = P2(apdu);
-    if (p1 == 0x1 || p1 == 0x2) { // Master generation (K1 and P1)
+    if (p1 == 0x1 || p1 == 0x2 || p1 == 0x3) { // Master generation (K1 and P1)
         if (p2 >= 10) {
             return SW_INCORRECT_P1P2();
         }
@@ -146,6 +147,9 @@ int cmd_bip_slip() {
             mbedtls_ecp_group_load(&grp, MBEDTLS_ECP_DP_SECP256R1);
             key_seed = p1_seed;
         }
+        else if (p1 == 0x3) {
+            key_seed = sym_seed;
+        }
         if (apdu.nc == 0) {
             seed_len = 64;
             random_gen(NULL, seed, seed_len);
@@ -154,13 +158,18 @@ int cmd_bip_slip() {
             seed_len = MIN(apdu.nc, 64);
             memcpy(seed, apdu.data, seed_len);
         }
-        do {
+        if (p1 == 0x1 || p1 == 0x2) {
+            do {
+                mbedtls_md_hmac(mbedtls_md_info_from_type(MBEDTLS_MD_SHA512), key_seed, strlen((char *)key_seed), seed, seed_len, seed);
+                mbedtls_mpi_read_binary(&il, seed, 32);
+                seed_len = 64;
+            } while (mbedtls_mpi_cmp_int(&il, 0) == 0 || mbedtls_mpi_cmp_mpi(&il, &grp.N) != -1);
+            mbedtls_ecp_group_free(&grp);
+            mbedtls_mpi_free(&il);
+        }
+        else if (p1 == 0x3) {
             mbedtls_md_hmac(mbedtls_md_info_from_type(MBEDTLS_MD_SHA512), key_seed, strlen((char *)key_seed), seed, seed_len, seed);
-            mbedtls_mpi_read_binary(&il, seed, 32);
-            seed_len = 64;
-        } while (mbedtls_mpi_cmp_int(&il, 0) == 0 || mbedtls_mpi_cmp_mpi(&il, &grp.N) != -1);
-        mbedtls_ecp_group_free(&grp);
-        mbedtls_mpi_free(&il);
+        }
         mkey[0] = p1;
         file_t *ef = file_new(EF_MASTER_SEED | p2);
         int r = mkek_encrypt(mkey + 1, sizeof(mkey) - 1);
