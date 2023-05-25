@@ -182,7 +182,7 @@ int cmd_bip_slip() {
         }
         low_flash_available();
     }
-    else if (p1 == 0x3) {
+    else if (p1 == 0xA) {
         if (apdu.nc == 0) {
             return SW_WRONG_LENGTH();
         }
@@ -196,6 +196,7 @@ int cmd_bip_slip() {
             return SW_EXEC_ERROR();
         }
         uint8_t pubkey[33];
+        res_APDU_size = 0;
         memcpy(res_APDU, "\x04\x88\xB2\x1E", 4);
         res_APDU_size += 4;
         res_APDU[res_APDU_size++] = nodes - 1;
