@@ -28,6 +28,10 @@ from cvc import oid
 from cryptography.hazmat.primitives.asymmetric import ec
 from picohsm import DOPrefixes, APDUResponse, SWCodes
 from picohsm import PicoHSM
+import hashlib
+
+def sha256_sha256(data):
+    return hashlib.sha256(hashlib.sha256(data).digest()).digest()
 
 def test_initialize(device):
     device.initialize(dkek_shares=DEFAULT_DKEK_SHARES)
@@ -71,10 +75,15 @@ def test_initialize(device):
             'id': 6,
             'seed': unhexlify('a7305bc8df8d0951f0cb224c0e95d7707cbdf2c6ce7e8d481fec69c7ff5e9446'),
         },
+        {
+            'name': 'symmetric',
+            'id': 7,
+            'seed': unhexlify('c76c4ac4f4e4a00d6b274d5c39c700bb4a7ddc04fbc6f78e85ca75007b5b495f74a9043eeb77bdd53aa6fc3a0e31462270316fa04b8c19114c8798706cd02ac8'),
+        },
     ]
 )
 def test_generate_master(device, curve):
-    resp = device.generate_master_seed(curve=curve['name'], id=curve['id'], seed=curve['seed'])
+    resp = device.hd_generate_master_node(curve=curve['name'], id=curve['id'], seed=curve['seed'])
 
 def hardened(i):
     return 0x80000000 + i
@@ -152,7 +161,7 @@ def hardened(i):
     ]
 )
 def test_derive_node_bip(device, path):
-    resp = device.derive_node_bip(path['path'])
+    resp = device.hd_derive_node(path['path'])
     assert(resp == path['xpub'])
 
 @pytest.mark.parametrize(
@@ -327,9 +336,45 @@ def test_derive_node_bip(device, path):
         },
     ]
 )
-def test_derive_node_slip(device, path):
-    resp = device.derive_node_bip(path['path'])
-    xpub = PicoHSM.decode_xpub(resp)
+def test_derive_node_xpub(device, path):
+    resp = device.hd_derive_node(path['path'])
+    xpub = PicoHSM.hd_decode_xpub(resp)
     assert(xpub['fingerprint'] == path['fingerprint'])
     assert(xpub['chain'] == path['chain'])
     assert(xpub['public'] == path['public'])
+
+
+@pytest.mark.parametrize(
+    "path", [
+        {
+            'path': [7],
+            'fingerprint': unhexlify('00000000'),
+            'chain': unhexlify('8F8C33732530A0417DD446097EDB6F6617D52D627C6DB28581D74D11B385D25A'),
+            'public': unhexlify('dbf12b44133eaab506a740f6565cc117228cbf1dd70635cfa8ddfdc9af734756')
+        },
+        {
+            'path': [7, b"SLIP-0021"],
+            'fingerprint': unhexlify('0e521cdd'),
+            'chain': unhexlify('446ADED06078CF950DAB737F014C7BAE81EEB6E7BEECC260A38E2E0FA9973104'),
+            'public': unhexlify('1d065e3ac1bbe5c7fad32cf2305f7d709dc070d672044a19e610c77cdf33de0d')
+        },
+        {
+            'path': [7, b"SLIP-0021", b"Master encryption key"],
+            'fingerprint': unhexlify('4a6e721d'),
+            'chain': unhexlify('7072D5593032B84A90E2E2E42996D277026FF55C1082AC82A121D775FED0ACEB'),
+            'public': unhexlify('ea163130e35bbafdf5ddee97a17b39cef2be4b4f390180d65b54cf05c6a82fde')
+        },
+        {
+            'path': [7, b"SLIP-0021", b"Authentication key"],
+            'fingerprint': unhexlify('4a6e721d'),
+            'chain': unhexlify('3D5C87DC62CE006681B8C3DF723AE50FEEA40D6C26AEF8135BD321BA390A5B42'),
+            'public': unhexlify('47194e938ab24cc82bfa25f6486ed54bebe79c40ae2a5a32ea6db294d81861a6')
+        },
+    ]
+)
+def test_derive_node_slip(device, path):
+    resp = device.hd_derive_node(path['path'])
+    xpub = PicoHSM.hd_decode_xpub(resp)
+    assert(xpub['fingerprint'] == path['fingerprint'])
+    assert(xpub['chain'] == sha256_sha256(path['chain']))
+    assert(xpub['public'] == sha256_sha256(path['public']))
