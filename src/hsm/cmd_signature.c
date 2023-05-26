@@ -14,12 +14,15 @@
  * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
+#include "sc_hsm.h"
 #include "crypto_utils.h"
 #include "sc_hsm.h"
 #include "asn1.h"
 #include "mbedtls/oid.h"
 #include "random.h"
+
+extern mbedtls_ecp_keypair hd_context;
+extern uint8_t hd_keytype;
 
 //-----
 /* From OpenSC */
@@ -280,6 +283,25 @@ int cmd_signature() {
         memcpy(res_APDU, buf, olen);
         res_APDU_size = olen;
         mbedtls_ecdsa_free(&ctx);
+    }
+    else if (p2 == ALGO_HD) {
+        size_t olen = 0;
+        uint8_t buf[MBEDTLS_ECDSA_MAX_LEN];
+        if (hd_context.grp.id == MBEDTLS_ECP_DP_NONE) {
+            return SW_CONDITIONS_NOT_SATISFIED();
+        }
+        if (hd_keytype != 0x1 && hd_keytype != 0x2) {
+            return SW_INCORRECT_PARAMS();
+        }
+        md = MBEDTLS_MD_SHA256;
+        if (mbedtls_ecdsa_write_signature(&hd_context, md, apdu.data, apdu.nc, buf, MBEDTLS_ECDSA_MAX_LEN,
+                                          &olen, random_gen, NULL) != 0) {
+            mbedtls_ecdsa_free(&hd_context);
+            return SW_EXEC_ERROR();
+        }
+        memcpy(res_APDU, buf, olen);
+        res_APDU_size = olen;
+        mbedtls_ecdsa_free(&hd_context);
     }
     else {
         return SW_INCORRECT_P1P2();

@@ -24,6 +24,8 @@
 const uint8_t *k1_seed = (const uint8_t *)"Bitcoin seed";
 const uint8_t *p1_seed = (const uint8_t *)"Nist256p1 seed";
 const uint8_t *sym_seed = (const uint8_t *)"Symmetric key seed";
+mbedtls_ecp_keypair hd_context = {0};
+uint8_t hd_keytype = 0;
 
 int node_derive_bip_child(const mbedtls_ecp_keypair *parent, const uint8_t cpar[32], const uint8_t *i, mbedtls_ecp_keypair *child, uint8_t cchild[32]) {
     uint8_t data[1+32+4], I[64], *iL = I, *iR = I + 32;
@@ -260,6 +262,14 @@ int cmd_bip_slip() {
             res_APDU_size += 32;
         }
         mbedtls_ecp_keypair_free(&ctx);
+    }
+    else if (p1 == 0x10) {
+        uint8_t chain[32] = {0}, fgpt[4] = {0}, last_node[4] = {0}, nodes = 0;
+        int r = node_derive_path(apdu.data, apdu.nc, &hd_context, chain, fgpt, &nodes, last_node, &hd_keytype);
+        if (r != CCID_OK) {
+            mbedtls_ecp_keypair_free(&hd_context);
+            return SW_EXEC_ERROR();
+        }
     }
     return SW_OK();
 }
