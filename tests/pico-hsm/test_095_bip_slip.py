@@ -26,9 +26,12 @@ from cvc.asn1 import ASN1
 from cvc.certificates import CVC
 from cvc import oid
 from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives import hashes
 from picohsm import DOPrefixes, APDUResponse, SWCodes
 from picohsm import PicoHSM
 import hashlib
+
+TEST_STRING = b'Pico Keys are awesome!'
 
 def sha256_sha256(data):
     return hashlib.sha256(hashlib.sha256(data).digest()).digest()
@@ -38,8 +41,7 @@ def test_initialize(device):
     resp = device.import_dkek(DEFAULT_DKEK)
     resp = device.import_dkek(DEFAULT_DKEK)
 
-@pytest.mark.parametrize(
-    "curve", [
+seeds = [
         {
             'name': 'secp256k1',
             'id': 0,
@@ -81,9 +83,11 @@ def test_initialize(device):
             'seed': unhexlify('c76c4ac4f4e4a00d6b274d5c39c700bb4a7ddc04fbc6f78e85ca75007b5b495f74a9043eeb77bdd53aa6fc3a0e31462270316fa04b8c19114c8798706cd02ac8'),
         },
     ]
+@pytest.mark.parametrize(
+    "seed", seeds
 )
-def test_generate_master(device, curve):
-    resp = device.hd_generate_master_node(curve=curve['name'], id=curve['id'], seed=curve['seed'])
+def test_generate_master(device, seed):
+    resp = device.hd_generate_master_node(curve=seed['name'], id=seed['id'], seed=seed['seed'])
 
 def hardened(i):
     return 0x80000000 + i
@@ -343,7 +347,6 @@ def test_derive_node_xpub(device, path):
     assert(xpub['chain'] == path['chain'])
     assert(xpub['public'] == path['public'])
 
-
 @pytest.mark.parametrize(
     "path", [
         {
@@ -378,3 +381,49 @@ def test_derive_node_slip(device, path):
     assert(xpub['fingerprint'] == path['fingerprint'])
     assert(xpub['chain'] == sha256_sha256(path['chain']))
     assert(xpub['public'] == sha256_sha256(path['public']))
+
+def get_master_curve(mid):
+    for m in seeds:
+        if (m['id'] == mid):
+            if (m['name'] == 'secp256k1'):
+                return ec.SECP256K1()
+            elif (m['name'] == 'secp256r1'):
+                return ec.SECP256R1()
+    return None
+
+@pytest.mark.parametrize(
+    "path", [
+        {
+            'path': [0],
+            'xpub': b'xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8',
+        },
+        {
+            'path': [0, hardened(0)],
+            'xpub': b'xpub68Gmy5EdvgibQVfPdqkBBCHxA5htiqg55crXYuXoQRKfDBFA1WEjWgP6LHhwBZeNK1VTsfTFUHCdrfp1bgwQ9xv5ski8PX9rL2dZXvgGDnw',
+        },
+        {
+            'path': [0, hardened(0), 1],
+            'xpub': b'xpub6ASuArnXKPbfEwhqN6e3mwBcDTgzisQN1wXN9BJcM47sSikHjJf3UFHKkNAWbWMiGj7Wf5uMash7SyYq527Hqck2AxYysAA7xmALppuCkwQ',
+        },
+        {
+            'path': [0, hardened(0), 1, hardened(2)],
+            'xpub': b'xpub6D4BDPcP2GT577Vvch3R8wDkScZWzQzMMUm3PWbmWvVJrZwQY4VUNgqFJPMM3No2dFDFGTsxxpG5uJh7n7epu4trkrX7x7DogT5Uv6fcLW5',
+        },
+        {
+            'path': [0, hardened(0), 1, hardened(2), 2],
+            'xpub': b'xpub6FHa3pjLCk84BayeJxFW2SP4XRrFd1JYnxeLeU8EqN3vDfZmbqBqaGJAyiLjTAwm6ZLRQUMv1ZACTj37sR62cfN7fe5JnJ7dh8zL4fiyLHV',
+        },
+        {
+            'path': [0, hardened(0), 1, hardened(2), 2, 1000000000],
+            'xpub': b'xpub6H1LXWLaKsWFhvm6RVpEL9P4KfRZSW7abD2ttkWP3SSQvnyA8FSVqNTEcYFgJS2UaFcxupHiYkro49S8yGasTvXEYBVPamhGW6cFJodrTHy',
+        },
+    ]
+)
+
+def test_signature(device, path):
+    pub = device.hd_derive_node(path['path'])
+    xpub = PicoHSM.hd_decode_xpub(pub)
+    curve = get_master_curve(path['path'][0])
+    pubkey = ec.EllipticCurvePublicKey.from_encoded_point(curve, xpub['public'])
+    resp = device.hd_signature(path['path'], TEST_STRING)
+    pubkey.verify(resp, TEST_STRING, ec.ECDSA(hashes.SHA256()))
