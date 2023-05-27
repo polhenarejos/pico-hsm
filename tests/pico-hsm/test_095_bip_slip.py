@@ -27,8 +27,7 @@ from cvc.certificates import CVC
 from cvc import oid
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import hashes
-from picohsm import DOPrefixes, APDUResponse, SWCodes
-from picohsm import PicoHSM
+from picohsm import DOPrefixes, APDUResponse, SWCodes, PicoHSM
 import hashlib
 
 TEST_STRING = b'Pico Keys are awesome!'
@@ -393,37 +392,50 @@ def get_master_curve(mid):
 
 @pytest.mark.parametrize(
     "path", [
-        {
-            'path': [0],
-            'xpub': b'xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8',
-        },
-        {
-            'path': [0, hardened(0)],
-            'xpub': b'xpub68Gmy5EdvgibQVfPdqkBBCHxA5htiqg55crXYuXoQRKfDBFA1WEjWgP6LHhwBZeNK1VTsfTFUHCdrfp1bgwQ9xv5ski8PX9rL2dZXvgGDnw',
-        },
-        {
-            'path': [0, hardened(0), 1],
-            'xpub': b'xpub6ASuArnXKPbfEwhqN6e3mwBcDTgzisQN1wXN9BJcM47sSikHjJf3UFHKkNAWbWMiGj7Wf5uMash7SyYq527Hqck2AxYysAA7xmALppuCkwQ',
-        },
-        {
-            'path': [0, hardened(0), 1, hardened(2)],
-            'xpub': b'xpub6D4BDPcP2GT577Vvch3R8wDkScZWzQzMMUm3PWbmWvVJrZwQY4VUNgqFJPMM3No2dFDFGTsxxpG5uJh7n7epu4trkrX7x7DogT5Uv6fcLW5',
-        },
-        {
-            'path': [0, hardened(0), 1, hardened(2), 2],
-            'xpub': b'xpub6FHa3pjLCk84BayeJxFW2SP4XRrFd1JYnxeLeU8EqN3vDfZmbqBqaGJAyiLjTAwm6ZLRQUMv1ZACTj37sR62cfN7fe5JnJ7dh8zL4fiyLHV',
-        },
-        {
-            'path': [0, hardened(0), 1, hardened(2), 2, 1000000000],
-            'xpub': b'xpub6H1LXWLaKsWFhvm6RVpEL9P4KfRZSW7abD2ttkWP3SSQvnyA8FSVqNTEcYFgJS2UaFcxupHiYkro49S8yGasTvXEYBVPamhGW6cFJodrTHy',
-        },
+        [0],
+        [0, hardened(0)],
+        [0, hardened(0), 1],
+        [0, hardened(0), 1, hardened(2)],
+        [0, hardened(0), 1, hardened(2), 2],
+        [0, hardened(0), 1, hardened(2), 2, 1000000000],
+        [1],
+        [1, 0],
+        [1, 0, hardened(2147483647)],
+        [1, 0, hardened(2147483647), 1],
+        [1, 0, hardened(2147483647), 1, hardened(2147483646)],
+        [1, 0, hardened(2147483647), 1, hardened(2147483646), 2],
+        [4],
+        [4, hardened(0)],
+        [4, hardened(0), 1],
+        [4, hardened(0), 1, hardened(2)],
+        [4, hardened(0), 1, hardened(2), 2],
+        [4, hardened(0), 1, hardened(2), 2, 1000000000],
+        [5],
+        [5, 0],
+        [5, 0, hardened(2147483647)],
+        [5, 0, hardened(2147483647), 1],
+        [5, 0, hardened(2147483647), 1, hardened(2147483646)],
+        [5, 0, hardened(2147483647), 1, hardened(2147483646), 2],
     ]
 )
-
 def test_signature(device, path):
-    pub = device.hd_derive_node(path['path'])
+    pub = device.hd_derive_node(path)
     xpub = PicoHSM.hd_decode_xpub(pub)
-    curve = get_master_curve(path['path'][0])
+    curve = get_master_curve(path[0])
     pubkey = ec.EllipticCurvePublicKey.from_encoded_point(curve, xpub['public'])
-    resp = device.hd_signature(path['path'], TEST_STRING)
+    resp = device.hd_signature(path, TEST_STRING)
     pubkey.verify(resp, TEST_STRING, ec.ECDSA(hashes.SHA256()))
+
+@pytest.mark.parametrize(
+    "path", [
+        [7],
+        [7, b"SLIP-0021"],
+        [7, b"SLIP-0021", b"Master encryption key"],
+        [7, b"SLIP-0021", b"Authentication key"],
+    ]
+)
+def test_signature_slip(device, path):
+    pub = device.hd_derive_node(path)
+    with pytest.raises(APDUResponse) as e:
+        resp = device.hd_signature(path, TEST_STRING)
+    assert (e.value.sw == SWCodes.SW_CONDITIONS_NOT_SATISFIED)
