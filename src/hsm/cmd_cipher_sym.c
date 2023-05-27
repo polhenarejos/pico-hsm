@@ -252,7 +252,7 @@ int cmd_cipher_sym() {
         int r = mbedtls_hkdf(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256),
                              NULL,
                              0,
-                             file_get_data(ef),
+                             kdata,
                              key_size,
                              apdu.data,
                              apdu.nc,
