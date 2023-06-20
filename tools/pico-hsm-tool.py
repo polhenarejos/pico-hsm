@@ -81,7 +81,7 @@ def parse_args():
     parser_rtc = subparser.add_parser('datetime', help='Datetime operations with the integrated Real Time Clock (RTC).')
     subparser_rtc = parser_rtc.add_subparsers(title='commands', dest='subcommand')
     parser_rtc_set = subparser_rtc.add_parser('set', help='Sets the current datetime.')
-    parser_rtc_get = subparser_rtc.add_parser('set', help='Gets the current datetime.')
+    parser_rtc_get = subparser_rtc.add_parser('get', help='Gets the current datetime.')
 
     parser_opts = subparser.add_parser('options', help='Manage extra options.', formatter_class=RawTextHelpFormatter)
     subparser_opts = parser_opts.add_subparsers(title='commands', dest='subcommand')
