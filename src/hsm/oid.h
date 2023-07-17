@@ -172,4 +172,6 @@
 #define OID_AES128_XTS                  OID_IEEE_ALG "\x01"
 #define OID_AES256_XTS                  OID_IEEE_ALG "\x02"
 
+#define OID_HD                          "\x2B\x06\x01\x04\x01\x83\xA8\x78\x05\x8D\x6B"
+
 #endif
