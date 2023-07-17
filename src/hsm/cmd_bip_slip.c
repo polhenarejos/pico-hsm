@@ -21,14 +21,18 @@
 #include "kek.h"
 #include "asn1.h"
 
-const uint8_t *k1_seed = (const uint8_t *)"Bitcoin seed";
-const uint8_t *p1_seed = (const uint8_t *)"Nist256p1 seed";
-const uint8_t *sym_seed = (const uint8_t *)"Symmetric key seed";
-mbedtls_ecp_keypair hd_context = {0};
+const uint8_t *k1_seed = (const uint8_t *) "Bitcoin seed";
+const uint8_t *p1_seed = (const uint8_t *) "Nist256p1 seed";
+const uint8_t *sym_seed = (const uint8_t *) "Symmetric key seed";
+mbedtls_ecp_keypair hd_context = { 0 };
 uint8_t hd_keytype = 0;
 
-int node_derive_bip_child(const mbedtls_ecp_keypair *parent, const uint8_t cpar[32], const uint8_t *i, mbedtls_ecp_keypair *child, uint8_t cchild[32]) {
-    uint8_t data[1+32+4], I[64], *iL = I, *iR = I + 32;
+int node_derive_bip_child(const mbedtls_ecp_keypair *parent,
+                          const uint8_t cpar[32],
+                          const uint8_t *i,
+                          mbedtls_ecp_keypair *child,
+                          uint8_t cchild[32]) {
+    uint8_t data[1 + 32 + 4], I[64], *iL = I, *iR = I + 32;
     mbedtls_mpi il, kchild;
     mbedtls_mpi_init(&il);
     mbedtls_mpi_init(&kchild);
@@ -41,17 +45,28 @@ int node_derive_bip_child(const mbedtls_ecp_keypair *parent, const uint8_t cpar[
     }
     else {
         size_t olen = 0;
-        mbedtls_ecp_point_write_binary(&parent->grp, &parent->Q, MBEDTLS_ECP_PF_COMPRESSED, &olen, data, 33);
+        mbedtls_ecp_point_write_binary(&parent->grp,
+                                       &parent->Q,
+                                       MBEDTLS_ECP_PF_COMPRESSED,
+                                       &olen,
+                                       data,
+                                       33);
     }
     do {
         memcpy(data + 33, i, 4);
-        mbedtls_md_hmac(mbedtls_md_info_from_type(MBEDTLS_MD_SHA512), cpar, 32, data, sizeof(data), I);
+        mbedtls_md_hmac(mbedtls_md_info_from_type(MBEDTLS_MD_SHA512),
+                        cpar,
+                        32,
+                        data,
+                        sizeof(data),
+                        I);
         mbedtls_mpi_read_binary(&il, iL, 32);
         mbedtls_mpi_add_mpi(&kchild, &il, &parent->d);
         mbedtls_mpi_mod_mpi(&kchild, &kchild, &parent->grp.N);
         data[0] = 0x01;
         memcpy(data + 1, iR, 32);
-    } while (mbedtls_mpi_cmp_mpi(&il, &parent->grp.N) != -1 || mbedtls_mpi_cmp_int(&kchild, 0) == 0);
+    } while (mbedtls_mpi_cmp_mpi(&il,
+                                 &parent->grp.N) != -1 || mbedtls_mpi_cmp_int(&kchild, 0) == 0);
     mbedtls_mpi_copy(&child->d, &kchild);
     mbedtls_ecp_mul(&child->grp, &child->Q, &child->d, &child->grp.G, random_gen, NULL);
     memcpy(cchild, iR, 32);
@@ -75,7 +90,12 @@ int sha256_sha256(const uint8_t *buffer, size_t buffer_len, uint8_t *output) {
 int node_fingerprint_bip(mbedtls_ecp_keypair *ctx, uint8_t fingerprint[4]) {
     size_t olen = 0;
     uint8_t buffer[33];
-    mbedtls_ecp_point_write_binary(&ctx->grp, &ctx->Q, MBEDTLS_ECP_PF_COMPRESSED, &olen, buffer, sizeof(buffer));
+    mbedtls_ecp_point_write_binary(&ctx->grp,
+                                   &ctx->Q,
+                                   MBEDTLS_ECP_PF_COMPRESSED,
+                                   &olen,
+                                   buffer,
+                                   sizeof(buffer));
     sha256_ripemd160(buffer, sizeof(buffer), buffer);
     memcpy(fingerprint, buffer, 4);
     return CCID_OK;
@@ -89,7 +109,8 @@ int node_fingerprint_slip(mbedtls_ecp_keypair *ctx, uint8_t fingerprint[4]) {
     return CCID_OK;
 }
 
-int load_master_bip(uint32_t mid, mbedtls_ecp_keypair *ctx, uint8_t chain[32], uint8_t key_type[1] ) {
+int load_master_bip(uint32_t mid, mbedtls_ecp_keypair *ctx, uint8_t chain[32],
+                    uint8_t key_type[1]) {
     uint8_t mkey[65];
     mbedtls_ecp_keypair_init(ctx);
     file_t *ef = search_dynamic_file(EF_MASTER_SEED | mid);
@@ -97,7 +118,8 @@ int load_master_bip(uint32_t mid, mbedtls_ecp_keypair *ctx, uint8_t chain[32], u
         return CCID_ERR_FILE_NOT_FOUND;
     }
     memcpy(mkey, file_get_data(ef), sizeof(mkey));
-    int r = mkek_decrypt(mkey + 1, sizeof(mkey) - 1);
+    int r = mkek_decrypt(mkey + 1,
+                         sizeof(mkey) - 1);
     if (r != CCID_OK) {
         return CCID_EXEC_ERROR;
     }
@@ -124,11 +146,18 @@ int load_master_bip(uint32_t mid, mbedtls_ecp_keypair *ctx, uint8_t chain[32], u
     return CCID_OK;
 }
 
-int node_derive_path(const uint8_t *path, size_t path_len, mbedtls_ecp_keypair *ctx, uint8_t chain[32], uint8_t fingerprint[4], uint8_t *nodes, uint8_t last_node[4], uint8_t key_type[1]) {
+int node_derive_path(const uint8_t *path,
+                     size_t path_len,
+                     mbedtls_ecp_keypair *ctx,
+                     uint8_t chain[32],
+                     uint8_t fingerprint[4],
+                     uint8_t *nodes,
+                     uint8_t last_node[4],
+                     uint8_t key_type[1]) {
     uint8_t *tag_data = NULL, *p = NULL;
     size_t tag_len = 0;
     uint16_t tag = 0x0;
-    uint8_t node = 0, N[64] = {0};
+    uint8_t node = 0, N[64] = { 0 };
     int r = 0;
     memset(last_node, 0, 4);
     memset(fingerprint, 0, 4);
@@ -157,7 +186,12 @@ int node_derive_path(const uint8_t *path, size_t path_len, mbedtls_ecp_keypair *
             else if (node > 0) {
                 node_fingerprint_slip(ctx, fingerprint);
                 *(tag_data - 1) = 0;
-                mbedtls_md_hmac(mbedtls_md_info_from_type(MBEDTLS_MD_SHA512), chain, 32, tag_data - 1, tag_len + 1, N);
+                mbedtls_md_hmac(mbedtls_md_info_from_type(MBEDTLS_MD_SHA512),
+                                chain,
+                                32,
+                                tag_data - 1,
+                                tag_len + 1,
+                                N);
                 memcpy(chain, N, 32);
                 mbedtls_mpi_read_binary(&ctx->d, N + 32, 32);
             }
@@ -202,7 +236,8 @@ int cmd_bip_slip() {
         }
         if (p1 == 0x1 || p1 == 0x2) {
             do {
-                mbedtls_md_hmac(mbedtls_md_info_from_type(MBEDTLS_MD_SHA512), key_seed, strlen((char *)key_seed), seed, seed_len, seed);
+                mbedtls_md_hmac(mbedtls_md_info_from_type(MBEDTLS_MD_SHA512), key_seed,
+                                strlen((char *) key_seed), seed, seed_len, seed);
                 mbedtls_mpi_read_binary(&il, seed, 32);
                 seed_len = 64;
             } while (mbedtls_mpi_cmp_int(&il, 0) == 0 || mbedtls_mpi_cmp_mpi(&il, &grp.N) != -1);
@@ -210,7 +245,8 @@ int cmd_bip_slip() {
             mbedtls_mpi_free(&il);
         }
         else if (p1 == 0x3) {
-            mbedtls_md_hmac(mbedtls_md_info_from_type(MBEDTLS_MD_SHA512), key_seed, strlen((char *)key_seed), seed, seed_len, seed);
+            mbedtls_md_hmac(mbedtls_md_info_from_type(MBEDTLS_MD_SHA512), key_seed,
+                            strlen((char *) key_seed), seed, seed_len, seed);
         }
         mkey[0] = p1;
         file_t *ef = file_new(EF_MASTER_SEED | p2);
@@ -229,9 +265,10 @@ int cmd_bip_slip() {
             return SW_WRONG_LENGTH();
         }
         mbedtls_ecp_keypair ctx;
-        uint8_t chain[32] = {0}, fgpt[4] = {0}, last_node[4] = {0}, key_type = 0, nodes = 0;
+        uint8_t chain[32] = { 0 }, fgpt[4] = { 0 }, last_node[4] = { 0 }, key_type = 0, nodes = 0;
         size_t olen = 0;
-        int r = node_derive_path(apdu.data, apdu.nc, &ctx, chain, fgpt, &nodes, last_node, &key_type);
+        int r =
+            node_derive_path(apdu.data, apdu.nc, &ctx, chain, fgpt, &nodes, last_node, &key_type);
         if (r != CCID_OK) {
             mbedtls_ecp_keypair_free(&ctx);
             return SW_EXEC_ERROR();
@@ -248,7 +285,12 @@ int cmd_bip_slip() {
         if (key_type == 0x1 || key_type == 0x2) {
             memcpy(res_APDU + res_APDU_size, chain, 32);
             res_APDU_size += 32;
-            mbedtls_ecp_point_write_binary(&ctx.grp, &ctx.Q, MBEDTLS_ECP_PF_COMPRESSED, &olen, pubkey, sizeof(pubkey));
+            mbedtls_ecp_point_write_binary(&ctx.grp,
+                                           &ctx.Q,
+                                           MBEDTLS_ECP_PF_COMPRESSED,
+                                           &olen,
+                                           pubkey,
+                                           sizeof(pubkey));
             memcpy(res_APDU + res_APDU_size, pubkey, olen);
             res_APDU_size += olen;
         }
@@ -264,8 +306,15 @@ int cmd_bip_slip() {
         mbedtls_ecp_keypair_free(&ctx);
     }
     else if (p1 == 0x10) {
-        uint8_t chain[32] = {0}, fgpt[4] = {0}, last_node[4] = {0}, nodes = 0;
-        int r = node_derive_path(apdu.data, apdu.nc, &hd_context, chain, fgpt, &nodes, last_node, &hd_keytype);
+        uint8_t chain[32] = { 0 }, fgpt[4] = { 0 }, last_node[4] = { 0 }, nodes = 0;
+        int r = node_derive_path(apdu.data,
+                                 apdu.nc,
+                                 &hd_context,
+                                 chain,
+                                 fgpt,
+                                 &nodes,
+                                 last_node,
+                                 &hd_keytype);
         if (r != CCID_OK) {
             mbedtls_ecp_keypair_free(&hd_context);
             return SW_EXEC_ERROR();

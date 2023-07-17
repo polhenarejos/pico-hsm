@@ -104,7 +104,10 @@ int cmd_signature() {
     if (!isUserAuthenticated) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
-    if ((!(fkey = search_dynamic_file((KEY_PREFIX << 8) | key_id)) && !(fkey = search_by_fid((KEY_PREFIX << 8) | key_id, NULL, SPECIFY_EF))) || !file_has_data(fkey)) {
+    if ((!(fkey = search_dynamic_file((KEY_PREFIX << 8) | key_id)) &&
+         !(fkey =
+               search_by_fid((KEY_PREFIX << 8) | key_id, NULL,
+                             SPECIFY_EF))) || !file_has_data(fkey)) {
         return SW_FILE_NOT_FOUND();
     }
     if (get_key_counter(fkey) == 0) {
@@ -294,7 +297,8 @@ int cmd_signature() {
             return SW_INCORRECT_PARAMS();
         }
         md = MBEDTLS_MD_SHA256;
-        if (mbedtls_ecdsa_write_signature(&hd_context, md, apdu.data, apdu.nc, buf, MBEDTLS_ECDSA_MAX_LEN,
+        if (mbedtls_ecdsa_write_signature(&hd_context, md, apdu.data, apdu.nc, buf,
+                                          MBEDTLS_ECDSA_MAX_LEN,
                                           &olen, random_gen, NULL) != 0) {
             mbedtls_ecdsa_free(&hd_context);
             return SW_EXEC_ERROR();
@@ -302,6 +306,7 @@ int cmd_signature() {
         memcpy(res_APDU, buf, olen);
         res_APDU_size = olen;
         mbedtls_ecdsa_free(&hd_context);
+        hd_keytype = 0;
     }
     else {
         return SW_INCORRECT_P1P2();

@@ -63,9 +63,10 @@ int cmd_select() {
         pfx == DCOD_PREFIX ||
         pfx == DATA_PREFIX ||
         pfx == PROT_DATA_PREFIX) {*/
-        if (fid != 0x0 && !(pe = search_dynamic_file(fid)) && !(pe = search_by_fid(fid, NULL, SPECIFY_EF))) {
-            return SW_FILE_NOT_FOUND();
-        }
+    if (fid != 0x0 && !(pe = search_dynamic_file(fid)) &&
+        !(pe = search_by_fid(fid, NULL, SPECIFY_EF))) {
+        return SW_FILE_NOT_FOUND();
+    }
     /*}*/
     if (!pe) {
         if (p1 == 0x0) { //Select MF, DF or EF - File identifier or absent
