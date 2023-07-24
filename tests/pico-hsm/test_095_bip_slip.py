@@ -27,7 +27,7 @@ from cvc.certificates import CVC
 from cvc import oid
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import hashes
-from picohsm import DOPrefixes, APDUResponse, SWCodes, PicoHSM
+from picohsm import EncryptionMode, APDUResponse, SWCodes, PicoHSM
 import hashlib
 
 TEST_STRING = b'Pico Keys are awesome!'
@@ -439,3 +439,15 @@ def test_signature_slip(device, path):
     with pytest.raises(APDUResponse) as e:
         resp = device.hd_signature(path, TEST_STRING)
     assert (e.value.sw == SWCodes.SW_CONDITIONS_NOT_SATISFIED)
+
+@pytest.mark.parametrize(
+    "ask_on_encrypt", [True, False]
+)
+@pytest.mark.parametrize(
+    "ask_on_decrypt", [True, False]
+)
+def test_cipher_slip(device, ask_on_encrypt, ask_on_decrypt):
+    MSG1 = b"testing message!"
+    enctext = device.hd_cipher([7, b"\x01", b"\x02"], b"test", MSG1, EncryptionMode.ENCRYPT, ask_on_encrypt, ask_on_decrypt)
+    resp = device.hd_cipher([7, b"\x01", b"\x02"], b"test", enctext, EncryptionMode.DECRYPT, ask_on_encrypt, ask_on_decrypt)
+    assert(resp == MSG1)
