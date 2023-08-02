@@ -141,6 +141,9 @@ Besides DKEK, it supports a more advanced scheme to share keys. Based on private
 ### > MKEK
 A Master Key Encryption Key is used to store safely all the keys. This key is also ciphered with an ephemereal key derived from the hashed PIN. Therefore, we can ensure all the keys are encrypted and stored.
 
+### > Hierarchical Deterministic key generation
+It supports **BIP32** for asymmetric deterministic key derivation and **SLIP10** for symmetric key derivation. With it, crypto wallets can be deployed with Pico HSM, as infinite keys can be derived for signature and symmetric encryption. Curves NIST 256 and Koblitz 256 are supported for master key generation.[^4]
+
 [^1]: PKCS11 modules (`pkcs11-tool` and `sc-tool`) do not support CMAC and key derivation. It must be processed through raw APDU command (`opensc-tool -s`).
 [^2]: Available via SCS3 tool. See [SCS3](/doc/scs3.md "SCS3") for more information.
 [^3]: Imports are available only if the Pico HSM is previously initialized with a DKEK and DKEK shares are available during the import process.
