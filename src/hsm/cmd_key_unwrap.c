@@ -58,22 +58,22 @@ int cmd_key_unwrap() {
         prkd_len = asn1_build_prkd_ecc(NULL, 0, NULL, 0, key_size * 8, prkd_buf, sizeof(prkd_buf));
     }
     else if (key_type & HSM_KEY_EC) {
-        mbedtls_ecdsa_context ctx;
-        mbedtls_ecdsa_init(&ctx);
+        mbedtls_ecp_keypair ctx;
+        mbedtls_ecp_keypair_init(&ctx);
         do {
             r = dkek_decode_key(++kdom, &ctx, apdu.data, apdu.nc, NULL, &allowed, &allowed_len);
         } while ((r == CCID_ERR_FILE_NOT_FOUND || r == CCID_WRONG_DKEK) && kdom < MAX_KEY_DOMAINS);
         if (r != CCID_OK) {
-            mbedtls_ecdsa_free(&ctx);
+            mbedtls_ecp_keypair_free(&ctx);
             return SW_EXEC_ERROR();
         }
         r = store_keys(&ctx, HSM_KEY_EC, key_id);
         if ((res_APDU_size = asn1_cvc_aut(&ctx, HSM_KEY_EC, res_APDU, 4096, NULL, 0)) == 0) {
-            mbedtls_ecdsa_free(&ctx);
+            mbedtls_ecp_keypair_free(&ctx);
             return SW_EXEC_ERROR();
         }
         int key_size = ctx.grp.nbits;
-        mbedtls_ecdsa_free(&ctx);
+        mbedtls_ecp_keypair_free(&ctx);
         if (r != CCID_OK) {
             return SW_EXEC_ERROR();
         }
