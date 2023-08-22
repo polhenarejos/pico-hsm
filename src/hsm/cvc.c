@@ -72,7 +72,7 @@ const uint8_t *pointA[] = {
     "\x01\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFC",
 };
 
-size_t asn1_cvc_public_key_ecdsa(mbedtls_ecdsa_context *ecdsa, uint8_t *buf, size_t buf_len) {
+size_t asn1_cvc_public_key_ecdsa(mbedtls_ecp_keypair *ecdsa, uint8_t *buf, size_t buf_len) {
     uint8_t Y_buf[MBEDTLS_ECP_MAX_PT_LEN];
     const uint8_t oid_ecdsa[] = { 0x04, 0x00, 0x7F, 0x00, 0x07, 0x02, 0x02, 0x02, 0x02, 0x03 };
     size_t p_size = mbedtls_mpi_size(&ecdsa->grp.P), a_size = mbedtls_mpi_size(&ecdsa->grp.A);
@@ -324,10 +324,10 @@ size_t asn1_cvc_aut(void *rsa_ecdsa,
     if (!fkey) {
         return 0;
     }
-    mbedtls_ecdsa_context ectx;
-    mbedtls_ecdsa_init(&ectx);
-    if (load_private_key_ecdsa(&ectx, fkey) != CCID_OK) {
-        mbedtls_ecdsa_free(&ectx);
+    mbedtls_ecp_keypair ectx;
+    mbedtls_ecp_keypair_init(&ectx);
+    if (load_private_key_ec(&ectx, fkey) != CCID_OK) {
+        mbedtls_ecp_keypair_free(&ectx);
         return 0;
     }
     int ret = 0, key_size = 2 * mbedtls_mpi_size(&ectx.d);
@@ -354,7 +354,7 @@ size_t asn1_cvc_aut(void *rsa_ecdsa,
     mbedtls_mpi_init(&r);
     mbedtls_mpi_init(&s);
     ret = mbedtls_ecdsa_sign(&ectx.grp, &r, &s, &ectx.d, hsh, sizeof(hsh), random_gen, NULL);
-    mbedtls_ecdsa_free(&ectx);
+    mbedtls_ecp_keypair_free(&ectx);
     if (ret != 0) {
         mbedtls_mpi_free(&r);
         mbedtls_mpi_free(&s);

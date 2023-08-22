@@ -71,18 +71,18 @@ int cmd_key_wrap() {
         mbedtls_rsa_free(&ctx);
     }
     else if (*dprkd == P15_KEYTYPE_ECC) {
-        mbedtls_ecdsa_context ctx;
-        mbedtls_ecdsa_init(&ctx);
-        r = load_private_key_ecdsa(&ctx, ef);
+        mbedtls_ecp_keypair ctx;
+        mbedtls_ecp_keypair_init(&ctx);
+        r = load_private_key_ec(&ctx, ef);
         if (r != CCID_OK) {
-            mbedtls_ecdsa_free(&ctx);
+            mbedtls_ecp_keypair_free(&ctx);
             if (r == CCID_VERIFICATION_FAILED) {
                 return SW_SECURE_MESSAGE_EXEC_ERROR();
             }
             return SW_EXEC_ERROR();
         }
         r = dkek_encode_key(kdom, &ctx, HSM_KEY_EC, res_APDU, &wrap_len, meta_tag, tag_len);
-        mbedtls_ecdsa_free(&ctx);
+        mbedtls_ecp_keypair_free(&ctx);
     }
     else if (*dprkd == P15_KEYTYPE_AES) {
         uint8_t kdata[64]; //maximum AES key size
