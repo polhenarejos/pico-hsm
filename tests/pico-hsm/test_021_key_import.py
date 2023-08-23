@@ -21,7 +21,8 @@ import pytest
 import hashlib
 import os
 from picohsm import DOPrefixes
-from cryptography.hazmat.primitives.asymmetric import rsa, ec
+from cryptography.hazmat.primitives.asymmetric import rsa, ec, x25519, x448
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 from picohsm.const import DEFAULT_RETRIES, DEFAULT_DKEK_SHARES
 from const import DEFAULT_DKEK
 
@@ -55,6 +56,17 @@ def test_import_ecc(device, curve):
     keyid = device.import_key(pkey)
     pubkey = device.public_key(keyid, param=curve().name)
     assert(pubkey.public_numbers() == pkey.public_key().public_numbers())
+    device.delete_file(DOPrefixes.KEY_PREFIX, keyid)
+    device.delete_file(DOPrefixes.EE_CERTIFICATE_PREFIX, keyid)
+
+@pytest.mark.parametrize(
+    "curve", [x25519.X25519PrivateKey, x448.X448PrivateKey]
+)
+def test_import_montgomery(device, curve):
+    pkey = curve.generate()
+    keyid = device.import_key(pkey)
+    pubkey = device.public_key(keyid, param=curve)
+    assert(pubkey.public_bytes(Encoding.Raw, PublicFormat.Raw) == pkey.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw))
     device.delete_file(DOPrefixes.KEY_PREFIX, keyid)
     device.delete_file(DOPrefixes.EE_CERTIFICATE_PREFIX, keyid)
 
