@@ -86,10 +86,23 @@ int cmd_keypair_gen() {
                     return SW_WRONG_DATA();
                 }
                 mbedtls_ecp_group_id ec_id = ec_get_curve_from_prime(prime, prime_len);
-                printf("KEYPAIR ECC %d\r\n", ec_id);
                 if (ec_id == MBEDTLS_ECP_DP_NONE) {
                     return SW_FUNC_NOT_SUPPORTED();
                 }
+                if (ec_id == MBEDTLS_ECP_DP_CURVE25519 || ec_id == MBEDTLS_ECP_DP_CURVE448) {
+                    size_t g_len = 0;
+                    uint8_t *g = NULL;
+                    if (asn1_find_tag(p, tout, 0x83, &g_len, &g) != true) {
+                        return SW_WRONG_DATA();
+                    }
+                    if (ec_id == MBEDTLS_ECP_DP_CURVE25519 && (g[0] != 9)) {
+                        ec_id = MBEDTLS_ECP_DP_ED25519;
+                    }
+                    else if (ec_id == MBEDTLS_ECP_DP_CURVE448 && (g_len != 56 || g[0] != 5)) {
+                        ec_id = MBEDTLS_ECP_DP_ED448;
+                    }
+                }
+                printf("KEYPAIR ECC %d\r\n", ec_id);
                 mbedtls_ecdsa_context ecdsa;
                 mbedtls_ecdsa_init(&ecdsa);
                 uint8_t index = 0;
