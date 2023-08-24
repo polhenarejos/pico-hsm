@@ -27,6 +27,7 @@
 #include "oid.h"
 #include "mbedtls/md.h"
 #include "files.h"
+#include "mbedtls/eddsa.h"
 
 extern const uint8_t *dev_name;
 extern size_t dev_name_len;
@@ -73,20 +74,15 @@ const uint8_t *pointA[] = {
 };
 
 size_t asn1_cvc_public_key_ecdsa(mbedtls_ecp_keypair *ecdsa, uint8_t *buf, size_t buf_len) {
-    uint8_t Y_buf[MBEDTLS_ECP_MAX_PT_LEN];
+    uint8_t Y_buf[MBEDTLS_ECP_MAX_PT_LEN], G_buf[MBEDTLS_ECP_MAX_PT_LEN];
     const uint8_t oid_ecdsa[] = { 0x04, 0x00, 0x7F, 0x00, 0x07, 0x02, 0x02, 0x02, 0x02, 0x03 };
     const uint8_t oid_ri[]    = { 0x04, 0x00, 0x7F, 0x00, 0x07, 0x02, 0x02, 0x05, 0x02, 0x03 };
     const uint8_t *oid = oid_ecdsa;
     size_t p_size = mbedtls_mpi_size(&ecdsa->grp.P), a_size = mbedtls_mpi_size(&ecdsa->grp.A);
-    size_t b_size = mbedtls_mpi_size(&ecdsa->grp.B),
-           g_size = 1 + mbedtls_mpi_size(&ecdsa->grp.G.X) + mbedtls_mpi_size(&ecdsa->grp.G.X);
+    size_t b_size = mbedtls_mpi_size(&ecdsa->grp.B), g_size = 0;
     size_t o_size = mbedtls_mpi_size(&ecdsa->grp.N), y_size = 0;
-    mbedtls_ecp_point_write_binary(&ecdsa->grp,
-                                   &ecdsa->Q,
-                                   MBEDTLS_ECP_PF_UNCOMPRESSED,
-                                   &y_size,
-                                   Y_buf,
-                                   sizeof(Y_buf));
+    mbedtls_ecp_point_write_binary(&ecdsa->grp, &ecdsa->grp.G, MBEDTLS_ECP_PF_UNCOMPRESSED, &g_size, G_buf, sizeof(G_buf));
+    mbedtls_ecp_point_write_binary(&ecdsa->grp, &ecdsa->Q, MBEDTLS_ECP_PF_UNCOMPRESSED, &y_size, Y_buf, sizeof(Y_buf));
     size_t c_size = 1;
     size_t ptot_size = asn1_len_tag(0x81, p_size), atot_size = asn1_len_tag(0x82, a_size ? a_size : (pointA[ecdsa->grp.id] && ecdsa->grp.id < 6 ? p_size : 1));
     size_t btot_size = asn1_len_tag(0x83, b_size), gtot_size = asn1_len_tag(0x84, g_size);
@@ -94,9 +90,7 @@ size_t asn1_cvc_public_key_ecdsa(mbedtls_ecp_keypair *ecdsa, uint8_t *buf, size_
     size_t ctot_size = asn1_len_tag(0x87, c_size);
     size_t oid_len = asn1_len_tag(0x6, sizeof(oid_ecdsa));
     size_t tot_len = 0, tot_data_len = 0;
-    if (mbedtls_ecp_get_type(&ecdsa->grp) == MBEDTLS_ECP_TYPE_MONTGOMERY) {
-        g_size--;
-        gtot_size--;
+    if (mbedtls_ecp_get_type(&ecdsa->grp) == MBEDTLS_ECP_TYPE_MONTGOMERY || mbedtls_ecp_get_type(&ecdsa->grp) == MBEDTLS_ECP_TYPE_EDWARDS) {
         tot_data_len = oid_len + ptot_size + otot_size + gtot_size + ytot_size;
         oid = oid_ri;
     }
@@ -117,7 +111,7 @@ size_t asn1_cvc_public_key_ecdsa(mbedtls_ecp_keypair *ecdsa, uint8_t *buf, size_
     //oid
     *p++ = 0x6; p += format_tlv_len(sizeof(oid_ecdsa), p); memcpy(p, oid, sizeof(oid_ecdsa));
     p += sizeof(oid_ecdsa);
-    if (mbedtls_ecp_get_type(&ecdsa->grp) == MBEDTLS_ECP_TYPE_MONTGOMERY) {
+    if (mbedtls_ecp_get_type(&ecdsa->grp) == MBEDTLS_ECP_TYPE_MONTGOMERY || mbedtls_ecp_get_type(&ecdsa->grp) == MBEDTLS_ECP_TYPE_EDWARDS) {
         //p
         *p++ = 0x81; p += format_tlv_len(p_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.P, p, p_size);
         p += p_size;
@@ -125,9 +119,7 @@ size_t asn1_cvc_public_key_ecdsa(mbedtls_ecp_keypair *ecdsa, uint8_t *buf, size_
         *p++ = 0x82; p += format_tlv_len(o_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.N, p, o_size);
         p += o_size;
         //G
-        size_t g_new_size = 0;
-        *p++ = 0x83; p += format_tlv_len(g_size, p); mbedtls_ecp_point_write_binary(&ecdsa->grp, &ecdsa->grp.G, MBEDTLS_ECP_PF_UNCOMPRESSED, &g_new_size, p, g_size);
-        p += g_size;
+        *p++ = 0x83; p += format_tlv_len(g_size, p); memcpy(p, G_buf, g_size); p += g_size;
         //Y
         *p++ = 0x84; p += format_tlv_len(y_size, p); memcpy(p, Y_buf, y_size); p += y_size;
     }
@@ -153,9 +145,7 @@ size_t asn1_cvc_public_key_ecdsa(mbedtls_ecp_keypair *ecdsa, uint8_t *buf, size_
         *p++ = 0x83; p += format_tlv_len(b_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.B, p, b_size);
         p += b_size;
         //G
-        size_t g_new_size = 0;
-        *p++ = 0x84; p += format_tlv_len(g_size, p); mbedtls_ecp_point_write_binary(&ecdsa->grp, &ecdsa->grp.G, MBEDTLS_ECP_PF_UNCOMPRESSED, &g_new_size, p, g_size);
-        p += g_size;
+        *p++ = 0x84; p += format_tlv_len(g_size, p); memcpy(p, G_buf, g_size); p += g_size;
         //order
         *p++ = 0x85; p += format_tlv_len(o_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.N, p, o_size);
         p += o_size;
@@ -308,11 +298,15 @@ size_t asn1_cvc_cert(void *rsa_ecdsa,
     else if (key_type & HSM_KEY_EC) {
         mbedtls_mpi r, s;
         int ret = 0;
-        mbedtls_ecdsa_context *ecdsa = (mbedtls_ecdsa_context *) rsa_ecdsa;
+        mbedtls_ecp_keypair *ecdsa = (mbedtls_ecp_keypair *) rsa_ecdsa;
         mbedtls_mpi_init(&r);
         mbedtls_mpi_init(&s);
-        ret =
-            mbedtls_ecdsa_sign(&ecdsa->grp, &r, &s, &ecdsa->d, hsh, sizeof(hsh), random_gen, NULL);
+        if (ecdsa->grp.id == MBEDTLS_ECP_DP_ED25519 || ecdsa->grp.id == MBEDTLS_ECP_DP_ED448) {
+            ret = mbedtls_eddsa_sign(&ecdsa->grp, &r, &s, &ecdsa->d, body, body_size, MBEDTLS_EDDSA_PURE, NULL, 0, random_gen, NULL);
+        }
+        else {
+            ret = mbedtls_ecdsa_sign(&ecdsa->grp, &r, &s, &ecdsa->d, hsh, sizeof(hsh), random_gen, NULL);
+        }
         if (ret == 0) {
             mbedtls_mpi_write_binary(&r, p, key_size / 2); p += key_size / 2;
             mbedtls_mpi_write_binary(&s, p, key_size / 2); p += key_size / 2;
@@ -363,14 +357,19 @@ size_t asn1_cvc_aut(void *rsa_ecdsa,
     p += asn1_cvc_cert(rsa_ecdsa, key_type, p, cvcert_size, ext, ext_len, false);
     //outcar
     *p++ = 0x42; p += format_tlv_len(outcar_len, p); memcpy(p, outcar, outcar_len); p += outcar_len;
-    uint8_t hsh[32];
     memcpy(p, "\x5f\x37", 2); p += 2;
     p += format_tlv_len(key_size, p);
-    hash256(body, cvcert_size + outcar_size, hsh);
     mbedtls_mpi r, s;
     mbedtls_mpi_init(&r);
     mbedtls_mpi_init(&s);
-    ret = mbedtls_ecdsa_sign(&ectx.grp, &r, &s, &ectx.d, hsh, sizeof(hsh), random_gen, NULL);
+    if (ectx.grp.id == MBEDTLS_ECP_DP_ED25519 || ectx.grp.id == MBEDTLS_ECP_DP_ED448) {
+        ret = mbedtls_eddsa_sign(&ectx.grp, &r, &s, &ectx.d, body, cvcert_size + outcar_size, MBEDTLS_EDDSA_PURE, NULL, 0, random_gen, NULL);
+    }
+    else {
+        uint8_t hsh[32];
+        hash256(body, cvcert_size + outcar_size, hsh);
+        ret = mbedtls_ecdsa_sign(&ectx.grp, &r, &s, &ectx.d, hsh, sizeof(hsh), random_gen, NULL);
+    }
     mbedtls_ecp_keypair_free(&ectx);
     if (ret != 0) {
         mbedtls_mpi_free(&r);

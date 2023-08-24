@@ -102,7 +102,7 @@ int cmd_decrypt_asym() {
             free(kdata);
             return SW_DATA_INVALID();
         }
-        r = mbedtls_mpi_read_binary(&ctx.ctx.mbed_ecdh.d, kdata + 1, key_size - 1);
+        r = mbedtls_ecp_read_key(gid, (mbedtls_ecdsa_context *)&ctx.ctx.mbed_ecdh, kdata + 1, key_size - 1);
         mbedtls_platform_zeroize(kdata, key_size);
         free(kdata);
         if (r != 0) {
