@@ -63,5 +63,4 @@ def test_signature_edwards(device, curve):
     pubkey = device.public_key(keyid=keyid)
     signature = device.sign(keyid=keyid, scheme=Algorithm.ALGO_EC_RAW, data=data)
     device.delete_file(DOPrefixes.KEY_PREFIX, keyid)
-    print(hexlify(data))
     device.verify(pubkey, data, signature)
