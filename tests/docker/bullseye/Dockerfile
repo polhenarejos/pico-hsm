@@ -20,11 +20,7 @@ RUN apt install -y libccid \
     python3-pip \
     swig \
     cmake \
+    vsmartcard-vpcd \
     && rm -rf /var/lib/apt/lists/*
 RUN pip3 install pytest pycvc cryptography pyscard
-RUN git clone https://github.com/polhenarejos/vsmartcard.git
-WORKDIR /vsmartcard/virtualsmartcard
-RUN autoreconf --verbose --install
-RUN ./configure --sysconfdir=/etc
-RUN make && make install
 WORKDIR /
