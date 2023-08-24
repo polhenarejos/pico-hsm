@@ -502,7 +502,7 @@ int store_keys(void *key_ctx, int type, uint8_t key_id) {
         mbedtls_ecdsa_context *ecdsa = (mbedtls_ecdsa_context *) key_ctx;
         key_size = mbedtls_mpi_size(&ecdsa->d);
         kdata[0] = ecdsa->grp.id & 0xff;
-        mbedtls_mpi_write_binary(&ecdsa->d, kdata + 1, key_size);
+        mbedtls_ecp_write_key(ecdsa, kdata + 1, key_size);
         key_size++;
     }
     else if (type & HSM_KEY_AES) {
