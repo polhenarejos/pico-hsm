@@ -623,7 +623,7 @@ int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
     return CCID_OK;
 }
 
-int load_private_key_ec_purpose(mbedtls_ecp_keypair *ctx, file_t *fkey, bool sign) {
+int load_private_key_ec(mbedtls_ecp_keypair *ctx, file_t *fkey) {
     if (wait_button_pressed() == true) { // timeout
         return CCID_VERIFICATION_FAILED;
     }
@@ -635,14 +635,6 @@ int load_private_key_ec_purpose(mbedtls_ecp_keypair *ctx, file_t *fkey, bool sig
         return CCID_EXEC_ERROR;
     }
     mbedtls_ecp_group_id gid = kdata[0];
-    if (sign == true) {
-        if (gid == MBEDTLS_ECP_DP_CURVE25519) {
-            gid = MBEDTLS_ECP_DP_ED25519;
-        }
-        else if (gid == MBEDTLS_ECP_DP_CURVE448) {
-            gid = MBEDTLS_ECP_DP_ED448;
-        }
-    }
     int r = mbedtls_ecp_read_key(gid, ctx, kdata + 1, key_size - 1);
     if (r != 0) {
         mbedtls_platform_zeroize(kdata, sizeof(kdata));
@@ -662,11 +654,8 @@ int load_private_key_ec_purpose(mbedtls_ecp_keypair *ctx, file_t *fkey, bool sig
     }
     return CCID_OK;
 }
-int load_private_key_ec(mbedtls_ecp_keypair *ctx, file_t *fkey) {
-    return load_private_key_ec_purpose(ctx, fkey, true);
-}
 int load_private_key_ecdh(mbedtls_ecp_keypair *ctx, file_t *fkey) {
-    return load_private_key_ec_purpose(ctx, fkey, false);
+    return load_private_key_ec(ctx, fkey);
 }
 
 #define INS_VERIFY                  0x20
