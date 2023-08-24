@@ -24,7 +24,7 @@ def test_gen_initialize(device):
     device.initialize()
 
 @pytest.mark.parametrize(
-    "curve", ['secp192r1', 'secp256r1', 'secp384r1', 'secp521r1', 'brainpoolP256r1', 'brainpoolP384r1', 'brainpoolP512r1', 'secp192k1', 'secp256k1', 'curve25519', 'curve448']
+    "curve", ['secp192r1', 'secp256r1', 'secp384r1', 'secp521r1', 'brainpoolP256r1', 'brainpoolP384r1', 'brainpoolP512r1', 'secp192k1', 'secp256k1', 'curve25519', 'curve448', 'ed25519', 'ed448']
 )
 def test_gen_ecc(device, curve):
     keyid = device.key_generation(KeyType.ECC, curve)
