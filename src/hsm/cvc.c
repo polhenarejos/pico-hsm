@@ -75,6 +75,8 @@ const uint8_t *pointA[] = {
 size_t asn1_cvc_public_key_ecdsa(mbedtls_ecp_keypair *ecdsa, uint8_t *buf, size_t buf_len) {
     uint8_t Y_buf[MBEDTLS_ECP_MAX_PT_LEN];
     const uint8_t oid_ecdsa[] = { 0x04, 0x00, 0x7F, 0x00, 0x07, 0x02, 0x02, 0x02, 0x02, 0x03 };
+    const uint8_t oid_ri[]    = { 0x04, 0x00, 0x7F, 0x00, 0x07, 0x02, 0x02, 0x05, 0x02, 0x03 };
+    const uint8_t *oid = oid_ecdsa;
     size_t p_size = mbedtls_mpi_size(&ecdsa->grp.P), a_size = mbedtls_mpi_size(&ecdsa->grp.A);
     size_t b_size = mbedtls_mpi_size(&ecdsa->grp.B),
            g_size = 1 + mbedtls_mpi_size(&ecdsa->grp.G.X) + mbedtls_mpi_size(&ecdsa->grp.G.X);
@@ -91,9 +93,18 @@ size_t asn1_cvc_public_key_ecdsa(mbedtls_ecp_keypair *ecdsa, uint8_t *buf, size_
     size_t otot_size = asn1_len_tag(0x85, o_size), ytot_size = asn1_len_tag(0x86, y_size);
     size_t ctot_size = asn1_len_tag(0x87, c_size);
     size_t oid_len = asn1_len_tag(0x6, sizeof(oid_ecdsa));
-    size_t tot_len = asn1_len_tag(0x7f49,
-                                  oid_len + ptot_size + atot_size + btot_size + gtot_size + otot_size + ytot_size +
-                                  ctot_size);
+    size_t tot_len = 0, tot_data_len = 0;
+    if (mbedtls_ecp_get_type(&ecdsa->grp) == MBEDTLS_ECP_TYPE_MONTGOMERY) {
+        g_size--;
+        gtot_size--;
+        tot_data_len = oid_len + ptot_size + otot_size + gtot_size + ytot_size;
+        oid = oid_ri;
+    }
+    else {
+        tot_data_len = oid_len + ptot_size + atot_size + btot_size + gtot_size + otot_size + ytot_size +
+                                  ctot_size;
+    }
+    tot_len = asn1_len_tag(0x7f49, tot_data_len);
     if (buf == NULL || buf_len == 0) {
         return tot_len;
     }
@@ -102,50 +113,56 @@ size_t asn1_cvc_public_key_ecdsa(mbedtls_ecp_keypair *ecdsa, uint8_t *buf, size_
     }
     uint8_t *p = buf;
     memcpy(p, "\x7F\x49", 2); p += 2;
-    p += format_tlv_len(
-        oid_len + ptot_size + atot_size + btot_size + gtot_size + otot_size + ytot_size + ctot_size,
-        p);
+    p += format_tlv_len(tot_data_len, p);
     //oid
-    *p++ = 0x6; p += format_tlv_len(sizeof(oid_ecdsa), p); memcpy(p, oid_ecdsa, sizeof(oid_ecdsa));
+    *p++ = 0x6; p += format_tlv_len(sizeof(oid_ecdsa), p); memcpy(p, oid, sizeof(oid_ecdsa));
     p += sizeof(oid_ecdsa);
-    //p
-    *p++ = 0x81; p += format_tlv_len(p_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.P, p, p_size);
-    p += p_size;
-    //A
-    if (a_size) {
-        *p++ = 0x82; p += format_tlv_len(a_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.A, p, a_size); p += a_size;
-    }
-    else {   //mbedtls does not set point A for some curves
-        if (pointA[ecdsa->grp.id] && ecdsa->grp.id < 6) {
-            *p++ = 0x82; p += format_tlv_len(p_size, p); memcpy(p, pointA[ecdsa->grp.id], p_size);
-            p += p_size;
-        }
-        else {
-            *p++ = 0x82; p += format_tlv_len(1, p);
-            *p++ = 0x0;
-        }
-    }
-    //B
-    *p++ = 0x83; p += format_tlv_len(b_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.B, p, b_size);
-    p += b_size;
-    //G
-    size_t g_new_size = 0;
-    *p++ = 0x84; p += format_tlv_len(g_size, p); mbedtls_ecp_point_write_binary(&ecdsa->grp, &ecdsa->grp.G, MBEDTLS_ECP_PF_UNCOMPRESSED, &g_new_size, p, g_size);
-    p += g_size;
-    //order
-    *p++ = 0x85; p += format_tlv_len(o_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.N, p, o_size);
-    p += o_size;
-    //Y
-    *p++ = 0x86; p += format_tlv_len(y_size, p); memcpy(p, Y_buf, y_size); p += y_size;
-    //cofactor
-    *p++ = 0x87; p += format_tlv_len(c_size, p);
-    if (ecdsa->grp.id == MBEDTLS_ECP_DP_CURVE448) {
-        *p++ = 4;
-    }
-    else if (ecdsa->grp.id == MBEDTLS_ECP_DP_CURVE25519) {
-        *p++ = 8;
+    if (mbedtls_ecp_get_type(&ecdsa->grp) == MBEDTLS_ECP_TYPE_MONTGOMERY) {
+        //p
+        *p++ = 0x81; p += format_tlv_len(p_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.P, p, p_size);
+        p += p_size;
+        //order
+        *p++ = 0x82; p += format_tlv_len(o_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.N, p, o_size);
+        p += o_size;
+        //G
+        size_t g_new_size = 0;
+        *p++ = 0x83; p += format_tlv_len(g_size, p); mbedtls_ecp_point_write_binary(&ecdsa->grp, &ecdsa->grp.G, MBEDTLS_ECP_PF_UNCOMPRESSED, &g_new_size, p, g_size);
+        p += g_size;
+        //Y
+        *p++ = 0x84; p += format_tlv_len(y_size, p); memcpy(p, Y_buf, y_size); p += y_size;
     }
     else {
+        //p
+        *p++ = 0x81; p += format_tlv_len(p_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.P, p, p_size);
+        p += p_size;
+        //A
+        if (a_size) {
+            *p++ = 0x82; p += format_tlv_len(a_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.A, p, a_size); p += a_size;
+        }
+        else {   //mbedtls does not set point A for some curves
+            if (pointA[ecdsa->grp.id] && ecdsa->grp.id < 6) {
+                *p++ = 0x82; p += format_tlv_len(p_size, p); memcpy(p, pointA[ecdsa->grp.id], p_size);
+                p += p_size;
+            }
+            else {
+                *p++ = 0x82; p += format_tlv_len(1, p);
+                *p++ = 0x0;
+            }
+        }
+        //B
+        *p++ = 0x83; p += format_tlv_len(b_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.B, p, b_size);
+        p += b_size;
+        //G
+        size_t g_new_size = 0;
+        *p++ = 0x84; p += format_tlv_len(g_size, p); mbedtls_ecp_point_write_binary(&ecdsa->grp, &ecdsa->grp.G, MBEDTLS_ECP_PF_UNCOMPRESSED, &g_new_size, p, g_size);
+        p += g_size;
+        //order
+        *p++ = 0x85; p += format_tlv_len(o_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.N, p, o_size);
+        p += o_size;
+        //Y
+        *p++ = 0x86; p += format_tlv_len(y_size, p); memcpy(p, Y_buf, y_size); p += y_size;
+        //cofactor
+        *p++ = 0x87; p += format_tlv_len(c_size, p);
         *p++ = 1;
     }
     return tot_len;

@@ -20,7 +20,7 @@
 import pytest
 import hashlib
 from picohsm import DOPrefixes
-from cryptography.hazmat.primitives.asymmetric import  ec
+from cryptography.hazmat.primitives.asymmetric import ec, x25519, x448
 from picohsm.const import DEFAULT_RETRIES, DEFAULT_DKEK_SHARES
 from const import DEFAULT_DKEK
 
@@ -47,6 +47,27 @@ def test_exchange_ecc(device, curve):
     assert(sharedA == sharedB)
 
     sharedAA = pkeyA.exchange(ec.ECDH(), pbkeyB)
+    assert(sharedA == sharedAA)
+
+    device.delete_file(DOPrefixes.KEY_PREFIX, keyid)
+    device.delete_file(DOPrefixes.EE_CERTIFICATE_PREFIX, keyid)
+
+@pytest.mark.parametrize(
+    "curve", [x25519.X25519PrivateKey, x448.X448PrivateKey]
+)
+def test_exchange_montgomery(device, curve):
+    pkeyA = curve.generate()
+    pbkeyA = pkeyA.public_key()
+    keyid = device.import_key(pkeyA)
+    pkeyB = curve.generate()
+    pbkeyB = pkeyB.public_key()
+
+    sharedB = pkeyB.exchange(pbkeyA)
+    sharedA = device.exchange(keyid, pbkeyB)
+
+    assert(sharedA == sharedB)
+
+    sharedAA = pkeyA.exchange(pbkeyB)
     assert(sharedA == sharedAA)
 
     device.delete_file(DOPrefixes.KEY_PREFIX, keyid)
