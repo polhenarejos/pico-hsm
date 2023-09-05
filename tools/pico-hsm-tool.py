@@ -66,6 +66,7 @@ def parse_args():
     parser_init = subparser.add_parser('initialize', help='Performs the first initialization of the Pico HSM.')
     parser.add_argument('--pin', help='PIN number')
     parser_init.add_argument('--so-pin', help='SO-PIN number')
+    parser_init.add_argument('--silent', help='Confirms initialization silently.', action='store_true')
 
     parser_attestate = subparser.add_parser('attestate', help='Generates an attestation report for a private key and verifies the private key was generated in the devices or outside.')
     parser_attestate.add_argument('-k', '--key', help='The private key index', metavar='KEY_ID')
@@ -176,14 +177,15 @@ def pki(_, args):
             print('Error: no PKI is passed. Use --default to retrieve default PKI.')
 
 def initialize(picohsm, args):
-    print('********************************')
-    print('*   PLEASE READ IT CAREFULLY   *')
-    print('********************************')
-    print('')
-    print('This tool will erase and reset your device. It will delete all '
-        'private and secret keys.')
-    print('Are you sure?')
-    _ = input('[Press enter to confirm]')
+    if (not args.silent):
+        print('********************************')
+        print('*   PLEASE READ IT CAREFULLY   *')
+        print('********************************')
+        print('')
+        print('This tool will erase and reset your device. It will delete all '
+            'private and secret keys.')
+        print('Are you sure?')
+        _ = input('[Press enter to confirm]')
 
     if (args.pin):
         picohsm.login(args.pin)
