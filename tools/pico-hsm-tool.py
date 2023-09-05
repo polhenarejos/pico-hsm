@@ -39,7 +39,7 @@ except ModuleNotFoundError:
     sys.exit(-1)
 
 try:
-    from picohsm import PicoHSM, PinType, DOPrefixes, KeyType, EncryptionMode, utils
+    from picohsm import PicoHSM, PinType, DOPrefixes, KeyType, EncryptionMode, utils, APDUResponse, SWCodes
 except ModuleNotFoundError:
     print('ERROR: picohsm module not found! Install picohsm package.\nTry with `pip install pypicohsm`')
     sys.exit(-1)
@@ -188,13 +188,19 @@ def initialize(picohsm, args):
         _ = input('[Press enter to confirm]')
 
     if (args.pin):
-        picohsm.login(args.pin)
-        pin = args
+        try:
+            picohsm.login(args.pin)
+        except APDUResponse:
+            pass
+        pin = args.pin
     else:
         pin = '648219'
 
     if (args.so_pin):
-        picohsm.login(args.pin, who=PinType.SO_PIN)
+        try:
+            picohsm.login(args.so_pin, who=PinType.SO_PIN)
+        except APDUResponse:
+            pass
         so_pin = args.so_pin
     else:
         so_pin = '57621880'
