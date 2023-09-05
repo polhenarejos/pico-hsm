@@ -22,5 +22,5 @@ RUN apt install -y libccid \
     cmake \
     vsmartcard-vpcd \
     && rm -rf /var/lib/apt/lists/*
-RUN pip3 install pytest pycvc cryptography pyscard
+RUN pip3 install pytest pycvc cryptography pyscard base58
 WORKDIR /
