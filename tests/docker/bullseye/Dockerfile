@@ -15,12 +15,21 @@ RUN apt install -y libccid \
     gcc \
     make \
     build-essential \
-    opensc \
     python3 \
     python3-pip \
     swig \
+    libssl-dev \
     cmake \
     vsmartcard-vpcd \
     && rm -rf /var/lib/apt/lists/*
 RUN pip3 install pytest pycvc cryptography pyscard base58
+WORKDIR /
+RUN git clone https://github.com/OpenSC/OpenSC
+WORKDIR /OpenSC
+#RUN git checkout tags/0.23.0
+RUN ./bootstrap
+RUN ./configure --enable-openssl
+RUN make -j `nproc`
+RUN make install
+RUN ldconfig
 WORKDIR /
