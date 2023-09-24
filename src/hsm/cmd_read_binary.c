@@ -88,10 +88,10 @@ int cmd_read_binary() {
                 return SW_WARNING_EOF();
             }
 
-            uint16_t maxle = data_len - offset;
-            if (apdu.ne > maxle) {
-                apdu.ne = maxle;
-            }
+            //uint16_t maxle = data_len - offset;
+            //if (apdu.ne > maxle) {
+            //    apdu.ne = maxle;
+            //}
             memcpy(res_APDU, file_get_data(ef) + offset, data_len - offset);
             res_APDU_size = data_len - offset;
         }
