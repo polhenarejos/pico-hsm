@@ -12,6 +12,5 @@ pytest tests -W ignore::DeprecationWarning
 
 chmod a+x tests/scripts/*.sh
 
-echo -n "Test initialization... "
-./tests/scripts/initialize.sh > /dev/null 2>&1
-test $? -eq 0 && echo -e '\tok' || (echo -e '\tfail' && exit 1)
+echo "======== PKCS11 Test suite ========"
+./tests/scripts/pkcs11.sh
