@@ -1,7 +1,7 @@
 #!/bin/bash
 
-./tests/scripts/reset.sh > /dev/null 2>&1
-test $? -eq 0 || exit $?
+source ./tests/scripts/func.sh
+reset
 
 # Change SO-PIN
 pkcs11-tool --login --login-type so --so-pin 3537363231383830 --change-pin --new-pin 0123456789012345 > /dev/null 2>&1

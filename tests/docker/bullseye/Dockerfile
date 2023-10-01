@@ -4,6 +4,8 @@ ARG DEBIAN_FRONTEND=noninteractive
 
 RUN apt update && apt upgrade -y
 RUN apt install -y apt-utils
+RUN apt autoremove -y
+RUN rm -rf /var/cache/apt/archives/*
 RUN apt install -y libccid \
     libpcsclite-dev \
     git \
@@ -26,10 +28,11 @@ RUN pip3 install pytest pycvc cryptography pyscard base58
 WORKDIR /
 RUN git clone https://github.com/OpenSC/OpenSC
 WORKDIR /OpenSC
-#RUN git checkout tags/0.23.0
+RUN git checkout tags/0.22.0
 RUN ./bootstrap
 RUN ./configure --enable-openssl
 RUN make -j `nproc`
 RUN make install
+RUN make clean
 RUN ldconfig
 WORKDIR /
