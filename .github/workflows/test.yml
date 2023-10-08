@@ -35,3 +35,5 @@ jobs:
       run: ./tests/build-in-docker.sh
     - name: Start emulation and test
       run: ./tests/run-test-in-docker.sh
+    - name: Test PKCS11
+      run: ./tests/run-test-pkcs11-in-docker.sh
