@@ -4,14 +4,10 @@ source ./tests/scripts/func.sh
 reset
 test $? -eq 0 || exit $?
 
-gen_and_delete "rsa:1024" && echo -n "." || exit $?
-gen_and_delete "rsa:2048" && echo -n "." || exit $?
-gen_and_delete "ec:secp192r1" && echo -n "." || exit $?
-gen_and_delete "ec:secp256r1" && echo -n "." || exit $?
-gen_and_delete "ec:secp384r1" && echo -n "." || exit $?
-gen_and_delete "ec:secp521r1" && echo -n "." || exit $?
-gen_and_delete "ec:brainpoolP256r1" && echo -n "." || exit $?
-gen_and_delete "ec:brainpoolP384r1" && echo -n "." || exit $?
-gen_and_delete "ec:brainpoolP512r1" && echo -n "." || exit $?
-gen_and_delete "ec:secp192k1" && echo -n "." || exit $?
-gen_and_delete "ec:secp256k1" && echo -n "." || exit $?
+algs=("rsa:1024" "rsa:2048" "ec:secp192r1" "ec:secp256r1" "ec:secp384r1" "ec:secp521r1" "ec:brainpoolP256r1" "ec:brainpoolP384r1" "ec:brainpoolP512r1" "ec:secp192k1" "ec:secp256k1")
+for alg in ${algs[*]}; do
+    IFS=: read -r a s <<< "${alg}"
+    au=$(awk '{print toupper($0)}' <<<${a})
+    echo -n "  Test ${au} ${s}..."
+    gen_and_delete ${alg} && echo -e ".\t${OK}" || exit $?
+done
