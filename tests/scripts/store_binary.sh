@@ -6,7 +6,7 @@ test $? -eq 0 || exit $?
 
 TEST_DATA="Pico HSM is awesome!"
 
-echo 'Pico HSM is awesome!' > data
+echo ${TEST_DATA} > test
 
 echo -n "  Test public binary storage..."
 pkcs11-tool --pin 648219 --write-object test --type data --id 1 --label 'test1' > /dev/null 2>&1
