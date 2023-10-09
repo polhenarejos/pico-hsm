@@ -13,8 +13,9 @@ sleep 2
 rm -f memory.flash
 tar -xf tests/memory.tar.gz
 echo -n "Start Pico HSM... "
-./build_in_docker/pico_hsm > /dev/null 2>&1 &
+./build_in_docker/pico_hsm &
 test $? -eq 0 && echo -e "${OK}" || {
     echo -e "${FAIL}"
     exit 1
 }
+sleep 2
