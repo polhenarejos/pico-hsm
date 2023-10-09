@@ -22,23 +22,17 @@ on:
   workflow_dispatch:
 
 jobs:
+  build:
+    uses: ./.github/workflows/build.yml
   test:
     runs-on: ubuntu-latest
-    uses: ./.github/workflows/build.yml
+    needs: build
     steps:
-    - name: Checkout repository and submodules
-      uses: actions/checkout@v3
-      with:
-        submodules: recursive
     - name: Test PCSC (pytest)
       run: ./tests/run-test-in-docker.sh
   test_pkcs11:
     runs-on: ubuntu-latest
-    uses: ./.github/workflows/build.yml
+    needs: build
     steps:
-    - name: Checkout repository and submodules
-      uses: actions/checkout@v3
-      with:
-        submodules: recursive
     - name: Test PKCS11
       run: ./tests/run-test-pkcs11-in-docker.sh
