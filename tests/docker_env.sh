@@ -72,14 +72,16 @@ else
     NUM_PROC="$(nproc)"
 fi
 
-# Build the Docker image
-echo "Getting docker image up to date (this may take a few minutes)..."
-${DOCKER} image build \
-    -t ${DOCKER_IMAGE_TAG} \
-    --cache-from=${DOCKER_IMAGE_TAG} \
-    --network host \
-    --build-arg MAKEFLAGS_PARALLEL="-j ${NUM_PROC}" \
-    tests/docker/${MBEDTLS_DOCKER_GUEST}
+build_image() {
+    # Build the Docker image
+    echo "Getting docker image up to date (this may take a few minutes)..."
+    ${DOCKER} image build \
+        -t ${DOCKER_IMAGE_TAG} \
+        --cache-from=${DOCKER_IMAGE_TAG} \
+        --network host \
+        --build-arg MAKEFLAGS_PARALLEL="-j ${NUM_PROC}" \
+        tests/docker/${MBEDTLS_DOCKER_GUEST}
+}
 
 run_in_docker()
 {
