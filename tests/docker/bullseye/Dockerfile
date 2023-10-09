@@ -35,6 +35,15 @@ RUN make -j `nproc`
 RUN make install
 RUN make clean
 RUN ldconfig
+WORKDIR /
 RUN git clone https://github.com/polhenarejos/pypicohsm.git
 RUN pip3 install -e pypicohsm
+RUN git clone https://github.com/CardContact/sc-hsm-embedded
+WORKDIR /sc-hsm-embedded
+RUN autoreconf -fi
+RUN ./configure
+RUN make -j `nproc`
+RUN make install
+RUN cp ./src/tests/sc-hsm-pkcs11-test /usr/local/bin/sc-hsm-pkcs11-test
+RUN make clean
 WORKDIR /
