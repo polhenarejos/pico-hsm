@@ -32,6 +32,13 @@ else()
 pico_sdk_init()
 endif()
 
+if (NOT DEFINED __FOR_CI)
+    set(__FOR_CI 0)
+endif()
+if (__FOR_CI)
+    add_definitions(-D__FOR_CI)
+endif()
+
 add_executable(pico_hsm)
 
 set(SOURCES ${SOURCES}
