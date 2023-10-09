@@ -11,4 +11,3 @@ docker cp $PWD/build_in_docker/pico_hsm temp_container:/pico_hsm
 docker commit temp_container pico-hsm-test:bullseye
 docker stop temp_container
 docker rm temp_container
-docker rmi $(docker images -f "dangling=true" -q)
