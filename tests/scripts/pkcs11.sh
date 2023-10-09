@@ -28,3 +28,10 @@ test $? -eq 0 || {
     echo -e "\t${FAIL}"
     exit 1
 }
+
+echo "==== Test binary storage ===="
+./tests/scripts/store_binary.sh
+test $? -eq 0 || {
+    echo -e "\t${FAIL}"
+    exit 1
+}
