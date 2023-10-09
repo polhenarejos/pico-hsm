@@ -99,7 +99,8 @@ done
 echo -n "    Test RSA-X-509..."
 cp data data_pad
 test $? -eq 0 && echo -n "." || exit $?
-dd if=/dev/zero bs=1 count=227 >> data_pad > /dev/null 2>&1
+tlen=${#TEST_DATA}
+dd if=/dev/zero bs=1 count=$((256-$tlen)) >> data_pad > /dev/null 2>&1
 test $? -eq 0 && echo -n "." || exit $?
 pkcs11-tool --id 1 --sign --pin 648219 --mechanism RSA-X-509 -i data_pad -o data.sig > /dev/null 2>&1
 test $? -eq 0 && echo -n "." || exit $?
