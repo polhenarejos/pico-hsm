@@ -21,3 +21,10 @@ test $? -eq 0 || {
     echo -e "\t${FAIL}"
     exit 1
 }
+
+echo "==== Test asymmetric ciphering ===="
+./tests/scripts/asym_cipher.sh
+test $? -eq 0 || {
+    echo -e "\t${FAIL}"
+    exit 1
+}
