@@ -47,7 +47,7 @@ jobs:
     needs: build
     strategy:
       matrix:
-        suite: ["pkcs11", "pytest"]
+        suite: ["pkcs11", "pytest", "sc-hsm-pkcs11"]
     steps:
     - name: Checkout repository and submodules
       uses: actions/checkout@v3
