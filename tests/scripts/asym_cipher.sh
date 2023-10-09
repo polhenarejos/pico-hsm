@@ -37,7 +37,6 @@ test $? -eq 0 && echo -e ".\t${OK}" || exit $?
 
 echo -n "  Test RSA-PKCS-OAEP ciphering..."
 rsa_encrypt_decrypt data "-pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 -pkeyopt rsa_mgf1_md:sha256" "--mechanism RSA-PKCS-OAEP"
-openssl pkeyutl -encrypt -pubin -inkey 1.pub -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 -pkeyopt rsa_mgf1_md:sha256 -in data -out data.crypt
 test $? -eq 0 && echo -e ".\t${OK}" || exit $?
 
 rm -rf data* 1.*
