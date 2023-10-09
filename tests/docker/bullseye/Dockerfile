@@ -28,11 +28,13 @@ RUN pip3 install pytest pycvc cryptography pyscard base58
 WORKDIR /
 RUN git clone https://github.com/OpenSC/OpenSC
 WORKDIR /OpenSC
-RUN git checkout tags/0.22.0
+RUN git checkout tags/0.23.0
 RUN ./bootstrap
 RUN ./configure --enable-openssl
 RUN make -j `nproc`
 RUN make install
 RUN make clean
 RUN ldconfig
+RUN git clone https://github.com/polhenarejos/pypicohsm.git
+RUN pip3 install -e pypicohsm
 WORKDIR /
