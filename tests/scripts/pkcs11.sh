@@ -35,3 +35,10 @@ test $? -eq 0 || {
     echo -e "\t${FAIL}"
     exit 1
 }
+
+echo "==== Test AES ===="
+./tests/scripts/aes.sh
+test $? -eq 0 || {
+    echo -e "\t${FAIL}"
+    exit 1
+}
