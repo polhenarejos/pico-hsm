@@ -80,20 +80,16 @@ extern int cmd_bip_slip();
 
 extern const uint8_t *ccid_atr;
 
-app_t *sc_hsm_select_aid(app_t *a, const uint8_t *aid, uint8_t aid_len) {
-    if (!memcmp(aid, sc_hsm_aid + 1, MIN(aid_len, sc_hsm_aid[0]))) {
-        a->aid = sc_hsm_aid;
-        a->process_apdu = sc_hsm_process_apdu;
-        a->unload = sc_hsm_unload;
-        init_sc_hsm();
-        return a;
-    }
-    return NULL;
+int sc_hsm_select_aid(app_t *a) {
+    a->process_apdu = sc_hsm_process_apdu;
+    a->unload = sc_hsm_unload;
+    init_sc_hsm();
+    return CCID_OK;
 }
 
 void __attribute__((constructor)) sc_hsm_ctor() {
     ccid_atr = atr_sc_hsm;
-    register_app(sc_hsm_select_aid);
+    register_app(sc_hsm_select_aid, sc_hsm_aid);
 }
 
 void scan_files() {
