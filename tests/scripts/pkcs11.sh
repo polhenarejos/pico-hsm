@@ -49,3 +49,10 @@ test $? -eq 0 || {
     echo -e "\t${FAIL}"
     exit 1
 }
+
+echo "==== Test backup and restore ===="
+./tests/scripts/backup.sh
+test $? -eq 0 || {
+    echo -e "\t${FAIL}"
+    exit 1
+}
