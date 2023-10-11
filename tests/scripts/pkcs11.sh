@@ -42,3 +42,10 @@ test $? -eq 0 || {
     echo -e "\t${FAIL}"
     exit 1
 }
+
+echo "==== Test PKCS11-tool ===="
+./tests/scripts/pkcs11_test.sh
+test $? -eq 0 || {
+    echo -e "\t${FAIL}"
+    exit 1
+}
