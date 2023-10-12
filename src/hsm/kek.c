@@ -36,6 +36,7 @@ extern bool has_session_pin, has_session_sopin;
 extern uint8_t session_pin[32], session_sopin[32];
 uint8_t mkek_mask[MKEK_KEY_SIZE];
 bool has_mkek_mask = false;
+uint8_t pending_save_dkek = 0xff;
 
 #define POLY 0xedb88320
 

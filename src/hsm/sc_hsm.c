@@ -407,6 +407,10 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
         hash_multi(data, len, session_sopin);
         has_session_sopin = true;
     }
+    if (pending_save_dkek != 0xff) {
+        save_dkek_key(pending_save_dkek, NULL);
+        pending_save_dkek = 0xff;
+    }
     return SW_OK();
 }
 
