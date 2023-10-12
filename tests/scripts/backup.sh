@@ -14,7 +14,7 @@ sc_backup() {
     pkcs11-tool -l --pin 648219 -I > /dev/null 2>&1
     test $? -eq 0 && echo -n "." || exit $?
     for i in $(seq 1 $1); do
-        e=$(sc-hsm-tool --pin 648219 --import-dkek-share dkek.${i}.pbe --password testpw 2>&1)
+        e=$(sc-hsm-tool --import-dkek-share dkek.${i}.pbe --password testpw 2>&1)
         test $? -eq 0 && echo -n "." || exit $?
         grep -q "DKEK share imported" <<< $e && echo -n "." || exit $?
         grep -q "DKEK shares : $1" <<< $e && echo -n "." || exit $?
@@ -22,18 +22,19 @@ sc_backup() {
             grep -q "DKEK import pending, $(( $1 - $i ))" <<< $e && echo -n "." || exit $?
         fi
     done
+    # Store DKEK, since it is not logged in
+    pkcs11-tool -l --pin 648219 -I > /dev/null 2>&1
+    test $? -eq 0 && echo -n "." || exit $?
 }
 echo -n "  Test single DKEK..."
 sc_backup 1
 test $? -eq 0 && echo -e ".\t${OK}" || exit $?
 
-: '
 echo -n "  Test multiple DKEK..."
 sc_backup 3
 test $? -eq 0 && echo -e ".\t${OK}" || exit $?
 
 rm -rf dkek.*.pbe
-'
 
 echo "  Test backup and restore"
 algs=("rsa:1024" "rsa:2048" "ec:secp192r1" "ec:secp256r1" "ec:secp384r1" "ec:secp521r1" "ec:brainpoolP256r1" "ec:brainpoolP384r1" "ec:brainpoolP512r1" "ec:secp192k1" "ec:secp256k1")
