@@ -23,6 +23,9 @@
 
 uint8_t get_key_domain(file_t *fkey) {
     size_t tag_len = 0;
+    if (!file_has_data(fkey)) {
+        return 0xff;
+    }
     const uint8_t *meta_tag = get_meta_tag(fkey, 0x92, &tag_len);
     if (meta_tag) {
         return *meta_tag;
@@ -94,8 +97,9 @@ int cmd_key_domain() {
             return SW_WRONG_LENGTH();
         }
         if (p1 == 0x3) { //if key domain is not empty, command is denied
-            for (int i = 0; i < dynamic_files; i++) {
-                if (get_key_domain(&dynamic_file[i]) == p2) {
+            for (int i = 1; i < 256; i++) {
+                file_t *fkey = search_dynamic_file(KEY_PREFIX << 8 | i);
+                if (get_key_domain(fkey) == p2) {
                     return SW_FILE_EXISTS();
                 }
             }
