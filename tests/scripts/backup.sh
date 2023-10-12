@@ -17,7 +17,7 @@ sc_backup() {
         e=$(sc-hsm-tool --import-dkek-share dkek.${i}.pbe --password testpw 2>&1)
         test $? -eq 0 && echo -n "." || exit $?
         grep -q "DKEK share imported" <<< $e && echo -n "." || exit $?
-        grep -q "DKEK shares : $1" <<< $e && echo -n "." || exit $?
+        grep -q "DKEK shares[[:blank:]]*: $1" <<< $e && echo -n "." || exit $?
         if [[ $i -lt $1 ]]; then
             grep -q "DKEK import pending, $(( $1 - $i ))" <<< $e && echo -n "." || exit $?
         fi
@@ -46,12 +46,12 @@ for alg in ${algs[*]}; do
     sc-hsm-tool --wrap-key wrap-key.bin --key-reference 1 --pin 648219 > /dev/null 2>&1
     test $? -eq 0 && echo -n "." || exit $?
     e=$(pkcs15-tool -D 2>&1)
-    grep -q "Key ref : 10" <<< $e && exit $? || echo -e ".\t${OK}"
+    grep -q "Key ref[[:blank:]]*: 10" <<< $e && exit $? || echo -e ".\t${OK}"
     echo -n "    Unwrap key..."
     sc-hsm-tool --unwrap-key wrap-key.bin --key-reference 10 --pin 648219 --force > /dev/null 2>&1
     test $? -eq 0 && echo -n "." || exit $?
     e=$(pkcs15-tool -D 2>&1)
-    grep -q "Key ref : 10" <<< $e && echo -e ".\t${OK}" || exit $?
+    grep -q "Key ref[[:blank:]]*: 10" <<< $e && echo -e ".\t${OK}" || exit $?
     echo -n "    Cleaning..."
     pkcs11-tool -l --pin 648219 --delete-object --type privkey --id 1 > /dev/null 2>&1
     test $? -eq 0 && echo -n "." || exit $?
