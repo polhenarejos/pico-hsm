@@ -24,7 +24,7 @@
 #include "eac.h"
 #include "cvc.h"
 #include "asn1.h"
-#include "hsm.h"
+#include "pico_keys.h"
 #include "usb.h"
 #include "random.h"
 
@@ -496,30 +496,30 @@ uint32_t decrement_key_counter(file_t *fkey) {
 int store_keys(void *key_ctx, int type, uint8_t key_id) {
     int r, key_size = 0;
     uint8_t kdata[4096 / 8]; // worst case
-    if (type & HSM_KEY_RSA) {
+    if (type & PICO_KEYS_KEY_RSA) {
         mbedtls_rsa_context *rsa = (mbedtls_rsa_context *) key_ctx;
         key_size = mbedtls_mpi_size(&rsa->P) + mbedtls_mpi_size(&rsa->Q);
         mbedtls_mpi_write_binary(&rsa->P, kdata, key_size / 2);
         mbedtls_mpi_write_binary(&rsa->Q, kdata + key_size / 2, key_size / 2);
     }
-    else if (type & HSM_KEY_EC) {
+    else if (type & PICO_KEYS_KEY_EC) {
         mbedtls_ecdsa_context *ecdsa = (mbedtls_ecdsa_context *) key_ctx;
         key_size = mbedtls_mpi_size(&ecdsa->d);
         kdata[0] = ecdsa->grp.id & 0xff;
         mbedtls_ecp_write_key(ecdsa, kdata + 1, key_size);
         key_size++;
     }
-    else if (type & HSM_KEY_AES) {
-        if (type == HSM_KEY_AES_128) {
+    else if (type & PICO_KEYS_KEY_AES) {
+        if (type == PICO_KEYS_KEY_AES_128) {
             key_size = 16;
         }
-        else if (type == HSM_KEY_AES_192) {
+        else if (type == PICO_KEYS_KEY_AES_192) {
             key_size = 24;
         }
-        else if (type == HSM_KEY_AES_256) {
+        else if (type == PICO_KEYS_KEY_AES_256) {
             key_size = 32;
         }
-        else if (type == HSM_KEY_AES_512) {
+        else if (type == PICO_KEYS_KEY_AES_512) {
             key_size = 64;
         }
         memcpy(kdata, key_ctx, key_size);

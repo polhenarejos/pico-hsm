@@ -88,7 +88,7 @@ int cmd_derive_asym() {
             mbedtls_ecdsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
-        r = store_keys(&ctx, HSM_KEY_EC, dest_id);
+        r = store_keys(&ctx, PICO_KEYS_KEY_EC, dest_id);
         if (r != CCID_OK) {
             mbedtls_ecdsa_free(&ctx);
             return SW_EXEC_ERROR();

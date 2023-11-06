@@ -27,7 +27,7 @@
 #endif
 #include "file.h"
 #include "apdu.h"
-#include "hsm.h"
+#include "pico_keys.h"
 
 extern const uint8_t sc_hsm_aid[];
 

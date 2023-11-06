@@ -165,10 +165,10 @@ size_t asn1_cvc_cert_body(void *rsa_ecdsa,
                           size_t ext_len,
                           bool full) {
     size_t pubkey_size = 0;
-    if (key_type & HSM_KEY_RSA) {
+    if (key_type & PICO_KEYS_KEY_RSA) {
         pubkey_size = asn1_cvc_public_key_rsa(rsa_ecdsa, NULL, 0);
     }
-    else if (key_type & HSM_KEY_EC) {
+    else if (key_type & PICO_KEYS_KEY_EC) {
         pubkey_size = asn1_cvc_public_key_ecdsa(rsa_ecdsa, NULL, 0);
     }
     size_t cpi_size = 4, ext_size = 0, role_size = 0, valid_size = 0;
@@ -221,10 +221,10 @@ size_t asn1_cvc_cert_body(void *rsa_ecdsa,
     //car
     *p++ = 0x42; p += format_tlv_len(lencar, p); memcpy(p, car, lencar); p += lencar;
     //pubkey
-    if (key_type & HSM_KEY_RSA) {
+    if (key_type & PICO_KEYS_KEY_RSA) {
         p += asn1_cvc_public_key_rsa(rsa_ecdsa, p, pubkey_size);
     }
-    else if (key_type & HSM_KEY_EC) {
+    else if (key_type & PICO_KEYS_KEY_EC) {
         p += asn1_cvc_public_key_ecdsa(rsa_ecdsa, p, pubkey_size);
     }
     //chr
@@ -265,10 +265,10 @@ size_t asn1_cvc_cert(void *rsa_ecdsa,
                      size_t ext_len,
                      bool full) {
     size_t key_size = 0;
-    if (key_type & HSM_KEY_RSA) {
+    if (key_type & PICO_KEYS_KEY_RSA) {
         key_size = mbedtls_mpi_size(&((mbedtls_rsa_context *) rsa_ecdsa)->N);
     }
-    else if (key_type & HSM_KEY_EC) {
+    else if (key_type & PICO_KEYS_KEY_EC) {
         key_size = 2 * (int)((mbedtls_ecp_curve_info_from_grp_id(((mbedtls_ecdsa_context *) rsa_ecdsa)->grp.id)->bit_size + 7) / 8);
     }
     size_t body_size = asn1_cvc_cert_body(rsa_ecdsa, key_type, NULL, 0, ext, ext_len, full), sig_size = asn1_len_tag(0x5f37, key_size);
@@ -288,13 +288,13 @@ size_t asn1_cvc_cert(void *rsa_ecdsa,
     hash256(body, body_size, hsh);
     memcpy(p, "\x5F\x37", 2); p += 2;
     p += format_tlv_len(key_size, p);
-    if (key_type & HSM_KEY_RSA) {
+    if (key_type & PICO_KEYS_KEY_RSA) {
         if (mbedtls_rsa_rsassa_pkcs1_v15_sign(rsa_ecdsa, random_gen, NULL, MBEDTLS_MD_SHA256, 32, hsh, p) != 0) {
             memset(p, 0, key_size);
         }
         p += key_size;
     }
-    else if (key_type & HSM_KEY_EC) {
+    else if (key_type & PICO_KEYS_KEY_EC) {
         mbedtls_mpi r, s;
         int ret = 0;
         mbedtls_ecdsa_context *ecdsa = (mbedtls_ecdsa_context *) rsa_ecdsa;
@@ -440,17 +440,17 @@ size_t asn1_build_prkd_generic(const uint8_t *label,
     size_t seq_len = 0;
     const uint8_t *seq = NULL;
     uint8_t first_tag = 0x0;
-    if (key_type & HSM_KEY_EC) {
+    if (key_type & PICO_KEYS_KEY_EC) {
         seq = (const uint8_t *)"\x07\x20\x80";
         seq_len = 3;
         first_tag = 0xA0;
     }
-    else if (key_type & HSM_KEY_RSA) {
+    else if (key_type & PICO_KEYS_KEY_RSA) {
         seq = (const uint8_t *)"\x02\x74";
         seq_len = 2;
         first_tag = 0x30;
     }
-    else if (key_type & HSM_KEY_AES) {
+    else if (key_type & PICO_KEYS_KEY_AES) {
         seq = (const uint8_t *)"\x07\xC0\x10";
         seq_len = 3;
         first_tag = 0xA8;
@@ -459,10 +459,10 @@ size_t asn1_build_prkd_generic(const uint8_t *label,
     size_t seq2_size =
         asn1_len_tag(0x30, asn1_len_tag(0x4, keyid_len) + asn1_len_tag(0x3, seq_len));
     size_t seq3_size = 0, seq4_size = 0;
-    if (key_type & HSM_KEY_EC || key_type & HSM_KEY_RSA) {
+    if (key_type & PICO_KEYS_KEY_EC || key_type & PICO_KEYS_KEY_RSA) {
         seq4_size = asn1_len_tag(0xA1, asn1_len_tag(0x30, asn1_len_tag(0x30, asn1_len_tag(0x4, 0)) + asn1_len_tag(0x2, 2)));
     }
-    else if (key_type & HSM_KEY_AES) {
+    else if (key_type & PICO_KEYS_KEY_AES) {
         seq3_size = asn1_len_tag(0xA0, asn1_len_tag(0x30, asn1_len_tag(0x2, 2)));
         seq4_size = asn1_len_tag(0xA1, asn1_len_tag(0x30, asn1_len_tag(0x30, asn1_len_tag(0x4, 0))));
     }
@@ -494,7 +494,7 @@ size_t asn1_build_prkd_generic(const uint8_t *label,
     memcpy(p, seq, seq_len); p += seq_len;
 
     //Seq 3
-    if (key_type & HSM_KEY_AES) {
+    if (key_type & PICO_KEYS_KEY_AES) {
         *p++ = 0xA0;
         p += format_tlv_len(asn1_len_tag(0x30, asn1_len_tag(0x2, 2)), p);
         *p++ = 0x30;
@@ -508,7 +508,7 @@ size_t asn1_build_prkd_generic(const uint8_t *label,
     //Seq 4
     *p++ = 0xA1;
     size_t inseq4_len = asn1_len_tag(0x30, asn1_len_tag(0x4, 0));
-    if (key_type & HSM_KEY_EC || key_type & HSM_KEY_RSA) {
+    if (key_type & PICO_KEYS_KEY_EC || key_type & PICO_KEYS_KEY_RSA) {
         inseq4_len += asn1_len_tag(0x2, 2);
     }
     p += format_tlv_len(asn1_len_tag(0x30, inseq4_len), p);
@@ -518,7 +518,7 @@ size_t asn1_build_prkd_generic(const uint8_t *label,
     p += format_tlv_len(asn1_len_tag(0x4, 0), p);
     *p++ = 0x4;
     p += format_tlv_len(0, p);
-    if (key_type & HSM_KEY_EC || key_type & HSM_KEY_RSA) {
+    if (key_type & PICO_KEYS_KEY_EC || key_type & PICO_KEYS_KEY_RSA) {
         *p++ = 0x2;
         p += format_tlv_len(2, p);
         *p++ = (keysize >> 8) & 0xff;
@@ -539,7 +539,7 @@ size_t asn1_build_prkd_ecc(const uint8_t *label,
                                    keyid,
                                    keyid_len,
                                    keysize,
-                                   HSM_KEY_EC,
+                                   PICO_KEYS_KEY_EC,
                                    buf,
                                    buf_len);
 }
@@ -556,7 +556,7 @@ size_t asn1_build_prkd_rsa(const uint8_t *label,
                                    keyid,
                                    keyid_len,
                                    keysize,
-                                   HSM_KEY_RSA,
+                                   PICO_KEYS_KEY_RSA,
                                    buf,
                                    buf_len);
 }
@@ -573,7 +573,7 @@ size_t asn1_build_prkd_aes(const uint8_t *label,
                                    keyid,
                                    keyid_len,
                                    keysize,
-                                   HSM_KEY_AES,
+                                   PICO_KEYS_KEY_AES,
                                    buf,
                                    buf_len);
 }

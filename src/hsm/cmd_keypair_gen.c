@@ -69,10 +69,10 @@ int cmd_keypair_gen() {
                     return SW_EXEC_ERROR();
                 }
                 if ((res_APDU_size =
-                         asn1_cvc_aut(&rsa, HSM_KEY_RSA, res_APDU, 4096, NULL, 0)) == 0) {
+                         asn1_cvc_aut(&rsa, PICO_KEYS_KEY_RSA, res_APDU, 4096, NULL, 0)) == 0) {
                     return SW_EXEC_ERROR();
                 }
-                ret = store_keys(&rsa, HSM_KEY_RSA, key_id);
+                ret = store_keys(&rsa, PICO_KEYS_KEY_RSA, key_id);
                 if (ret != CCID_OK) {
                     mbedtls_rsa_free(&rsa);
                     return SW_EXEC_ERROR();
@@ -133,7 +133,7 @@ int cmd_keypair_gen() {
                     }
                 }
                 if ((res_APDU_size =
-                         asn1_cvc_aut(&ecdsa, HSM_KEY_EC, res_APDU, 4096, ext, ext_len)) == 0) {
+                         asn1_cvc_aut(&ecdsa, PICO_KEYS_KEY_EC, res_APDU, 4096, ext, ext_len)) == 0) {
                     if (ext) {
                         free(ext);
                     }
@@ -143,7 +143,7 @@ int cmd_keypair_gen() {
                 if (ext) {
                     free(ext);
                 }
-                ret = store_keys(&ecdsa, HSM_KEY_EC, key_id);
+                ret = store_keys(&ecdsa, PICO_KEYS_KEY_EC, key_id);
                 mbedtls_ecdsa_free(&ecdsa);
                 if (ret != CCID_OK) {
                     return SW_EXEC_ERROR();
