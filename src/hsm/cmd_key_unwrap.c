@@ -68,7 +68,7 @@ int cmd_key_unwrap() {
             return SW_EXEC_ERROR();
         }
         r = store_keys(&ctx, PICO_KEYS_KEY_EC, key_id);
-        if ((res_APDU_size = asn1_cvc_aut(&ctx, HSM_KEY_EC, res_APDU, 4096, NULL, 0)) == 0) {
+        if ((res_APDU_size = asn1_cvc_aut(&ctx, PICO_KEYS_KEY_EC, res_APDU, 4096, NULL, 0)) == 0) {
             mbedtls_ecp_keypair_free(&ctx);
             return SW_EXEC_ERROR();
         }
