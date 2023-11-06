@@ -32,6 +32,13 @@ else()
 pico_sdk_init()
 endif()
 
+if (NOT DEFINED __FOR_CI)
+    set(__FOR_CI 0)
+endif()
+if (__FOR_CI)
+    add_definitions(-D__FOR_CI)
+endif()
+
 add_executable(pico_hsm)
 
 set(SOURCES ${SOURCES}
@@ -70,7 +77,7 @@ set(SOURCES ${SOURCES}
 
         )
 set(USB_ITF_CCID 1)
-include(pico-hsm-sdk/pico_hsm_sdk_import.cmake)
+include(pico-keys-sdk/pico_keys_sdk_import.cmake)
 
 set(INCLUDES ${INCLUDES}
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm
@@ -102,5 +109,5 @@ endif (APPLE)
 else()
 pico_add_extra_outputs(pico_hsm)
 
-target_link_libraries(pico_hsm PRIVATE pico_hsm_sdk pico_stdlib pico_multicore hardware_flash hardware_sync hardware_adc pico_unique_id hardware_rtc tinyusb_device tinyusb_board)
+target_link_libraries(pico_hsm PRIVATE pico_keys_sdk pico_stdlib pico_multicore hardware_flash hardware_sync hardware_adc pico_unique_id hardware_rtc tinyusb_device tinyusb_board)
 endif()

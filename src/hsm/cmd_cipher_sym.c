@@ -412,20 +412,21 @@ int cmd_cipher_sym() {
             res_APDU_size = keylen ? keylen : (apdu.ne > 0 && apdu.ne < 65536 ? apdu.ne : 32);
         }
         else if (memcmp(oid, OID_PKCS5_PBES2, oid_len) == 0) {
+            size_t olen = 0;
             mbedtls_asn1_buf params =
-            { .p = aad, .len = aad_len, .tag = (MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE) };
-            int r = mbedtls_pkcs5_pbes2(&params,
+                {.p = aad, .len = aad_len, .tag = (MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE)};
+            int r = mbedtls_pkcs5_pbes2_ext(&params,
                                         algo == ALGO_EXT_CIPHER_ENCRYPT ? MBEDTLS_PKCS5_ENCRYPT : MBEDTLS_PKCS5_DECRYPT,
                                         kdata,
                                         key_size,
                                         enc,
                                         enc_len,
-                                        res_APDU);
+                                        res_APDU, 4096, &olen);
             mbedtls_platform_zeroize(kdata, sizeof(kdata));
             if (r != 0) {
                 return SW_WRONG_DATA();
             }
-            res_APDU_size = enc_len;
+            res_APDU_size = olen;
         }
         else if (memcmp(oid, OID_KDF_X963, oid_len) == 0) {
             mbedtls_md_type_t md_type = MBEDTLS_MD_SHA1;

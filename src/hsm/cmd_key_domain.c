@@ -23,11 +23,14 @@
 
 uint8_t get_key_domain(file_t *fkey) {
     size_t tag_len = 0;
+    if (!file_has_data(fkey)) {
+        return 0xff;
+    }
     const uint8_t *meta_tag = get_meta_tag(fkey, 0x92, &tag_len);
     if (meta_tag) {
         return *meta_tag;
     }
-    return 0xff;
+    return 0x0;
 }
 
 int cmd_key_domain() {
@@ -65,10 +68,16 @@ int cmd_key_domain() {
             }
             import_dkek_share(p2, apdu.data);
             if (++current_dkeks >= dkeks) {
-                if (save_dkek_key(p2, NULL) != CCID_OK) {
-                    /* On fail, it will return to previous dkek state. */
-                    import_dkek_share(p2, apdu.data);
-                    return SW_FILE_NOT_FOUND();
+                int r = save_dkek_key(p2, NULL);
+                if (r != CCID_OK) {
+                    if (r == CCID_NO_LOGIN) {
+                        pending_save_dkek = p2;
+                    }
+                    else {
+                        /* On fail, it will return to previous dkek state. */
+                        import_dkek_share(p2, apdu.data);
+                        return SW_FILE_NOT_FOUND();
+                    }
                 }
             }
             uint8_t t[MAX_KEY_DOMAINS * 2];
@@ -94,8 +103,9 @@ int cmd_key_domain() {
             return SW_WRONG_LENGTH();
         }
         if (p1 == 0x3) { //if key domain is not empty, command is denied
-            for (int i = 0; i < dynamic_files; i++) {
-                if (get_key_domain(&dynamic_file[i]) == p2) {
+            for (int i = 1; i < 256; i++) {
+                file_t *fkey = search_dynamic_file(KEY_PREFIX << 8 | i);
+                if (get_key_domain(fkey) == p2) {
                     return SW_FILE_EXISTS();
                 }
             }

@@ -35,7 +35,7 @@ int cmd_key_unwrap() {
     if (key_type == 0x0) {
         return SW_DATA_INVALID();
     }
-    if (key_type & HSM_KEY_RSA) {
+    if (key_type & PICO_KEYS_KEY_RSA) {
         mbedtls_rsa_context ctx;
         mbedtls_rsa_init(&ctx);
         do {
@@ -45,8 +45,8 @@ int cmd_key_unwrap() {
             mbedtls_rsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
-        r = store_keys(&ctx, HSM_KEY_RSA, key_id);
-        if ((res_APDU_size = asn1_cvc_aut(&ctx, HSM_KEY_RSA, res_APDU, 4096, NULL, 0)) == 0) {
+        r = store_keys(&ctx, PICO_KEYS_KEY_RSA, key_id);
+        if ((res_APDU_size = asn1_cvc_aut(&ctx, PICO_KEYS_KEY_RSA, res_APDU, 4096, NULL, 0)) == 0) {
             mbedtls_rsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
@@ -57,7 +57,7 @@ int cmd_key_unwrap() {
         }
         prkd_len = asn1_build_prkd_ecc(NULL, 0, NULL, 0, key_size * 8, prkd_buf, sizeof(prkd_buf));
     }
-    else if (key_type & HSM_KEY_EC) {
+    else if (key_type & PICO_KEYS_KEY_EC) {
         mbedtls_ecp_keypair ctx;
         mbedtls_ecp_keypair_init(&ctx);
         do {
@@ -67,7 +67,7 @@ int cmd_key_unwrap() {
             mbedtls_ecp_keypair_free(&ctx);
             return SW_EXEC_ERROR();
         }
-        r = store_keys(&ctx, HSM_KEY_EC, key_id);
+        r = store_keys(&ctx, PICO_KEYS_KEY_EC, key_id);
         if ((res_APDU_size = asn1_cvc_aut(&ctx, HSM_KEY_EC, res_APDU, 4096, NULL, 0)) == 0) {
             mbedtls_ecp_keypair_free(&ctx);
             return SW_EXEC_ERROR();
@@ -79,7 +79,7 @@ int cmd_key_unwrap() {
         }
         prkd_len = asn1_build_prkd_ecc(NULL, 0, NULL, 0, key_size, prkd_buf, sizeof(prkd_buf));
     }
-    else if (key_type & HSM_KEY_AES) {
+    else if (key_type & PICO_KEYS_KEY_AES) {
         uint8_t aes_key[64];
         int key_size = 0, aes_type = 0;
         do {
@@ -95,16 +95,16 @@ int cmd_key_unwrap() {
             return SW_EXEC_ERROR();
         }
         if (key_size == 64) {
-            aes_type = HSM_KEY_AES_512;
+            aes_type = PICO_KEYS_KEY_AES_512;
         }
         else if (key_size == 32) {
-            aes_type = HSM_KEY_AES_256;
+            aes_type = PICO_KEYS_KEY_AES_256;
         }
         else if (key_size == 24) {
-            aes_type = HSM_KEY_AES_192;
+            aes_type = PICO_KEYS_KEY_AES_192;
         }
         else if (key_size == 16) {
-            aes_type = HSM_KEY_AES_128;
+            aes_type = PICO_KEYS_KEY_AES_128;
         }
         else {
             return SW_EXEC_ERROR();

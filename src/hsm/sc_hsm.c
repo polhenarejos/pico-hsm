@@ -24,7 +24,7 @@
 #include "eac.h"
 #include "cvc.h"
 #include "asn1.h"
-#include "hsm.h"
+#include "pico_keys.h"
 #include "usb.h"
 #include "random.h"
 
@@ -80,20 +80,16 @@ extern int cmd_bip_slip();
 
 extern const uint8_t *ccid_atr;
 
-app_t *sc_hsm_select_aid(app_t *a, const uint8_t *aid, uint8_t aid_len) {
-    if (!memcmp(aid, sc_hsm_aid + 1, MIN(aid_len, sc_hsm_aid[0]))) {
-        a->aid = sc_hsm_aid;
-        a->process_apdu = sc_hsm_process_apdu;
-        a->unload = sc_hsm_unload;
-        init_sc_hsm();
-        return a;
-    }
-    return NULL;
+int sc_hsm_select_aid(app_t *a) {
+    a->process_apdu = sc_hsm_process_apdu;
+    a->unload = sc_hsm_unload;
+    init_sc_hsm();
+    return CCID_OK;
 }
 
 void __attribute__((constructor)) sc_hsm_ctor() {
     ccid_atr = atr_sc_hsm;
-    register_app(sc_hsm_select_aid);
+    register_app(sc_hsm_select_aid, sc_hsm_aid);
 }
 
 void scan_files() {
@@ -289,7 +285,11 @@ bool wait_button_pressed() {
 }
 
 int parse_token_info(const file_t *f, int mode) {
+#ifdef __FOR_CI
+    char *label = "SmartCard-HSM";
+#else
     char *label = "Pico-HSM";
+#endif
     char *manu = "Pol Henarejos";
     if (mode == 1) {
         uint8_t *p = res_APDU;
@@ -407,6 +407,10 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
         hash_multi(data, len, session_sopin);
         has_session_sopin = true;
     }
+    if (pending_save_dkek != 0xff) {
+        save_dkek_key(pending_save_dkek, NULL);
+        pending_save_dkek = 0xff;
+    }
     return SW_OK();
 }
 
@@ -492,30 +496,30 @@ uint32_t decrement_key_counter(file_t *fkey) {
 int store_keys(void *key_ctx, int type, uint8_t key_id) {
     int r, key_size = 0;
     uint8_t kdata[4096 / 8]; // worst case
-    if (type & HSM_KEY_RSA) {
+    if (type & PICO_KEYS_KEY_RSA) {
         mbedtls_rsa_context *rsa = (mbedtls_rsa_context *) key_ctx;
         key_size = mbedtls_mpi_size(&rsa->P) + mbedtls_mpi_size(&rsa->Q);
         mbedtls_mpi_write_binary(&rsa->P, kdata, key_size / 2);
         mbedtls_mpi_write_binary(&rsa->Q, kdata + key_size / 2, key_size / 2);
     }
-    else if (type & HSM_KEY_EC) {
+    else if (type & PICO_KEYS_KEY_EC) {
         mbedtls_ecdsa_context *ecdsa = (mbedtls_ecdsa_context *) key_ctx;
         key_size = mbedtls_mpi_size(&ecdsa->d);
         kdata[0] = ecdsa->grp.id & 0xff;
         mbedtls_ecp_write_key(ecdsa, kdata + 1, key_size);
         key_size++;
     }
-    else if (type & HSM_KEY_AES) {
-        if (type == HSM_KEY_AES_128) {
+    else if (type & PICO_KEYS_KEY_AES) {
+        if (type == PICO_KEYS_KEY_AES_128) {
             key_size = 16;
         }
-        else if (type == HSM_KEY_AES_192) {
+        else if (type == PICO_KEYS_KEY_AES_192) {
             key_size = 24;
         }
-        else if (type == HSM_KEY_AES_256) {
+        else if (type == PICO_KEYS_KEY_AES_256) {
             key_size = 32;
         }
-        else if (type == HSM_KEY_AES_512) {
+        else if (type == PICO_KEYS_KEY_AES_512) {
             key_size = 64;
         }
         memcpy(kdata, key_ctx, key_size);

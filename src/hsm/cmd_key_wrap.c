@@ -67,7 +67,7 @@ int cmd_key_wrap() {
             }
             return SW_EXEC_ERROR();
         }
-        r = dkek_encode_key(kdom, &ctx, HSM_KEY_RSA, res_APDU, &wrap_len, meta_tag, tag_len);
+        r = dkek_encode_key(kdom, &ctx, PICO_KEYS_KEY_RSA, res_APDU, &wrap_len, meta_tag, tag_len);
         mbedtls_rsa_free(&ctx);
     }
     else if (*dprkd == P15_KEYTYPE_ECC) {
@@ -81,7 +81,7 @@ int cmd_key_wrap() {
             }
             return SW_EXEC_ERROR();
         }
-        r = dkek_encode_key(kdom, &ctx, HSM_KEY_EC, res_APDU, &wrap_len, meta_tag, tag_len);
+        r = dkek_encode_key(kdom, &ctx, PICO_KEYS_KEY_EC, res_APDU, &wrap_len, meta_tag, tag_len);
         mbedtls_ecp_keypair_free(&ctx);
     }
     else if (*dprkd == P15_KEYTYPE_AES) {
@@ -90,22 +90,22 @@ int cmd_key_wrap() {
             return SW_SECURE_MESSAGE_EXEC_ERROR();
         }
 
-        int key_size = file_get_size(ef), aes_type = HSM_KEY_AES;
+        int key_size = file_get_size(ef), aes_type = PICO_KEYS_KEY_AES;
         memcpy(kdata, file_get_data(ef), key_size);
         if (mkek_decrypt(kdata, key_size) != 0) {
             return SW_EXEC_ERROR();
         }
         if (key_size == 64) {
-            aes_type = HSM_KEY_AES_512;
+            aes_type = PICO_KEYS_KEY_AES_512;
         }
         else if (key_size == 32) {
-            aes_type = HSM_KEY_AES_256;
+            aes_type = PICO_KEYS_KEY_AES_256;
         }
         else if (key_size == 24) {
-            aes_type = HSM_KEY_AES_192;
+            aes_type = PICO_KEYS_KEY_AES_192;
         }
         else if (key_size == 16) {
-            aes_type = HSM_KEY_AES_128;
+            aes_type = PICO_KEYS_KEY_AES_128;
         }
         r = dkek_encode_key(kdom, kdata, aes_type, res_APDU, &wrap_len, meta_tag, tag_len);
         mbedtls_platform_zeroize(kdata, sizeof(kdata));

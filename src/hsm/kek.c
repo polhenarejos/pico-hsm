@@ -36,6 +36,7 @@ extern bool has_session_pin, has_session_sopin;
 extern uint8_t session_pin[32], session_sopin[32];
 uint8_t mkek_mask[MKEK_KEY_SIZE];
 bool has_mkek_mask = false;
+uint8_t pending_save_dkek = 0xff;
 
 #define POLY 0xedb88320
 
@@ -286,7 +287,7 @@ int dkek_encode_key(uint8_t id,
                     size_t *out_len,
                     const uint8_t *allowed,
                     size_t allowed_len) {
-    if (!(key_type & HSM_KEY_RSA) && !(key_type & HSM_KEY_EC) && !(key_type & HSM_KEY_AES)) {
+    if (!(key_type & PICO_KEYS_KEY_RSA) && !(key_type & PICO_KEYS_KEY_EC) && !(key_type & PICO_KEYS_KEY_AES)) {
         return CCID_WRONG_DATA;
     }
 
@@ -316,17 +317,17 @@ int dkek_encode_key(uint8_t id,
         return r;
     }
 
-    if (key_type & HSM_KEY_AES) {
-        if (key_type & HSM_KEY_AES_128) {
+    if (key_type & PICO_KEYS_KEY_AES) {
+        if (key_type & PICO_KEYS_KEY_AES_128) {
             kb_len = 16;
         }
-        else if (key_type & HSM_KEY_AES_192) {
+        else if (key_type & PICO_KEYS_KEY_AES_192) {
             kb_len = 24;
         }
-        else if (key_type & HSM_KEY_AES_256) {
+        else if (key_type & PICO_KEYS_KEY_AES_256) {
             kb_len = 32;
         }
-        else if (key_type & HSM_KEY_AES_512) {
+        else if (key_type & PICO_KEYS_KEY_AES_512) {
             kb_len = 64;
         }
 
@@ -344,7 +345,7 @@ int dkek_encode_key(uint8_t id,
         algo = (uint8_t *) "\x00\x08\x60\x86\x48\x01\x65\x03\x04\x01"; //2.16.840.1.101.3.4.1 (2+8)
         algo_len = 10;
     }
-    else if (key_type & HSM_KEY_RSA) {
+    else if (key_type & PICO_KEYS_KEY_RSA) {
         if (*out_len < 8 + 1 + 12 + 6 + (8 + 2 * 4 + 2 * 4096 / 8 + 3 + 13) + 16) { //13 bytes pading
             return CCID_WRONG_LENGTH;
         }
@@ -365,7 +366,7 @@ int dkek_encode_key(uint8_t id,
         algo = (uint8_t *) "\x00\x0A\x04\x00\x7F\x00\x07\x02\x02\x02\x01\x02";
         algo_len = 12;
     }
-    else if (key_type & HSM_KEY_EC) {
+    else if (key_type & PICO_KEYS_KEY_EC) {
         if (*out_len < 8 + 1 + 12 + 6 + (8 + 2 * 8 + 9 * 66 + 2 + 4) + 16) { //4 bytes pading
             return CCID_WRONG_LENGTH;
         }
@@ -417,13 +418,13 @@ int dkek_encode_key(uint8_t id,
     memcpy(out + *out_len, kcv, 8);
     *out_len += 8;
 
-    if (key_type & HSM_KEY_AES) {
+    if (key_type & PICO_KEYS_KEY_AES) {
         out[*out_len] = 15;
     }
-    else if (key_type & HSM_KEY_RSA) {
+    else if (key_type & PICO_KEYS_KEY_RSA) {
         out[*out_len] = 5;
     }
-    else if (key_type & HSM_KEY_EC) {
+    else if (key_type & PICO_KEYS_KEY_EC) {
         out[*out_len] = 12;
     }
     *out_len += 1;
@@ -457,7 +458,7 @@ int dkek_encode_key(uint8_t id,
     if (kb_len < kb_len_pad) {
         kb[kb_len] = 0x80;
     }
-    r = aes_encrypt(kenc, NULL, 256, HSM_AES_MODE_CBC, kb, kb_len_pad);
+    r = aes_encrypt(kenc, NULL, 256, PICO_KEYS_AES_MODE_CBC, kb, kb_len_pad);
     if (r != CCID_OK) {
         return r;
     }
@@ -481,13 +482,13 @@ int dkek_encode_key(uint8_t id,
 
 int dkek_type_key(const uint8_t *in) {
     if (in[8] == 5 || in[8] == 6) {
-        return HSM_KEY_RSA;
+        return PICO_KEYS_KEY_RSA;
     }
     else if (in[8] == 12) {
-        return HSM_KEY_EC;
+        return PICO_KEYS_KEY_EC;
     }
     else if (in[8] == 15) {
-        return HSM_KEY_AES;
+        return PICO_KEYS_KEY_AES;
     }
     return 0x0;
 }
@@ -584,7 +585,7 @@ int dkek_decode_key(uint8_t id,
     uint8_t kb[8 + 2 * 4 + 2 * 4096 / 8 + 3 + 13]; //worst case: RSA-4096  (plus, 13 bytes padding)
     memset(kb, 0, sizeof(kb));
     memcpy(kb, in + ofs, in_len - 16 - ofs);
-    r = aes_decrypt(kenc, NULL, 256, HSM_AES_MODE_CBC, kb, in_len - 16 - ofs);
+    r = aes_decrypt(kenc, NULL, 256, PICO_KEYS_AES_MODE_CBC, kb, in_len - 16 - ofs);
     if (r != CCID_OK) {
         return r;
     }

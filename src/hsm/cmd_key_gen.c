@@ -44,16 +44,16 @@ int cmd_key_gen() {
     memcpy(aes_key, random_bytes_get(key_size), key_size);
     int aes_type = 0x0;
     if (key_size == 16) {
-        aes_type = HSM_KEY_AES_128;
+        aes_type = PICO_KEYS_KEY_AES_128;
     }
     else if (key_size == 24) {
-        aes_type = HSM_KEY_AES_192;
+        aes_type = PICO_KEYS_KEY_AES_192;
     }
     else if (key_size == 32) {
-        aes_type = HSM_KEY_AES_256;
+        aes_type = PICO_KEYS_KEY_AES_256;
     }
     else if (key_size == 64) {
-        aes_type = HSM_KEY_AES_512;
+        aes_type = PICO_KEYS_KEY_AES_512;
     }
     r = store_keys(aes_key, aes_type, key_id);
     if (r != CCID_OK) {

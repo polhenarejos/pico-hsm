@@ -74,4 +74,6 @@ extern mse_t mse;
 
 extern int mse_decrypt_ct(uint8_t *, size_t);
 
+extern uint8_t pending_save_dkek;
+
 #endif

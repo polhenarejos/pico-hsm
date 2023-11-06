@@ -23,9 +23,7 @@ on:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
     steps:
     - name: Checkout repository and submodules
       uses: actions/checkout@v3
@@ -33,5 +31,36 @@ jobs:
         submodules: recursive
     - name: Build in container
       run: ./tests/build-in-docker.sh
-    - name: Start emulation and test
-      run: ./tests/run-test-in-docker.sh
+    - name: Export image
+      run: |
+        mkdir -p artifacts
+        docker save pico-hsm-test:bullseye -o artifacts/docker-image.tar
+    - name: Temporarily save image
+      uses: actions/upload-artifact@v3
+      with:
+        name: docker-artifact
+        path: artifacts
+        retention-days: 1
+
+  test:
+    runs-on: ubuntu-latest
+    needs: build
+    strategy:
+      matrix:
+        suite: ["pkcs11", "pytest", "sc-hsm-pkcs11"]
+    steps:
+    - name: Checkout repository and submodules
+      uses: actions/checkout@v3
+      with:
+        submodules: recursive
+    - name: Retrieve saved image
+      uses: actions/download-artifact@v3
+      with:
+        name: docker-artifact
+        path: artifacts
+    - name: Load image
+      run: |
+        cd artifacts
+        docker load -q -i docker-image.tar
+    - name: Test ${{ matrix.suite }}
+      run: ./tests/run-test-in-docker.sh ${{ matrix.suite }}
