@@ -102,14 +102,12 @@ def parse_args():
     parser_cipher_encrypt = subparser_cipher.add_parser('encrypt', help='Performs encryption.')
     parser_cipher_decrypt = subparser_cipher.add_parser('decrypt', help='Performs decryption.')
     parser_cipher_keygen = subparser_cipher.add_parser('keygen', help='Generates new AES key.')
-    parser_cipher_hmac = subparser_cipher.add_parser('hmac', help='Computes HMAC.')
+    parser_cipher_hmac = subparser_cipher.add_parser('mac', help='Computes MAC (HMAC or CMAC).')
     parser_cipher_kdf = subparser_cipher.add_parser('kdf', help='Performs key derivation function on a secret key.')
     parser_cipher_encrypt.add_argument('--alg', choices=['CHACHAPOLY'], required=True)
-    parser_cipher_encrypt.add_argument('--iteration', help='Iteration count.', required=any(['PBKDF2' in s for s in sys.argv]))
     parser_cipher_decrypt.add_argument('--alg', choices=['CHACHAPOLY'], required=True)
-    parser_cipher_decrypt.add_argument('--iteration', help='Iteration count.', required=any(['PBKDF2' in s for s in sys.argv]))
 
-    parser_cipher_hmac.add_argument('--alg', choices=['HMAC-SHA1', 'HMAC-SHA224', 'HMAC-SHA256', 'HMAC-SHA384', 'HMAC-SHA512'], help='Selects the algorithm.', required=True)
+    parser_cipher_hmac.add_argument('--alg', choices=['CMAC', 'HMAC-SHA1', 'HMAC-SHA224', 'HMAC-SHA256', 'HMAC-SHA384', 'HMAC-SHA512'], help='Selects the algorithm.', required=True)
     parser_cipher_kdf.add_argument('--alg', choices=['HKDF-SHA256', 'HKDF-SHA384', 'HKDF-SHA512', 'PBKDF2-SHA1', 'PBKDF2-SHA224', 'PBKDF2-SHA256', 'PBKDF2-SHA384', 'PBKDF2-SHA512', 'X963-SHA1', 'X963-SHA224', 'X963-SHA256', 'X963-SHA384', 'X963-SHA512'], help='Selects the algorithm.', required=True)
     parser_cipher_kdf.add_argument('--output-len', help='Specifies the output length of derived material.')
     parser_cipher_kdf.add_argument('--iteration', help='Iteration count.', required=any(['PBKDF2' in s for s in sys.argv]))
@@ -382,6 +380,8 @@ def cipher(picohsm, args):
         mode = EncryptionMode.ENCRYPT if args.subcommand[0] == 'e' else EncryptionMode.DECRYPT
         if (args.alg == 'CHACHAPOLY'):
             ret = picohsm.chachapoly(args.key, mode, data=enc, iv=iv, aad=aad)
+        elif (args.alg == 'CMAC'):
+            ret = picohsm.cmac(keyid=args.key, data=enc)
         elif (args.alg == 'HMAC-SHA1'):
             ret = picohsm.hmac(hashes.SHA1, args.key, data=enc)
         elif (args.alg == 'HMAC-SHA224'):
