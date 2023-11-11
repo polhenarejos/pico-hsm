@@ -97,7 +97,7 @@ def parse_args():
     parser_opts_unlock = subparser_secure.add_parser('unlock', help='Unlocks the secure lock.')
     parser_opts_disable = subparser_secure.add_parser('disable', help='Disables secure lock.')
 
-    parser_cipher = subparser.add_parser('cipher', help='Implements extended symmetric ciphering with new algorithms and options.\n\tIf no file input/output is specified, stdin/stoud will be used.')
+    parser_cipher = subparser.add_parser('cipher', help='Implements extended symmetric ciphering with new algorithms and options.\n\tIf no file input/output is specified, stdin/stdout will be used.')
     subparser_cipher = parser_cipher.add_subparsers(title='commands', dest='subcommand')
     parser_cipher_encrypt = subparser_cipher.add_parser('encrypt', help='Performs encryption.')
     parser_cipher_decrypt = subparser_cipher.add_parser('decrypt', help='Performs decryption.')
