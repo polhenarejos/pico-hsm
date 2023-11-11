@@ -39,7 +39,7 @@ except ModuleNotFoundError:
     sys.exit(-1)
 
 try:
-    from picohsm import PicoHSM, PinType, DOPrefixes, KeyType, EncryptionMode, utils, APDUResponse, SWCodes
+    from picohsm import PicoHSM, PinType, DOPrefixes, KeyType, EncryptionMode, utils, APDUResponse, SWCodes, AES
 except ModuleNotFoundError:
     print('ERROR: picohsm module not found! Install picohsm package.\nTry with `pip install pypicohsm`')
     sys.exit(-1)
@@ -104,8 +104,8 @@ def parse_args():
     parser_cipher_keygen = subparser_cipher.add_parser('keygen', help='Generates new AES key.')
     parser_cipher_hmac = subparser_cipher.add_parser('mac', help='Computes MAC (HMAC or CMAC).')
     parser_cipher_kdf = subparser_cipher.add_parser('kdf', help='Performs key derivation function on a secret key.')
-    parser_cipher_encrypt.add_argument('--alg', choices=['CHACHAPOLY'], required=True)
-    parser_cipher_decrypt.add_argument('--alg', choices=['CHACHAPOLY'], required=True)
+    parser_cipher_encrypt.add_argument('--alg', choices=['CHACHAPOLY','AES-ECB','AES-CBC','AES-OFB','AES-CFB','AES-GCM','AES-CCM','AES-CTR','AES-XTS'], required=True)
+    parser_cipher_decrypt.add_argument('--alg', choices=['CHACHAPOLY','AES-ECB','AES-CBC','AES-OFB','AES-CFB','AES-GCM','AES-CCM','AES-CTR','AES-XTS'], required=True)
 
     parser_cipher_hmac.add_argument('--alg', choices=['CMAC', 'HMAC-SHA1', 'HMAC-SHA224', 'HMAC-SHA256', 'HMAC-SHA384', 'HMAC-SHA512'], help='Selects the algorithm.', required=True)
     parser_cipher_kdf.add_argument('--alg', choices=['HKDF-SHA256', 'HKDF-SHA384', 'HKDF-SHA512', 'PBKDF2-SHA1', 'PBKDF2-SHA224', 'PBKDF2-SHA256', 'PBKDF2-SHA384', 'PBKDF2-SHA512', 'X963-SHA1', 'X963-SHA224', 'X963-SHA256', 'X963-SHA384', 'X963-SHA512'], help='Selects the algorithm.', required=True)
@@ -376,48 +376,65 @@ def cipher(picohsm, args):
         aad = args.aad
         if (args.aad and args.hex):
                 aad = unhexlify(aad)
+        kid = int(args.key)
 
         mode = EncryptionMode.ENCRYPT if args.subcommand[0] == 'e' else EncryptionMode.DECRYPT
         if (args.alg == 'CHACHAPOLY'):
-            ret = picohsm.chachapoly(args.key, mode, data=enc, iv=iv, aad=aad)
+            ret = picohsm.chachapoly(kid, mode, data=enc, iv=iv, aad=aad)
+        elif (args.alg == 'AES-ECB'):
+            ret = picohsm.aes(keyid=kid, mode=mode, algorithm=AES.ECB, data=enc, iv=iv, aad=aad)
+        elif (args.alg == 'AES-CBC'):
+            ret = picohsm.aes(keyid=kid, mode=mode, algorithm=AES.CBC, data=enc, iv=iv, aad=aad)
+        elif (args.alg == 'AES-OFB'):
+            ret = picohsm.aes(keyid=kid, mode=mode, algorithm=AES.OFB, data=enc, iv=iv, aad=aad)
+        elif (args.alg == 'AES-CFB'):
+            ret = picohsm.aes(keyid=kid, mode=mode, algorithm=AES.CFB, data=enc, iv=iv, aad=aad)
+        elif (args.alg == 'AES-GCM'):
+            ret = picohsm.aes(keyid=kid, mode=mode, algorithm=AES.GCM, data=enc, iv=iv, aad=aad)
+        elif (args.alg == 'AES-CCM'):
+            ret = picohsm.aes(keyid=kid, mode=mode, algorithm=AES.CCM, data=enc, iv=iv, aad=aad)
+        elif (args.alg == 'AES-CTR'):
+            ret = picohsm.aes(keyid=kid, mode=mode, algorithm=AES.CTR, data=enc, iv=iv, aad=aad)
+        elif (args.alg == 'AES-XTS'):
+            ret = picohsm.aes(keyid=kid, mode=mode, algorithm=AES.XTS, data=enc, iv=iv, aad=aad)
         elif (args.alg == 'CMAC'):
-            ret = picohsm.cmac(keyid=args.key, data=enc)
+            ret = picohsm.cmac(keyid=kid, data=enc)
         elif (args.alg == 'HMAC-SHA1'):
-            ret = picohsm.hmac(hashes.SHA1, args.key, data=enc)
+            ret = picohsm.hmac(hashes.SHA1, kid, data=enc)
         elif (args.alg == 'HMAC-SHA224'):
-            ret = picohsm.hmac(hashes.SHA224, args.key, data=enc)
+            ret = picohsm.hmac(hashes.SHA224, kid, data=enc)
         elif (args.alg == 'HMAC-SHA256'):
-            ret = picohsm.hmac(hashes.SHA256, args.key, data=enc)
+            ret = picohsm.hmac(hashes.SHA256, kid, data=enc)
         elif (args.alg == 'HMAC-SHA384'):
-            ret = picohsm.hmac(hashes.SHA384, args.key, data=enc)
+            ret = picohsm.hmac(hashes.SHA384, kid, data=enc)
         elif (args.alg == 'HMAC-SHA512'):
-            ret = picohsm.hmac(hashes.SHA512, args.key, data=enc)
+            ret = picohsm.hmac(hashes.SHA512, kid, data=enc)
         elif (args.alg == 'HKDF-SHA256'):
-            ret = picohsm.hkdf(hashes.SHA256, args.key, data=enc, salt=iv, out_len=args.output_len)
+            ret = picohsm.hkdf(hashes.SHA256, kid, data=enc, salt=iv, out_len=args.output_len)
         elif (args.alg == 'HKDF-SHA384'):
-            ret = picohsm.hkdf(hashes.SHA384, args.key, data=enc, salt=iv, out_len=args.output_len)
+            ret = picohsm.hkdf(hashes.SHA384, kid, data=enc, salt=iv, out_len=args.output_len)
         elif (args.alg == 'HKDF-SHA512'):
-            ret = picohsm.hkdf(hashes.SHA512, args.key, data=enc, salt=iv, out_len=args.output_len)
+            ret = picohsm.hkdf(hashes.SHA512, kid, data=enc, salt=iv, out_len=args.output_len)
         elif (args.alg == 'PBKDF2-SHA1'):
-            ret = picohsm.pbkdf2(hashes.SHA1, args.key, salt=iv, iterations=args.iteration, out_len=args.output_len)
+            ret = picohsm.pbkdf2(hashes.SHA1, kid, salt=iv, iterations=args.iteration, out_len=args.output_len)
         elif (args.alg == 'PBKDF2-SHA224'):
-            ret = picohsm.pbkdf2(hashes.SHA224, args.key, salt=iv, iterations=args.iteration, out_len=args.output_len)
+            ret = picohsm.pbkdf2(hashes.SHA224, kid, salt=iv, iterations=args.iteration, out_len=args.output_len)
         elif (args.alg == 'PBKDF2-SHA256'):
-            ret = picohsm.pbkdf2(hashes.SHA256, args.key, salt=iv, iterations=args.iteration, out_len=args.output_len)
+            ret = picohsm.pbkdf2(hashes.SHA256, kid, salt=iv, iterations=args.iteration, out_len=args.output_len)
         elif (args.alg == 'PBKDF2-SHA384'):
-            ret = picohsm.pbkdf2(hashes.SHA384, args.key, salt=iv, iterations=args.iteration, out_len=args.output_len)
+            ret = picohsm.pbkdf2(hashes.SHA384, kid, salt=iv, iterations=args.iteration, out_len=args.output_len)
         elif (args.alg == 'PBKDF2-SHA512'):
-            ret = picohsm.pbkdf2(hashes.SHA512, args.key, salt=iv, iterations=args.iteration, out_len=args.output_len)
+            ret = picohsm.pbkdf2(hashes.SHA512, kid, salt=iv, iterations=args.iteration, out_len=args.output_len)
         elif (args.alg == 'X963-SHA1'):
-            ret = picohsm.x963(hashes.SHA1, args.key, data=enc, out_len=args.output_len)
+            ret = picohsm.x963(hashes.SHA1, kid, data=enc, out_len=args.output_len)
         elif (args.alg == 'X963-SHA224'):
-            ret = picohsm.x963(hashes.SHA224, args.key, data=enc, out_len=args.output_len)
+            ret = picohsm.x963(hashes.SHA224, kid, data=enc, out_len=args.output_len)
         elif (args.alg == 'X963-SHA256'):
-            ret = picohsm.x963(hashes.SHA256, args.key, data=enc, out_len=args.output_len)
+            ret = picohsm.x963(hashes.SHA256, kid, data=enc, out_len=args.output_len)
         elif (args.alg == 'X963-SHA384'):
-            ret = picohsm.x963(hashes.SHA384, args.key, data=enc, out_len=args.output_len)
+            ret = picohsm.x963(hashes.SHA384, kid, data=enc, out_len=args.output_len)
         elif (args.alg == 'X963-SHA512'):
-            ret = picohsm.x963(hashes.SHA512, args.key, data=enc, out_len=args.output_len)
+            ret = picohsm.x963(hashes.SHA512, kid, data=enc, out_len=args.output_len)
 
         if (args.file_out):
             fout = open(args.file_out, 'wb')
@@ -454,7 +471,7 @@ def x25519(picohsm, args):
     cdata += b'\x42\x0C\x55\x54\x44\x55\x4D\x4D\x59\x30\x30\x30\x30\x31'
     cdata += b'\x7f\x49\x81' + bytes([len(oid)+len(p_data)+len(a_data)+len(g_data)+len(n_data)+len(h_data)]) + oid + p_data + a_data + g_data + n_data + h_data
     cdata += b'\x5F\x20\x0C\x55\x54\x44\x55\x4D\x4D\x59\x30\x30\x30\x30\x31'
-    ret = picohsm.send(command=0x46, p1=args.key, data=list(cdata))
+    ret = picohsm.send(command=0x46, p1=int(args.key), data=list(cdata))
 
 def main(args):
     sys.stderr.buffer.write(b'Pico HSM Tool v1.10\n')
