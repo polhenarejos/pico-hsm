@@ -117,7 +117,7 @@ def parse_args():
     parser_cipher.add_argument('--file-out', help='File to write the result.')
     parser_cipher.add_argument('--aad', help='Specifies the authentication data (it can be a string or hex string. Combine with --hex if necesary).')
     parser_cipher.add_argument('--hex', help='Parses the AAD parameter as a hex string (for binary data).', action='store_true')
-    parser_cipher.add_argument('-k', '--key', help='The private key index', metavar='KEY_ID', required=True)
+    parser_cipher.add_argument('-k', '--key', help='The private key index', metavar='KEY_ID', required=all(['keygen' not in s for s in sys.argv]))
     parser_cipher.add_argument('-s', '--key-size', default=32, help='Size of the key in bytes.')
 
     parser_x25519 = argparse.ArgumentParser(add_help=False)
@@ -363,6 +363,8 @@ def secure(picohsm, args):
 def cipher(picohsm, args):
     if (args.subcommand == 'keygen'):
         ret = picohsm.key_generation(KeyType.AES, param=args.key_size * 8)
+        print('Key generated successfully.')
+        print(f'Key ID: {ret}')
     else:
         if (args.file_in):
             fin = open(args.file_in, 'rb')
