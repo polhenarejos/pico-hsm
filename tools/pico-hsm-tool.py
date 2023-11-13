@@ -62,7 +62,7 @@ def hexy(a):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    subparser = parser.add_subparsers(title="commands", dest="command")
+    subparser = parser.add_subparsers(title="commands", dest="command", required=True)
     parser_init = subparser.add_parser('initialize', help='Performs the first initialization of the Pico HSM.')
     parser.add_argument('--pin', help='PIN number')
     parser_init.add_argument('--so-pin', help='SO-PIN number')
@@ -72,7 +72,7 @@ def parse_args():
     parser_attestate.add_argument('-k', '--key', help='The private key index', metavar='KEY_ID')
 
     parser_pki = subparser.add_parser('pki', help='Performs PKI operations.')
-    subparser_pki = parser_pki.add_subparsers(title='commands', dest='subcommand')
+    subparser_pki = parser_pki.add_subparsers(title='commands', dest='subcommand', required=True)
     parser_pki_init = subparser_pki.add_parser('initialize', help='Initializes the Public Key Infrastructure (PKI)')
 
     parser_pki_init.add_argument('--certs-dir', help='Store the PKI certificates into this directory.', default='certs')
@@ -80,25 +80,25 @@ def parse_args():
     parser_pki_init.add_argument('--force', help='Forces the download of certificates.', action='store_true')
 
     parser_rtc = subparser.add_parser('datetime', help='Datetime operations with the integrated Real Time Clock (RTC).')
-    subparser_rtc = parser_rtc.add_subparsers(title='commands', dest='subcommand')
+    subparser_rtc = parser_rtc.add_subparsers(title='commands', dest='subcommand', required=True)
     parser_rtc_set = subparser_rtc.add_parser('set', help='Sets the current datetime.')
     parser_rtc_get = subparser_rtc.add_parser('get', help='Gets the current datetime.')
 
     parser_opts = subparser.add_parser('options', help='Manage extra options.', formatter_class=RawTextHelpFormatter)
-    subparser_opts = parser_opts.add_subparsers(title='commands', dest='subcommand')
+    subparser_opts = parser_opts.add_subparsers(title='commands', dest='subcommand', required=True)
     parser_opts_set = subparser_opts.add_parser('set', help='Sets option OPT.')
     parser_opts_get = subparser_opts.add_parser('get', help='Gets optiont OPT.')
     parser_opts.add_argument('opt', choices=['button', 'counter'], help='button: press-to-confirm button.\ncounter: every generated key has an internal counter.', metavar='OPT')
     parser_opts_set.add_argument('onoff', choices=['on', 'off'], help='Toggles state ON or OFF', metavar='ON/OFF', nargs='?')
 
     parser_secure = subparser.add_parser('secure', help='Manages security of Pico HSM.')
-    subparser_secure = parser_secure.add_subparsers(title='commands', dest='subcommand')
+    subparser_secure = parser_secure.add_subparsers(title='commands', dest='subcommand', required=True)
     parser_opts_enable = subparser_secure.add_parser('enable', help='Enables secure lock.')
     parser_opts_unlock = subparser_secure.add_parser('unlock', help='Unlocks the secure lock.')
     parser_opts_disable = subparser_secure.add_parser('disable', help='Disables secure lock.')
 
     parser_cipher = subparser.add_parser('cipher', help='Implements extended symmetric ciphering with new algorithms and options.\n\tIf no file input/output is specified, stdin/stdout will be used.')
-    subparser_cipher = parser_cipher.add_subparsers(title='commands', dest='subcommand')
+    subparser_cipher = parser_cipher.add_subparsers(title='commands', dest='subcommand', required=True)
     parser_cipher_encrypt = subparser_cipher.add_parser('encrypt', help='Performs encryption.')
     parser_cipher_decrypt = subparser_cipher.add_parser('decrypt', help='Performs decryption.')
     parser_cipher_hmac = subparser_cipher.add_parser('mac', help='Computes MAC (HMAC or CMAC).')
