@@ -539,6 +539,19 @@ int store_keys(void *key_ctx, int type, uint8_t key_id) {
     if (r != CCID_OK) {
         return r;
     }
+    char key_id_str[4] = {0};
+    sprintf(key_id_str, "%u", key_id);
+    if (type & PICO_KEYS_KEY_EC) {
+        key_size--;
+    }
+    size_t prkd_len = asn1_build_prkd_generic(NULL, 0, (uint8_t *)key_id_str, strlen(key_id_str), key_size * 8, type, kdata, sizeof(kdata));
+    if (prkd_len > 0) {
+        fpk = file_new((PRKD_PREFIX << 8) | key_id);
+        r = flash_write_data_to_file(fpk, kdata, prkd_len);
+        if (r != 0) {
+            return SW_EXEC_ERROR();
+        }
+    }
     low_flash_available();
     return CCID_OK;
 }
