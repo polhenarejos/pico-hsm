@@ -55,7 +55,7 @@ int cmd_key_unwrap() {
         if (r != CCID_OK) {
             return SW_EXEC_ERROR();
         }
-        prkd_len = asn1_build_prkd_ecc(NULL, 0, NULL, 0, key_size * 8, prkd_buf, sizeof(prkd_buf));
+        prkd_len = asn1_build_prkd_rsa(NULL, 0, NULL, 0, key_size * 8, prkd_buf, sizeof(prkd_buf));
     }
     else if (key_type & PICO_KEYS_KEY_EC) {
         mbedtls_ecdsa_context ctx;
