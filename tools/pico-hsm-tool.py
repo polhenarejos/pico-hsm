@@ -480,6 +480,7 @@ def main(args):
     sys.stderr.buffer.write(b'Author: Pol Henarejos\n')
     sys.stderr.buffer.write(b'Report bugs to https://github.com/polhenarejos/pico-hsm/issues\n')
     sys.stderr.buffer.write(b'\n\n')
+    sys.stderr.flush()
 
     picohsm = PicoHSM(args.pin)
 
