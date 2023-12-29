@@ -69,14 +69,19 @@ def test_set_key_domain_ok(device):
 
 def test_import_dkek_ok(device):
     resp = device.import_dkek(DEFAULT_DKEK, key_domain=TEST_KEY_DOMAIN)
-    assert(resp[0] == DEFAULT_DKEK_SHARES)
-    assert(resp[1] == DEFAULT_DKEK_SHARES-1)
+    assert('dkek' in resp)
+    assert('kcv' in resp)
+    assert(resp['dkek']['total'] == DEFAULT_DKEK_SHARES)
+    assert(resp['dkek']['missing'] == DEFAULT_DKEK_SHARES-1)
 
     resp = device.import_dkek(DEFAULT_DKEK, key_domain=TEST_KEY_DOMAIN)
-    assert(resp[1] == DEFAULT_DKEK_SHARES-2)
+    assert('dkek' in resp)
+    assert('kcv' in resp)
+    assert(resp['dkek']['total'] == DEFAULT_DKEK_SHARES)
+    assert(resp['dkek']['missing'] == DEFAULT_DKEK_SHARES-2)
 
     kcv = hashlib.sha256(b'\x00'*32).digest()[:8]
-    assert(resp[2:] == kcv)
+    assert(resp['kcv'] == kcv)
 
 def test_clear_key_domain(device):
     kd = device.get_key_domain(key_domain=0)
