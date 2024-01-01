@@ -101,7 +101,7 @@ file_t file_entries[] = {
     ///* 30 */ { .fid = 0x0000, .parent = 0, .name = openpgpcard_aid, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} },
     /* 31 */ { .fid = 0x0000, .parent = 5, .name = sc_hsm_aid, .type = FILE_TYPE_WORKING_EF,
                .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = { 0 } },
-    /* 32 */ { .fid = 0x0000, .parent = 0xff, .name = NULL, .type = FILE_TYPE_UNKNOWN, .data = NULL,
+    /* 32 */ { .fid = 0x0000, .parent = 0xff, .name = NULL, .type = FILE_TYPE_NOT_KNOWN, .data = NULL,
                .ef_structure = 0, .acl = { 0 } }                                                                                     //end
 };
 

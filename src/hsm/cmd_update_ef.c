@@ -48,15 +48,15 @@ int cmd_update_ef() {
 
     uint16_t tag = 0x0;
     uint8_t *tag_data = NULL, *p = NULL;
-    size_t tag_len = 0;
-    while (walk_tlv(apdu.data, apdu.nc, &p, &tag, &tag_len, &tag_data)) {
+    uint16_t tag_len = 0;
+    while (walk_tlv(apdu.data, (uint16_t)apdu.nc, &p, &tag, &tag_len, &tag_data)) {
         if (tag == 0x54) { //ofset tag
-            for (int i = 1; i <= tag_len; i++) {
+            for (size_t i = 1; i <= tag_len; i++) {
                 offset |= (*tag_data++ << (8 * (tag_len - i)));
             }
         }
         else if (tag == 0x53) {   //data
-            data_len = tag_len;
+            data_len = (uint16_t)tag_len;
             data = tag_data;
         }
     }

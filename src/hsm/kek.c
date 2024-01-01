@@ -41,7 +41,7 @@ uint8_t pending_save_dkek = 0xff;
 #define POLY 0xedb88320
 
 uint32_t crc32c(const uint8_t *buf, size_t len) {
-    uint32_t crc = ~0;
+    uint32_t crc = 0xffffffffffffffff;
     while (len--) {
         crc ^= *buf++;
         for (int k = 0; k < 8; k++) {
@@ -258,7 +258,7 @@ int dkek_kmac(uint8_t id, uint8_t *kmac) { //kmac 32 bytes
     return CCID_OK;
 }
 
-int mkek_encrypt(uint8_t *data, size_t len) {
+int mkek_encrypt(uint8_t *data, uint16_t len) {
     int r;
     uint8_t mkek[MKEK_SIZE + 4];
     if ((r = load_mkek(mkek)) != CCID_OK) {
@@ -269,7 +269,7 @@ int mkek_encrypt(uint8_t *data, size_t len) {
     return r;
 }
 
-int mkek_decrypt(uint8_t *data, size_t len) {
+int mkek_decrypt(uint8_t *data, uint16_t len) {
     int r;
     uint8_t mkek[MKEK_SIZE + 4];
     if ((r = load_mkek(mkek)) != CCID_OK) {
@@ -284,16 +284,17 @@ int dkek_encode_key(uint8_t id,
                     void *key_ctx,
                     int key_type,
                     uint8_t *out,
-                    size_t *out_len,
+                    uint16_t *out_len,
                     const uint8_t *allowed,
-                    size_t allowed_len) {
+                    uint16_t allowed_len) {
     if (!(key_type & PICO_KEYS_KEY_RSA) && !(key_type & PICO_KEYS_KEY_EC) && !(key_type & PICO_KEYS_KEY_AES)) {
         return CCID_WRONG_DATA;
     }
 
     uint8_t kb[8 + 2 * 4 + 2 * 4096 / 8 + 3 + 13]; //worst case: RSA-4096  (plus, 13 bytes padding)
     memset(kb, 0, sizeof(kb));
-    int kb_len = 0, r = 0;
+    uint16_t kb_len = 0;
+    int r = 0;
     uint8_t *algo = NULL;
     uint8_t algo_len = 0;
     uint8_t kenc[32];
@@ -351,17 +352,17 @@ int dkek_encode_key(uint8_t id,
         }
         mbedtls_rsa_context *rsa = (mbedtls_rsa_context *) key_ctx;
         kb_len = 0;
-        put_uint16_t(mbedtls_rsa_get_len(rsa) * 8, kb + 8 + kb_len); kb_len += 2;
+        put_uint16_t((uint16_t)mbedtls_rsa_get_len(rsa) * 8, kb + 8 + kb_len); kb_len += 2;
 
-        put_uint16_t(mbedtls_mpi_size(&rsa->D), kb + 8 + kb_len); kb_len += 2;
+        put_uint16_t((uint16_t)mbedtls_mpi_size(&rsa->D), kb + 8 + kb_len); kb_len += 2;
         mbedtls_mpi_write_binary(&rsa->D, kb + 8 + kb_len, mbedtls_mpi_size(&rsa->D));
-        kb_len += mbedtls_mpi_size(&rsa->D);
-        put_uint16_t(mbedtls_mpi_size(&rsa->N), kb + 8 + kb_len); kb_len += 2;
+        kb_len += (uint16_t)mbedtls_mpi_size(&rsa->D);
+        put_uint16_t((uint16_t)mbedtls_mpi_size(&rsa->N), kb + 8 + kb_len); kb_len += 2;
         mbedtls_mpi_write_binary(&rsa->N, kb + 8 + kb_len, mbedtls_mpi_size(&rsa->N));
-        kb_len += mbedtls_mpi_size(&rsa->N);
-        put_uint16_t(mbedtls_mpi_size(&rsa->E), kb + 8 + kb_len); kb_len += 2;
+        kb_len += (uint16_t)mbedtls_mpi_size(&rsa->N);
+        put_uint16_t((uint16_t)mbedtls_mpi_size(&rsa->E), kb + 8 + kb_len); kb_len += 2;
         mbedtls_mpi_write_binary(&rsa->E, kb + 8 + kb_len, mbedtls_mpi_size(&rsa->E));
-        kb_len += mbedtls_mpi_size(&rsa->E);
+        kb_len += (uint16_t)mbedtls_mpi_size(&rsa->E);
 
         algo = (uint8_t *) "\x00\x0A\x04\x00\x7F\x00\x07\x02\x02\x02\x01\x02";
         algo_len = 12;
@@ -372,38 +373,38 @@ int dkek_encode_key(uint8_t id,
         }
         mbedtls_ecdsa_context *ecdsa = (mbedtls_ecdsa_context *) key_ctx;
         kb_len = 0;
-        put_uint16_t(mbedtls_mpi_size(&ecdsa->grp.P) * 8, kb + 8 + kb_len); kb_len += 2;
-        put_uint16_t(mbedtls_mpi_size(&ecdsa->grp.A), kb + 8 + kb_len); kb_len += 2;
+        put_uint16_t((uint16_t)mbedtls_mpi_size(&ecdsa->grp.P) * 8, kb + 8 + kb_len); kb_len += 2;
+        put_uint16_t((uint16_t)mbedtls_mpi_size(&ecdsa->grp.A), kb + 8 + kb_len); kb_len += 2;
         mbedtls_mpi_write_binary(&ecdsa->grp.A, kb + 8 + kb_len, mbedtls_mpi_size(&ecdsa->grp.A));
-        kb_len += mbedtls_mpi_size(&ecdsa->grp.A);
-        put_uint16_t(mbedtls_mpi_size(&ecdsa->grp.B), kb + 8 + kb_len); kb_len += 2;
+        kb_len += (uint16_t)mbedtls_mpi_size(&ecdsa->grp.A);
+        put_uint16_t((uint16_t)mbedtls_mpi_size(&ecdsa->grp.B), kb + 8 + kb_len); kb_len += 2;
         mbedtls_mpi_write_binary(&ecdsa->grp.B, kb + 8 + kb_len, mbedtls_mpi_size(&ecdsa->grp.B));
-        kb_len += mbedtls_mpi_size(&ecdsa->grp.B);
-        put_uint16_t(mbedtls_mpi_size(&ecdsa->grp.P), kb + 8 + kb_len); kb_len += 2;
+        kb_len += (uint16_t)mbedtls_mpi_size(&ecdsa->grp.B);
+        put_uint16_t((uint16_t)mbedtls_mpi_size(&ecdsa->grp.P), kb + 8 + kb_len); kb_len += 2;
         mbedtls_mpi_write_binary(&ecdsa->grp.P, kb + 8 + kb_len, mbedtls_mpi_size(&ecdsa->grp.P));
-        kb_len += mbedtls_mpi_size(&ecdsa->grp.P);
-        put_uint16_t(mbedtls_mpi_size(&ecdsa->grp.N), kb + 8 + kb_len); kb_len += 2;
+        kb_len += (uint16_t)mbedtls_mpi_size(&ecdsa->grp.P);
+        put_uint16_t((uint16_t)mbedtls_mpi_size(&ecdsa->grp.N), kb + 8 + kb_len); kb_len += 2;
         mbedtls_mpi_write_binary(&ecdsa->grp.N, kb + 8 + kb_len, mbedtls_mpi_size(&ecdsa->grp.N));
-        kb_len += mbedtls_mpi_size(&ecdsa->grp.N);
+        kb_len += (uint16_t)mbedtls_mpi_size(&ecdsa->grp.N);
 
-        size_t olen = 0;
+        uint16_t olen = 0;
         mbedtls_ecp_point_write_binary(&ecdsa->grp,
                                        &ecdsa->grp.G,
                                        MBEDTLS_ECP_PF_UNCOMPRESSED,
-                                       &olen,
+                                       (size_t *)&olen,
                                        kb + 8 + kb_len + 2,
                                        sizeof(kb) - 8 - kb_len - 2);
         put_uint16_t(olen, kb + 8 + kb_len);
         kb_len += 2 + olen;
 
-        put_uint16_t(mbedtls_mpi_size(&ecdsa->d), kb + 8 + kb_len); kb_len += 2;
+        put_uint16_t((uint16_t)mbedtls_mpi_size(&ecdsa->d), kb + 8 + kb_len); kb_len += 2;
         mbedtls_mpi_write_binary(&ecdsa->d, kb + 8 + kb_len, mbedtls_mpi_size(&ecdsa->d));
-        kb_len += mbedtls_mpi_size(&ecdsa->d);
+        kb_len += (uint16_t)mbedtls_mpi_size(&ecdsa->d);
 
         mbedtls_ecp_point_write_binary(&ecdsa->grp,
                                        &ecdsa->Q,
                                        MBEDTLS_ECP_PF_UNCOMPRESSED,
-                                       &olen,
+                                       (size_t *)&olen,
                                        kb + 8 + kb_len + 2,
                                        sizeof(kb) - 8 - kb_len - 2);
         put_uint16_t(olen, kb + 8 + kb_len);
@@ -450,7 +451,7 @@ int dkek_encode_key(uint8_t id,
 
     memcpy(kb, random_bytes_get(8), 8);
     kb_len += 8; //8 random bytes
-    int kb_len_pad = ((int) (kb_len / 16)) * 16;
+    uint16_t kb_len_pad = ((uint16_t) (kb_len / 16)) * 16;
     if (kb_len % 16 > 0) {
         kb_len_pad = ((int) (kb_len / 16) + 1) * 16;
     }
@@ -496,10 +497,10 @@ int dkek_type_key(const uint8_t *in) {
 int dkek_decode_key(uint8_t id,
                     void *key_ctx,
                     const uint8_t *in,
-                    size_t in_len,
+                    uint16_t in_len,
                     int *key_size_out,
                     uint8_t **allowed,
-                    size_t *allowed_len) {
+                    uint16_t *allowed_len) {
     uint8_t kcv[8];
     int r = 0;
     memset(kcv, 0, sizeof(kcv));
@@ -559,10 +560,10 @@ int dkek_decode_key(uint8_t id,
         return CCID_WRONG_DATA;
     }
 
-    size_t ofs = 9;
+    uint16_t ofs = 9;
 
     //OID
-    size_t len = get_uint16_t(in, ofs);
+    uint16_t len = get_uint16_t(in, ofs);
     ofs += len + 2;
 
     //Allowed algorithms

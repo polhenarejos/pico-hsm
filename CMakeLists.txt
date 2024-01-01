@@ -73,7 +73,6 @@ set(SOURCES ${SOURCES}
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cvc.c
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/files.c
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/kek.c
-        ${CMAKE_CURRENT_LIST_DIR}/src/hsm/oid.c
 
         )
 set(USB_ITF_CCID 1)
@@ -88,19 +87,30 @@ target_include_directories(pico_hsm PUBLIC ${INCLUDES})
 
 target_compile_options(pico_hsm PUBLIC
     -Wall
-    -Werror
 )
+if (NOT MSVC)
+    target_compile_options(pico_hsm PUBLIC 
+        -Werror
+    )
+endif()
 
 if(ENABLE_EMULATION)
-
+if (NOT MSVC)
 target_compile_options(pico_hsm PUBLIC
         -fdata-sections
         -ffunction-sections
         )
+endif()
 if(APPLE)
 target_link_options(pico_hsm PUBLIC
         -Wl,-dead_strip
         )
+elseif(MSVC)
+    target_compile_options(pico_hsm PUBLIC 
+        -WX
+    )
+    
+    target_link_libraries(pico_hsm PUBLIC wsock32 ws2_32 Bcrypt)
 else()
 target_link_options(pico_hsm PUBLIC
         -Wl,--gc-sections
@@ -108,6 +118,5 @@ target_link_options(pico_hsm PUBLIC
 endif (APPLE)
 else()
 pico_add_extra_outputs(pico_hsm)
-
 target_link_libraries(pico_hsm PRIVATE pico_keys_sdk pico_stdlib pico_multicore hardware_flash hardware_sync hardware_adc pico_unique_id hardware_rtc tinyusb_device tinyusb_board)
 endif()

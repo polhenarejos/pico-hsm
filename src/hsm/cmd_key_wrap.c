@@ -24,7 +24,8 @@
 extern uint8_t get_key_domain(file_t *fkey);
 
 int cmd_key_wrap() {
-    int key_id = P1(apdu), r = 0;
+    int r = 0;
+    uint8_t key_id = P1(apdu);
     if (P2(apdu) != 0x92) {
         return SW_WRONG_P1P2();
     }
@@ -53,8 +54,7 @@ int cmd_key_wrap() {
         return SW_FILE_NOT_FOUND();
     }
     const uint8_t *dprkd = file_get_data(prkd);
-    size_t wrap_len = MAX_DKEK_ENCODE_KEY_BUFFER;
-    size_t tag_len = 0;
+    uint16_t wrap_len = MAX_DKEK_ENCODE_KEY_BUFFER, tag_len = 0;
     const uint8_t *meta_tag = get_meta_tag(ef, 0x91, &tag_len);
     if (*dprkd == P15_KEYTYPE_RSA) {
         mbedtls_rsa_context ctx;
@@ -85,14 +85,14 @@ int cmd_key_wrap() {
         mbedtls_ecdsa_free(&ctx);
     }
     else if (*dprkd == P15_KEYTYPE_AES) {
-        uint8_t kdata[64]; //maximum AES key size
+        uint8_t kdata_aes[64]; //maximum AES key size
         if (wait_button_pressed() == true) { //timeout
             return SW_SECURE_MESSAGE_EXEC_ERROR();
         }
 
-        int key_size = file_get_size(ef), aes_type = PICO_KEYS_KEY_AES;
-        memcpy(kdata, file_get_data(ef), key_size);
-        if (mkek_decrypt(kdata, key_size) != 0) {
+        uint16_t key_size = file_get_size(ef), aes_type = PICO_KEYS_KEY_AES;
+        memcpy(kdata_aes, file_get_data(ef), key_size);
+        if (mkek_decrypt(kdata_aes, key_size) != 0) {
             return SW_EXEC_ERROR();
         }
         if (key_size == 64) {
@@ -107,8 +107,8 @@ int cmd_key_wrap() {
         else if (key_size == 16) {
             aes_type = PICO_KEYS_KEY_AES_128;
         }
-        r = dkek_encode_key(kdom, kdata, aes_type, res_APDU, &wrap_len, meta_tag, tag_len);
-        mbedtls_platform_zeroize(kdata, sizeof(kdata));
+        r = dkek_encode_key(kdom, kdata_aes, aes_type, res_APDU, &wrap_len, meta_tag, tag_len);
+        mbedtls_platform_zeroize(kdata_aes, sizeof(kdata_aes));
     }
     if (r != CCID_OK) {
         return SW_EXEC_ERROR();

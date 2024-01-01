@@ -33,8 +33,8 @@ int cmd_mse() {
     if (p1 & 0x1) { //SET
         uint16_t tag = 0x0;
         uint8_t *tag_data = NULL, *p = NULL;
-        size_t tag_len = 0;
-        while (walk_tlv(apdu.data, apdu.nc, &p, &tag, &tag_len, &tag_data)) {
+        uint16_t tag_len = 0;
+        while (walk_tlv(apdu.data, (uint16_t)apdu.nc, &p, &tag, &tag_len, &tag_data)) {
             if (tag == 0x80) {
                 if (p2 == 0xA4) {
                     if (tag_len == 10 &&
@@ -54,7 +54,7 @@ int cmd_mse() {
                         }
                     }
                     else if (p2 == 0xA4) {   /* Aut */
-                        for (int i = 0; i < MAX_PUK; i++) {
+                        for (uint8_t i = 0; i < MAX_PUK; i++) {
                             file_t *ef = search_dynamic_file(EF_PUK + i);
                             if (!ef) {
                                 break;
@@ -62,7 +62,7 @@ int cmd_mse() {
                             if (!file_has_data(ef)) {
                                 break;
                             }
-                            size_t chr_len = 0;
+                            uint16_t chr_len = 0;
                             const uint8_t *chr = cvc_get_chr(file_get_data(ef),
                                                              file_get_size(ef),
                                                              &chr_len);

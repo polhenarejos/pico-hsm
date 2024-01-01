@@ -111,9 +111,9 @@ int cmd_extras() {
             memcpy(mse.Qpt, apdu.data, sizeof(mse.Qpt));
 
             uint8_t buf[MBEDTLS_ECP_MAX_BYTES];
-            size_t olen = 0;
+            uint16_t olen = 0;
             ret = mbedtls_ecdh_calc_secret(&hkey,
-                                           &olen,
+                                           (size_t *)&olen,
                                            buf,
                                            MBEDTLS_ECP_MAX_BYTES,
                                            random_gen,
@@ -141,7 +141,7 @@ int cmd_extras() {
             ret = mbedtls_ecp_point_write_binary(&hkey.ctx.mbed_ecdh.grp,
                                                  &hkey.ctx.mbed_ecdh.Q,
                                                  MBEDTLS_ECP_PF_UNCOMPRESSED,
-                                                 &olen,
+                                                 (size_t *)&olen,
                                                  res_APDU,
                                                  4096);
             mbedtls_ecdh_free(&hkey);

@@ -109,7 +109,7 @@ int node_fingerprint_slip(mbedtls_ecp_keypair *ctx, uint8_t fingerprint[4]) {
     return CCID_OK;
 }
 
-int load_master_bip(uint32_t mid, mbedtls_ecp_keypair *ctx, uint8_t chain[32],
+int load_master_bip(uint16_t mid, mbedtls_ecp_keypair *ctx, uint8_t chain[32],
                     uint8_t key_type[1]) {
     uint8_t mkey[65];
     mbedtls_ecp_keypair_init(ctx);
@@ -147,7 +147,7 @@ int load_master_bip(uint32_t mid, mbedtls_ecp_keypair *ctx, uint8_t chain[32],
 }
 
 int node_derive_path(const uint8_t *path,
-                     size_t path_len,
+                     uint16_t path_len,
                      mbedtls_ecp_keypair *ctx,
                      uint8_t chain[32],
                      uint8_t fingerprint[4],
@@ -155,8 +155,7 @@ int node_derive_path(const uint8_t *path,
                      uint8_t last_node[4],
                      uint8_t key_type[1]) {
     uint8_t *tag_data = NULL, *p = NULL;
-    size_t tag_len = 0;
-    uint16_t tag = 0x0;
+    uint16_t tag_len = 0, tag = 0x0;
     uint8_t node = 0, N[64] = { 0 };
     int r = 0;
     memset(last_node, 0, 4);
@@ -231,7 +230,7 @@ int cmd_bip_slip() {
             random_gen(NULL, seed, seed_len);
         }
         else {
-            seed_len = MIN(apdu.nc, 64);
+            seed_len = MIN((uint8_t)apdu.nc, 64);
             memcpy(seed, apdu.data, seed_len);
         }
         if (p1 == 0x1 || p1 == 0x2) {
@@ -266,7 +265,7 @@ int cmd_bip_slip() {
         }
         mbedtls_ecp_keypair ctx;
         uint8_t chain[32] = { 0 }, fgpt[4] = { 0 }, last_node[4] = { 0 }, key_type = 0, nodes = 0;
-        size_t olen = 0;
+        uint16_t olen = 0;
         int r =
             node_derive_path(apdu.data, apdu.nc, &ctx, chain, fgpt, &nodes, last_node, &key_type);
         if (r != CCID_OK) {
@@ -288,7 +287,7 @@ int cmd_bip_slip() {
             mbedtls_ecp_point_write_binary(&ctx.grp,
                                            &ctx.Q,
                                            MBEDTLS_ECP_PF_COMPRESSED,
-                                           &olen,
+                                           (size_t *)&olen,
                                            pubkey,
                                            sizeof(pubkey));
             memcpy(res_APDU + res_APDU_size, pubkey, olen);

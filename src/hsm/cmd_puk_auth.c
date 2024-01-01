@@ -36,7 +36,7 @@ int cmd_puk_auth() {
                 if (p2 != 0x0) {
                     return SW_INCORRECT_P1P2();
                 }
-                for (int i = 0; i < puk_data[0]; i++) {
+                for (uint8_t i = 0; i < puk_data[0]; i++) {
                     ef = search_dynamic_file(EF_PUK + i);
                     if (!ef) { /* Never should not happen */
                         return SW_MEMORY_FAILURE();
@@ -79,7 +79,7 @@ int cmd_puk_auth() {
         if (!file_has_data(ef)) {
             return SW_REFERENCE_NOT_FOUND();
         }
-        size_t chr_len = 0;
+        uint16_t chr_len = 0;
         const uint8_t *chr = cvc_get_chr(file_get_data(ef), file_get_size(ef), &chr_len);
         if (chr) {
             memcpy(res_APDU, chr, chr_len);

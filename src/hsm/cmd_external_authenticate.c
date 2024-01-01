@@ -46,7 +46,7 @@ int cmd_external_authenticate() {
     hash256(input, dev_name_len + challenge_len, hash);
     int r =
         puk_verify(apdu.data,
-                   apdu.nc,
+                   (uint16_t)apdu.nc,
                    hash,
                    32,
                    file_get_data(ef_puk_aut),

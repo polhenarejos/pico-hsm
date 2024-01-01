@@ -19,7 +19,7 @@
 
 int cmd_read_binary() {
     uint16_t fid = 0x0;
-    uint32_t offset = 0;
+    uint16_t offset = 0;
     uint8_t ins = INS(apdu), p1 = P1(apdu), p2 = P2(apdu);
     const file_t *ef = NULL;
 
@@ -68,7 +68,7 @@ int cmd_read_binary() {
     }
     if (ef->data) {
         if ((ef->type & FILE_DATA_FUNC) == FILE_DATA_FUNC) {
-            uint16_t data_len = ((int (*)(const file_t *, int))(ef->data))((const file_t *) ef, 1); //already copies content to res_APDU
+            uint16_t data_len = (uint16_t)((int (*)(const file_t *, int))(ef->data))((const file_t *) ef, 1); //already copies content to res_APDU
             if (offset > data_len) {
                 return SW_WRONG_P1P2();
             }

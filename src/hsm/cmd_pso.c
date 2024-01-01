@@ -20,7 +20,7 @@
 #include "asn1.h"
 #include "cvc.h"
 
-extern int add_cert_puk_store(const uint8_t *data, size_t data_len, bool copy);
+extern int add_cert_puk_store(const uint8_t *data, uint16_t data_len, bool copy);
 extern PUK *current_puk;
 
 int cmd_pso() {
@@ -49,7 +49,7 @@ int cmd_pso() {
             }
             return SW_EXEC_ERROR();
         }
-        for (int i = 0; i < 0xfe; i++) {
+        for (uint8_t i = 0; i < 0xfe; i++) {
             uint16_t fid = (CA_CERTIFICATE_PREFIX << 8) | i;
             file_t *ca_ef = search_dynamic_file(fid);
             if (!ca_ef) {
@@ -60,17 +60,17 @@ int cmd_pso() {
                     return SW_FILE_FULL();
                 }
 
-                size_t chr_len = 0;
+                uint16_t chr_len = 0;
                 const uint8_t *chr = cvc_get_chr(apdu.data, apdu.nc, &chr_len);
                 if (chr == NULL) {
                     return SW_WRONG_DATA();
                 }
-                size_t puk_len = 0, puk_bin_len = 0;
+                uint16_t puk_len = 0, puk_bin_len = 0;
                 const uint8_t *puk = cvc_get_pub(apdu.data, apdu.nc, &puk_len), *puk_bin = NULL;
                 if (puk == NULL) {
                     return SW_WRONG_DATA();
                 }
-                size_t oid_len = 0;
+                uint16_t oid_len = 0;
                 const uint8_t *oid = cvc_get_field(puk, puk_len, &oid_len, 0x6);
                 if (oid == NULL) {
                     return SW_WRONG_DATA();
@@ -89,8 +89,8 @@ int cmd_pso() {
                         mbedtls_ecp_group_free(&grp);
                         return SW_WRONG_DATA();
                     }
-                    size_t plen = mbedtls_mpi_size(&grp.P);
-                    size_t t86_len = 0;
+                    uint16_t plen = (uint16_t)mbedtls_mpi_size(&grp.P);
+                    uint16_t t86_len = 0;
                     const uint8_t *t86 = cvc_get_field(puk, puk_len, &t86_len, 0x86);
                     if (mbedtls_ecp_get_type(&grp) == MBEDTLS_ECP_TYPE_MONTGOMERY) {
                         if (plen != t86_len) {
@@ -126,7 +126,7 @@ int cmd_pso() {
                     }
                 }
                 file_t *cd_ef = file_new((CD_PREFIX << 8) | i);
-                size_t cd_len = asn1_build_cert_description(chr,
+                uint16_t cd_len = (uint16_t)asn1_build_cert_description(chr,
                                                             chr_len,
                                                             puk_bin,
                                                             puk_bin_len,
@@ -137,7 +137,7 @@ int cmd_pso() {
                     return SW_EXEC_ERROR();
                 }
                 uint8_t *buf = (uint8_t *) calloc(cd_len, sizeof(uint8_t));
-                int r = asn1_build_cert_description(chr,
+                r = (int)asn1_build_cert_description(chr,
                                                     chr_len,
                                                     puk_bin,
                                                     puk_bin_len,
@@ -153,7 +153,6 @@ int cmd_pso() {
                 break;
             }
         }
-        return SW_OK();
     }
     else {
         return SW_INCORRECT_P1P2();

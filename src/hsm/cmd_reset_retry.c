@@ -34,17 +34,17 @@ int cmd_reset_retry() {
         return SW_COMMAND_NOT_ALLOWED();
     }
     if (P1(apdu) == 0x0 || P1(apdu) == 0x2) {
-        int newpin_len = 0;
+        uint8_t newpin_len = 0;
         if (P1(apdu) == 0x0) {
             uint8_t so_pin_len = file_read_uint8(file_get_data(file_sopin));
-            if (apdu.nc <= so_pin_len + 1) {
+            if ((uint16_t)apdu.nc <= so_pin_len + 1) {
                 return SW_WRONG_LENGTH();
             }
             uint16_t r = check_pin(file_sopin, apdu.data, so_pin_len);
             if (r != 0x9000) {
                 return r;
             }
-            newpin_len = apdu.nc - so_pin_len;
+            newpin_len = (uint8_t)apdu.nc - so_pin_len;
         }
         else if (P1(apdu) == 0x2) {
             if (!has_session_sopin) {
@@ -53,7 +53,7 @@ int cmd_reset_retry() {
             if (apdu.nc > 16) {
                 return SW_WRONG_LENGTH();
             }
-            newpin_len = apdu.nc;
+            newpin_len = (uint8_t)apdu.nc;
         }
         uint8_t dhash[33];
         dhash[0] = newpin_len;

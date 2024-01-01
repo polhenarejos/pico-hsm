@@ -48,8 +48,8 @@ int cmd_initialize() {
         has_session_pin = has_session_sopin = false;
         uint16_t tag = 0x0;
         uint8_t *tag_data = NULL, *p = NULL, *kds = NULL, *dkeks = NULL;
-        size_t tag_len = 0;
-        while (walk_tlv(apdu.data, apdu.nc, &p, &tag, &tag_len, &tag_data)) {
+        uint16_t tag_len = 0;
+        while (walk_tlv(apdu.data, (uint16_t)apdu.nc, &p, &tag, &tag_len, &tag_data)) {
             if (tag == 0x80) { //options
                 file_t *tf = search_by_fid(EF_DEVOPS, NULL, SPECIFY_EF);
                 flash_write_data_to_file(tf, tag_data, tag_len);
@@ -57,7 +57,7 @@ int cmd_initialize() {
             else if (tag == 0x81) {   //user pin
                 if (file_pin1 && file_pin1->data) {
                     uint8_t dhash[33];
-                    dhash[0] = tag_len;
+                    dhash[0] = (uint8_t)tag_len;
                     double_hash_pin(tag_data, tag_len, dhash + 1);
                     flash_write_data_to_file(file_pin1, dhash, sizeof(dhash));
                     hash_multi(tag_data, tag_len, session_pin);
@@ -67,7 +67,7 @@ int cmd_initialize() {
             else if (tag == 0x82) {   //sopin pin
                 if (file_sopin && file_sopin->data) {
                     uint8_t dhash[33];
-                    dhash[0] = tag_len;
+                    dhash[0] = (uint8_t)tag_len;
                     double_hash_pin(tag_data, tag_len, dhash + 1);
                     flash_write_data_to_file(file_sopin, dhash, sizeof(dhash));
                     hash_multi(tag_data, tag_len, session_sopin);
@@ -104,7 +104,7 @@ int cmd_initialize() {
                 pk_status[1] = puks;
                 pk_status[2] = tag_data[1];
                 flash_write_data_to_file(ef_puk, pk_status, sizeof(pk_status));
-                for (int i = 0; i < puks; i++) {
+                for (uint8_t i = 0; i < puks; i++) {
                     file_t *tf = file_new(EF_PUK + i);
                     if (!tf) {
                         release_mkek(mkek);
@@ -199,7 +199,7 @@ int cmd_initialize() {
             }
 
             file_t *fpk = search_by_fid(EF_EE_DEV, NULL, SPECIFY_EF);
-            ret = flash_write_data_to_file(fpk, res_APDU, cvc_len);
+            ret = flash_write_data_to_file(fpk, res_APDU, (uint16_t)cvc_len);
             if (ret != 0) {
                 mbedtls_ecdsa_free(&ecdsa);
                 return SW_EXEC_ERROR();
@@ -212,7 +212,7 @@ int cmd_initialize() {
             memcpy(res_APDU + cvc_len, res_APDU, cvc_len);
             mbedtls_ecdsa_free(&ecdsa);
             fpk = search_by_fid(EF_TERMCA, NULL, SPECIFY_EF);
-            ret = flash_write_data_to_file(fpk, res_APDU, 2 * cvc_len);
+            ret = flash_write_data_to_file(fpk, res_APDU, (uint16_t)(2 * cvc_len));
             if (ret != 0) {
                 return SW_EXEC_ERROR();
             }
@@ -220,8 +220,8 @@ int cmd_initialize() {
             const uint8_t *keyid =
                 (const uint8_t *) "\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0",
                           *label = (const uint8_t *) "ESPICOHSMTR";
-            size_t prkd_len = asn1_build_prkd_ecc(label,
-                                                  strlen((const char *) label),
+            uint16_t prkd_len = asn1_build_prkd_ecc(label,
+                                                  (uint16_t)strlen((const char *) label),
                                                   keyid,
                                                   20,
                                                   256,

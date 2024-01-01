@@ -43,7 +43,7 @@ extern uint8_t hd_keytype;
 
 static int pkcs5_parse_pbkdf2_params(const mbedtls_asn1_buf *params,
                                      mbedtls_asn1_buf *salt, int *iterations,
-                                     int *keylen, mbedtls_md_type_t *md_type) {
+                                     uint16_t *keylen, mbedtls_md_type_t *md_type) {
     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
     mbedtls_asn1_buf prf_alg_oid;
     unsigned char *p = params->p;
@@ -78,7 +78,7 @@ static int pkcs5_parse_pbkdf2_params(const mbedtls_asn1_buf *params,
         return 0;
     }
 
-    if ((ret = mbedtls_asn1_get_int(&p, end, keylen)) != 0) {
+    if ((ret = mbedtls_asn1_get_int(&p, end, (int *)keylen)) != 0) {
         if (ret != MBEDTLS_ERR_ASN1_UNEXPECTED_TAG) {
             return MBEDTLS_ERROR_ADD(MBEDTLS_ERR_PKCS5_INVALID_FORMAT, ret);
         }
@@ -106,11 +106,11 @@ static int pkcs5_parse_pbkdf2_params(const mbedtls_asn1_buf *params,
 
 /* Taken from https://github.com/Mbed-TLS/mbedtls/issues/2335 */
 int mbedtls_ansi_x963_kdf(mbedtls_md_type_t md_type,
-                          size_t input_len,
+                          uint16_t input_len,
                           uint8_t *input,
-                          size_t shared_info_len,
+                          uint16_t shared_info_len,
                           uint8_t *shared_info,
-                          size_t output_len,
+                          uint16_t output_len,
                           uint8_t *output) {
     mbedtls_md_context_t md_ctx;
     const mbedtls_md_info_t *md_info = NULL;
@@ -163,8 +163,7 @@ int mbedtls_ansi_x963_kdf(mbedtls_md_type_t md_type,
 }
 
 int cmd_cipher_sym() {
-    int key_id = P1(apdu);
-    int algo = P2(apdu);
+    uint8_t key_id = P1(apdu), algo = P2(apdu);
     if (!isUserAuthenticated) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
@@ -180,7 +179,7 @@ int cmd_cipher_sym() {
             return SW_CONDITIONS_NOT_SATISFIED();
         }
     }
-    int key_size = file_get_size(ef);
+    uint16_t key_size = file_get_size(ef);
     uint8_t kdata[64]; //maximum AES key size
     memcpy(kdata, file_get_data(ef), key_size);
     if (hd_keytype == 0 && mkek_decrypt(kdata, key_size) != 0) {
@@ -270,7 +269,7 @@ int cmd_cipher_sym() {
         res_APDU_size = apdu.nc;
     }
     else if (algo == ALGO_EXT_CIPHER_ENCRYPT || algo == ALGO_EXT_CIPHER_DECRYPT) {
-        size_t oid_len = 0, aad_len = 0, iv_len = 0, enc_len = 0;
+        uint16_t oid_len = 0, aad_len = 0, iv_len = 0, enc_len = 0;
         uint8_t *oid = NULL, *aad = NULL, *iv = NULL, *enc = NULL;
         if (!asn1_find_tag(apdu.data, apdu.nc, 0x6, &oid_len,
                            &oid) || oid_len == 0 || oid == NULL) {
@@ -384,7 +383,8 @@ int cmd_cipher_sym() {
             res_APDU_size = apdu.ne > 0 && apdu.ne < 65536 ? apdu.ne : mbedtls_md_get_size(md_info);
         }
         else if (memcmp(oid, OID_PKCS5_PBKDF2, oid_len) == 0) {
-            int iterations = 0, keylen = 0;
+            int iterations = 0;
+            uint16_t keylen = 0;
             mbedtls_asn1_buf salt,
                              params =
             { .p = enc, .len = enc_len, .tag = (MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE) };
@@ -412,7 +412,7 @@ int cmd_cipher_sym() {
             res_APDU_size = keylen ? keylen : (apdu.ne > 0 && apdu.ne < 65536 ? apdu.ne : 32);
         }
         else if (memcmp(oid, OID_PKCS5_PBES2, oid_len) == 0) {
-            size_t olen = 0;
+            uint16_t olen = 0;
             mbedtls_asn1_buf params =
                 {.p = aad, .len = aad_len, .tag = (MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE)};
             int r = mbedtls_pkcs5_pbes2_ext(&params,
@@ -421,7 +421,7 @@ int cmd_cipher_sym() {
                                         key_size,
                                         enc,
                                         enc_len,
-                                        res_APDU, 4096, &olen);
+                                        res_APDU, 4096, (size_t *)&olen);
             mbedtls_platform_zeroize(kdata, sizeof(kdata));
             if (r != 0) {
                 return SW_WRONG_DATA();
@@ -634,7 +634,6 @@ int cmd_cipher_sym() {
                     mode =
                 (algo == ALGO_EXT_CIPHER_ENCRYPT ? MBEDTLS_AES_ENCRYPT : MBEDTLS_AES_DECRYPT);
             int r = 0;
-            uint8_t tmp_iv[16];
             memset(tmp_iv, 0, sizeof(tmp_iv));
             if (iv == NULL || iv_len == 0) {
                 iv = tmp_iv;

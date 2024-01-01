@@ -96,7 +96,7 @@ int cmd_select() {
             }
         }
         else if (p1 == 0x04) {   //Select by DF name - e.g., [truncated] application identifier
-            if (!(pe = search_by_name(apdu.data, apdu.nc))) {
+            if (!(pe = search_by_name(apdu.data, (uint16_t)apdu.nc))) {
                 return SW_FILE_NOT_FOUND();
             }
             if (card_terminated) {
@@ -104,12 +104,12 @@ int cmd_select() {
             }
         }
         else if (p1 == 0x08) {   //Select from the MF - Path without the MF identifier
-            if (!(pe = search_by_path(apdu.data, apdu.nc, MF))) {
+            if (!(pe = search_by_path(apdu.data, (uint8_t)apdu.nc, MF))) {
                 return SW_FILE_NOT_FOUND();
             }
         }
         else if (p1 == 0x09) {   //Select from the current DF - Path without the current DF identifier
-            if (!(pe = search_by_path(apdu.data, apdu.nc, currentDF))) {
+            if (!(pe = search_by_path(apdu.data, (uint8_t)apdu.nc, currentDF))) {
                 return SW_FILE_NOT_FOUND();
             }
         }
@@ -125,7 +125,7 @@ int cmd_select() {
             res_APDU[res_APDU_size++] = 0xFF;
             res_APDU[res_APDU_size++] = HSM_VERSION_MAJOR;
             res_APDU[res_APDU_size++] = HSM_VERSION_MINOR;
-            res_APDU[1] = res_APDU_size - 2;
+            res_APDU[1] = (uint8_t)res_APDU_size - 2;
         }
     }
     else {

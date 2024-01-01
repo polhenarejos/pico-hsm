@@ -37,7 +37,7 @@ int cmd_verify() {
             return SW_REFERENCE_NOT_FOUND();
         }
         if (apdu.nc > 0) {
-            return check_pin(file_pin1, apdu.data, apdu.nc);
+            return check_pin(file_pin1, apdu.data, (uint16_t)apdu.nc);
         }
         if (file_read_uint8(file_get_data(file_retries_pin1)) == 0) {
             return SW_PIN_BLOCKED();
@@ -49,7 +49,7 @@ int cmd_verify() {
             return SW_REFERENCE_NOT_FOUND();
         }
         if (apdu.nc > 0) {
-            return check_pin(file_sopin, apdu.data, apdu.nc);
+            return check_pin(file_sopin, apdu.data, (uint16_t)apdu.nc);
         }
         if (file_read_uint8(file_get_data(file_retries_sopin)) == 0) {
             return SW_PIN_BLOCKED();

@@ -28,11 +28,11 @@ int cmd_general_authenticate() {
     if (P1(apdu) == 0x0 && P2(apdu) == 0x0) {
         if (apdu.data[0] == 0x7C) {
             int r = 0;
-            size_t pubkey_len = 0;
+            uint16_t pubkey_len = 0;
             const uint8_t *pubkey = NULL;
             uint16_t tag = 0x0;
             uint8_t *tag_data = NULL, *p = NULL;
-            size_t tag_len = 0;
+            uint16_t tag_len = 0;
             while (walk_tlv(apdu.data + 2, apdu.nc - 2, &p, &tag, &tag_len, &tag_data)) {
                 if (tag == 0x80) {
                     pubkey = tag_data - 1; //mbedtls ecdh starts reading one pos before

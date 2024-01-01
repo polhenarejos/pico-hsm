@@ -61,7 +61,7 @@ int cmd_change_pin() {
                 return SW_EXEC_ERROR();
             }
             uint8_t dhash[33];
-            dhash[0] = apdu.nc - pin_len;
+            dhash[0] = (uint8_t)apdu.nc - pin_len;
             double_hash_pin(apdu.data + pin_len, apdu.nc - pin_len, dhash + 1);
             flash_write_data_to_file(file_pin, dhash, sizeof(dhash));
             low_flash_available();

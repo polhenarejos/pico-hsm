@@ -27,8 +27,8 @@ int cmd_challenge() {
         return SW_WRONG_LENGTH();
     }
     memcpy(res_APDU, rb, apdu.ne);
-    challenge_len = MIN(apdu.ne, sizeof(challenge));
+    challenge_len = (uint8_t)MIN(apdu.ne, sizeof(challenge));
     memcpy(challenge, rb, challenge_len);
-    res_APDU_size = apdu.ne;
+    res_APDU_size = (uint16_t)apdu.ne;
     return SW_OK();
 }

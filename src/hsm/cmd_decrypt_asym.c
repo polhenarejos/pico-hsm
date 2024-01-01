@@ -27,7 +27,7 @@
 #include "oid.h"
 
 int cmd_decrypt_asym() {
-    int key_id = P1(apdu);
+    uint8_t key_id = P1(apdu);
     uint8_t p2 = P2(apdu);
     if (!isUserAuthenticated) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
@@ -56,13 +56,13 @@ int cmd_decrypt_asym() {
             }
             return SW_EXEC_ERROR();
         }
-        int key_size = file_get_size(ef);
+        uint16_t key_size = file_get_size(ef);
         if (apdu.nc < key_size) { //needs padding
             memset(apdu.data + apdu.nc, 0, key_size - apdu.nc);
         }
         if (p2 == ALGO_RSA_DECRYPT_PKCS1 || p2 == ALGO_RSA_DECRYPT_OEP) {
-            size_t olen = apdu.nc;
-            r = mbedtls_rsa_pkcs1_decrypt(&ctx, random_gen, NULL, &olen, apdu.data, res_APDU, 512);
+            uint16_t olen = apdu.nc;
+            r = mbedtls_rsa_pkcs1_decrypt(&ctx, random_gen, NULL, (size_t *)&olen, apdu.data, res_APDU, 512);
             if (r == 0) {
                 res_APDU_size = olen;
             }
@@ -84,7 +84,7 @@ int cmd_decrypt_asym() {
         if (wait_button_pressed() == true) { //timeout
             return SW_SECURE_MESSAGE_EXEC_ERROR();
         }
-        int key_size = file_get_size(ef);
+        uint16_t key_size = file_get_size(ef);
         uint8_t *kdata = (uint8_t *) calloc(1, key_size);
         memcpy(kdata, file_get_data(ef), key_size);
         if (mkek_decrypt(kdata, key_size) != 0) {
@@ -114,10 +114,10 @@ int cmd_decrypt_asym() {
             r = mbedtls_ecdh_read_public(&ctx, apdu.data - 1, apdu.nc + 1);
         }
         else if (p2 == ALGO_EC_DH_XKEK) {
-            size_t pub_len = 0;
+            uint16_t pub_len = 0;
             const uint8_t *pub = cvc_get_pub(apdu.data, apdu.nc, &pub_len);
             if (pub) {
-                size_t t86_len = 0;
+                uint16_t t86_len = 0;
                 const uint8_t *t86 = cvc_get_field(pub, pub_len, &t86_len, 0x86);
                 if (t86) {
                     r = mbedtls_ecdh_read_public(&ctx, t86 - 1, t86_len + 1);
@@ -128,12 +128,12 @@ int cmd_decrypt_asym() {
             mbedtls_ecdh_free(&ctx);
             return SW_DATA_INVALID();
         }
-        size_t olen = 0;
+        uint16_t olen = 0;
         // The SmartCard-HSM returns the point result of the DH operation
         // with a leading '04'
         res_APDU[0] = 0x04;
         r =
-            mbedtls_ecdh_calc_secret(&ctx, &olen, res_APDU + 1, MBEDTLS_ECP_MAX_BYTES, random_gen,
+            mbedtls_ecdh_calc_secret(&ctx, (size_t *)&olen, res_APDU + 1, MBEDTLS_ECP_MAX_BYTES, random_gen,
                                      NULL);
         mbedtls_ecdh_free(&ctx);
         if (r != 0) {
@@ -144,17 +144,17 @@ int cmd_decrypt_asym() {
         }
         else {
             res_APDU_size = 0;
-            size_t ext_len = 0;
+            uint16_t ext_len = 0;
             const uint8_t *ext = NULL;
             if ((ext = cvc_get_ext(apdu.data, apdu.nc, &ext_len)) == NULL) {
                 return SW_WRONG_DATA();
             }
             uint8_t *p = NULL, *tag_data = NULL, *kdom_uid = NULL;
             uint16_t tag = 0;
-            size_t tag_len = 0, kdom_uid_len = 0;
+            uint16_t tag_len = 0, kdom_uid_len = 0;
             while (walk_tlv(ext, ext_len, &p, &tag, &tag_len, &tag_data)) {
                 if (tag == 0x73) {
-                    size_t oid_len = 0;
+                    uint16_t oid_len = 0;
                     uint8_t *oid_data = NULL;
                     if (asn1_find_tag(tag_data, tag_len, 0x6, &oid_len,
                                       &oid_data) == true &&
@@ -172,7 +172,7 @@ int cmd_decrypt_asym() {
             if (kdom_uid_len == 0 || kdom_uid == NULL) {
                 return SW_WRONG_DATA();
             }
-            for (int n = 0; n < MAX_KEY_DOMAINS; n++) {
+            for (uint8_t n = 0; n < MAX_KEY_DOMAINS; n++) {
                 file_t *tf = search_dynamic_file(EF_XKEK + n);
                 if (tf) {
                     if (file_get_size(tf) == kdom_uid_len &&

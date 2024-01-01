@@ -57,8 +57,8 @@ static const uint8_t hdr_ripemd160[] = {
 static const struct digest_info_prefix {
     mbedtls_md_type_t algorithm;
     const uint8_t *hdr;
-    size_t hdr_len;
-    size_t hash_len;
+    uint16_t hdr_len;
+    uint16_t hash_len;
 } digest_info_prefix[] = {
     { MBEDTLS_MD_MD5, hdr_md5, sizeof(hdr_md5), 16 },
     { MBEDTLS_MD_SHA1, hdr_sha1, sizeof(hdr_sha1), 20 },
@@ -71,11 +71,11 @@ static const struct digest_info_prefix {
 };
 int pkcs1_strip_digest_info_prefix(mbedtls_md_type_t *algorithm,
                                    const uint8_t *in_dat,
-                                   size_t in_len,
+                                   uint16_t in_len,
                                    uint8_t *out_dat,
-                                   size_t *out_len) {
+                                   uint16_t *out_len) {
     for (int i = 0; digest_info_prefix[i].algorithm != 0; i++) {
-        size_t hdr_len = digest_info_prefix[i].hdr_len, hash_len = digest_info_prefix[i].hash_len;
+        uint16_t hdr_len = digest_info_prefix[i].hdr_len, hash_len = digest_info_prefix[i].hash_len;
         const uint8_t *hdr = digest_info_prefix[i].hdr;
         if (in_len == (hdr_len + hash_len) && !memcmp(in_dat, hdr, hdr_len)) {
             if (algorithm) {
@@ -116,7 +116,7 @@ int cmd_signature() {
     if (key_has_purpose(fkey, p2) == false) {
         return SW_CONDITIONS_NOT_SATISFIED();
     }
-    int key_size = file_get_size(fkey);
+    uint16_t key_size = file_get_size(fkey);
     if (p2 == ALGO_RSA_PKCS1_SHA1 || p2 == ALGO_RSA_PSS_SHA1 || p2 == ALGO_EC_SHA1) {
         md = MBEDTLS_MD_SHA1;
     }
@@ -153,9 +153,9 @@ int cmd_signature() {
             return SW_EXEC_ERROR();
         }
         uint8_t *hash = apdu.data;
-        size_t hash_len = apdu.nc;
+        uint16_t hash_len = apdu.nc;
         if (p2 == ALGO_RSA_PKCS1) { //DigestInfo attached
-            size_t nc = apdu.nc;
+            uint16_t nc = apdu.nc;
             if (pkcs1_strip_digest_info_prefix(&md, apdu.data, apdu.nc, apdu.data,
                                                &nc) != CCID_OK) {                                   //gets the MD algo id and strips it off
                 return SW_EXEC_ERROR();
@@ -164,10 +164,10 @@ int cmd_signature() {
         }
         else {
             //sc_asn1_print_tags(apdu.data, apdu.nc);
-            size_t tout = 0, oid_len = 0;
+            uint16_t tout = 0, oid_len = 0;
             uint8_t *p = NULL, *oid = NULL;
             if (asn1_find_tag(apdu.data, apdu.nc, 0x30, &tout, &p) && tout > 0 && p != NULL) {
-                size_t tout30 = 0;
+                uint16_t tout30 = 0;
                 uint8_t *c30 = NULL;
                 if (asn1_find_tag(p, tout, 0x30, &tout30, &c30) && tout30 > 0 && c30 != NULL) {
                     asn1_find_tag(c30, tout30, 0x6, &oid_len, &oid);
@@ -276,10 +276,10 @@ int cmd_signature() {
             }
             return SW_EXEC_ERROR();
         }
-        size_t olen = 0;
+        uint16_t olen = 0;
         uint8_t buf[MBEDTLS_ECDSA_MAX_LEN];
         if (mbedtls_ecdsa_write_signature(&ctx, md, apdu.data, apdu.nc, buf, MBEDTLS_ECDSA_MAX_LEN,
-                                          &olen, random_gen, NULL) != 0) {
+                                          (size_t *)&olen, random_gen, NULL) != 0) {
             mbedtls_ecdsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
@@ -288,7 +288,7 @@ int cmd_signature() {
         mbedtls_ecdsa_free(&ctx);
     }
     else if (p2 == ALGO_HD) {
-        size_t olen = 0;
+        uint16_t olen = 0;
         uint8_t buf[MBEDTLS_ECDSA_MAX_LEN];
         if (hd_context.grp.id == MBEDTLS_ECP_DP_NONE) {
             return SW_CONDITIONS_NOT_SATISFIED();
@@ -299,7 +299,7 @@ int cmd_signature() {
         md = MBEDTLS_MD_SHA256;
         if (mbedtls_ecdsa_write_signature(&hd_context, md, apdu.data, apdu.nc, buf,
                                           MBEDTLS_ECDSA_MAX_LEN,
-                                          &olen, random_gen, NULL) != 0) {
+                                          (size_t *)&olen, random_gen, NULL) != 0) {
             mbedtls_ecdsa_free(&hd_context);
             return SW_EXEC_ERROR();
         }

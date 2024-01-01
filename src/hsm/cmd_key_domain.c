@@ -22,7 +22,7 @@
 #include "files.h"
 
 uint8_t get_key_domain(file_t *fkey) {
-    size_t tag_len = 0;
+    uint16_t tag_len = 0;
     if (!file_has_data(fkey)) {
         return 0xff;
     }
@@ -103,7 +103,7 @@ int cmd_key_domain() {
             return SW_WRONG_LENGTH();
         }
         if (p1 == 0x3) { //if key domain is not empty, command is denied
-            for (int i = 1; i < 256; i++) {
+            for (uint8_t i = 1; i < 256; i++) {
                 file_t *fkey = search_dynamic_file(KEY_PREFIX << 8 | i);
                 if (get_key_domain(fkey) == p2) {
                     return SW_FILE_EXISTS();
@@ -150,7 +150,7 @@ int cmd_key_domain() {
     }
     else if (p1 == 0x2) {   //XKEK Key Domain creation
         if (apdu.nc > 0) {
-            size_t pub_len = 0;
+            uint16_t pub_len = 0;
             file_t *fterm = search_by_fid(EF_TERMCA, NULL, SPECIFY_EF);
             if (!fterm) {
                 return SW_EXEC_ERROR();
@@ -159,13 +159,13 @@ int cmd_key_domain() {
             if (!pub) {
                 return SW_EXEC_ERROR();
             }
-            size_t t86_len = 0;
+            uint16_t t86_len = 0;
             const uint8_t *t86 = cvc_get_field(pub, pub_len, &t86_len, 0x86);
             if (!t86 || t86[0] != 0x4) {
                 return SW_EXEC_ERROR();
             }
-            size_t t54_len = 0;
-            const uint8_t *t54 = cvc_get_field(apdu.data, apdu.nc, &t54_len, 0x54);
+            uint16_t t54_len = 0;
+            const uint8_t *t54 = cvc_get_field(apdu.data, (uint16_t)apdu.nc, &t54_len, 0x54);
             if (!t54) {
                 return SW_WRONG_DATA();
             }
@@ -174,7 +174,7 @@ int cmd_key_domain() {
             memcpy(input + 1, t86 + 1, (t86_len - 1) / 2);
             hash256(input, (t86_len - 1) / 2 + 1, hash);
             free(input);
-            int r = puk_verify(t54, t54_len, hash, 32, apdu.data, apdu.nc);
+            int r = puk_verify(t54, t54_len, hash, 32, apdu.data, (uint16_t)apdu.nc);
             if (r != 0) {
                 return SW_CONDITIONS_NOT_SATISFIED();
             }
@@ -184,12 +184,12 @@ int cmd_key_domain() {
             }
 
             //All checks done. Get Key Domain UID
-            pub = cvc_get_pub(apdu.data, apdu.nc, &pub_len);
+            pub = cvc_get_pub(apdu.data, (uint16_t)apdu.nc, &pub_len);
             if (pub) {
-                size_t t86_len = 0;
-                const uint8_t *t86 = cvc_get_field(pub, pub_len, &t86_len, 0x86);
+                t86_len = 0;
+                t86 = cvc_get_field(pub, pub_len, &t86_len, 0x86);
                 if (t86) {
-                    flash_write_data_to_file(tf, t86 + 1, t86_len - 1);
+                    flash_write_data_to_file(tf, t86 + 1, (uint16_t)t86_len - 1);
                     low_flash_available();
                 }
             }
