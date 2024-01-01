@@ -41,7 +41,7 @@ uint8_t pending_save_dkek = 0xff;
 #define POLY 0xedb88320
 
 uint32_t crc32c(const uint8_t *buf, size_t len) {
-    uint32_t crc = 0xffffffffffffffff;
+    uint32_t crc = 0xffffffff;
     while (len--) {
         crc ^= *buf++;
         for (int k = 0; k < 8; k++) {
