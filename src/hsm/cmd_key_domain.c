@@ -103,8 +103,8 @@ int cmd_key_domain() {
             return SW_WRONG_LENGTH();
         }
         if (p1 == 0x3) { //if key domain is not empty, command is denied
-            for (uint8_t i = 1; i < 256; i++) {
-                file_t *fkey = search_dynamic_file(KEY_PREFIX << 8 | i);
+            for (uint16_t i = 1; i < 256; i++) {
+                file_t *fkey = search_dynamic_file(KEY_PREFIX << 8 | (uint8_t)i);
                 if (get_key_domain(fkey) == p2) {
                     return SW_FILE_EXISTS();
                 }
