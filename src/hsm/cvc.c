@@ -77,16 +77,16 @@ uint16_t asn1_cvc_public_key_ecdsa(mbedtls_ecdsa_context *ecdsa, uint8_t *buf, u
     const uint8_t oid_ecdsa[] = { 0x04, 0x00, 0x7F, 0x00, 0x07, 0x02, 0x02, 0x02, 0x02, 0x03 };
     const uint8_t oid_ri[]    = { 0x04, 0x00, 0x7F, 0x00, 0x07, 0x02, 0x02, 0x05, 0x02, 0x03 };
     const uint8_t *oid = oid_ecdsa;
-    uint16_t p_size = (uint16_t)mbedtls_mpi_size(&ecdsa->grp.P), a_size = (uint16_t)mbedtls_mpi_size(&ecdsa->grp.A);
-    uint16_t b_size = (uint16_t)mbedtls_mpi_size(&ecdsa->grp.B), g_size = 0;
-    uint16_t o_size = (uint16_t)mbedtls_mpi_size(&ecdsa->grp.N), y_size = 0;
-    mbedtls_ecp_point_write_binary(&ecdsa->grp, &ecdsa->grp.G, MBEDTLS_ECP_PF_UNCOMPRESSED, (size_t *)&g_size, G_buf, sizeof(G_buf));
-    mbedtls_ecp_point_write_binary(&ecdsa->grp, &ecdsa->Q, MBEDTLS_ECP_PF_UNCOMPRESSED, (size_t *)&y_size, Y_buf, sizeof(Y_buf));
+    size_t p_size = mbedtls_mpi_size(&ecdsa->grp.P), a_size = mbedtls_mpi_size(&ecdsa->grp.A);
+    size_t b_size = mbedtls_mpi_size(&ecdsa->grp.B), g_size = 0;
+    size_t o_size = mbedtls_mpi_size(&ecdsa->grp.N), y_size = 0;
+    mbedtls_ecp_point_write_binary(&ecdsa->grp, &ecdsa->grp.G, MBEDTLS_ECP_PF_UNCOMPRESSED, &g_size, G_buf, sizeof(G_buf));
+    mbedtls_ecp_point_write_binary(&ecdsa->grp, &ecdsa->Q, MBEDTLS_ECP_PF_UNCOMPRESSED, &y_size, Y_buf, sizeof(Y_buf));
     uint16_t c_size = 1;
-    uint16_t ptot_size = asn1_len_tag(0x81, p_size), atot_size = asn1_len_tag(0x82, a_size ? a_size : (pointA[ecdsa->grp.id] && ecdsa->grp.id < 6 ? p_size : 1));
-    uint16_t btot_size = asn1_len_tag(0x83, b_size), gtot_size = asn1_len_tag(0x84, g_size);
-    uint16_t otot_size = asn1_len_tag(0x85, o_size), ytot_size = asn1_len_tag(0x86, y_size);
-    uint16_t ctot_size = asn1_len_tag(0x87, c_size);
+    uint16_t ptot_size = asn1_len_tag(0x81, (uint16_t)p_size), atot_size = asn1_len_tag(0x82, a_size ? (uint16_t)a_size : (pointA[ecdsa->grp.id] && ecdsa->grp.id < 6 ? (uint16_t)p_size : 1));
+    uint16_t btot_size = asn1_len_tag(0x83, (uint16_t)b_size), gtot_size = asn1_len_tag(0x84, (uint16_t)g_size);
+    uint16_t otot_size = asn1_len_tag(0x85, (uint16_t)o_size), ytot_size = asn1_len_tag(0x86, (uint16_t)y_size);
+    uint16_t ctot_size = asn1_len_tag(0x87, (uint16_t)c_size);
     uint16_t oid_len = asn1_len_tag(0x6, sizeof(oid_ecdsa));
     uint16_t tot_len = 0, tot_data_len = 0;
     if (mbedtls_ecp_get_type(&ecdsa->grp) == MBEDTLS_ECP_TYPE_MONTGOMERY) {
