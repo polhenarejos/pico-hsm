@@ -9,5 +9,9 @@ git submodule update --init
 cd ..
 mkdir build
 cd build
+if [[ $1 == "pico" ]]; then
 cmake -DPICO_SDK_PATH=../pico-sdk ..
+else
+cmake -DENABLE_EMULATION=1 ..
+fi
 make
