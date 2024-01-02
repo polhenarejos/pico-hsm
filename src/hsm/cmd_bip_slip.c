@@ -265,7 +265,7 @@ int cmd_bip_slip() {
         }
         mbedtls_ecp_keypair ctx;
         uint8_t chain[32] = { 0 }, fgpt[4] = { 0 }, last_node[4] = { 0 }, key_type = 0, nodes = 0;
-        uint16_t olen = 0;
+        size_t olen = 0;
         int r =
             node_derive_path(apdu.data, apdu.nc, &ctx, chain, fgpt, &nodes, last_node, &key_type);
         if (r != CCID_OK) {
@@ -287,11 +287,11 @@ int cmd_bip_slip() {
             mbedtls_ecp_point_write_binary(&ctx.grp,
                                            &ctx.Q,
                                            MBEDTLS_ECP_PF_COMPRESSED,
-                                           (size_t *)&olen,
+                                           &olen,
                                            pubkey,
                                            sizeof(pubkey));
             memcpy(res_APDU + res_APDU_size, pubkey, olen);
-            res_APDU_size += olen;
+            res_APDU_size += (uint16_t)olen;
         }
         else if (key_type == 0x3) {
             sha256_sha256(chain, 32, chain);

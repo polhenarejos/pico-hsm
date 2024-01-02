@@ -61,10 +61,10 @@ int cmd_decrypt_asym() {
             memset(apdu.data + apdu.nc, 0, key_size - apdu.nc);
         }
         if (p2 == ALGO_RSA_DECRYPT_PKCS1 || p2 == ALGO_RSA_DECRYPT_OEP) {
-            uint16_t olen = apdu.nc;
-            r = mbedtls_rsa_pkcs1_decrypt(&ctx, random_gen, NULL, (size_t *)&olen, apdu.data, res_APDU, 512);
+            size_t olen = apdu.nc;
+            r = mbedtls_rsa_pkcs1_decrypt(&ctx, random_gen, NULL, &olen, apdu.data, res_APDU, 512);
             if (r == 0) {
-                res_APDU_size = olen;
+                res_APDU_size = (uint16_t)olen;
             }
         }
         else {
@@ -131,19 +131,19 @@ int cmd_decrypt_asym() {
             mbedtls_ecdh_free(&ctx);
             return SW_DATA_INVALID();
         }
-        uint16_t olen = 0;
+        size_t olen = 0;
         // The SmartCard-HSM returns the point result of the DH operation
         // with a leading '04'
         res_APDU[0] = 0x04;
         r =
-            mbedtls_ecdh_calc_secret(&ctx, (size_t *)&olen, res_APDU + 1, MBEDTLS_ECP_MAX_BYTES, random_gen,
+            mbedtls_ecdh_calc_secret(&ctx, &olen, res_APDU + 1, MBEDTLS_ECP_MAX_BYTES, random_gen,
                                      NULL);
         mbedtls_ecdh_free(&ctx);
         if (r != 0) {
             return SW_EXEC_ERROR();
         }
         if (p2 == ALGO_EC_DH) {
-            res_APDU_size = olen + 1;
+            res_APDU_size = (uint16_t)(olen + 1);
         }
         else {
             res_APDU_size = 0;

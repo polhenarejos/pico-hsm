@@ -276,19 +276,19 @@ int cmd_signature() {
             }
             return SW_EXEC_ERROR();
         }
-        uint16_t olen = 0;
+        size_t olen = 0;
         uint8_t buf[MBEDTLS_ECDSA_MAX_LEN];
         if (mbedtls_ecdsa_write_signature(&ctx, md, apdu.data, apdu.nc, buf, MBEDTLS_ECDSA_MAX_LEN,
-                                          (size_t *)&olen, random_gen, NULL) != 0) {
+                                          &olen, random_gen, NULL) != 0) {
             mbedtls_ecdsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
         memcpy(res_APDU, buf, olen);
-        res_APDU_size = olen;
+        res_APDU_size = (uint16_t)olen;
         mbedtls_ecdsa_free(&ctx);
     }
     else if (p2 == ALGO_HD) {
-        uint16_t olen = 0;
+        size_t olen = 0;
         uint8_t buf[MBEDTLS_ECDSA_MAX_LEN];
         if (hd_context.grp.id == MBEDTLS_ECP_DP_NONE) {
             return SW_CONDITIONS_NOT_SATISFIED();
@@ -299,12 +299,12 @@ int cmd_signature() {
         md = MBEDTLS_MD_SHA256;
         if (mbedtls_ecdsa_write_signature(&hd_context, md, apdu.data, apdu.nc, buf,
                                           MBEDTLS_ECDSA_MAX_LEN,
-                                          (size_t *)&olen, random_gen, NULL) != 0) {
+                                          &olen, random_gen, NULL) != 0) {
             mbedtls_ecdsa_free(&hd_context);
             return SW_EXEC_ERROR();
         }
         memcpy(res_APDU, buf, olen);
-        res_APDU_size = olen;
+        res_APDU_size = (uint16_t)olen;
         mbedtls_ecdsa_free(&hd_context);
         hd_keytype = 0;
     }

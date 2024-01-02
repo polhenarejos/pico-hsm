@@ -111,9 +111,9 @@ int cmd_extras() {
             memcpy(mse.Qpt, apdu.data, sizeof(mse.Qpt));
 
             uint8_t buf[MBEDTLS_ECP_MAX_BYTES];
-            uint16_t olen = 0;
+            size_t olen = 0;
             ret = mbedtls_ecdh_calc_secret(&hkey,
-                                           (size_t *)&olen,
+                                           &olen,
                                            buf,
                                            MBEDTLS_ECP_MAX_BYTES,
                                            random_gen,
@@ -141,7 +141,7 @@ int cmd_extras() {
             ret = mbedtls_ecp_point_write_binary(&hkey.ctx.mbed_ecdh.grp,
                                                  &hkey.ctx.mbed_ecdh.Q,
                                                  MBEDTLS_ECP_PF_UNCOMPRESSED,
-                                                 (size_t *)&olen,
+                                                 &olen,
                                                  res_APDU,
                                                  4096);
             mbedtls_ecdh_free(&hkey);
@@ -149,7 +149,7 @@ int cmd_extras() {
                 return SW_EXEC_ERROR();
             }
             mse.init = true;
-            res_APDU_size = olen;
+            res_APDU_size = (uint16_t)olen;
         }
         else if (P2(apdu) == 0x02 || P2(apdu) == 0x03 || P2(apdu) == 0x04) {
             if (mse.init == false) {
