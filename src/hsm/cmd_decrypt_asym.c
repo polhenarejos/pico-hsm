@@ -111,6 +111,7 @@ int cmd_decrypt_asym() {
         }
         r = -1;
         if (p2 == ALGO_EC_DH) {
+            *(apdu.data - 1) = (uint8_t)apdu.nc;
             r = mbedtls_ecdh_read_public(&ctx, apdu.data - 1, apdu.nc + 1);
         }
         else if (p2 == ALGO_EC_DH_XKEK) {
@@ -119,7 +120,9 @@ int cmd_decrypt_asym() {
             if (pub) {
                 uint16_t t86_len = 0;
                 const uint8_t *t86 = cvc_get_field(pub, pub_len, &t86_len, 0x86);
+                uint8_t *t86w = (uint8_t *)t86;
                 if (t86) {
+                    *(t86w - 1) = (uint8_t)t86_len;
                     r = mbedtls_ecdh_read_public(&ctx, t86 - 1, t86_len + 1);
                 }
             }
