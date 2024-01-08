@@ -367,8 +367,8 @@ uint16_t asn1_cvc_aut(void *rsa_ecdsa,
         mbedtls_mpi_free(&s);
         return 0;
     }
-    mbedtls_mpi_write_binary(&r, p, mbedtls_mpi_size(&r)); p += mbedtls_mpi_size(&r);
-    mbedtls_mpi_write_binary(&s, p, mbedtls_mpi_size(&s)); p += mbedtls_mpi_size(&s);
+    mbedtls_mpi_write_binary(&r, p, key_size / 2); p += key_size / 2;
+    mbedtls_mpi_write_binary(&s, p, key_size / 2); p += key_size / 2;
     mbedtls_mpi_free(&r);
     mbedtls_mpi_free(&s);
     return (uint16_t)(p - buf);
