@@ -33,13 +33,13 @@ int cmd_pso() {
             return SW_REFERENCE_NOT_FOUND();
         }
         if (apdu.data[0] != 0x7F || apdu.data[1] != 0x21) {
-            uint8_t tlv_len = 2 + format_tlv_len(apdu.nc, NULL);
+            uint8_t tlv_len = 2 + format_tlv_len((uint16_t)apdu.nc, NULL);
             memmove(apdu.data + tlv_len, apdu.data, apdu.nc);
             memcpy(apdu.data, "\x7F\x21", 2);
-            format_tlv_len(apdu.nc, apdu.data + 2);
+            format_tlv_len((uint16_t)apdu.nc, apdu.data + 2);
             apdu.nc += tlv_len;
         }
-        int r = cvc_verify(apdu.data, apdu.nc, current_puk->cvcert, current_puk->cvcert_len);
+        int r = cvc_verify(apdu.data, (uint16_t)apdu.nc, current_puk->cvcert, current_puk->cvcert_len);
         if (r != CCID_OK) {
             if (r == CCID_WRONG_DATA) {
                 return SW_DATA_INVALID();
@@ -54,19 +54,19 @@ int cmd_pso() {
             file_t *ca_ef = search_dynamic_file(fid);
             if (!ca_ef) {
                 ca_ef = file_new(fid);
-                flash_write_data_to_file(ca_ef, apdu.data, apdu.nc);
+                flash_write_data_to_file(ca_ef, apdu.data, (uint16_t)apdu.nc);
                 if (add_cert_puk_store(file_get_data(ca_ef), file_get_size(ca_ef),
                                        false) != CCID_OK) {
                     return SW_FILE_FULL();
                 }
 
                 uint16_t chr_len = 0;
-                const uint8_t *chr = cvc_get_chr(apdu.data, apdu.nc, &chr_len);
+                const uint8_t *chr = cvc_get_chr(apdu.data, (uint16_t)apdu.nc, &chr_len);
                 if (chr == NULL) {
                     return SW_WRONG_DATA();
                 }
                 uint16_t puk_len = 0, puk_bin_len = 0;
-                const uint8_t *puk = cvc_get_pub(apdu.data, apdu.nc, &puk_len), *puk_bin = NULL;
+                const uint8_t *puk = cvc_get_pub(apdu.data, (uint16_t)apdu.nc, &puk_len), *puk_bin = NULL;
                 if (puk == NULL) {
                     return SW_WRONG_DATA();
                 }
@@ -82,7 +82,7 @@ int cmd_pso() {
                     }
                 }
                 else if (memcmp(oid, OID_ID_TA_ECDSA, 9) == 0) {   //ECC
-                    mbedtls_ecp_group_id ec_id = cvc_inherite_ec_group(apdu.data, apdu.nc);
+                    mbedtls_ecp_group_id ec_id = cvc_inherite_ec_group(apdu.data, (uint16_t)apdu.nc);
                     mbedtls_ecp_group grp;
                     mbedtls_ecp_group_init(&grp);
                     if (mbedtls_ecp_group_load(&grp, ec_id) != 0) {

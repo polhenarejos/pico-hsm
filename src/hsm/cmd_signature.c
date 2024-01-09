@@ -153,10 +153,10 @@ int cmd_signature() {
             return SW_EXEC_ERROR();
         }
         uint8_t *hash = apdu.data;
-        uint16_t hash_len = apdu.nc;
+        uint16_t hash_len = (uint16_t)apdu.nc;
         if (p2 == ALGO_RSA_PKCS1) { //DigestInfo attached
-            uint16_t nc = apdu.nc;
-            if (pkcs1_strip_digest_info_prefix(&md, apdu.data, apdu.nc, apdu.data,
+            uint16_t nc = (uint16_t)apdu.nc;
+            if (pkcs1_strip_digest_info_prefix(&md, apdu.data, (uint16_t)apdu.nc, apdu.data,
                                                &nc) != CCID_OK) {                                   //gets the MD algo id and strips it off
                 return SW_EXEC_ERROR();
             }
@@ -166,7 +166,7 @@ int cmd_signature() {
             //sc_asn1_print_tags(apdu.data, apdu.nc);
             uint16_t tout = 0, oid_len = 0;
             uint8_t *p = NULL, *oid = NULL;
-            if (asn1_find_tag(apdu.data, apdu.nc, 0x30, &tout, &p) && tout > 0 && p != NULL) {
+            if (asn1_find_tag(apdu.data, (uint16_t)apdu.nc, 0x30, &tout, &p) && tout > 0 && p != NULL) {
                 uint16_t tout30 = 0;
                 uint8_t *c30 = NULL;
                 if (asn1_find_tag(p, tout, 0x30, &tout30, &c30) && tout30 > 0 && c30 != NULL) {

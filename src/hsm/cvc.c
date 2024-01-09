@@ -112,27 +112,27 @@ uint16_t asn1_cvc_public_key_ecdsa(mbedtls_ecdsa_context *ecdsa, uint8_t *buf, u
     p += sizeof(oid_ecdsa);
     if (mbedtls_ecp_get_type(&ecdsa->grp) == MBEDTLS_ECP_TYPE_MONTGOMERY) {
         //p
-        *p++ = 0x81; p += format_tlv_len(p_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.P, p, p_size);
+        *p++ = 0x81; p += format_tlv_len((uint16_t)p_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.P, p, p_size);
         p += p_size;
         //order
-        *p++ = 0x82; p += format_tlv_len(o_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.N, p, o_size);
+        *p++ = 0x82; p += format_tlv_len((uint16_t)o_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.N, p, o_size);
         p += o_size;
          //G
-        *p++ = 0x83; p += format_tlv_len(g_size, p); memcpy(p, G_buf, g_size); p += g_size;
+        *p++ = 0x83; p += format_tlv_len((uint16_t)g_size, p); memcpy(p, G_buf, g_size); p += g_size;
         //Y
-        *p++ = 0x84; p += format_tlv_len(y_size, p); memcpy(p, Y_buf, y_size); p += y_size;
+        *p++ = 0x84; p += format_tlv_len((uint16_t)y_size, p); memcpy(p, Y_buf, y_size); p += y_size;
     }
     else {
         //p
-        *p++ = 0x81; p += format_tlv_len(p_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.P, p, p_size);
+        *p++ = 0x81; p += format_tlv_len((uint16_t)p_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.P, p, p_size);
         p += p_size;
         //A
         if (a_size) {
-            *p++ = 0x82; p += format_tlv_len(a_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.A, p, a_size); p += a_size;
+            *p++ = 0x82; p += format_tlv_len((uint16_t)a_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.A, p, a_size); p += a_size;
         }
         else {   //mbedtls does not set point A for some curves
             if (pointA[ecdsa->grp.id] && ecdsa->grp.id < 6) {
-                *p++ = 0x82; p += format_tlv_len(p_size, p); memcpy(p, pointA[ecdsa->grp.id], p_size);
+                *p++ = 0x82; p += format_tlv_len((uint16_t)p_size, p); memcpy(p, pointA[ecdsa->grp.id], p_size);
                 p += p_size;
             }
             else {
@@ -141,15 +141,15 @@ uint16_t asn1_cvc_public_key_ecdsa(mbedtls_ecdsa_context *ecdsa, uint8_t *buf, u
             }
         }
         //B
-        *p++ = 0x83; p += format_tlv_len(b_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.B, p, b_size);
+        *p++ = 0x83; p += format_tlv_len((uint16_t)b_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.B, p, b_size);
         p += b_size;
         //G
-        *p++ = 0x84; p += format_tlv_len(g_size, p); memcpy(p, G_buf, g_size); p += g_size;
+        *p++ = 0x84; p += format_tlv_len((uint16_t)g_size, p); memcpy(p, G_buf, g_size); p += g_size;
         //order
-        *p++ = 0x85; p += format_tlv_len(o_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.N, p, o_size);
+        *p++ = 0x85; p += format_tlv_len((uint16_t)o_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.N, p, o_size);
         p += o_size;
         //Y
-        *p++ = 0x86; p += format_tlv_len(y_size, p); memcpy(p, Y_buf, y_size); p += y_size;
+        *p++ = 0x86; p += format_tlv_len((uint16_t)y_size, p); memcpy(p, Y_buf, y_size); p += y_size;
         //cofactor
         *p++ = 0x87; p += format_tlv_len(c_size, p);
         *p++ = 1;
@@ -185,7 +185,7 @@ uint16_t asn1_cvc_cert_body(void *rsa_ecdsa,
     uint8_t *car = NULL, *chr = NULL;
     uint16_t lencar = 0, lenchr = 0;
 
-    if (asn1_find_tag(apdu.data, apdu.nc, 0x42, &lencar,
+    if (asn1_find_tag(apdu.data, (uint16_t)apdu.nc, 0x42, &lencar,
                       &car) == false || lencar == 0 || car == NULL) {
         car = (uint8_t *) dev_name;
         lencar = dev_name_len;
@@ -194,7 +194,7 @@ uint16_t asn1_cvc_cert_body(void *rsa_ecdsa,
             lencar = (uint16_t)strlen((const char *)car);
         }
     }
-    if (asn1_find_tag(apdu.data, apdu.nc, 0x5f20, &lenchr,
+    if (asn1_find_tag(apdu.data, (uint16_t)apdu.nc, 0x5f20, &lenchr,
                       &chr) == false || lenchr == 0 || chr == NULL) {
         chr = (uint8_t *) dev_name;
         lenchr = dev_name_len;

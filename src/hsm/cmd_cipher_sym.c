@@ -228,7 +228,7 @@ int cmd_cipher_sym() {
                 return SW_EXEC_ERROR();
             }
         }
-        res_APDU_size = apdu.nc;
+        res_APDU_size = (uint16_t)apdu.nc;
     }
     else if (algo == ALGO_AES_CMAC) {
         const mbedtls_cipher_info_t *cipher_info;
@@ -266,19 +266,19 @@ int cmd_cipher_sym() {
         if (r != 0) {
             return SW_EXEC_ERROR();
         }
-        res_APDU_size = apdu.nc;
+        res_APDU_size = (uint16_t)apdu.nc;
     }
     else if (algo == ALGO_EXT_CIPHER_ENCRYPT || algo == ALGO_EXT_CIPHER_DECRYPT) {
         uint16_t oid_len = 0, aad_len = 0, iv_len = 0, enc_len = 0;
         uint8_t *oid = NULL, *aad = NULL, *iv = NULL, *enc = NULL;
-        if (!asn1_find_tag(apdu.data, apdu.nc, 0x6, &oid_len,
+        if (!asn1_find_tag(apdu.data, (uint16_t)apdu.nc, 0x6, &oid_len,
                            &oid) || oid_len == 0 || oid == NULL) {
             mbedtls_platform_zeroize(kdata, sizeof(kdata));
             return SW_WRONG_DATA();
         }
-        asn1_find_tag(apdu.data, apdu.nc, 0x81, &enc_len, &enc);
-        asn1_find_tag(apdu.data, apdu.nc, 0x82, &iv_len, &iv);
-        asn1_find_tag(apdu.data, apdu.nc, 0x83, &aad_len, &aad);
+        asn1_find_tag(apdu.data, (uint16_t)apdu.nc, 0x81, &enc_len, &enc);
+        asn1_find_tag(apdu.data, (uint16_t)apdu.nc, 0x82, &iv_len, &iv);
+        asn1_find_tag(apdu.data, (uint16_t)apdu.nc, 0x83, &aad_len, &aad);
         uint8_t tmp_iv[16];
         memset(tmp_iv, 0, sizeof(tmp_iv));
         if (memcmp(oid, OID_CHACHA20_POLY1305, oid_len) == 0) {
@@ -380,7 +380,7 @@ int cmd_cipher_sym() {
             if (r != 0) {
                 return SW_EXEC_ERROR();
             }
-            res_APDU_size = apdu.ne > 0 && apdu.ne < 65536 ? apdu.ne : (uint16_t)mbedtls_md_get_size(md_info);
+            res_APDU_size = apdu.ne > 0 && apdu.ne < 65536 ? (uint16_t)apdu.ne : (uint16_t)mbedtls_md_get_size(md_info);
         }
         else if (memcmp(oid, OID_PKCS5_PBKDF2, oid_len) == 0) {
             int iterations = 0;
@@ -409,7 +409,7 @@ int cmd_cipher_sym() {
             if (r != 0) {
                 return SW_EXEC_ERROR();
             }
-            res_APDU_size = keylen ? keylen : (apdu.ne > 0 && apdu.ne < 65536 ? apdu.ne : 32);
+            res_APDU_size = keylen ? keylen : (apdu.ne > 0 && apdu.ne < 65536 ? (uint16_t)apdu.ne : 32);
         }
         else if (memcmp(oid, OID_PKCS5_PBES2, oid_len) == 0) {
             size_t olen = 0;
@@ -450,13 +450,13 @@ int cmd_cipher_sym() {
                                           kdata,
                                           aad_len,
                                           aad,
-                                          apdu.ne > 0 && apdu.ne < 65536 ? apdu.ne : 32,
+                                          apdu.ne > 0 && apdu.ne < 65536 ? (uint16_t)apdu.ne : 32,
                                           res_APDU);
             mbedtls_platform_zeroize(kdata, sizeof(kdata));
             if (r != 0) {
                 return SW_WRONG_DATA();
             }
-            res_APDU_size = apdu.ne > 0 && apdu.ne < 65536 ? apdu.ne : 32;
+            res_APDU_size = apdu.ne > 0 && apdu.ne < 65536 ? (uint16_t)apdu.ne : 32;
         }
         else if (memcmp(oid, OID_NIST_AES, 8) == 0) {
             if (oid_len != 9) {

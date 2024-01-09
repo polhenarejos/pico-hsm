@@ -267,7 +267,7 @@ int cmd_bip_slip() {
         uint8_t chain[32] = { 0 }, fgpt[4] = { 0 }, last_node[4] = { 0 }, key_type = 0, nodes = 0;
         size_t olen = 0;
         int r =
-            node_derive_path(apdu.data, apdu.nc, &ctx, chain, fgpt, &nodes, last_node, &key_type);
+            node_derive_path(apdu.data, (uint16_t)apdu.nc, &ctx, chain, fgpt, &nodes, last_node, &key_type);
         if (r != CCID_OK) {
             mbedtls_ecp_keypair_free(&ctx);
             return SW_EXEC_ERROR();
@@ -307,7 +307,7 @@ int cmd_bip_slip() {
     else if (p1 == 0x10) {
         uint8_t chain[32] = { 0 }, fgpt[4] = { 0 }, last_node[4] = { 0 }, nodes = 0;
         int r = node_derive_path(apdu.data,
-                                 apdu.nc,
+                                 (uint16_t)apdu.nc,
                                  &hd_context,
                                  chain,
                                  fgpt,

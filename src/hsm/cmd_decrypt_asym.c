@@ -116,7 +116,7 @@ int cmd_decrypt_asym() {
         }
         else if (p2 == ALGO_EC_DH_XKEK) {
             uint16_t pub_len = 0;
-            const uint8_t *pub = cvc_get_pub(apdu.data, apdu.nc, &pub_len);
+            const uint8_t *pub = cvc_get_pub(apdu.data, (uint16_t)apdu.nc, &pub_len);
             if (pub) {
                 uint16_t t86_len = 0;
                 const uint8_t *t86 = cvc_get_field(pub, pub_len, &t86_len, 0x86);
@@ -149,7 +149,7 @@ int cmd_decrypt_asym() {
             res_APDU_size = 0;
             uint16_t ext_len = 0;
             const uint8_t *ext = NULL;
-            if ((ext = cvc_get_ext(apdu.data, apdu.nc, &ext_len)) == NULL) {
+            if ((ext = cvc_get_ext(apdu.data, (uint16_t)apdu.nc, &ext_len)) == NULL) {
                 return SW_WRONG_DATA();
             }
             uint8_t *p = NULL, *tag_data = NULL, *kdom_uid = NULL;

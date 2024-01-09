@@ -61,7 +61,7 @@ int cmd_puk_auth() {
                     return SW_MEMORY_FAILURE();
                 }
             }
-            flash_write_data_to_file(ef, apdu.data, apdu.nc);
+            flash_write_data_to_file(ef, apdu.data, (uint16_t)apdu.nc);
             low_flash_available();
         }
         else {
