@@ -8,7 +8,7 @@ USERNAME = "Pico-HSM"
 try:
     import keyring
 except:
-    print('ERROR: keyring module not found! Install keyring package.\nTry with `pip install keyrings.osx-keychain-keys`')
+    print('ERROR: keyring module not found! Install keyring package.\nTry with `pip install keyring`')
     sys.exit(-1)
 
 try:
