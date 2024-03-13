@@ -49,7 +49,9 @@ int cmd_initialize() {
         uint16_t tag = 0x0;
         uint8_t *tag_data = NULL, *p = NULL, *kds = NULL, *dkeks = NULL;
         uint16_t tag_len = 0;
-        while (walk_tlv(apdu.data, (uint16_t)apdu.nc, &p, &tag, &tag_len, &tag_data)) {
+        asn1_ctx_t ctxi;
+        asn1_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
+        while (walk_tlv(&ctxi, &p, &tag, &tag_len, &tag_data)) {
             if (tag == 0x80) { //options
                 file_t *tf = search_by_fid(EF_DEVOPS, NULL, SPECIFY_EF);
                 flash_write_data_to_file(tf, tag_data, tag_len);

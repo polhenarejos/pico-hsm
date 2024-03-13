@@ -152,34 +152,32 @@ int cmd_decrypt_asym() {
             if ((ext = cvc_get_ext(apdu.data, (uint16_t)apdu.nc, &ext_len)) == NULL) {
                 return SW_WRONG_DATA();
             }
-            uint8_t *p = NULL, *tag_data = NULL, *kdom_uid = NULL;
+            uint8_t *p = NULL;
             uint16_t tag = 0;
-            uint16_t tag_len = 0, kdom_uid_len = 0;
-            while (walk_tlv(ext, ext_len, &p, &tag, &tag_len, &tag_data)) {
+            asn1_ctx_t ctxi, ctxo = { 0 }, kdom_uid = { 0 };
+            asn1_ctx_init((uint8_t *)ext, ext_len, &ctxi);
+            while (walk_tlv(&ctxi, &p, &tag, &ctxo.len, &ctxo.data)) {
                 if (tag == 0x73) {
-                    uint16_t oid_len = 0;
-                    uint8_t *oid_data = NULL;
-                    if (asn1_find_tag(tag_data, tag_len, 0x6, &oid_len,
-                                      &oid_data) == true &&
-                        oid_len == strlen(OID_ID_KEY_DOMAIN_UID) &&
-                        memcmp(oid_data, OID_ID_KEY_DOMAIN_UID,
+                    asn1_ctx_t oid = {0};
+                    if (asn1_find_tag(&ctxo, 0x6, &oid) == true &&
+                        oid.len == strlen(OID_ID_KEY_DOMAIN_UID) &&
+                        memcmp(oid.data, OID_ID_KEY_DOMAIN_UID,
                                strlen(OID_ID_KEY_DOMAIN_UID)) == 0) {
-                        if (asn1_find_tag(tag_data, tag_len, 0x80, &kdom_uid_len,
-                                          &kdom_uid) == false) {
+                        if (asn1_find_tag(&ctxo, 0x80, &kdom_uid) == false) {
                             return SW_WRONG_DATA();
                         }
                         break;
                     }
                 }
             }
-            if (kdom_uid_len == 0 || kdom_uid == NULL) {
+            if (asn1_len(&kdom_uid) == 0) {
                 return SW_WRONG_DATA();
             }
             for (uint8_t n = 0; n < MAX_KEY_DOMAINS; n++) {
                 file_t *tf = search_dynamic_file(EF_XKEK + n);
                 if (tf) {
-                    if (file_get_size(tf) == kdom_uid_len &&
-                        memcmp(file_get_data(tf), kdom_uid, kdom_uid_len) == 0) {
+                    if (file_get_size(tf) == kdom_uid.len &&
+                        memcmp(file_get_data(tf), kdom_uid.data, kdom_uid.len) == 0) {
                         file_new(EF_DKEK + n);
                         if (store_dkek_key(n, res_APDU + 1) != CCID_OK) {
                             return SW_EXEC_ERROR();

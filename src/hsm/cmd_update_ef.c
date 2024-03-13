@@ -49,7 +49,9 @@ int cmd_update_ef() {
     uint16_t tag = 0x0;
     uint8_t *tag_data = NULL, *p = NULL;
     uint16_t tag_len = 0;
-    while (walk_tlv(apdu.data, (uint16_t)apdu.nc, &p, &tag, &tag_len, &tag_data)) {
+    asn1_ctx_t ctxi;
+    asn1_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
+    while (walk_tlv(&ctxi, &p, &tag, &tag_len, &tag_data)) {
         if (tag == 0x54) { //ofset tag
             for (size_t i = 1; i <= tag_len; i++) {
                 offset |= (*tag_data++ << (8 * (tag_len - i)));

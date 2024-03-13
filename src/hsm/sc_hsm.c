@@ -52,6 +52,7 @@ static int sc_hsm_unload();
 extern int cmd_select();
 extern void select_file(file_t *pe);
 extern int cmd_list_keys();
+
 extern int cmd_read_binary();
 extern int cmd_verify();
 extern int cmd_reset_retry();
@@ -230,7 +231,9 @@ void reset_puk_store() {
     if (fterm) {
         uint8_t *p = NULL, *fterm_data = file_get_data(fterm), *pq = fterm_data;
         uint16_t fterm_data_len = file_get_size(fterm);
-        while (walk_tlv(fterm_data, fterm_data_len, &p, NULL, NULL, NULL)) {
+        asn1_ctx_t ctxi;
+        asn1_ctx_init(fterm_data, fterm_data_len, &ctxi);
+        while (walk_tlv(&ctxi, &p, NULL, NULL, NULL)) {
             add_cert_puk_store(pq, (uint16_t)(p - pq), false);
             pq = p;
         }
@@ -424,7 +427,9 @@ const uint8_t *get_meta_tag(file_t *ef, uint16_t meta_tag, uint16_t *tag_len) {
     if (meta_size > 0 && meta_data != NULL) {
         uint16_t tag = 0x0;
         uint8_t *tag_data = NULL, *p = NULL;
-        while (walk_tlv(meta_data, meta_size, &p, &tag, tag_len, &tag_data)) {
+        asn1_ctx_t ctxi;
+        asn1_ctx_init(meta_data, meta_size, &ctxi);
+        while (walk_tlv(&ctxi, &p, &tag, tag_len, &tag_data)) {
             if (tag == meta_tag) {
                 return tag_data;
             }
@@ -469,7 +474,9 @@ uint32_t decrement_key_counter(file_t *fkey) {
         uint8_t *cmeta = (uint8_t *) calloc(1, meta_size);
         /* We cannot modify meta_data, as it comes from flash memory. It must be cpied to an aux buffer */
         memcpy(cmeta, meta_data, meta_size);
-        while (walk_tlv(cmeta, meta_size, &p, &tag, &tag_len, &tag_data)) {
+        asn1_ctx_t ctxi;
+        asn1_ctx_init(meta_data, meta_size, &ctxi);
+        while (walk_tlv(&ctxi, &p, &tag, &tag_len, &tag_data)) {
             if (tag == 0x90) { // ofset tag
                 uint32_t val =
                     (tag_data[0] << 24) | (tag_data[1] << 16) | (tag_data[2] << 8) | tag_data[3];
@@ -559,34 +566,31 @@ int store_keys(void *key_ctx, int type, uint8_t key_id) {
 }
 
 int find_and_store_meta_key(uint8_t key_id) {
-    uint16_t lt[4] = { 0, 0, 0, 0 }, meta_size = 0;
-    uint8_t *pt[4] = { NULL, NULL, NULL, NULL };
+    uint16_t meta_size = 0;
     uint8_t t90[4] = { 0xFF, 0xFF, 0xFF, 0xFE };
+    asn1_ctx_t ctxi, ctxo[4] = { 0 };
+    asn1_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
     for (uint16_t t = 0; t < 4; t++) {
-        uint8_t *ptt = NULL;
-        uint16_t ltt = 0;
-        if (asn1_find_tag(apdu.data, (uint16_t)apdu.nc, 0x90 + t, &ltt, &ptt) && ptt != NULL && ltt > 0) {
-            lt[t] = ltt;
-            pt[t] = ptt;
-            meta_size += asn1_len_tag(0x90 + t, lt[t]);
+        if (asn1_find_tag(&ctxi, 0x90 + t, &ctxo[t]) && asn1_len(&ctxo[t]) > 0) {
+            meta_size += asn1_len_tag(0x90 + t, ctxo[t].len);
         }
     }
-    if (lt[0] == 0 && pt[0] == NULL) {
+    if (asn1_len(&ctxo[0]) == 0) {
         uint16_t opts = get_device_options();
         if (opts & HSM_OPT_KEY_COUNTER_ALL) {
-            lt[0] = 4;
-            pt[0] = t90;
+            ctxo[0].len = 4;
+            ctxo[0].data = t90;
             meta_size += 6;
         }
     }
     if (meta_size) {
         uint8_t *meta = (uint8_t *) calloc(1, meta_size), *m = meta;
         for (uint8_t t = 0; t < 4; t++) {
-            if (lt[t] > 0 && pt[t] != NULL) {
+            if (asn1_len(&ctxo[t]) > 0) {
                 *m++ = 0x90 + t;
-                m += format_tlv_len(lt[t], m);
-                memcpy(m, pt[t], lt[t]);
-                m += lt[t];
+                m += format_tlv_len(ctxo[t].len, m);
+                memcpy(m, ctxo[t].data, ctxo[t].len);
+                m += ctxo[t].len;
             }
         }
         int r = meta_add((KEY_PREFIX << 8) | key_id, meta, (uint16_t)meta_size);

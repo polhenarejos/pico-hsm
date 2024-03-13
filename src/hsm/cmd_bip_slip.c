@@ -160,7 +160,10 @@ int node_derive_path(const uint8_t *path,
     int r = 0;
     memset(last_node, 0, 4);
     memset(fingerprint, 0, 4);
-    for (; walk_tlv(path, path_len, &p, &tag, &tag_len, &tag_data); node++) {
+
+    asn1_ctx_t ctxi;
+    asn1_ctx_init((uint8_t *)path, path_len, &ctxi);
+    for (; walk_tlv(&ctxi, &p, &tag, &tag_len, &tag_data); node++) {
         if (tag == 0x02) {
             if ((node == 0 && tag_len != 1) || (node != 0 && tag_len != 4)) {
                 return CCID_WRONG_DATA;

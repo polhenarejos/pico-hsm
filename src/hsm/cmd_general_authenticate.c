@@ -33,7 +33,9 @@ int cmd_general_authenticate() {
             uint16_t tag = 0x0;
             uint8_t *tag_data = NULL, *p = NULL;
             uint16_t tag_len = 0;
-            while (walk_tlv(apdu.data + 2, (uint16_t)(apdu.nc - 2), &p, &tag, &tag_len, &tag_data)) {
+            asn1_ctx_t ctxi;
+            asn1_ctx_init(apdu.data + 2, (uint16_t)(apdu.nc - 2), &ctxi);
+            while (walk_tlv(&ctxi, &p, &tag, &tag_len, &tag_data)) {
                 if (tag == 0x80) {
                     pubkey = tag_data - 1; //mbedtls ecdh starts reading one pos before
                     pubkey_len = tag_len + 1;

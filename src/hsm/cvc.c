@@ -182,28 +182,25 @@ uint16_t asn1_cvc_cert_body(void *rsa_ecdsa,
         valid_size = asn1_len_tag(0x5f24, 6) + asn1_len_tag(0x5f25, 6);
     }
 
-    uint8_t *car = NULL, *chr = NULL;
-    uint16_t lencar = 0, lenchr = 0;
-
-    if (asn1_find_tag(apdu.data, (uint16_t)apdu.nc, 0x42, &lencar,
-                      &car) == false || lencar == 0 || car == NULL) {
-        car = (uint8_t *) dev_name;
-        lencar = dev_name_len;
+    asn1_ctx_t ctxi, car = {0}, chr = {0};
+    asn1_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
+    if (asn1_find_tag(&ctxi, 0x42, &car) == false || asn1_len(&car) == 0) {
+        car.data = (uint8_t *) dev_name;
+        car.len = dev_name_len;
         if (dev_name == NULL) {
-            car = (uint8_t *)"ESPICOHSMTR00001";
-            lencar = (uint16_t)strlen((const char *)car);
+            car.data = (uint8_t *)"ESPICOHSMTR00001";
+            car.len = (uint16_t)strlen((const char *)car.data);
         }
     }
-    if (asn1_find_tag(apdu.data, (uint16_t)apdu.nc, 0x5f20, &lenchr,
-                      &chr) == false || lenchr == 0 || chr == NULL) {
-        chr = (uint8_t *) dev_name;
-        lenchr = dev_name_len;
-        if (chr == NULL) {
-            chr = car;
-            lenchr = lencar;
+    if (asn1_find_tag(&ctxi, 0x5f20, &chr) == false || asn1_len(&chr) == 0) {
+        chr.data = (uint8_t *) dev_name;
+        chr.len = dev_name_len;
+        if (chr.data == NULL) {
+            chr.data = car.data;
+            chr.len = car.len;
         }
     }
-    uint16_t car_size = asn1_len_tag(0x42, lencar), chr_size = asn1_len_tag(0x5f20, lenchr);
+    uint16_t car_size = asn1_len_tag(0x42, car.len), chr_size = asn1_len_tag(0x5f20, chr.len);
 
     uint16_t tot_len = asn1_len_tag(0x7f4e, cpi_size + car_size + pubkey_size + chr_size + ext_size + role_size + valid_size);
 
@@ -219,7 +216,7 @@ uint16_t asn1_cvc_cert_body(void *rsa_ecdsa,
     //cpi
     *p++ = 0x5f; *p++ = 0x29; *p++ = 1; *p++ = 0;
     //car
-    *p++ = 0x42; p += format_tlv_len(lencar, p); memcpy(p, car, lencar); p += lencar;
+    *p++ = 0x42; p += format_tlv_len(car.len, p); memcpy(p, car.data, car.len); p += car.len;
     //pubkey
     if (key_type & PICO_KEYS_KEY_RSA) {
         p += asn1_cvc_public_key_rsa(rsa_ecdsa, p, pubkey_size);
@@ -228,7 +225,7 @@ uint16_t asn1_cvc_cert_body(void *rsa_ecdsa,
         p += asn1_cvc_public_key_ecdsa(rsa_ecdsa, p, pubkey_size);
     }
     //chr
-    *p++ = 0x5f; *p++ = 0x20; p += format_tlv_len(lenchr, p); memcpy(p, chr, lenchr); p += lenchr;
+    *p++ = 0x5f; *p++ = 0x20; p += format_tlv_len(chr.len, p); memcpy(p, chr.data, chr.len); p += chr.len;
     if (full) {
         *p++ = 0x7f;
         *p++ = 0x4c;
@@ -580,14 +577,16 @@ uint16_t asn1_build_prkd_aes(const uint8_t *label,
 }
 
 const uint8_t *cvc_get_field(const uint8_t *data, uint16_t len, uint16_t *olen, uint16_t tag) {
-    uint8_t *rdata = NULL;
-    if (data == NULL || len == 0) {
+    asn1_ctx_t ctxi, ctxo = { 0 };
+    asn1_ctx_init((uint8_t *)data, len, &ctxi);
+    if (asn1_len(&ctxi) == 0) {
         return NULL;
     }
-    if (asn1_find_tag(data, len, tag, olen, &rdata) == false) {
+    if (asn1_find_tag(&ctxi, tag, &ctxo) == false) {
         return NULL;
     }
-    return rdata;
+    *olen = ctxo.len;
+    return ctxo.data;
 }
 
 const uint8_t *cvc_get_body(const uint8_t *data, uint16_t len, uint16_t *olen) {

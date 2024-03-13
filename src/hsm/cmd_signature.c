@@ -152,8 +152,7 @@ int cmd_signature() {
             }
             return SW_EXEC_ERROR();
         }
-        uint8_t *hash = apdu.data;
-        uint16_t hash_len = (uint16_t)apdu.nc;
+        asn1_ctx_t hash = {.len = (uint16_t)apdu.nc, .data = apdu.data};
         if (p2 == ALGO_RSA_PKCS1) { //DigestInfo attached
             uint16_t nc = (uint16_t)apdu.nc;
             if (pkcs1_strip_digest_info_prefix(&md, apdu.data, (uint16_t)apdu.nc, apdu.data,
@@ -164,35 +163,34 @@ int cmd_signature() {
         }
         else {
             //sc_asn1_print_tags(apdu.data, apdu.nc);
-            uint16_t tout = 0, oid_len = 0;
-            uint8_t *p = NULL, *oid = NULL;
-            if (asn1_find_tag(apdu.data, (uint16_t)apdu.nc, 0x30, &tout, &p) && tout > 0 && p != NULL) {
-                uint16_t tout30 = 0;
-                uint8_t *c30 = NULL;
-                if (asn1_find_tag(p, tout, 0x30, &tout30, &c30) && tout30 > 0 && c30 != NULL) {
-                    asn1_find_tag(c30, tout30, 0x6, &oid_len, &oid);
+            asn1_ctx_t ctxi, ctxo = { 0 }, oid = { 0 };
+            asn1_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
+            if (asn1_find_tag(&ctxi, 0x30, &ctxo) && asn1_len(&ctxo) > 0) {
+                asn1_ctx_t a30 = { 0 };
+                if (asn1_find_tag(&ctxo, 0x30, &a30) && asn1_len(&a30) > 0) {
+                    asn1_find_tag(&a30, 0x6, &oid);
                 }
-                asn1_find_tag(p, tout, 0x4, &hash_len, &hash);
+                asn1_find_tag(&ctxo, 0x4, &hash);
             }
-            if (oid && oid_len > 0) {
-                if (memcmp(oid, MBEDTLS_OID_DIGEST_ALG_SHA1, oid_len) == 0) {
+            if (asn1_len(&oid)) {
+                if (memcmp(oid.data, MBEDTLS_OID_DIGEST_ALG_SHA1, oid.len) == 0) {
                     md = MBEDTLS_MD_SHA1;
                 }
-                else if (memcmp(oid, MBEDTLS_OID_DIGEST_ALG_SHA224, oid_len) == 0) {
+                else if (memcmp(oid.data, MBEDTLS_OID_DIGEST_ALG_SHA224, oid.len) == 0) {
                     md = MBEDTLS_MD_SHA224;
                 }
-                else if (memcmp(oid, MBEDTLS_OID_DIGEST_ALG_SHA256, oid_len) == 0) {
+                else if (memcmp(oid.data, MBEDTLS_OID_DIGEST_ALG_SHA256, oid.len) == 0) {
                     md = MBEDTLS_MD_SHA256;
                 }
-                else if (memcmp(oid, MBEDTLS_OID_DIGEST_ALG_SHA384, oid_len) == 0) {
+                else if (memcmp(oid.data, MBEDTLS_OID_DIGEST_ALG_SHA384, oid.len) == 0) {
                     md = MBEDTLS_MD_SHA384;
                 }
-                else if (memcmp(oid, MBEDTLS_OID_DIGEST_ALG_SHA512, oid_len) == 0) {
+                else if (memcmp(oid.data, MBEDTLS_OID_DIGEST_ALG_SHA512, oid.len) == 0) {
                     md = MBEDTLS_MD_SHA512;
                 }
             }
             if (p2 >= ALGO_RSA_PSS && p2 <= ALGO_RSA_PSS_SHA512) {
-                if (p2 == ALGO_RSA_PSS && !oid) {
+                if (p2 == ALGO_RSA_PSS && asn1_len(&oid) == 0) {
                     if (apdu.nc == 20) { //default is sha1
                         md = MBEDTLS_MD_SHA1;
                     }
@@ -220,7 +218,7 @@ int cmd_signature() {
         }
         else {
             uint8_t *signature = (uint8_t *) calloc(key_size, sizeof(uint8_t));
-            r = mbedtls_rsa_pkcs1_sign(&ctx, random_gen, NULL, md, hash_len, hash, signature);
+            r = mbedtls_rsa_pkcs1_sign(&ctx, random_gen, NULL, md, hash.len, hash.data, signature);
             memcpy(res_APDU, signature, key_size);
             free(signature);
         }

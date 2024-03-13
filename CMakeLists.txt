@@ -89,7 +89,7 @@ target_compile_options(pico_hsm PUBLIC
     -Wall
 )
 if (NOT MSVC)
-    target_compile_options(pico_hsm PUBLIC 
+    target_compile_options(pico_hsm PUBLIC
         -Werror
     )
 endif()
@@ -106,10 +106,10 @@ target_link_options(pico_hsm PUBLIC
         -Wl,-dead_strip
         )
 elseif(MSVC)
-    target_compile_options(pico_hsm PUBLIC 
+    target_compile_options(pico_hsm PUBLIC
         -WX
     )
-    
+
     target_link_libraries(pico_hsm PUBLIC wsock32 ws2_32 Bcrypt)
 else()
 target_link_options(pico_hsm PUBLIC
