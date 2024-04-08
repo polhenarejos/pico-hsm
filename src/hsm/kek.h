@@ -19,9 +19,10 @@
 #define _DKEK_H_
 
 #include "crypto_utils.h"
-#ifdef ENABLE_EMULATION
+#if defined(ENABLE_EMULATION) || defined(ESP_PLATFORM)
 #include <stdbool.h>
 #endif
+
 
 extern int load_mkek(uint8_t *);
 extern int store_mkek(const uint8_t *);

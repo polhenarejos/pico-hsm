@@ -15,10 +15,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "common.h"
+#include "sc_hsm.h"
 #include "mbedtls/ecdh.h"
 #include "asn1.h"
-#include "sc_hsm.h"
 #include "random.h"
 #include "oid.h"
 #include "eac.h"

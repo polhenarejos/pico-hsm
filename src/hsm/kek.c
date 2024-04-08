@@ -15,16 +15,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <string.h>
-#include "common.h"
+#include "sc_hsm.h"
 #include "stdlib.h"
-#ifndef ENABLE_EMULATION
+#if !defined(ENABLE_EMULATION) && !defined(ESP_PLATFORM)
 #include "pico/stdlib.h"
 #endif
 #include "kek.h"
 #include "crypto_utils.h"
 #include "random.h"
-#include "sc_hsm.h"
 #include "mbedtls/md.h"
 #include "mbedtls/cmac.h"
 #include "mbedtls/rsa.h"

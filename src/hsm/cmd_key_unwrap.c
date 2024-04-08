@@ -15,9 +15,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "common.h"
-#include "crypto_utils.h"
 #include "sc_hsm.h"
+#include "crypto_utils.h"
 #include "kek.h"
 #include "cvc.h"
 

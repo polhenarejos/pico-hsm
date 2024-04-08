@@ -17,7 +17,6 @@
 
 #include "sc_hsm.h"
 #include "files.h"
-#include "common.h"
 #include "version.h"
 #include "crypto_utils.h"
 #include "kek.h"
@@ -89,6 +88,7 @@ int sc_hsm_select_aid(app_t *a) {
 }
 
 INITIALIZER( sc_hsm_ctor ) {
+    printf("INITIALIZER\n");
     ccid_atr = atr_sc_hsm;
     register_app(sc_hsm_select_aid, sc_hsm_aid);
 }
