@@ -87,9 +87,16 @@ def parse_args():
     parser_opts = subparser.add_parser('options', help='Manage extra options.', formatter_class=RawTextHelpFormatter)
     subparser_opts = parser_opts.add_subparsers(title='commands', dest='subcommand', required=True)
     parser_opts_set = subparser_opts.add_parser('set', help='Sets option OPT.')
-    parser_opts_get = subparser_opts.add_parser('get', help='Gets optiont OPT.')
+    parser_opts_get = subparser_opts.add_parser('get', help='Gets option OPT.')
     parser_opts.add_argument('opt', choices=['button', 'counter'], help='button: press-to-confirm button.\ncounter: every generated key has an internal counter.', metavar='OPT')
     parser_opts_set.add_argument('onoff', choices=['on', 'off'], help='Toggles state ON or OFF', metavar='ON/OFF', nargs='?')
+
+    parser_phy = subparser.add_parser('phy', help='Set PHY options.')
+    subparser_phy = parser_phy.add_subparsers(title='commands', dest='subcommand', required=True)
+    parser_phy_vp = subparser_phy.add_parser('vidpid', help='Sets VID/PID. Use VID:PID format (e.g. 1234:5678)')
+    parser_phy_ledn = subparser_phy.add_parser('led', help='Sets LED GPIO number.')
+    parser_phy_vp.add_argument('value', help='Value of the PHY option.', metavar='VAL', nargs='?')
+    parser_phy_ledn.add_argument('value', help='Value of the PHY option.', metavar='VAL', nargs='?')
 
     parser_secure = subparser.add_parser('secure', help='Manages security of Pico HSM.')
     subparser_secure = parser_secure.add_subparsers(title='commands', dest='subcommand', required=True)
@@ -444,8 +451,22 @@ def keygen(picohsm, args):
     print('Key generated successfully.')
     print(f'Key ID: {ret}')
 
+def phy(picohsm, args):
+    val = args.value if 'value' in args else None
+    if (val):
+        if (args.subcommand == 'vidpid'):
+            sp = val.split(':')
+            if (len(sp) != 2):
+                print('ERROR: VID/PID have wrong format. Use VID:PID format (e.g. 1234:5678)')
+            val = int(sp[0],16).to_bytes(2, 'big') + int(sp[1],16).to_bytes(2, 'big')
+        elif (args.subcommand == 'led'):
+            val = [int(val)]
+    ret = picohsm.phy(args.subcommand, val)
+    if (ret):
+        print(f'Current value: {hexlify(ret)}')
+
 def main(args):
-    sys.stderr.buffer.write(b'Pico HSM Tool v1.10\n')
+    sys.stderr.buffer.write(b'Pico HSM Tool v1.12\n')
     sys.stderr.buffer.write(b'Author: Pol Henarejos\n')
     sys.stderr.buffer.write(b'Report bugs to https://github.com/polhenarejos/pico-hsm/issues\n')
     sys.stderr.buffer.write(b'\n\n')
@@ -470,6 +491,8 @@ def main(args):
         cipher(picohsm, args)
     elif (args.command == 'keygen'):
         keygen(picohsm, args)
+    elif (args.command == 'phy'):
+        phy(picohsm, args)
 
 
 def run():
