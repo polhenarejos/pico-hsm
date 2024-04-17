@@ -93,7 +93,7 @@ int cmd_key_domain() {
             if (2 * p2 >= tf_kd_size) {
                 return SW_INCORRECT_P1P2();
             }
-            if (current_dkeks == 0xff && !tf) { //XKEK have always 0xff
+            if (current_dkeks == 0xff && !file_has_data(tf)) { //XKEK have always 0xff
                 return SW_REFERENCE_NOT_FOUND();
             }
         }
@@ -204,7 +204,7 @@ int cmd_key_domain() {
     dkek_kcv(p2, res_APDU + 2);
     res_APDU_size = 2 + 8;
     file_t *tf = search_file(EF_XKEK + p2);
-    if (tf) {
+    if (file_has_data(tf)) {
         memcpy(res_APDU + 10, file_get_data(tf), file_get_size(tf));
         res_APDU_size += file_get_size(tf);
     }
