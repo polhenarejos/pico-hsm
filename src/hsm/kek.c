@@ -110,7 +110,7 @@ int mse_decrypt_ct(uint8_t *data, size_t len) {
 
 int load_dkek(uint8_t id, uint8_t *dkek) {
     file_t *tf = search_file(EF_DKEK + id);
-    if (!tf) {
+    if (!file_has_data(tf)) {
         return CCID_ERR_FILE_NOT_FOUND;
     }
     memcpy(dkek, file_get_data(tf), DKEK_KEY_SIZE);
