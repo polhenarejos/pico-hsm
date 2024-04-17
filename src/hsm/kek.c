@@ -57,14 +57,14 @@ int load_mkek(uint8_t *mkek) {
     }
     const uint8_t *pin = NULL;
     if (pin == NULL && has_session_pin == true) {
-        file_t *tf = search_by_fid(EF_MKEK, NULL, SPECIFY_EF);
+        file_t *tf = search_file(EF_MKEK);
         if (file_has_data(tf)) {
             memcpy(mkek, file_get_data(tf), MKEK_SIZE);
             pin = session_pin;
         }
     }
     if (pin == NULL && has_session_sopin == true) {
-        file_t *tf = search_by_fid(EF_MKEK_SO, NULL, SPECIFY_EF);
+        file_t *tf = search_file(EF_MKEK_SO);
         if (file_has_data(tf)) {
             memcpy(mkek, file_get_data(tf), MKEK_SIZE);
             pin = session_sopin;
@@ -137,7 +137,7 @@ int store_mkek(const uint8_t *mkek) {
     if (has_session_pin) {
         uint8_t tmp_mkek_pin[MKEK_SIZE];
         memcpy(tmp_mkek_pin, tmp_mkek, MKEK_SIZE);
-        file_t *tf = search_by_fid(EF_MKEK, NULL, SPECIFY_EF);
+        file_t *tf = search_file(EF_MKEK);
         if (!tf) {
             release_mkek(tmp_mkek);
             release_mkek(tmp_mkek_pin);
@@ -147,13 +147,13 @@ int store_mkek(const uint8_t *mkek) {
                             MKEK_IV(tmp_mkek_pin),
                             MKEK_KEY(tmp_mkek_pin),
                             MKEK_KEY_SIZE + MKEK_KEY_CS_SIZE);
-        flash_write_data_to_file(tf, tmp_mkek_pin, MKEK_SIZE);
+        file_put_data(tf, tmp_mkek_pin, MKEK_SIZE);
         release_mkek(tmp_mkek_pin);
     }
     if (has_session_sopin) {
         uint8_t tmp_mkek_sopin[MKEK_SIZE];
         memcpy(tmp_mkek_sopin, tmp_mkek, MKEK_SIZE);
-        file_t *tf = search_by_fid(EF_MKEK_SO, NULL, SPECIFY_EF);
+        file_t *tf = search_file(EF_MKEK_SO);
         if (!tf) {
             release_mkek(tmp_mkek);
             release_mkek(tmp_mkek_sopin);
@@ -163,7 +163,7 @@ int store_mkek(const uint8_t *mkek) {
                             MKEK_IV(tmp_mkek_sopin),
                             MKEK_KEY(tmp_mkek_sopin),
                             MKEK_KEY_SIZE + MKEK_KEY_CS_SIZE);
-        flash_write_data_to_file(tf, tmp_mkek_sopin, MKEK_SIZE);
+        file_put_data(tf, tmp_mkek_sopin, MKEK_SIZE);
         release_mkek(tmp_mkek_sopin);
     }
     low_flash_available();
@@ -180,7 +180,7 @@ int store_dkek_key(uint8_t id, uint8_t *dkek) {
     if (r != CCID_OK) {
         return r;
     }
-    flash_write_data_to_file(tf, dkek, DKEK_KEY_SIZE);
+    file_put_data(tf, dkek, DKEK_KEY_SIZE);
     low_flash_available();
     return CCID_OK;
 }
@@ -213,7 +213,7 @@ int import_dkek_share(uint8_t id, const uint8_t *share) {
     for (int i = 0; i < DKEK_KEY_SIZE; i++) {
         tmp_dkek[i] ^= share[i];
     }
-    flash_write_data_to_file(tf, tmp_dkek, DKEK_KEY_SIZE);
+    file_put_data(tf, tmp_dkek, DKEK_KEY_SIZE);
     low_flash_available();
     return CCID_OK;
 }

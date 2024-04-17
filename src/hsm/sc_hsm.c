@@ -94,45 +94,45 @@ INITIALIZER( sc_hsm_ctor ) {
 }
 
 void scan_files() {
-    file_pin1 = search_by_fid(0x1081, NULL, SPECIFY_EF);
+    file_pin1 = search_file(0x1081);
     if (file_pin1) {
         if (!file_pin1->data) {
             printf("PIN1 is empty. Initializing with default password\n");
             const uint8_t empty[33] = { 0 };
-            flash_write_data_to_file(file_pin1, empty, sizeof(empty));
+            file_put_data(file_pin1, empty, sizeof(empty));
         }
     }
     else {
         printf("FATAL ERROR: PIN1 not found in memory!\n");
     }
-    file_sopin = search_by_fid(0x1088, NULL, SPECIFY_EF);
+    file_sopin = search_file(0x1088);
     if (file_sopin) {
         if (!file_sopin->data) {
             printf("SOPIN is empty. Initializing with default password\n");
             const uint8_t empty[33] = { 0 };
-            flash_write_data_to_file(file_sopin, empty, sizeof(empty));
+            file_put_data(file_sopin, empty, sizeof(empty));
         }
     }
     else {
         printf("FATAL ERROR: SOPIN not found in memory!\n");
     }
-    file_retries_pin1 = search_by_fid(0x1083, NULL, SPECIFY_EF);
+    file_retries_pin1 = search_file(0x1083);
     if (file_retries_pin1) {
         if (!file_retries_pin1->data) {
             printf("Retries PIN1 is empty. Initializing with default retriesr\n");
             const uint8_t retries = 3;
-            flash_write_data_to_file(file_retries_pin1, &retries, sizeof(uint8_t));
+            file_put_data(file_retries_pin1, &retries, sizeof(uint8_t));
         }
     }
     else {
         printf("FATAL ERROR: Retries PIN1 not found in memory!\n");
     }
-    file_retries_sopin = search_by_fid(0x108A, NULL, SPECIFY_EF);
+    file_retries_sopin = search_file(0x108A);
     if (file_retries_sopin) {
         if (!file_retries_sopin->data) {
             printf("Retries SOPIN is empty. Initializing with default retries\n");
             const uint8_t retries = 15;
-            flash_write_data_to_file(file_retries_sopin, &retries, sizeof(uint8_t));
+            file_put_data(file_retries_sopin, &retries, sizeof(uint8_t));
         }
     }
     else {
@@ -140,23 +140,23 @@ void scan_files() {
     }
     file_t *tf = NULL;
 
-    tf = search_by_fid(0x1082, NULL, SPECIFY_EF);
+    tf = search_file(0x1082);
     if (tf) {
         if (!tf->data) {
             printf("Max retries PIN1 is empty. Initializing with default max retriesr\n");
             const uint8_t retries = 3;
-            flash_write_data_to_file(tf, &retries, sizeof(uint8_t));
+            file_put_data(tf, &retries, sizeof(uint8_t));
         }
     }
     else {
         printf("FATAL ERROR: Max Retries PIN1 not found in memory!\n");
     }
-    tf = search_by_fid(0x1089, NULL, SPECIFY_EF);
+    tf = search_file(0x1089);
     if (tf) {
         if (!tf->data) {
             printf("Max Retries SOPIN is empty. Initializing with default max retries\n");
             const uint8_t retries = 15;
-            flash_write_data_to_file(tf, &retries, sizeof(uint8_t));
+            file_put_data(tf, &retries, sizeof(uint8_t));
         }
     }
     else {
@@ -227,7 +227,7 @@ void reset_puk_store() {
     }
     memset(puk_store, 0, sizeof(puk_store));
     puk_store_entries = 0;
-    file_t *fterm = search_by_fid(EF_TERMCA, NULL, SPECIFY_EF);
+    file_t *fterm = search_file(EF_TERMCA);
     if (fterm) {
         uint8_t *p = NULL, *fterm_data = file_get_data(fterm), *pq = fterm_data;
         uint16_t fterm_data_len = file_get_size(fterm);
@@ -239,7 +239,7 @@ void reset_puk_store() {
         }
     }
     for (int i = 0; i < 0xfe; i++) {
-        file_t *ef = search_dynamic_file((CA_CERTIFICATE_PREFIX << 8) | (uint8_t)i);
+        file_t *ef = search_file((CA_CERTIFICATE_PREFIX << 8) | (uint8_t)i);
         if (ef && file_get_size(ef) > 0) {
             add_cert_puk_store(file_get_data(ef), file_get_size(ef), false);
         }
@@ -264,9 +264,9 @@ int sc_hsm_unload() {
 }
 
 uint16_t get_device_options() {
-    file_t *ef = search_by_fid(EF_DEVOPS, NULL, SPECIFY_EF);
+    file_t *ef = search_file(EF_DEVOPS);
     if (file_has_data(ef)) {
-        return (file_read_uint8(file_get_data(ef)) << 8) | file_read_uint8(file_get_data(ef) + 1);
+        return (file_read_uint8(ef) << 8) | file_read_uint8_offset(ef, 1);
     }
     return 0x0;
 }
@@ -318,17 +318,17 @@ int pin_reset_retries(const file_t *pin, bool force) {
     if (!pin) {
         return CCID_ERR_NULL_PARAM;
     }
-    const file_t *max = search_by_fid(pin->fid + 1, NULL, SPECIFY_EF);
-    const file_t *act = search_by_fid(pin->fid + 2, NULL, SPECIFY_EF);
+    const file_t *max = search_file(pin->fid + 1);
+    const file_t *act = search_file(pin->fid + 2);
     if (!max || !act) {
         return CCID_ERR_FILE_NOT_FOUND;
     }
-    uint8_t retries = file_read_uint8(file_get_data(act));
+    uint8_t retries = file_read_uint8(act);
     if (retries == 0 && force == false) { // blocked
         return CCID_ERR_BLOCKED;
     }
-    retries = file_read_uint8(file_get_data(max));
-    int r = flash_write_data_to_file((file_t *) act, &retries, sizeof(retries));
+    retries = file_read_uint8(max);
+    int r = file_put_data((file_t *) act, &retries, sizeof(retries));
     low_flash_available();
     return r;
 }
@@ -337,14 +337,14 @@ int pin_wrong_retry(const file_t *pin) {
     if (!pin) {
         return CCID_ERR_NULL_PARAM;
     }
-    const file_t *act = search_by_fid(pin->fid + 2, NULL, SPECIFY_EF);
+    const file_t *act = search_file(pin->fid + 2);
     if (!act) {
         return CCID_ERR_FILE_NOT_FOUND;
     }
-    uint8_t retries = file_read_uint8(file_get_data(act));
+    uint8_t retries = file_read_uint8(act);
     if (retries > 0) {
         retries -= 1;
-        int r = flash_write_data_to_file((file_t *) act, &retries, sizeof(retries));
+        int r = file_put_data((file_t *) act, &retries, sizeof(retries));
         if (r != CCID_OK) {
             return r;
         }
@@ -358,8 +358,8 @@ int pin_wrong_retry(const file_t *pin) {
 }
 
 bool pka_enabled() {
-    file_t *ef_puk = search_by_fid(EF_PUKAUT, NULL, SPECIFY_EF);
-    return file_has_data(ef_puk) && file_read_uint8(file_get_data(ef_puk)) > 0;
+    file_t *ef_puk = search_file(EF_PUKAUT);
+    return file_has_data(ef_puk) && file_read_uint8(ef_puk) > 0;
 }
 
 uint16_t check_pin(const file_t *pin, const uint8_t *data, uint16_t len) {
@@ -544,7 +544,7 @@ int store_keys(void *key_ctx, int type, uint8_t key_id) {
     if (r != CCID_OK) {
         return r;
     }
-    r = flash_write_data_to_file(fpk, kdata, (uint16_t)key_size);
+    r = file_put_data(fpk, kdata, (uint16_t)key_size);
     if (r != CCID_OK) {
         return r;
     }
@@ -556,7 +556,7 @@ int store_keys(void *key_ctx, int type, uint8_t key_id) {
     uint16_t prkd_len = asn1_build_prkd_generic(NULL, 0, (uint8_t *)key_id_str, (uint16_t)strlen(key_id_str), key_size * 8, type, kdata, sizeof(kdata));
     if (prkd_len > 0) {
         fpk = file_new((PRKD_PREFIX << 8) | key_id);
-        r = flash_write_data_to_file(fpk, kdata, prkd_len);
+        r = file_put_data(fpk, kdata, prkd_len);
         if (r != 0) {
             return SW_EXEC_ERROR();
         }

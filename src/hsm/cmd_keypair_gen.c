@@ -145,7 +145,7 @@ int cmd_keypair_gen() {
         return SW_EXEC_ERROR();
     }
     file_t *fpk = file_new((EE_CERTIFICATE_PREFIX << 8) | key_id);
-    ret = flash_write_data_to_file(fpk, res_APDU, res_APDU_size);
+    ret = file_put_data(fpk, res_APDU, res_APDU_size);
     if (ret != 0) {
         return SW_EXEC_ERROR();
     }

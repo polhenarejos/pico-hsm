@@ -104,10 +104,7 @@ int cmd_signature() {
     if (!isUserAuthenticated) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
-    if ((!(fkey = search_dynamic_file((KEY_PREFIX << 8) | key_id)) &&
-         !(fkey =
-               search_by_fid((KEY_PREFIX << 8) | key_id, NULL,
-                             SPECIFY_EF))) || !file_has_data(fkey)) {
+    if (!(fkey = search_file((KEY_PREFIX << 8) | key_id)) || !file_has_data(fkey)) {
         return SW_FILE_NOT_FOUND();
     }
     if (get_key_counter(fkey) == 0) {

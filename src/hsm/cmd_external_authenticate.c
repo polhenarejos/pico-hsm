@@ -34,7 +34,7 @@ int cmd_external_authenticate() {
     if (apdu.nc == 0) {
         return SW_WRONG_LENGTH();
     }
-    file_t *ef_puk = search_by_fid(EF_PUKAUT, NULL, SPECIFY_EF);
+    file_t *ef_puk = search_file(EF_PUKAUT);
     if (!file_has_data(ef_puk)) {
         return SW_FILE_NOT_FOUND();
     }

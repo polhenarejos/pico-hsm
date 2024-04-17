@@ -39,25 +39,25 @@ int cmd_verify() {
         if (apdu.nc > 0) {
             return check_pin(file_pin1, apdu.data, (uint16_t)apdu.nc);
         }
-        if (file_read_uint8(file_get_data(file_retries_pin1)) == 0) {
+        if (file_read_uint8(file_retries_pin1) == 0) {
             return SW_PIN_BLOCKED();
         }
-        return set_res_sw(0x63, 0xc0 | file_read_uint8(file_get_data(file_retries_pin1)));
+        return set_res_sw(0x63, 0xc0 | file_read_uint8(file_retries_pin1));
     }
     else if (p2 == 0x88) {   //SOPin
-        if (file_read_uint8(file_get_data(file_sopin)) == 0) { //not initialized
+        if (file_read_uint8(file_sopin) == 0) { //not initialized
             return SW_REFERENCE_NOT_FOUND();
         }
         if (apdu.nc > 0) {
             return check_pin(file_sopin, apdu.data, (uint16_t)apdu.nc);
         }
-        if (file_read_uint8(file_get_data(file_retries_sopin)) == 0) {
+        if (file_read_uint8(file_retries_sopin) == 0) {
             return SW_PIN_BLOCKED();
         }
         if (has_session_sopin) {
             return SW_OK();
         }
-        return set_res_sw(0x63, 0xc0 | file_read_uint8(file_get_data(file_retries_sopin)));
+        return set_res_sw(0x63, 0xc0 | file_read_uint8(file_retries_sopin));
     }
     else if (p2 == 0x85) {
         return SW_OK();

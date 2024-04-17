@@ -44,7 +44,7 @@ int cmd_key_domain() {
     if (p2 >= MAX_KEY_DOMAINS) {
         return SW_WRONG_P1P2();
     }
-    file_t *tf_kd = search_by_fid(EF_KEY_DOMAIN, NULL, SPECIFY_EF);
+    file_t *tf_kd = search_file(EF_KEY_DOMAIN);
     if (!tf_kd) {
         return SW_EXEC_ERROR();
     }
@@ -83,7 +83,7 @@ int cmd_key_domain() {
             uint8_t t[MAX_KEY_DOMAINS * 2];
             memcpy(t, kdata, tf_kd_size);
             t[2 * p2 + 1] = current_dkeks;
-            if (flash_write_data_to_file(tf_kd, t, tf_kd_size) != CCID_OK) {
+            if (file_put_data(tf_kd, t, tf_kd_size) != CCID_OK) {
                 return SW_EXEC_ERROR();
             }
             low_flash_available();
@@ -129,7 +129,7 @@ int cmd_key_domain() {
         else if (p1 == 0x4) {
             t[2 * p2 + 1] = current_dkeks = 0;
         }
-        if (flash_write_data_to_file(tf_kd, t, tf_kd_size) != CCID_OK) {
+        if (file_put_data(tf_kd, t, tf_kd_size) != CCID_OK) {
             return SW_EXEC_ERROR();
         }
         file_t *tf = NULL;
@@ -151,7 +151,7 @@ int cmd_key_domain() {
     else if (p1 == 0x2) {   //XKEK Key Domain creation
         if (apdu.nc > 0) {
             uint16_t pub_len = 0;
-            file_t *fterm = search_by_fid(EF_TERMCA, NULL, SPECIFY_EF);
+            file_t *fterm = search_file(EF_TERMCA);
             if (!fterm) {
                 return SW_EXEC_ERROR();
             }
@@ -189,7 +189,7 @@ int cmd_key_domain() {
                 t86_len = 0;
                 t86 = cvc_get_field(pub, pub_len, &t86_len, 0x86);
                 if (t86) {
-                    flash_write_data_to_file(tf, t86 + 1, (uint16_t)t86_len - 1);
+                    file_put_data(tf, t86 + 1, (uint16_t)t86_len - 1);
                     low_flash_available();
                 }
             }

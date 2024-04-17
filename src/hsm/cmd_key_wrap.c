@@ -40,7 +40,7 @@ int cmd_key_wrap() {
     if (kdom == 0xff) {
         return SW_REFERENCE_NOT_FOUND();
     }
-    file_t *tf_kd = search_by_fid(EF_KEY_DOMAIN, NULL, SPECIFY_EF);
+    file_t *tf_kd = search_file(EF_KEY_DOMAIN);
     uint8_t *kdata = file_get_data(tf_kd), dkeks = kdata ? kdata[2 * kdom] : 0,
             current_dkeks = kdata ? kdata[2 * kdom + 1] : 0;
     if (dkeks != current_dkeks || dkeks == 0 || dkeks == 0xff) {

@@ -25,7 +25,7 @@ int cmd_read_binary() {
 
     if ((ins & 0x1) == 0) {
         if ((p1 & 0x80) != 0) {
-            if (!(ef = search_by_fid(p1 & 0x1f, NULL, SPECIFY_EF))) {
+            if (!(ef = search_file(p1 & 0x1f))) {
                 return SW_FILE_NOT_FOUND();
             }
             offset = p2;
@@ -37,7 +37,7 @@ int cmd_read_binary() {
     }
     else {
         if (p1 == 0 && (p2 & 0xE0) == 0 && (p2 & 0x1f) != 0 && (p2 & 0x1f) != 0x1f) {
-            if (!(ef = search_by_fid(p2 & 0x1f, NULL, SPECIFY_EF))) {
+            if (!(ef = search_file(p2 & 0x1f))) {
                 return SW_FILE_NOT_FOUND();
             }
         }
@@ -46,9 +46,7 @@ int cmd_read_binary() {
             if (file_id == 0x0) {
                 ef = currentEF;
             }
-            else if (!(ef =
-                           search_by_fid(file_id, NULL,
-                                         SPECIFY_EF)) && !(ef = search_dynamic_file(file_id))) {
+            else if (!(ef = search_file(file_id))) {
                 return SW_FILE_NOT_FOUND();
             }
 

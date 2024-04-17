@@ -256,7 +256,7 @@ int cmd_bip_slip() {
         if (r != CCID_OK) {
             return SW_EXEC_ERROR();
         }
-        r = flash_write_data_to_file(ef, mkey, sizeof(mkey));
+        r = file_put_data(ef, mkey, sizeof(mkey));
         if (r != CCID_OK) {
             return SW_EXEC_ERROR();
         }

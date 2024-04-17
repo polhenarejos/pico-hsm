@@ -41,7 +41,7 @@ int cmd_general_authenticate() {
                     pubkey_len = tag_len + 1;
                 }
             }
-            file_t *fkey = search_by_fid(EF_KEY_DEV, NULL, SPECIFY_EF);
+            file_t *fkey = search_file(EF_KEY_DEV);
             if (!fkey) {
                 return SW_EXEC_ERROR();
             }
