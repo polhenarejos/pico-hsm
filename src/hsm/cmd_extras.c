@@ -195,6 +195,40 @@ int cmd_extras() {
             }
         }
     }
+#ifndef ENABLE_EMULATION
+    else if (P1(apdu) == 0x1B) { // Set PHY
+        if (apdu.nc == 0) {
+            if (file_has_data(ef_phy)) {
+                res_APDU_size = file_get_size(ef_phy);
+                memcpy(res_APDU, file_get_data(ef_phy), res_APDU_size);
+            }
+        }
+        else {
+            uint8_t tmp[PHY_MAX_SIZE];
+            memset(tmp, 0, sizeof(tmp));
+            if (file_has_data(ef_phy)) {
+                memcpy(tmp, file_get_data(ef_phy), MIN(sizeof(tmp), file_get_size(ef_phy)));
+            }
+            if (P2(apdu) == PHY_VID) { // VIDPID
+                if (apdu.nc != 4) {
+                    return SW_WRONG_LENGTH();
+                }
+                memcpy(tmp + PHY_VID, apdu.data, 4);
+            }
+            else if (P2(apdu) == PHY_LED_GPIO || P2(apdu) == PHY_LED_MODE) {
+                if (apdu.nc != 1) {
+                    return SW_WRONG_LENGTH();
+                }
+                tmp[P2(apdu)] = apdu.data[0];
+            }
+            else {
+                return SW_INCORRECT_P1P2();
+            }
+            flash_write_data_to_file(ef_phy, tmp, sizeof(tmp));
+            low_flash_available();
+        }
+    }
+#endif
     else {
         return SW_INCORRECT_P1P2();
     }
