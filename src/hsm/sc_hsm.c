@@ -94,7 +94,7 @@ INITIALIZER( sc_hsm_ctor ) {
 }
 
 void scan_files() {
-    file_pin1 = search_file(0x1081);
+    file_pin1 = search_file(EF_PIN1);
     if (file_pin1) {
         if (!file_pin1->data) {
             printf("PIN1 is empty. Initializing with default password\n");
@@ -105,7 +105,7 @@ void scan_files() {
     else {
         printf("FATAL ERROR: PIN1 not found in memory!\n");
     }
-    file_sopin = search_file(0x1088);
+    file_sopin = search_file(EF_SOPIN);
     if (file_sopin) {
         if (!file_sopin->data) {
             printf("SOPIN is empty. Initializing with default password\n");
@@ -116,7 +116,7 @@ void scan_files() {
     else {
         printf("FATAL ERROR: SOPIN not found in memory!\n");
     }
-    file_retries_pin1 = search_file(0x1083);
+    file_retries_pin1 = search_file(EF_PIN1_RETRIES);
     if (file_retries_pin1) {
         if (!file_retries_pin1->data) {
             printf("Retries PIN1 is empty. Initializing with default retriesr\n");
@@ -127,7 +127,7 @@ void scan_files() {
     else {
         printf("FATAL ERROR: Retries PIN1 not found in memory!\n");
     }
-    file_retries_sopin = search_file(0x108A);
+    file_retries_sopin = search_file(EF_SOPIN_RETRIES);
     if (file_retries_sopin) {
         if (!file_retries_sopin->data) {
             printf("Retries SOPIN is empty. Initializing with default retries\n");
@@ -140,7 +140,7 @@ void scan_files() {
     }
     file_t *tf = NULL;
 
-    tf = search_file(0x1082);
+    tf = search_file(EF_PIN1_MAX_RETRIES);
     if (tf) {
         if (!tf->data) {
             printf("Max retries PIN1 is empty. Initializing with default max retriesr\n");
@@ -151,7 +151,7 @@ void scan_files() {
     else {
         printf("FATAL ERROR: Max Retries PIN1 not found in memory!\n");
     }
-    tf = search_file(0x1089);
+    tf = search_file(EF_SOPIN_MAX_RETRIES);
     if (tf) {
         if (!tf->data) {
             printf("Max Retries SOPIN is empty. Initializing with default max retries\n");

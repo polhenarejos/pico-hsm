@@ -24,7 +24,13 @@
 #define EF_DEVOPS       0x100E
 #define EF_MKEK         0x100A
 #define EF_MKEK_SO      0x100B
-#define EF_XKEK         0x1080
+#define EF_XKEK         0x1070
+#define EF_PIN1         0x1081
+#define EF_PIN1_MAX_RETRIES 0x1082
+#define EF_PIN1_RETRIES 0x1083
+#define EF_SOPIN        0x1088
+#define EF_SOPIN_MAX_RETRIES 0x1089
+#define EF_SOPIN_RETRIES 0x108A
 #define EF_DKEK         0x1090
 #define EF_KEY_DOMAIN   0x10A0
 #define EF_PUKAUT       0x10C0

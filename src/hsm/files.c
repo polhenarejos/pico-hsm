@@ -41,22 +41,22 @@ file_t file_entries[] = {
                .ef_structure = FILE_EF_TRANSPARENT, .acl = { 0 } },                                                                                         //EF.TokenInfo
     /*  8 */ { .fid = 0x5033, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL,
                .ef_structure = FILE_EF_TRANSPARENT, .acl = { 0 } },                                                                                         //EF.UnusedSpace
-    /*  9 */ { .fid = 0x1081, .parent = 5, .name = NULL,
+    /*  9 */ { .fid = EF_PIN1, .parent = 5, .name = NULL,
                .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL,
                .ef_structure = FILE_EF_TRANSPARENT, .acl = { 0xff } },                                                                                                            //PIN (PIN1)
-    /* 10 */ { .fid = 0x1082, .parent = 5, .name = NULL,
+    /* 10 */ { .fid = EF_PIN1_MAX_RETRIES, .parent = 5, .name = NULL,
                .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL,
                .ef_structure = FILE_EF_TRANSPARENT, .acl = { 0xff } },                                                                                                            //max retries PIN (PIN1)
-    /* 11 */ { .fid = 0x1083, .parent = 5, .name = NULL,
+    /* 11 */ { .fid = EF_PIN1_RETRIES, .parent = 5, .name = NULL,
                .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL,
                .ef_structure = FILE_EF_TRANSPARENT, .acl = { 0xff } },                                                                                                            //retries PIN (PIN1)
-    /* 12 */ { .fid = 0x1088, .parent = 5, .name = NULL,
+    /* 12 */ { .fid = EF_SOPIN, .parent = 5, .name = NULL,
                .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL,
                .ef_structure = FILE_EF_TRANSPARENT, .acl = { 0xff } },                                                                                                            //PIN (SOPIN)
-    /* 13 */ { .fid = 0x1089, .parent = 5, .name = NULL,
+    /* 13 */ { .fid = EF_SOPIN_MAX_RETRIES, .parent = 5, .name = NULL,
                .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL,
                .ef_structure = FILE_EF_TRANSPARENT, .acl = { 0xff } },                                                                                                            //max retries PIN (SOPIN)
-    /* 14 */ { .fid = 0x108A, .parent = 5, .name = NULL,
+    /* 14 */ { .fid = EF_SOPIN_RETRIES, .parent = 5, .name = NULL,
                .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL,
                .ef_structure = FILE_EF_TRANSPARENT, .acl = { 0xff } },                                                                                                            //retries PIN (SOPIN)
     /* 15 */ { .fid = EF_DEVOPS, .parent = 5, .name = NULL,

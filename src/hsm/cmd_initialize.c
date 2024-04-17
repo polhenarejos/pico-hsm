@@ -77,7 +77,7 @@ int cmd_initialize() {
                 }
             }
             else if (tag == 0x91) {   //retries user pin
-                file_t *tf = search_file(0x1082);
+                file_t *tf = search_file(EF_PIN1_MAX_RETRIES);
                 if (tf && tf->data) {
                     file_put_data(tf, tag_data, tag_len);
                 }
