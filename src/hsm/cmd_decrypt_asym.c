@@ -32,7 +32,7 @@ int cmd_decrypt_asym() {
     if (!isUserAuthenticated) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
-    file_t *ef = search_dynamic_file((KEY_PREFIX << 8) | key_id);
+    file_t *ef = search_file((KEY_PREFIX << 8) | key_id);
     if (!ef) {
         return SW_FILE_NOT_FOUND();
     }
@@ -174,7 +174,7 @@ int cmd_decrypt_asym() {
                 return SW_WRONG_DATA();
             }
             for (uint8_t n = 0; n < MAX_KEY_DOMAINS; n++) {
-                file_t *tf = search_dynamic_file(EF_XKEK + n);
+                file_t *tf = search_file(EF_XKEK + n);
                 if (tf) {
                     if (file_get_size(tf) == kdom_uid.len &&
                         memcmp(file_get_data(tf), kdom_uid.data, kdom_uid.len) == 0) {

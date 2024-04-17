@@ -170,7 +170,7 @@ int cmd_cipher_sym() {
     if (wait_button_pressed() == true) { // timeout
         return SW_SECURE_MESSAGE_EXEC_ERROR();
     }
-    file_t *ef = search_dynamic_file((KEY_PREFIX << 8) | key_id);
+    file_t *ef = search_file((KEY_PREFIX << 8) | key_id);
     if (hd_keytype == 0) {
         if (!ef) {
             return SW_FILE_NOT_FOUND();

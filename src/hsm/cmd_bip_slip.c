@@ -113,7 +113,7 @@ int load_master_bip(uint16_t mid, mbedtls_ecp_keypair *ctx, uint8_t chain[32],
                     uint8_t key_type[1]) {
     uint8_t mkey[65];
     mbedtls_ecp_keypair_init(ctx);
-    file_t *ef = search_dynamic_file(EF_MASTER_SEED | mid);
+    file_t *ef = search_file(EF_MASTER_SEED | mid);
     if (!file_has_data(ef)) {
         return CCID_ERR_FILE_NOT_FOUND;
     }

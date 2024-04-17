@@ -37,7 +37,7 @@ int cmd_puk_auth() {
                     return SW_INCORRECT_P1P2();
                 }
                 for (uint8_t i = 0; i < puk_data[0]; i++) {
-                    ef = search_dynamic_file(EF_PUK + i);
+                    ef = search_file(EF_PUK + i);
                     if (!ef) { /* Never should not happen */
                         return SW_MEMORY_FAILURE();
                     }
@@ -56,7 +56,7 @@ int cmd_puk_auth() {
                 if (p2 >= puk_data[0]) {
                     return SW_INCORRECT_P1P2();
                 }
-                ef = search_dynamic_file(EF_PUK + p2);
+                ef = search_file(EF_PUK + p2);
                 if (!ef) { /* Never should not happen */
                     return SW_MEMORY_FAILURE();
                 }
@@ -72,7 +72,7 @@ int cmd_puk_auth() {
         if (p2 >= puk_data[0]) {
             return SW_INCORRECT_P1P2();
         }
-        file_t *ef = search_dynamic_file(EF_PUK + p2);
+        file_t *ef = search_file(EF_PUK + p2);
         if (!ef) {
             return SW_INCORRECT_P1P2();
         }

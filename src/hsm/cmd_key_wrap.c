@@ -32,7 +32,7 @@ int cmd_key_wrap() {
     if (!isUserAuthenticated) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
-    file_t *ef = search_dynamic_file((KEY_PREFIX << 8) | key_id);
+    file_t *ef = search_file((KEY_PREFIX << 8) | key_id);
     if (!ef) {
         return SW_FILE_NOT_FOUND();
     }
@@ -49,7 +49,7 @@ int cmd_key_wrap() {
     if (key_has_purpose(ef, ALGO_WRAP) == false) {
         return SW_CONDITIONS_NOT_SATISFIED();
     }
-    file_t *prkd = search_dynamic_file((PRKD_PREFIX << 8) | key_id);
+    file_t *prkd = search_file((PRKD_PREFIX << 8) | key_id);
     if (!prkd) {
         return SW_FILE_NOT_FOUND();
     }

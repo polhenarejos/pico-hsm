@@ -98,7 +98,7 @@ int cmd_keypair_gen() {
                             if (a92.data[0] > MAX_KEY_DOMAINS) {
                                 return SW_WRONG_DATA();
                             }
-                            file_t *tf_xkek = search_dynamic_file(EF_XKEK + a92.data[0]);
+                            file_t *tf_xkek = search_file(EF_XKEK + a92.data[0]);
                             if (!tf_xkek) {
                                 return SW_WRONG_DATA();
                             }

@@ -51,7 +51,7 @@ int cmd_pso() {
         }
         for (uint8_t i = 0; i < 0xfe; i++) {
             uint16_t fid = (CA_CERTIFICATE_PREFIX << 8) | i;
-            file_t *ca_ef = search_dynamic_file(fid);
+            file_t *ca_ef = search_file(fid);
             if (!ca_ef) {
                 ca_ef = file_new(fid);
                 file_put_data(ca_ef, apdu.data, (uint16_t)apdu.nc);

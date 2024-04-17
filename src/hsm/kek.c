@@ -109,7 +109,7 @@ int mse_decrypt_ct(uint8_t *data, size_t len) {
 }
 
 int load_dkek(uint8_t id, uint8_t *dkek) {
-    file_t *tf = search_dynamic_file(EF_DKEK + id);
+    file_t *tf = search_file(EF_DKEK + id);
     if (!tf) {
         return CCID_ERR_FILE_NOT_FOUND;
     }
@@ -172,7 +172,7 @@ int store_mkek(const uint8_t *mkek) {
 }
 
 int store_dkek_key(uint8_t id, uint8_t *dkek) {
-    file_t *tf = search_dynamic_file(EF_DKEK + id);
+    file_t *tf = search_file(EF_DKEK + id);
     if (!tf) {
         return CCID_ERR_FILE_NOT_FOUND;
     }
@@ -188,7 +188,7 @@ int store_dkek_key(uint8_t id, uint8_t *dkek) {
 int save_dkek_key(uint8_t id, const uint8_t *key) {
     uint8_t dkek[DKEK_KEY_SIZE];
     if (!key) {
-        file_t *tf = search_dynamic_file(EF_DKEK + id);
+        file_t *tf = search_file(EF_DKEK + id);
         if (!tf) {
             return CCID_ERR_FILE_NOT_FOUND;
         }
@@ -202,7 +202,7 @@ int save_dkek_key(uint8_t id, const uint8_t *key) {
 
 int import_dkek_share(uint8_t id, const uint8_t *share) {
     uint8_t tmp_dkek[DKEK_KEY_SIZE];
-    file_t *tf = search_dynamic_file(EF_DKEK + id);
+    file_t *tf = search_file(EF_DKEK + id);
     if (!tf) {
         return CCID_ERR_FILE_NOT_FOUND;
     }
