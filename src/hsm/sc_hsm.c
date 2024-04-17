@@ -301,7 +301,7 @@ int parse_token_info(const file_t *f, int mode) {
         *p++ = 0; //set later
         *p++ = 0x2; *p++ = 1; *p++ = HSM_VERSION_MAJOR;
 #ifndef ENABLE_EMULATION
-        *p++ = 0x4; *p++ = 8; pico_get_unique_board_id((pico_unique_board_id_t *) p); p += 8;
+        *p++ = 0x4; *p++ = 8; memcpy(p, pico_serial.id, 8); p += 8;
 #else
         *p++ = 0x4; *p++ = 8; memset(p, 0, 8); p += 8;
 #endif
