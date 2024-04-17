@@ -47,7 +47,7 @@ int cmd_keypair_gen() {
                 if (asn1_find_tag(&ctxo, 0x2, &ks) && asn1_len(&ks) > 0) {
                     key_size = asn1_get_uint(&ks);
                 }
-                printf("KEYPAIR RSA %lu (%lx)\r\n",
+                printf("KEYPAIR RSA %lu (%lx)\n",
                        (unsigned long) key_size,
                        (unsigned long) exponent);
                 mbedtls_rsa_context rsa;
@@ -75,7 +75,7 @@ int cmd_keypair_gen() {
                     return SW_WRONG_DATA();
                 }
                 mbedtls_ecp_group_id ec_id = ec_get_curve_from_prime(prime.data, prime.len);
-                printf("KEYPAIR ECC %d\r\n", ec_id);
+                printf("KEYPAIR ECC %d\n", ec_id);
                 if (ec_id == MBEDTLS_ECP_DP_NONE) {
                     return SW_FUNC_NOT_SUPPORTED();
                 }

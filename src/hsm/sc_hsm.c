@@ -97,24 +97,24 @@ void scan_files() {
     file_pin1 = search_by_fid(0x1081, NULL, SPECIFY_EF);
     if (file_pin1) {
         if (!file_pin1->data) {
-            printf("PIN1 is empty. Initializing with default password\r\n");
+            printf("PIN1 is empty. Initializing with default password\n");
             const uint8_t empty[33] = { 0 };
             flash_write_data_to_file(file_pin1, empty, sizeof(empty));
         }
     }
     else {
-        printf("FATAL ERROR: PIN1 not found in memory!\r\n");
+        printf("FATAL ERROR: PIN1 not found in memory!\n");
     }
     file_sopin = search_by_fid(0x1088, NULL, SPECIFY_EF);
     if (file_sopin) {
         if (!file_sopin->data) {
-            printf("SOPIN is empty. Initializing with default password\r\n");
+            printf("SOPIN is empty. Initializing with default password\n");
             const uint8_t empty[33] = { 0 };
             flash_write_data_to_file(file_sopin, empty, sizeof(empty));
         }
     }
     else {
-        printf("FATAL ERROR: SOPIN not found in memory!\r\n");
+        printf("FATAL ERROR: SOPIN not found in memory!\n");
     }
     file_retries_pin1 = search_by_fid(0x1083, NULL, SPECIFY_EF);
     if (file_retries_pin1) {
@@ -125,18 +125,18 @@ void scan_files() {
         }
     }
     else {
-        printf("FATAL ERROR: Retries PIN1 not found in memory!\r\n");
+        printf("FATAL ERROR: Retries PIN1 not found in memory!\n");
     }
     file_retries_sopin = search_by_fid(0x108A, NULL, SPECIFY_EF);
     if (file_retries_sopin) {
         if (!file_retries_sopin->data) {
-            printf("Retries SOPIN is empty. Initializing with default retries\r\n");
+            printf("Retries SOPIN is empty. Initializing with default retries\n");
             const uint8_t retries = 15;
             flash_write_data_to_file(file_retries_sopin, &retries, sizeof(uint8_t));
         }
     }
     else {
-        printf("FATAL ERROR: Retries SOPIN not found in memory!\r\n");
+        printf("FATAL ERROR: Retries SOPIN not found in memory!\n");
     }
     file_t *tf = NULL;
 
@@ -149,18 +149,18 @@ void scan_files() {
         }
     }
     else {
-        printf("FATAL ERROR: Max Retries PIN1 not found in memory!\r\n");
+        printf("FATAL ERROR: Max Retries PIN1 not found in memory!\n");
     }
     tf = search_by_fid(0x1089, NULL, SPECIFY_EF);
     if (tf) {
         if (!tf->data) {
-            printf("Max Retries SOPIN is empty. Initializing with default max retries\r\n");
+            printf("Max Retries SOPIN is empty. Initializing with default max retries\n");
             const uint8_t retries = 15;
             flash_write_data_to_file(tf, &retries, sizeof(uint8_t));
         }
     }
     else {
-        printf("FATAL ERROR: Retries SOPIN not found in memory!\r\n");
+        printf("FATAL ERROR: Retries SOPIN not found in memory!\n");
     }
     low_flash_available();
 }
