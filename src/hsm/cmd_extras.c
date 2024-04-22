@@ -28,6 +28,12 @@
 #include "mbedtls/chachapoly.h"
 
 int cmd_extras() {
+#ifndef ENABLE_EMULATION
+    // Only allow change PHY without PIN
+    if (!isUserAuthenticated && P1(apdu) != 0x1B) {
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
+    }
+#endif
     if (P1(apdu) == 0xA) { //datetime operations
         if (P2(apdu) != 0x0) {
             return SW_INCORRECT_P1P2();
