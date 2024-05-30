@@ -464,6 +464,8 @@ def phy(picohsm, args):
     ret = picohsm.phy(args.subcommand, val)
     if (ret):
         print(f'Current value: {hexlify(ret)}')
+    else:
+        print('Command executed successfully. Please, restart your Pico Key.')
 
 def main(args):
     sys.stderr.buffer.write(b'Pico HSM Tool v1.12\n')
