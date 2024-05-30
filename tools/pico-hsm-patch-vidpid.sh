@@ -17,7 +17,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 #
 
-VERSION_MAJOR="4" #Version of Pico CCID Core
+VERSION_MAJOR="5" #Version of Pico Keys SDK
 VERSION_MINOR="0"
 
 echo "----------------------------"
