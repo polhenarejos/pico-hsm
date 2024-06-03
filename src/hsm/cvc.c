@@ -322,7 +322,7 @@ uint16_t asn1_cvc_aut(void *rsa_ecdsa,
     uint16_t outcar_len = dev_name_len;
     const uint8_t *outcar = dev_name;
     uint16_t outcar_size = asn1_len_tag(0x42, outcar_len);
-    file_t *fkey = search_by_fid(EF_KEY_DEV, NULL, SPECIFY_EF);
+    file_t *fkey = search_file(EF_KEY_DEV);
     if (!fkey) {
         return 0;
     }

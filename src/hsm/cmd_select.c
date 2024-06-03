@@ -63,8 +63,7 @@ int cmd_select() {
         pfx == DCOD_PREFIX ||
         pfx == DATA_PREFIX ||
         pfx == PROT_DATA_PREFIX) {*/
-    if (fid != 0x0 && !(pe = search_dynamic_file(fid)) &&
-        !(pe = search_by_fid(fid, NULL, SPECIFY_EF))) {
+    if (fid != 0x0 && !(pe = search_file(fid))) {
         return SW_FILE_NOT_FOUND();
     }
     /*}*/

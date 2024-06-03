@@ -21,11 +21,11 @@
 int cmd_list_keys() {
     /* First we send DEV private key */
     /* Both below conditions should be always TRUE */
-    if (search_by_fid(EF_PRKD_DEV, NULL, SPECIFY_EF)) {
+    if (search_file(EF_PRKD_DEV)) {
         res_APDU[res_APDU_size++] = EF_PRKD_DEV >> 8;
         res_APDU[res_APDU_size++] = EF_PRKD_DEV & 0xff;
     }
-    if (search_by_fid(EF_KEY_DEV, NULL, SPECIFY_EF)) {
+    if (search_file(EF_KEY_DEV)) {
         res_APDU[res_APDU_size++] = EF_KEY_DEV >> 8;
         res_APDU[res_APDU_size++] = EF_KEY_DEV & 0xff;
     }

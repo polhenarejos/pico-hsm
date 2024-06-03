@@ -98,7 +98,7 @@ int cmd_keypair_gen() {
                             if (a92.data[0] > MAX_KEY_DOMAINS) {
                                 return SW_WRONG_DATA();
                             }
-                            file_t *tf_xkek = search_dynamic_file(EF_XKEK + a92.data[0]);
+                            file_t *tf_xkek = search_file(EF_XKEK + a92.data[0]);
                             if (!tf_xkek) {
                                 return SW_WRONG_DATA();
                             }
@@ -145,7 +145,7 @@ int cmd_keypair_gen() {
         return SW_EXEC_ERROR();
     }
     file_t *fpk = file_new((EE_CERTIFICATE_PREFIX << 8) | key_id);
-    ret = flash_write_data_to_file(fpk, res_APDU, res_APDU_size);
+    ret = file_put_data(fpk, res_APDU, res_APDU_size);
     if (ret != 0) {
         return SW_EXEC_ERROR();
     }

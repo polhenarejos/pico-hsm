@@ -51,10 +51,10 @@ int cmd_pso() {
         }
         for (uint8_t i = 0; i < 0xfe; i++) {
             uint16_t fid = (CA_CERTIFICATE_PREFIX << 8) | i;
-            file_t *ca_ef = search_dynamic_file(fid);
+            file_t *ca_ef = search_file(fid);
             if (!ca_ef) {
                 ca_ef = file_new(fid);
-                flash_write_data_to_file(ca_ef, apdu.data, (uint16_t)apdu.nc);
+                file_put_data(ca_ef, apdu.data, (uint16_t)apdu.nc);
                 if (add_cert_puk_store(file_get_data(ca_ef), file_get_size(ca_ef),
                                        false) != CCID_OK) {
                     return SW_FILE_FULL();
@@ -144,7 +144,7 @@ int cmd_pso() {
                                                     fid,
                                                     buf,
                                                     cd_len);
-                flash_write_data_to_file(cd_ef, buf, cd_len);
+                file_put_data(cd_ef, buf, cd_len);
                 free(buf);
                 if (r == 0) {
                     return SW_EXEC_ERROR();

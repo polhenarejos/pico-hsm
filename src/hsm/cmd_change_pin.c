@@ -35,7 +35,7 @@ int cmd_change_pin() {
             if (!file_has_data(file_pin)) {
                 return SW_REFERENCE_NOT_FOUND();
             }
-            uint8_t pin_len = file_read_uint8(file_get_data(file_pin));
+            uint8_t pin_len = file_read_uint8(file_pin);
             int r = check_pin(file_pin, apdu.data, pin_len);
             if (r != 0x9000) {
                 return r;
@@ -63,7 +63,7 @@ int cmd_change_pin() {
             uint8_t dhash[33];
             dhash[0] = (uint8_t)apdu.nc - pin_len;
             double_hash_pin(apdu.data + pin_len, (uint16_t)(apdu.nc - pin_len), dhash + 1);
-            flash_write_data_to_file(file_pin, dhash, sizeof(dhash));
+            file_put_data(file_pin, dhash, sizeof(dhash));
             low_flash_available();
             return SW_OK();
         }

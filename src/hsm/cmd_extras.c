@@ -29,6 +29,12 @@
 #include "mbedtls/chachapoly.h"
 
 int cmd_extras() {
+#ifndef ENABLE_EMULATION
+    // Only allow change PHY without PIN
+    if (!isUserAuthenticated && P1(apdu) != 0x1B) {
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
+    }
+#endif
     if (P1(apdu) == 0xA) { //datetime operations
         if (P2(apdu) != 0x0) {
             return SW_INCORRECT_P1P2();
@@ -107,8 +113,8 @@ int cmd_extras() {
         }
         else {
             uint8_t newopts[] = { apdu.data[0], (opts & 0xff) };
-            file_t *tf = search_by_fid(EF_DEVOPS, NULL, SPECIFY_EF);
-            flash_write_data_to_file(tf, newopts, sizeof(newopts));
+            file_t *tf = search_file(EF_DEVOPS);
+            file_put_data(tf, newopts, sizeof(newopts));
             low_flash_available();
         }
     }
@@ -193,14 +199,14 @@ int cmd_extras() {
                     (P2(apdu) == 0x04 && (opts & HSM_OPT_SECURE_LOCK))) {
                     uint16_t tfids[] = { EF_MKEK, EF_MKEK_SO };
                     for (int t = 0; t < sizeof(tfids) / sizeof(uint16_t); t++) {
-                        file_t *tf = search_by_fid(tfids[t], NULL, SPECIFY_EF);
+                        file_t *tf = search_file(tfids[t]);
                         if (tf) {
                             uint8_t *tmp = (uint8_t *) calloc(1, file_get_size(tf));
                             memcpy(tmp, file_get_data(tf), file_get_size(tf));
                             for (int i = 0; i < MKEK_KEY_SIZE; i++) {
                                 MKEK_KEY(tmp)[i] ^= apdu.data[i];
                             }
-                            flash_write_data_to_file(tf, tmp, file_get_size(tf));
+                            file_put_data(tf, tmp, file_get_size(tf));
                             free(tmp);
                         }
                     }
@@ -211,8 +217,8 @@ int cmd_extras() {
                 else if (P2(apdu) == 0x04) {
                     newopts[0] &= ~HSM_OPT_SECURE_LOCK >> 8;
                 }
-                file_t *tf = search_by_fid(EF_DEVOPS, NULL, SPECIFY_EF);
-                flash_write_data_to_file(tf, newopts, sizeof(newopts));
+                file_t *tf = search_file(EF_DEVOPS);
+                file_put_data(tf, newopts, sizeof(newopts));
                 low_flash_available();
             }
             else if (P2(apdu) == 0x03) {
@@ -250,7 +256,7 @@ int cmd_extras() {
             else {
                 return SW_INCORRECT_P1P2();
             }
-            flash_write_data_to_file(ef_phy, tmp, sizeof(tmp));
+            file_put_data(ef_phy, tmp, sizeof(tmp));
             low_flash_available();
         }
     }

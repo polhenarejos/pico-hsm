@@ -72,15 +72,12 @@ int cmd_update_ef() {
         if (fid == 0x0 && !ef) {
             return SW_FILE_NOT_FOUND();
         }
-        else if (fid != 0x0 &&
-                 !(ef =
-                       search_by_fid(fid, NULL,
-                                     SPECIFY_EF)) && !(ef = search_dynamic_file(fid))) {                           //if does not exist, create it
+        else if (fid != 0x0 && !(ef = search_file(fid))) {                           //if does not exist, create it
             //return SW_FILE_NOT_FOUND();
             ef = file_new(fid);
         }
         if (offset == 0) {
-            int r = flash_write_data_to_file(ef, data, data_len);
+            int r = file_put_data(ef, data, data_len);
             if (r != CCID_OK) {
                 return SW_MEMORY_FAILURE();
             }
@@ -93,7 +90,7 @@ int cmd_update_ef() {
             uint8_t *data_merge = (uint8_t *) calloc(1, offset + data_len);
             memcpy(data_merge, file_get_data(ef), offset);
             memcpy(data_merge + offset, data, data_len);
-            int r = flash_write_data_to_file(ef, data_merge, offset + data_len);
+            int r = file_put_data(ef, data_merge, offset + data_len);
             free(data_merge);
             if (r != CCID_OK) {
                 return SW_MEMORY_FAILURE();

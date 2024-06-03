@@ -132,7 +132,7 @@ int cmd_key_unwrap() {
     }
     if (res_APDU_size > 0) {
         file_t *fpk = file_new((EE_CERTIFICATE_PREFIX << 8) | key_id);
-        r = flash_write_data_to_file(fpk, res_APDU, res_APDU_size);
+        r = file_put_data(fpk, res_APDU, res_APDU_size);
         if (r != 0) {
             return SW_EXEC_ERROR();
         }

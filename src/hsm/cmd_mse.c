@@ -57,7 +57,7 @@ int cmd_mse() {
                     }
                     else if (p2 == 0xA4) {   /* Aut */
                         for (uint8_t i = 0; i < MAX_PUK; i++) {
-                            file_t *ef = search_dynamic_file(EF_PUK + i);
+                            file_t *ef = search_file(EF_PUK + i);
                             if (!ef) {
                                 break;
                             }
