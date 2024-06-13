@@ -28,6 +28,10 @@
 #include "mbedtls/chachapoly.h"
 
 int cmd_extras() {
+    //check button (if enabled)
+    if (wait_button_pressed() == true) { 
+                return SW_SECURE_MESSAGE_EXEC_ERROR();
+        }
     if (P1(apdu) == 0xA) { //datetime operations
         if (P2(apdu) != 0x0) {
             return SW_INCORRECT_P1P2();
