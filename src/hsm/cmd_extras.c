@@ -19,6 +19,7 @@
 #include "mbedtls/ecdh.h"
 #if !defined(ENABLE_EMULATION) && !defined(ESP_PLATFORM)
 #include "hardware/rtc.h"
+#include <time.h>
 #else
 #include <sys/time.h>
 #endif
