@@ -84,6 +84,7 @@ set(SOURCES ${SOURCES}
 
         )
 set(USB_ITF_CCID 1)
+set(USB_ITF_WCID 1)
 include(pico-keys-sdk/pico_keys_sdk_import.cmake)
 if(ESP_PLATFORM)
     project(pico_hsm)
