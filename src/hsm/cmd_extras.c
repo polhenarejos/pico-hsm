@@ -227,6 +227,12 @@ int cmd_extras() {
                 }
                 tmp[P2(apdu)] = apdu.data[0];
             }
+            else if (P2(apdu) == PHY_OPTS) {
+                if (apdu.nc != 2) {
+                    return SW_WRONG_LENGTH();
+                }
+                memcpy(tmp + PHY_OPTS, apdu.data, 2);
+            }
             else {
                 return SW_INCORRECT_P1P2();
             }
