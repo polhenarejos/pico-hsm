@@ -15,9 +15,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "common.h"
-#include "cvc.h"
 #include "sc_hsm.h"
+#include "cvc.h"
 #include "mbedtls/rsa.h"
 #include "mbedtls/ecdsa.h"
 #include <string.h>

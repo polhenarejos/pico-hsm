@@ -19,7 +19,7 @@
 #define _CVC_H_
 
 #include <stdlib.h>
-#ifndef ENABLE_EMULATION
+#if !defined(ENABLE_EMULATION) && !defined(ESP_PLATFORM)
 #include "pico/stdlib.h"
 #else
 #include <stdbool.h>

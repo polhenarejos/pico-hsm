@@ -28,7 +28,7 @@ extern void scan_all();
 
 extern char __StackLimit;
 int heapLeft() {
-#ifndef ENABLE_EMULATION
+#if !defined(ENABLE_EMULATION) && !defined(ESP_PLATFORM)
     char *p = malloc(256);   // try to avoid undue fragmentation
     int left = &__StackLimit - p;
     free(p);

@@ -15,10 +15,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "common.h"
+#include "sc_hsm.h"
 #include "mbedtls/ecdsa.h"
 #include "crypto_utils.h"
-#include "sc_hsm.h"
 #include "cvc.h"
 
 #define MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED -0x006E

@@ -15,11 +15,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "common.h"
-#include "mbedtls/ecdh.h"
 #include "sc_hsm.h"
-#ifndef ENABLE_EMULATION
+#include "mbedtls/ecdh.h"
+#if !defined(ENABLE_EMULATION) && !defined(ESP_PLATFORM)
 #include "hardware/rtc.h"
+#else
+#include <sys/time.h>
 #endif
 #include "files.h"
 #include "random.h"
@@ -39,7 +40,7 @@ int cmd_extras() {
             return SW_INCORRECT_P1P2();
         }
         if (apdu.nc == 0) {
-#ifndef ENABLE_EMULATION
+#if !defined(ENABLE_EMULATION) && !defined(ESP_PLATFORM)
             datetime_t dt;
             if (!rtc_get_datetime(&dt)) {
                 return SW_EXEC_ERROR();
@@ -52,13 +53,26 @@ int cmd_extras() {
             res_APDU[res_APDU_size++] = dt.hour;
             res_APDU[res_APDU_size++] = dt.min;
             res_APDU[res_APDU_size++] = dt.sec;
+#else
+            struct timeval tv;
+            struct tm *tm;
+            gettimeofday(&tv, NULL);
+            tm = localtime(&tv.tv_sec);
+            res_APDU[res_APDU_size++] = (tm->tm_year + 1900) >> 8;
+            res_APDU[res_APDU_size++] = (tm->tm_year + 1900) & 0xff;
+            res_APDU[res_APDU_size++] = tm->tm_mon;
+            res_APDU[res_APDU_size++] = tm->tm_mday;
+            res_APDU[res_APDU_size++] = tm->tm_wday;
+            res_APDU[res_APDU_size++] = tm->tm_hour;
+            res_APDU[res_APDU_size++] = tm->tm_min;
+            res_APDU[res_APDU_size++] = tm->tm_sec;
 #endif
         }
         else {
             if (apdu.nc != 8) {
                 return SW_WRONG_LENGTH();
             }
-#ifndef ENABLE_EMULATION
+#if !defined(ENABLE_EMULATION) && !defined(ESP_PLATFORM)
             datetime_t dt;
             dt.year = (apdu.data[0] << 8) | (apdu.data[1]);
             dt.month = apdu.data[2];
@@ -70,6 +84,18 @@ int cmd_extras() {
             if (!rtc_set_datetime(&dt)) {
                 return SW_WRONG_DATA();
             }
+#else
+            struct tm tm;
+            struct timeval tv;
+            tm.tm_year = ((apdu.data[0] << 8) | (apdu.data[1])) - 1900;
+            tm.tm_mon = apdu.data[2];
+            tm.tm_mday = apdu.data[3];
+            tm.tm_wday = apdu.data[4];
+            tm.tm_hour = apdu.data[5];
+            tm.tm_min = apdu.data[6];
+            tm.tm_sec = apdu.data[7];
+            tv.tv_sec = mktime(&tm);
+            settimeofday(&tv, NULL);
 #endif
         }
     }

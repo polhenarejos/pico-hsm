@@ -15,16 +15,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "common.h"
+#include "sc_hsm.h"
 #include "mbedtls/aes.h"
 #include "mbedtls/cmac.h"
 #include "mbedtls/hkdf.h"
 #include "mbedtls/chachapoly.h"
 #include "mbedtls/gcm.h"
-#include "md_wrap.h"
+//#include "mbedtls/md_wrap.h"
 #include "mbedtls/md.h"
 #include "crypto_utils.h"
-#include "sc_hsm.h"
 #include "kek.h"
 #include "asn1.h"
 #include "oid.h"
@@ -134,7 +133,7 @@ int mbedtls_ansi_x963_kdf(mbedtls_md_type_t md_type,
     }
 
     // keydatalen equals output_len
-    hashlen = md_info->size;
+    hashlen = mbedtls_md_get_size(md_info);
     if (output_len >= hashlen * ((1ULL << 32) - 1)) {
         return exit_code;
     }
@@ -349,7 +348,7 @@ int cmd_cipher_sym() {
             if (r != 0) {
                 return SW_EXEC_ERROR();
             }
-            res_APDU_size = md_info->size;
+            res_APDU_size = mbedtls_md_get_size(md_info);
         }
         else if (memcmp(oid.data, OID_HKDF_SHA256,
                         oid.len) == 0 ||

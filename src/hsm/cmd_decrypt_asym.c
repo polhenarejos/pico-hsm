@@ -15,10 +15,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "common.h"
+#include "sc_hsm.h"
 #include "mbedtls/ecdh.h"
 #include "crypto_utils.h"
-#include "sc_hsm.h"
 #include "kek.h"
 #include "files.h"
 #include "asn1.h"
