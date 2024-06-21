@@ -513,9 +513,8 @@ int store_keys(void *key_ctx, int type, uint8_t key_id) {
     }
     else if (type & PICO_KEYS_KEY_EC) {
         mbedtls_ecdsa_context *ecdsa = (mbedtls_ecdsa_context *) key_ctx;
-        key_size = (uint16_t)mbedtls_mpi_size(&ecdsa->d);
         kdata[0] = ecdsa->grp.id & 0xff;
-        mbedtls_ecp_write_key(ecdsa, kdata + 1, key_size);
+        mbedtls_ecp_write_key_ext(ecdsa, (size_t *)&key_size, kdata + 1, sizeof(kdata) - 1);
         key_size++;
     }
     else if (type & PICO_KEYS_KEY_AES) {
