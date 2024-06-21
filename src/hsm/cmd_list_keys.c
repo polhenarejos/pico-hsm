@@ -60,7 +60,7 @@ int cmd_list_keys() {
             res_APDU[res_APDU_size++] = f->fid & 0xff;
         }
     }
-#if !defined(ENABLE_EMULATION)
+#if !defined(ENABLE_EMULATION) && !defined(ESP_PLATFORM)
     if ((apdu.rlen + 2 + 10) % 64 == 0) { // FIX for strange behaviour with PSCS and multiple of 64
         res_APDU[res_APDU_size++] = 0;
         res_APDU[res_APDU_size++] = 0;
