@@ -37,7 +37,7 @@ int cmd_extras() {
     }
 #endif
     //check button (if enabled)
-    if (wait_button_pressed() == true) { 
+    if (wait_button_pressed() == true) {
         return SW_SECURE_MESSAGE_EXEC_ERROR();
     }
     if (P1(apdu) == 0xA) { //datetime operations
@@ -243,30 +243,44 @@ int cmd_extras() {
         else {
             uint8_t tmp[PHY_MAX_SIZE];
             memset(tmp, 0, sizeof(tmp));
+            uint16_t opts = 0;
             if (file_has_data(ef_phy)) {
                 memcpy(tmp, file_get_data(ef_phy), MIN(sizeof(tmp), file_get_size(ef_phy)));
+                if (file_get_size(ef_phy) >= 8) {
+                    opts = (tmp[PHY_OPTS] << 8) | tmp[PHY_OPTS + 1];
+                }
             }
             if (P2(apdu) == PHY_VID) { // VIDPID
                 if (apdu.nc != 4) {
                     return SW_WRONG_LENGTH();
                 }
                 memcpy(tmp + PHY_VID, apdu.data, 4);
+                opts |= PHY_OPT_VPID;
             }
             else if (P2(apdu) == PHY_LED_GPIO || P2(apdu) == PHY_LED_MODE) {
                 if (apdu.nc != 1) {
                     return SW_WRONG_LENGTH();
                 }
                 tmp[P2(apdu)] = apdu.data[0];
+                if (P2(apdu) == PHY_LED_GPIO) {
+                    opts |= PHY_OPT_GPIO;
+                }
+                else if (P2(apdu) == PHY_LED_MODE) {
+                    opts |= PHY_OPT_LED;
+                }
             }
             else if (P2(apdu) == PHY_OPTS) {
                 if (apdu.nc != 2) {
                     return SW_WRONG_LENGTH();
                 }
-                memcpy(tmp + PHY_OPTS, apdu.data, 2);
+                uint16_t opt = (apdu.data[0] << 8) | apdu.data[1];
+                opts = (opts & ~PHY_OPT_MASK) | (opt & PHY_OPT_MASK);
             }
             else {
                 return SW_INCORRECT_P1P2();
             }
+            tmp[PHY_OPTS] = opts >> 8;
+            tmp[PHY_OPTS + 1] = opts & 0xff;
             file_put_data(ef_phy, tmp, sizeof(tmp));
             low_flash_available();
         }
