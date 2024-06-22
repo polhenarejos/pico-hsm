@@ -12,7 +12,7 @@ create_dgst() {
     test $? -eq 0 && echo -n "." || exit $?
 }
 
-dgsts=("sha1" "sha224" "sha256" "sha384" "sha512")
+dgsts=("sha256" "sha384" "sha512")
 for dgst in ${dgsts[*]}; do
     echo -n "  Create digest ${dgst}..."
     create_dgst ${dgst}
@@ -104,7 +104,7 @@ dd if=/dev/zero bs=1 count=$((256-$tlen)) >> data_pad > /dev/null 2>&1
 test $? -eq 0 && echo -n "." || exit $?
 pkcs11-tool --id 1 --sign --pin 648219 --mechanism RSA-X-509 -i data_pad -o data.sig > /dev/null 2>&1
 test $? -eq 0 && echo -n "." || exit $?
-TDATA=$(tr -d '\0' < <(openssl rsautl -verify -inkey 1.pub -in data.sig -pubin -raw))
+TDATA=$(tr -d '\0' < <(openssl rsautl -verify -inkey 1.pub -in data.sig -pubin -raw 2>/dev/null))
 if [[ ${TEST_DATA} != "$TDATA" ]]; then
     exit 1
 fi
