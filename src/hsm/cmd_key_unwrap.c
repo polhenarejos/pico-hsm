@@ -29,7 +29,17 @@ int cmd_key_unwrap() {
     if (!isUserAuthenticated) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
-    int key_type = dkek_type_key(apdu.data);
+    uint8_t *data = apdu.data;
+    uint16_t data_len = apdu.nc;
+    if (data_len == 0) { // New style
+        file_t *tef = search_file(0x2F10);
+        if (!file_has_data(tef)) {
+            return SW_FILE_NOT_FOUND();
+        }
+        data = file_get_data(tef);
+        data_len = file_get_size(tef);
+    }
+    int key_type = dkek_type_key(data);
     uint8_t *allowed = NULL;
     int16_t kdom = -1;
     uint16_t allowed_len = 0;
@@ -40,7 +50,7 @@ int cmd_key_unwrap() {
         mbedtls_rsa_context ctx;
         mbedtls_rsa_init(&ctx);
         do {
-            r = dkek_decode_key((uint8_t)++kdom, &ctx, apdu.data, (uint16_t)apdu.nc, NULL, &allowed, &allowed_len);
+            r = dkek_decode_key((uint8_t)++kdom, &ctx, data, data_len, NULL, &allowed, &allowed_len);
         } while ((r == CCID_ERR_FILE_NOT_FOUND || r == CCID_WRONG_DKEK) && kdom < MAX_KEY_DOMAINS);
         if (r != CCID_OK) {
             mbedtls_rsa_free(&ctx);
@@ -60,7 +70,7 @@ int cmd_key_unwrap() {
         mbedtls_ecdsa_context ctx;
         mbedtls_ecdsa_init(&ctx);
         do {
-            r = dkek_decode_key((uint8_t)++kdom, &ctx, apdu.data, (uint16_t)apdu.nc, NULL, &allowed, &allowed_len);
+            r = dkek_decode_key((uint8_t)++kdom, &ctx, data, data_len, NULL, &allowed, &allowed_len);
         } while ((r == CCID_ERR_FILE_NOT_FOUND || r == CCID_WRONG_DKEK) && kdom < MAX_KEY_DOMAINS);
         if (r != CCID_OK) {
             mbedtls_ecdsa_free(&ctx);
@@ -82,8 +92,8 @@ int cmd_key_unwrap() {
         do {
             r = dkek_decode_key((uint8_t)++kdom,
                                 aes_key,
-                                apdu.data,
-                                (uint16_t)apdu.nc,
+                                data,
+                                data_len,
                                 &key_size,
                                 &allowed,
                                 &allowed_len);
