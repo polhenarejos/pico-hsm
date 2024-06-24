@@ -1,172 +1,177 @@
 # Raspberry Pico HSM
-This is a project to create a Hardware Security Module (HSM) with a Raspberry Pico. It converts your Pico board into a HSM which is able to generate and store private keys, encrypt or decrypt with AES or signing data without to disclose the private key. In detail, the private key never leaves the board and it cannot be retrieved as it is encrypted in the flash memory.
+This project aims to transform a Raspberry Pi Pico or ESP32 microcontroller into a Hardware Security Module (HSM). The modified Pico or ESP32 board will be capable of generating and storing private keys, performing AES encryption or decryption, and signing data without exposing the private key. Specifically, the private key remains securely on the board and cannot be retrieved since it is encrypted within the flash memory.
 
 ## Capabilities
 ### > Key generation and encrypted storage
-Private and secret keys are stored with a master AES 256 key (MKEK). The MKEK is, at the same time, encrypted with a hashed and salted version of the PIN.
+Private and secret keys are secured using a master AES 256 key (MKEK). The MKEK is encrypted with a hashed and salted version of the PIN.
 **No private/secret keys, DKEK or PIN are stored in plain text ever. Never.**
 
-### > RSA key generation from 1024 to 4096 bits
-RSA key generation in place for 1024, 2048, 3072 and 4096 bits. Private keys never leave the device.
+### > RSA Key Generation (1024 to 4096 Bits)
+RSA key generation is supported for 1024, 2048, 3072, and 4096 bits. Private keys never leave the device.
 
-### > ECDSA key generation from 192 to 521 bits
-ECDSA key generation in place for different curves, from 192 to 521 bits.
+### > ECDSA Key Generation (192 to 521 Bits)
+ECDSA key generation supports various curves from 192 to 521 bits.
 
-### > ECC curves
-It supports secp192r1, secp256r1, secp384r1, secp521r1, brainpoolP256r1, brainpoolP384r1, brainpoolP512r1, secp192k1 (insecure), secp256k1 curves. Also Curve25519 and Curve448.
+### > ECC Curves
+Supported ECC curves include secp192r1, secp256r1, secp384r1, secp521r1, brainpoolP256r1, brainpoolP384r1, brainpoolP512r1, secp192k1 (insecure), secp256k1, Curve25519, and Curve448.
 
-### > SHA1, SHA224, SHA256, SHA384, SHA512 digests
-ECDSA and RSA signature can be combined with SHA digest in place.
+### > SHA Digests
+ECDSA and RSA signatures can be combined with SHA-1, SHA-224, SHA-256, SHA-384, and SHA-512 digests.
 
-### > Multiple RSA signature algorithms
-It supports RSA-PSS, RSA-PKCS and raw RSA signatures.
+### > Multiple RSA Signature Algorithms
+Supported RSA signature algorithms include RSA-PSS, RSA-PKCS, and raw RSA signatures.
 
-### > ECDSA raw and hash signature
-ECDSA signatures can be in raw or pre-hashed formats.
+### > ECDSA Signatures
+ECDSA signatures can be raw or pre-hashed.
 
-### > ECDH key derivation
-It supports the calculation of shared secrets with ECDH algorithm.
+### > ECDH Key Derivation
+Supports the ECDH algorithm for calculating shared secrets.
 
-### > EC private key derivation
-It allows ECDSA key derivation.[^1]
+### > EC Private Key Derivation
+Allows ECDSA key derivation.
 
-### > RSA-OEP and RSA-X-509 decryption
-It allows private decryption in place with RSA-OEP and RSA-X-509 algorithms.
+### > RSA Decryption
+Supports RSA-OEP and RSA-X.509 decryption.
 
-### > AES key generation
-It supports AES key generation in place with keys of 128, 192 and 256 bits.
+### > AES Key Generation
+Supports AES key generation with keys of 128, 192, and 256 bits.
 
-### > AES-CBC encryption/decryption
-Legacy AES encryption and decryption is performed in place.
+### > AES-CBC Encryption/Decryption
+Performs AES-CBC encryption and decryption.
 
-### > AES ECB, CBC, CFB, OFB, XTS, CTR, GCM and CCM
-Advanced AES encryption and decryption with multiples modes and customized IV/nonce and additional authenticated data (AAD).[^4]
+### > Advanced AES Modes
+Supports AES encryption and decryption in ECB, CBC, CFB, OFB, XTS, CTR, GCM, and CCM modes, with customizable IV/nonce and additional authenticated data (AAD).[^4]
 
-### > AES key generation of 128, 192, 256 and 512 bits.
-Besides 128, 192 and 256 bits, Pico HSM also supports key generation of 512 bits (64 bytes). These keys are specially indicated for running AES XTS, where two keys of 256 bits are concatenated.
+### > AES Key Generation (128, 192, 256, 512 Bits)
+Supports AES key generation up to 512 bits, useful for AES XTS where two 256-bit keys are concatenated.
 
 ### > CMAC
-It supports AES-CMAC authentication.[^1]
+Supports AES-CMAC authentication.[^1]
 
-### > AES derivation
-It supports AES secret key derivation.[^1]
+### > AES Secret Key Derivation
+Supports AES secret key derivation.[^1]
 
-### > PIN authorization
-Private and secret keys cannot be used without prior PIN authentication. It supports alphanumeric PIN.
+### > PIN Authorization
+Private and secret keys require prior PIN authentication. Supports alphanumeric PINs.
 
-### > PKCS11 compliant interface
-The module can be interfaced with PKCS11 standard.
+### > PKCS11 Compliant Interface
+Interfacing with the PKCS11 standard is supported.
 
-### > HRNG (hardware random number generator)
-It contains a harware random number generator properly modeled to guarantee maximum entropy.
+### > Hardware Random Number Generator (HRNG)
+Contains an HRNG designed for maximum entropy.
 
-### > Device Key Encryption Key (DKEK) shares
-It supports DKEK share imports. DKEK are used to wrap, unwrap and encrypt private and secret keys in the device.
+### > Device Key Encryption Key (DKEK) Shares
+Supports importing DKEK shares to wrap, unwrap, and encrypt keys.
 
-### > DKEK n-of-m threshold scheme
-It supports a n-of-m threshold scheme to minimize outage when a DKEK custodian is not available during the import process.
+### > DKEK n-of-m Threshold Scheme
+Supports an n-of-m threshold scheme to prevent outages when a DKEK custodian is unavailable.
 
-### > USB/CCID support with OpenSC, openssl, etc.
-Pico HSM has a full USB CCID stack to communicate with the host via OpenSC and PCSC. It allows the use of frontend applications such as OpenSSL via PKCS11 module.
+### > USB/CCID Support
+Full USB CCID stack for communication with the host via OpenSC and PCSC, allowing the use of frontend applications like OpenSSL via the PKCS11 module.
 
-### > Extended APDU support
-It supports extended APDU packets, which allows up to 65535 bytes.
+### > Extended APDU Support
+Supports extended APDU packets, allowing up to 65535 bytes.
 
 ### > CV Certificates
-Pico HSM manipulates CVC certificates and requests to minimize the storage of internal certificates.
+Handles CVC certificates and requests to minimize internal certificate storage.
 
 ### > Attestation
-Every generated key is attached to a certificate, signed by an external PKI to ensure that a particular key is effectively generated by this specific device.
+Each generated key is attached to a certificate signed by an external PKI, ensuring the key was generated by the specific device.
 
-### > Import external private keys and certificates
-It allows private key and certificates import via WKY or PKCS#12 files.[^2][^3]
+### > Import External Keys and Certificates
+Allows importing private keys and certificates via WKY or PKCS#12 files.[^2][^3]
 
-### > Tranport PIN
-It allows transport PIN for provisioning and forcing to set a new PIN.[^2] It is a tampered mechanism that ensures the device has not been unsealed during the transportation from the issuer to the legitimate user.
+### > Transport PIN
+Allows a transport PIN for provisioning, ensuring the device has not been tampered with during transportation.[^2]
 
-### > Press-to-confirm button
-It allows the use of BOOTSEL button to confirm operations with private/secret keys, such as signatures and decryption. When a private/secret key is loaded, the user has 15 seconds to press the button to confirm the operation.
-This feature protects the user from unwanted uses from background applications that may sign data without user notice.
+### > Press-to-Confirm Button
+Uses the BOOTSEL button to confirm operations with private/secret keys, providing a 15-second window to confirm the operation to protect against unauthorized use.
 
-### > Store and retrieve binary data
-It allows the storage of arbitrary files with binary data.
+### > Store and Retrieve Binary Data
+Allows the storage of arbitrary binary data files.
 
-### > Real time clock (RTC)
-Pico HSM has a RTC with external datetime setting and getting.
+### > Real-Time Clock (RTC)
+Includes an RTC with external date and time setting and retrieval.
 
-### > Secure Messaging (secure channel)
-Pico HSM supports secure channel, where the data packets between the host and device are encrypted to avoid man-in-the-middle attacks.
+### > Secure Messaging
+Supports secure channels to encrypt data packets between the host and device, preventing man-in-the-middle attacks.
 
 ### > Session PIN
-A specific session PIN can be set during the session opening to avoid the systemmatic use of PIN.
+A specific session PIN can be set during session opening to avoid systematic PIN usage.
 
-### > PKI CVCert remote issuing for Secure Message
+### > PKI CVCert Remote Issuing for Secure Messaging
 Secure channel messages are secured with a certificate issued by an external PKI.
 
-### > Multiple key domains
-Key domains are domains to store separate private/secret keys. Each domain is protected by a DKEK, independent from the other domains. Private/secret keys can be generated in different key domains to be used with separated DKEK.
-Therefore, a single device may contain different domains with independent keys.
+### > Multiple Key Domains
+Supports separate key domains protected by independent DKEKs, allowing different keys in different domains.
 
-### > Key usage counter
-A key usage counter is a counter that is reduced by 1 everytime that the private/secret key is used for signing, decrypting, derivation, etc. When it reaches 0, the key is disabled and cannot be used anymore.
+### > Key Usage Counter
+Tracks and limits the usage of private/secret keys, disabling keys once their usage counter reaches zero.
 
-Key usage can also be used to perform and auditory and track the usage of a particular key.
-
-### > Public Key Authentication
-Public Key Authentication (PKA) allows to authenticate by using a secondary device with a private key and a registered public key in the primary device. A challenge is generated by the primary Pico HSM and given to the secondary for signature. The secondary device signs the challenge and returns the signature. Then, the primary device verifies the signature with the registered public key and if it is valid, it grants full access, as normal PIN authentication.
-
-In PKA, the PIN is used for protecting the MKEK, as classic method with only PIN, and PKA is used for adding an extra security layer. Therefore, this mechanism provides a higher degree of security, since it needs a secondary Pico HSM to authenticate the primary one.
+### > Public Key Authentication (PKA)
+Supports PKA for enhanced security, requiring a secondary device for authentication using a challenge-response mechanism.
 
 ### > Secure Lock
-An extra layer can be added to the device by adding a private key stored on the computer to lock that Pico HSM to the specific computer. The content will be completely encrypted with a private key only available from a specific computer.
+Adds an extra layer of security by locking the Pico HSM to a specific computer using a private key.
 
 ### > ChaCha20-Poly1305
-This is a novel fast and efficient symmetric encryption algorithm. Similarly to AES, it can be used to cipher your private data.[^4]
+Supports the ChaCha20-Poly1305 encryption algorithm for secure data encryption.[^4]
 
 ### > X25519 and X448
-Both cruves Curve25519 and Curve448 are supported for doing DH X25519 and X448. Remember that cannot be used for signing.
+Supports DH X25519 and X448 for key agreement, though these cannot be used for signing.
 
-### > Key Derivation Functions: HKDF, PBKDF2 and X963-KDF
-It supports symmetric key derivations from different standards and RFC.
+### > Key Derivation Functions
+Supports HKDF, PBKDF2, and X963-KDF for symmetric key derivation.
 
 ### > HMAC
-It supports performing HMAC from a secret key on an arbitrary data with SHA digest algorithm.
+Supports HMAC generation with SHA digest algorithms.
 
 ### > CMAC
-Similarly to HMAC, Pico HSM also supports CMAC with AES algorithm for keys of 128, 192 and 256 bits.
+Supports CMAC with AES for keys of 128, 192, and 256 bits.
 
 ### > XKEK
-Besides DKEK, it supports a more advanced scheme to share keys. Based on private key domains, it is possible to wrap and unwrap private and secret keys inside the domain to only authorized devices. If a device outside the domain tries to unwrap a key, it will fail.
+Supports an advanced key sharing scheme (XKEK) for securely wrapping and unwrapping keys within authorized domains.
 
-### > MKEK
-A Master Key Encryption Key is used to store safely all the keys. This key is also ciphered with an ephemereal key derived from the hashed PIN. Therefore, we can ensure all the keys are encrypted and stored.
+### > Master Key Encryption Key (MKEK)
+Uses an MKEK to securely store all keys, encrypted with an ephemeral key derived from the hashed PIN.
 
-### > Hierarchical Deterministic key generation
-It supports **BIP32** for asymmetric deterministic key derivation and **SLIP10** for symmetric key derivation. With it, crypto wallets can be deployed with Pico HSM, as infinite keys can be derived for signature and symmetric encryption. Curves NIST 256 and Koblitz 256 are supported for master key generation.[^4]
+### > Hierarchical Deterministic Key Generation
+Supports BIP32 for asymmetric key derivation and SLIP10 for symmetric key derivation, enabling crypto wallet deployment with infinite key generation. Supports NIST 256 and Koblitz 256 curves for master key generation.[^4]
 
 [^1]: PKCS11 modules (`pkcs11-tool` and `sc-tool`) do not support CMAC and key derivation. It must be processed through raw APDU command (`opensc-tool -s`).
 [^2]: Available via SCS3 tool. See [SCS3](/doc/scs3.md "SCS3") for more information.
 [^3]: Imports are available only if the Pico HSM is previously initialized with a DKEK and DKEK shares are available during the import process.
 [^4]: Available by using PicoHSM python tool.
 
+### > ESP32-S3 support
+Pico HSM also supports ESP32-S3 boards, which add secure storage, flash encryption and secure boot.
+
+### > Dynamic VID/PID
+Supports setting VID & PID on-the-fly. Use `pico-hsm-tool.py` for specify VID/PID values and reboot the device.
+
+### > Rescue Pico HSM Tool
+Pico HSM Tool implements a new CCID stack to rescue the Pico HSM in case it has wrong VID/PID values and it is not recognized by the OS.
+
 ## Security considerations
-All secret keys (asymmetric and symmetric) are stored encrypted in the flash memory of the Raspberry Pico. DKEK is used as a 256 bit AES key to protect private and secret keys. Keys are never stored in RAM except for signature and decryption operations and only during the process. All keys (including DKEK) are loaded and cleared every time to avoid potential security flaws.
+All secret keys (both asymmetric and symmetric) are encrypted and stored in the flash memory of the Raspberry Pico. The DKEK, a 256-bit AES key, is used to protect these private and secret keys. Keys are only held in RAM during signature and decryption operations, and are loaded and cleared each time to avoid potential security vulnerabilities.
 
-At the same time, DKEK is encrypted with doubled salted and hashed PIN. Also, the PIN is hashed in memory during the session. Hence, PIN is never stored in plain text neither in flash nor in memory. Note that PIN is conveyed from the host to the HSM in plain text if no secure channel is provided.
+The DKEK itself is encrypted using a doubly salted and hashed PIN, and the PIN is hashed in memory during sessions. This ensures that the PIN is never stored in plain text, either in flash memory or in RAM. However, if no secure channel is used, the PIN is transmitted in plain text from the host to the HSM.
 
-If the Pico is stolen the contents of private and secret keys cannot be read without the PIN, even if the flash memory is dumped.
+In the event that the Pico is stolen, the private and secret key contents cannot be accessed without the PIN, even if the flash memory is dumped.
 
 ## Download
+**If you own an ESP32-S3 board, go to [ESP32 support](https://www.picokeys.com/esp32-support/) for further information.**
+
 Please, go to the Release page and download the UF2 file for your board.
 
-Note that UF2 files are shiped with a dummy VID/PID to avoid license issues (FEFF:FCFD). If you are planning to use it with OpenSC or similar, you should modify Info.plist of CCID driver to add these VID/PID or use the [Pico Patcher tool](https://www.picokeys.com/pico-patcher/).
+Note that UF2 files are shiped with a dummy VID/PID to avoid license issues (FEFF:FCFD). If you plan to use it with OpenSC or similar tools, you should modify Info.plist of CCID driver to add these VID/PID or use the [Pico Patcher tool](https://www.picokeys.com/pico-patcher/).
 
 Alternatively you can use the legacy VID/PID patcher as follows:
 `./patch_vidpid.sh VID:PID input_hsm_file.uf2 output_hsm_file.uf2`
 
 You can use whatever VID/PID (i.e., 234b:0000 from FISJ), but remember that you are not authorized to distribute the binary with a VID/PID that you do not own.
 
-Note that the pure-browser option [Pico Patcher tool](https://www.picokeys.com/pico-patcher/) is the most recommended. 
+Note that the pure-browser option [Pico Patcher tool](https://www.picokeys.com/pico-patcher/) is the most recommended.
 
 ## Build
 Before building, ensure you have installed the toolchain for the Pico and the Pico SDK is properly located in your drive.
@@ -182,11 +187,28 @@ make
 ```
 Note that `PICO_BOARD`, `USB_VID` and `USB_PID` are optional. If not provided, `pico` board and VID/PID `FEFF:FCFD` will be used.
 
-After `make` ends, the binary file `pico_hsm.uf2` will be generated. Put your pico board into loading mode, by pushing `BOOTSEL` button while pluging on, and copy the UF2 to the new fresh usb mass storage Pico device. Once copied, the pico mass storage will be disconnected automatically and the pico board will reset with the new firmware. A blinking led will indicate the device is ready to work.
+Additionally, you can pass the `VIDPID=value` parameter to build the firmware with a known VID/PID. The supported values are:
+
+- `NitroHSM`
+- `NitroFIDO2`
+- `NitroStart`
+- `NitroPro`
+- `Nitro3`
+- `Yubikey5`
+- `YubikeyNeo`
+- `YubiHSM`
+- `Gnuk`
+- `GnuPG`
+
+After running `make`, the binary file `pico_hsm.uf2` will be generated. To load this onto your Pico board:
+
+1. Put the Pico board into loading mode by holding the `BOOTSEL` button while plugging it in.
+2. Copy the `pico_hsm.uf2` file to the new USB mass storage device that appears.
+3. Once the file is copied, the Pico mass storage device will automatically disconnect, and the Pico board will reset with the new firmware.
+4. A blinking LED will indicate that the device is ready to work.
 
 ### Docker
 Independent from your Linux distribution or when using another OS that supports Docker, you could build a specific pico-hsm version in a Linux container.
-
 
 ```
 sudo docker build \
@@ -209,36 +231,31 @@ sudo docker rm mybuild
 ```
 
 ## Usage
-The firmware uploaded to the Pico contains a reader and a virtual smart card. It is like having a physical reader with an inserted SIM card.
-We recommend the use of [OpenSC](http://github.com/opensc/opensc/ "OpenSC") to communicate with the reader. If it is not installed, you can download and build it or install the binaries for your system. The first command is to ensure that the Pico is detected as a HSM:
-```
+The firmware uploaded to the Pico contains a reader and a virtual smart card, similar to having a physical reader with an inserted SIM card. We recommend using [OpenSC](http://github.com/opensc/opensc/ "OpenSC") to communicate with the reader. If OpenSC is not installed, you can download and build it or install the binaries for your system.
+
+To ensure that the Pico is detected as an HSM, use the following command:
+```sh
 opensc-tool -an
 ```
-It should return a text like the following:
-```
+It should return a text similar to:
+```sh
 Using reader with a card: Free Software Initiative of Japan Gnuk
 3b:fe:18:00:00:81:31:fe:45:80:31:81:54:48:53:4d:31:73:80:21:40:81:07:fa
 SmartCard-HSM
 ```
 The name of the reader may vary if you modified the VID/PID.
 
-For initialization and asymmetric operations, check [doc/usage.md](/doc/usage.md).
+For further details and operations, refer to the following documentation:
 
-For signing and verification operations, check [doc/sign-verify.md](/doc/sign-verify.md).
-
-For asymmetric encryption and decryption, check [doc/asymmetric-ciphering.md](/doc/asymmetric-ciphering.md).
-
-For backup, restore and DKEK share management, check [doc/backup-and-restore.md](/doc/backup-and-restore.md).
-
-For AES key generation, encryption and decryption, check [doc/aes.md](/doc/aes.md).
-
-For 4096 bits RSA support, check [doc/scs3.md](/doc/scs3.md).
-
-For storing and retrieving arbitrary data, check [doc/store_data.md](/doc/store_data.md).
-
-For extra options, such as set/get real datetime or enable/disable press-to-confirm button, check [doc/extra_command.md](/doc/extra_command.md).
-
-For Public Key Authentication, check [doc/public_key_authentication.md](/doc/public_key_authentication.md).
+- Initialization and Asymmetric Operations [doc/usage.md](/doc/usage.md)
+- Signing and Verification Operations [doc/sign-verify.md](/doc/sign-verify.md)
+- Asymmetric Encryption and Decryption [doc/asymmetric-ciphering.md](/doc/asymmetric-ciphering.md)
+- Backup, Restore, and DKEK Share Management [doc/backup-and-restore.md](/doc/backup-and-restore.md)
+- AES Key Generation, Encryption, and Decryption [doc/aes.md](/doc/aes.md)
+- 4096 Bits RSA Support [doc/scs3.md](/doc/scs3.md)
+- Storing and Retrieving Arbitrary Data [doc/store_data.md](/doc/store_data.md)
+- Extra Options (e.g., set/get real datetime, enable/disable press-to-confirm button [doc/extra_command.md](/doc/extra_command.md)
+- Public Key Authentication [doc/public_key_authentication.md](/doc/public_key_authentication.md)
 
 ## Operation time
 ### Keypair generation
@@ -260,14 +277,17 @@ Generating EC keys is almost instant. RSA keypair generation takes some time, sp
 | 4096 | 15 |
 
 ## Press-to-confirm button
-Raspberry Pico comes with the BOOTSEL button to load the firmware. When this firmware is running, the button can be used for other purposes. Pico HSM uses this button to confirm private/secret operations. This feature is optional and it shall be enabled. For more information, see [doc/extra_command.md](/doc/extra_command.md).
+The Raspberry Pico includes a BOOTSEL button used for loading firmware initially. Once the Pico HSM firmware is running, this button can be repurposed for additional functionalities. Specifically, the Pico HSM utilizes this button to confirm private and secret operations, a feature that is optional but highly recommended for enhanced security.
 
-With this feature enabled, everytime that a private/secret key is loaded, the Pico HSM awaits for the user confirmation by pressing the BOOTSEL button. The Led of the Pico HSM will remain almost illuminated, turning off quickly once a second, indicating that the user must press the button to confirm the operation. Otherwise, the Pico HSM waits indefinitely. See [Led blink](#press-to-confirm) for a picture of the blinking sequence. When in this mode, the Pico HSM sends periodic timeout commands to the host to do not trigger the timeout operation.
+When enabled, each time a private or secret key operation is initiated, the Pico HSM enters a waiting state where it awaits user confirmation by pressing the BOOTSEL button. During this waiting period, the Pico HSM's LED remains mostly illuminated but blinks off briefly every second, signaling to the user to press the button for confirmation. If no action is taken, the Pico HSM will continue to wait indefinitely. This operation mode includes periodic timeout commands sent to the host to prevent the session from timing out prematurely.
 
-This feature is an extra layer of security, as it requires the user intervention to sign or decrypt and it ensures that any application will use the Pico HSM without user awareness. However, it is not recommended for servers or other environments where operations are authomatized, since it requires a physical access to the Pico HSM to push the button.
+This feature adds an additional layer of security by requiring physical user intervention for sensitive operations such as signing or decrypting data. It mitigates risks associated with unauthorized applications or scripts using the Pico HSM without user awareness. However, it is not recommended for server environments or other automated settings where physical access to press the button may not be practical.
+
+For more details on configuring and using this feature, refer to the [doc/extra_command.md](/doc/extra_command.md) document.
 
 ## Led blink
 Pico HSM uses the led to indicate the current status. Four states are available:
+
 ### Press to confirm
 The Led is almost on all the time. It goes off for 100 miliseconds every second.
 
@@ -290,18 +310,20 @@ While processing, the Pico HSM is busy and cannot receive additional commands un
 
 ## Driver
 
-Pico HSM uses the `sc-hsm` driver provided by [OpenSC](https://github.com/OpenSC/OpenSC/ "OpenSC") or the `sc-hsm-embedded` driver provided by [CardContact](https://github.com/CardContact/sc-hsm-embedded "CardContact"). This driver utilizes the standardized PKCS#11 interface to communicate with the user and it can be used with many engines that accept PKCS#11 interface, such as OpenSSL, P11 library or pkcs11-tool.
+The Pico HSM uses either the `sc-hsm` driver from [OpenSC](https://github.com/OpenSC/OpenSC/) or the `sc-hsm-embedded` driver from [CardContact](https://github.com/CardContact/sc-hsm-embedded/) to interface with external applications. These drivers employ the standardized PKCS#11 interface, making it compatible with various cryptographic engines that support PKCS#11, such as OpenSSL, P11 library, or pkcs11-tool.
 
-Pico HSM relies on PKCS#15 structure to store and manipulate the internal files (PINs, private keys, certificates, etc.) and directories. Therefore, it accepts the commands from `pkcs15-tool`. For instance, `pkcs15-tool -D` will list all elements stored in the Pico HSM.
+Internally, the Pico HSM organizes and manages its data using the PKCS#15 structure, which includes elements like PINs, private keys, and certificates. Commands can be issued to interact with these stored elements using tools such as `pkcs15-tool`. For example, `pkcs15-tool -D` lists all elements stored within the Pico HSM.
 
-The way to communicate is exactly the same as with other cards, such as OpenPGP or similar.
+Communication with the Pico HSM follows the same protocols and methods used with other smart cards, such as OpenPGP cards or similar devices.
 
-For an advanced usage, see the docs and examples.
-
-Pico HSM also supports SCS3 tool for advanced use and multiple key domain. See [SCS3](/doc/scs3.md) for more information.
+For advanced usage scenarios, refer to the documentation and examples provided. Additionally, the Pico HSM supports the SCS3 tool for more sophisticated operations and includes features like multiple key domains. For detailed information on SCS3 usage, refer to [SCS3 documentation](/doc/scs3.md).
 
 ### Important
-OpenSC relies on PCSC driver, which reads a list (`Info.plist`) that contains a pair of VID/PID of supported readers. In order to be detectable, you must patch the UF2 binary (if you just downloaded from the [Release section](https://github.com/polhenarejos/pico-hsm/releases "Release section")) or configure the project with the proper VID/PID with `USB_VID` and `USB_PID` parameters in `CMake` (see [Build section](#build "Build section")). Note that you cannot distribute the patched/compiled binary if you do not own the VID/PID or have an explicit authorization.
+OpenSC relies on PCSC driver, which reads a list (`Info.plist`) that contains a pair of VID/PID of supported readers. In order to be detectable, you have several options:
+- Use `pico-hsm-tool.py` to modify VID/PID on-the-fly.
+- Use the online [Pico Patcher tool](https://www.picokeys.com/pico-patcher/).
+- Patch the UF2 binary (if you just downloaded from the [Release section](https://github.com/polhenarejos/pico-hsm/releases "Release section"))
+- Build and configure the project with the proper VID/PID with `USB_VID` and `USB_PID` parameters in `CMake` (see [Build section](#build "Build section")). Note that you cannot distribute the patched/compiled binary if you do not own the VID/PID or have an explicit authorization.
 
 ## Credits
 Pico HSM uses the following libraries or portion of code:
