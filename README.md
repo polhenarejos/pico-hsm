@@ -146,10 +146,10 @@ Supports BIP32 for asymmetric key derivation and SLIP10 for symmetric key deriva
 ### > ESP32-S3 support
 Pico HSM also supports ESP32-S3 boards, which add secure storage, flash encryption and secure boot.
 
-### > Dynamic VID/PID
+### > Dynamic VID/PID
 Supports setting VID & PID on-the-fly. Use `pico-hsm-tool.py` for specify VID/PID values and reboot the device.
 
-### > Rescue Pico HSM Tool
+### > Rescue Pico HSM Tool
 Pico HSM Tool implements a new CCID stack to rescue the Pico HSM in case it has wrong VID/PID values and it is not recognized by the OS.
 
 ## Security considerations
