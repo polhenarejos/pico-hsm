@@ -18,7 +18,6 @@
 #include "sc_hsm.h"
 
 int cmd_read_binary() {
-    uint16_t fid = 0x0;
     uint16_t offset = 0;
     uint8_t ins = INS(apdu), p1 = P1(apdu), p2 = P2(apdu);
     const file_t *ef = NULL;
@@ -61,7 +60,7 @@ int cmd_read_binary() {
         }
     }
 
-    if ((fid >> 8) == KEY_PREFIX || !authenticate_action(ef, ACL_OP_READ_SEARCH)) {
+    if ((ef->fid >> 8) == KEY_PREFIX || !authenticate_action(ef, ACL_OP_READ_SEARCH)) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
     if (ef->data) {
