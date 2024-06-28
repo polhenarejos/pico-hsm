@@ -23,7 +23,7 @@ void select_file(file_t *pe) {
         currentDF = (file_t *) MF;
         currentEF = NULL;
     }
-    else if (pe->type & FILE_TYPE_INTERNAL_EF) {
+    else if (pe->type & (FILE_TYPE_INTERNAL_EF|FILE_TYPE_WORKING_EF)) {
         currentEF = pe;
         currentDF = &file_entries[pe->parent];
     }
