@@ -314,6 +314,25 @@ int parse_token_info(const file_t *f, int mode) {
     return (int)(2 + (2 + 1) + (2 + 8) + (2 + strlen(manu)) + (2 + strlen(label)) + (2 + 2));
 }
 
+int parse_ef_dir(const file_t *f, int mode) {
+    (void)f;
+#ifdef __FOR_CI
+    char *label = "SmartCard-HSM";
+#else
+    char *label = "Pico-HSM";
+#endif
+    if (mode == 1) {
+        uint8_t *p = res_APDU;
+        *p++ = 0x61;
+        *p++ = 0; //set later
+        *p++ = 0x4F; *p++ = sc_hsm_aid[0]; memcpy(p, sc_hsm_aid + 1, sc_hsm_aid[0]); p += sc_hsm_aid[0];
+        *p++ = 0x50; *p++ = (uint8_t)strlen(label); strcpy((char *) p, label); p += strlen(label);
+        res_APDU_size = (uint16_t)(p - res_APDU);
+        res_APDU[1] = (uint8_t)res_APDU_size - 2;
+    }
+    return (int)(2 + (2 + sc_hsm_aid[0]) + (2 + strlen(label)));
+}
+
 int pin_reset_retries(const file_t *pin, bool force) {
     if (!pin) {
         return CCID_ERR_NULL_PARAM;
