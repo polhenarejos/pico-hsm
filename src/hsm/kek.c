@@ -15,16 +15,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <string.h>
-#include "common.h"
+#include "sc_hsm.h"
 #include "stdlib.h"
-#ifndef ENABLE_EMULATION
+#if !defined(ENABLE_EMULATION) && !defined(ESP_PLATFORM)
 #include "pico/stdlib.h"
 #endif
 #include "kek.h"
 #include "crypto_utils.h"
 #include "random.h"
-#include "sc_hsm.h"
 #include "mbedtls/md.h"
 #include "mbedtls/cmac.h"
 #include "mbedtls/rsa.h"
@@ -41,7 +39,7 @@ uint8_t pending_save_dkek = 0xff;
 #define POLY 0xedb88320
 
 uint32_t crc32c(const uint8_t *buf, size_t len) {
-    uint32_t crc = ~0;
+    uint32_t crc = 0xffffffff;
     while (len--) {
         crc ^= *buf++;
         for (int k = 0; k < 8; k++) {
@@ -57,14 +55,14 @@ int load_mkek(uint8_t *mkek) {
     }
     const uint8_t *pin = NULL;
     if (pin == NULL && has_session_pin == true) {
-        file_t *tf = search_by_fid(EF_MKEK, NULL, SPECIFY_EF);
+        file_t *tf = search_file(EF_MKEK);
         if (file_has_data(tf)) {
             memcpy(mkek, file_get_data(tf), MKEK_SIZE);
             pin = session_pin;
         }
     }
     if (pin == NULL && has_session_sopin == true) {
-        file_t *tf = search_by_fid(EF_MKEK_SO, NULL, SPECIFY_EF);
+        file_t *tf = search_file(EF_MKEK_SO);
         if (file_has_data(tf)) {
             memcpy(mkek, file_get_data(tf), MKEK_SIZE);
             pin = session_sopin;
@@ -109,8 +107,8 @@ int mse_decrypt_ct(uint8_t *data, size_t len) {
 }
 
 int load_dkek(uint8_t id, uint8_t *dkek) {
-    file_t *tf = search_dynamic_file(EF_DKEK + id);
-    if (!tf) {
+    file_t *tf = search_file(EF_DKEK + id);
+    if (!file_has_data(tf)) {
         return CCID_ERR_FILE_NOT_FOUND;
     }
     memcpy(dkek, file_get_data(tf), DKEK_KEY_SIZE);
@@ -137,7 +135,7 @@ int store_mkek(const uint8_t *mkek) {
     if (has_session_pin) {
         uint8_t tmp_mkek_pin[MKEK_SIZE];
         memcpy(tmp_mkek_pin, tmp_mkek, MKEK_SIZE);
-        file_t *tf = search_by_fid(EF_MKEK, NULL, SPECIFY_EF);
+        file_t *tf = search_file(EF_MKEK);
         if (!tf) {
             release_mkek(tmp_mkek);
             release_mkek(tmp_mkek_pin);
@@ -147,13 +145,13 @@ int store_mkek(const uint8_t *mkek) {
                             MKEK_IV(tmp_mkek_pin),
                             MKEK_KEY(tmp_mkek_pin),
                             MKEK_KEY_SIZE + MKEK_KEY_CS_SIZE);
-        flash_write_data_to_file(tf, tmp_mkek_pin, MKEK_SIZE);
+        file_put_data(tf, tmp_mkek_pin, MKEK_SIZE);
         release_mkek(tmp_mkek_pin);
     }
     if (has_session_sopin) {
         uint8_t tmp_mkek_sopin[MKEK_SIZE];
         memcpy(tmp_mkek_sopin, tmp_mkek, MKEK_SIZE);
-        file_t *tf = search_by_fid(EF_MKEK_SO, NULL, SPECIFY_EF);
+        file_t *tf = search_file(EF_MKEK_SO);
         if (!tf) {
             release_mkek(tmp_mkek);
             release_mkek(tmp_mkek_sopin);
@@ -163,7 +161,7 @@ int store_mkek(const uint8_t *mkek) {
                             MKEK_IV(tmp_mkek_sopin),
                             MKEK_KEY(tmp_mkek_sopin),
                             MKEK_KEY_SIZE + MKEK_KEY_CS_SIZE);
-        flash_write_data_to_file(tf, tmp_mkek_sopin, MKEK_SIZE);
+        file_put_data(tf, tmp_mkek_sopin, MKEK_SIZE);
         release_mkek(tmp_mkek_sopin);
     }
     low_flash_available();
@@ -172,7 +170,7 @@ int store_mkek(const uint8_t *mkek) {
 }
 
 int store_dkek_key(uint8_t id, uint8_t *dkek) {
-    file_t *tf = search_dynamic_file(EF_DKEK + id);
+    file_t *tf = search_file(EF_DKEK + id);
     if (!tf) {
         return CCID_ERR_FILE_NOT_FOUND;
     }
@@ -180,7 +178,7 @@ int store_dkek_key(uint8_t id, uint8_t *dkek) {
     if (r != CCID_OK) {
         return r;
     }
-    flash_write_data_to_file(tf, dkek, DKEK_KEY_SIZE);
+    file_put_data(tf, dkek, DKEK_KEY_SIZE);
     low_flash_available();
     return CCID_OK;
 }
@@ -188,7 +186,7 @@ int store_dkek_key(uint8_t id, uint8_t *dkek) {
 int save_dkek_key(uint8_t id, const uint8_t *key) {
     uint8_t dkek[DKEK_KEY_SIZE];
     if (!key) {
-        file_t *tf = search_dynamic_file(EF_DKEK + id);
+        file_t *tf = search_file(EF_DKEK + id);
         if (!tf) {
             return CCID_ERR_FILE_NOT_FOUND;
         }
@@ -202,7 +200,7 @@ int save_dkek_key(uint8_t id, const uint8_t *key) {
 
 int import_dkek_share(uint8_t id, const uint8_t *share) {
     uint8_t tmp_dkek[DKEK_KEY_SIZE];
-    file_t *tf = search_dynamic_file(EF_DKEK + id);
+    file_t *tf = search_file(EF_DKEK + id);
     if (!tf) {
         return CCID_ERR_FILE_NOT_FOUND;
     }
@@ -213,7 +211,7 @@ int import_dkek_share(uint8_t id, const uint8_t *share) {
     for (int i = 0; i < DKEK_KEY_SIZE; i++) {
         tmp_dkek[i] ^= share[i];
     }
-    flash_write_data_to_file(tf, tmp_dkek, DKEK_KEY_SIZE);
+    file_put_data(tf, tmp_dkek, DKEK_KEY_SIZE);
     low_flash_available();
     return CCID_OK;
 }
@@ -258,7 +256,7 @@ int dkek_kmac(uint8_t id, uint8_t *kmac) { //kmac 32 bytes
     return CCID_OK;
 }
 
-int mkek_encrypt(uint8_t *data, size_t len) {
+int mkek_encrypt(uint8_t *data, uint16_t len) {
     int r;
     uint8_t mkek[MKEK_SIZE + 4];
     if ((r = load_mkek(mkek)) != CCID_OK) {
@@ -269,7 +267,7 @@ int mkek_encrypt(uint8_t *data, size_t len) {
     return r;
 }
 
-int mkek_decrypt(uint8_t *data, size_t len) {
+int mkek_decrypt(uint8_t *data, uint16_t len) {
     int r;
     uint8_t mkek[MKEK_SIZE + 4];
     if ((r = load_mkek(mkek)) != CCID_OK) {
@@ -284,16 +282,17 @@ int dkek_encode_key(uint8_t id,
                     void *key_ctx,
                     int key_type,
                     uint8_t *out,
-                    size_t *out_len,
+                    uint16_t *out_len,
                     const uint8_t *allowed,
-                    size_t allowed_len) {
+                    uint16_t allowed_len) {
     if (!(key_type & PICO_KEYS_KEY_RSA) && !(key_type & PICO_KEYS_KEY_EC) && !(key_type & PICO_KEYS_KEY_AES)) {
         return CCID_WRONG_DATA;
     }
 
     uint8_t kb[8 + 2 * 4 + 2 * 4096 / 8 + 3 + 13]; //worst case: RSA-4096  (plus, 13 bytes padding)
     memset(kb, 0, sizeof(kb));
-    int kb_len = 0, r = 0;
+    uint16_t kb_len = 0;
+    int r = 0;
     uint8_t *algo = NULL;
     uint8_t algo_len = 0;
     uint8_t kenc[32];
@@ -351,17 +350,17 @@ int dkek_encode_key(uint8_t id,
         }
         mbedtls_rsa_context *rsa = (mbedtls_rsa_context *) key_ctx;
         kb_len = 0;
-        put_uint16_t(mbedtls_rsa_get_len(rsa) * 8, kb + 8 + kb_len); kb_len += 2;
+        put_uint16_t((uint16_t)mbedtls_rsa_get_len(rsa) * 8, kb + 8 + kb_len); kb_len += 2;
 
-        put_uint16_t(mbedtls_mpi_size(&rsa->D), kb + 8 + kb_len); kb_len += 2;
+        put_uint16_t((uint16_t)mbedtls_mpi_size(&rsa->D), kb + 8 + kb_len); kb_len += 2;
         mbedtls_mpi_write_binary(&rsa->D, kb + 8 + kb_len, mbedtls_mpi_size(&rsa->D));
-        kb_len += mbedtls_mpi_size(&rsa->D);
-        put_uint16_t(mbedtls_mpi_size(&rsa->N), kb + 8 + kb_len); kb_len += 2;
+        kb_len += (uint16_t)mbedtls_mpi_size(&rsa->D);
+        put_uint16_t((uint16_t)mbedtls_mpi_size(&rsa->N), kb + 8 + kb_len); kb_len += 2;
         mbedtls_mpi_write_binary(&rsa->N, kb + 8 + kb_len, mbedtls_mpi_size(&rsa->N));
-        kb_len += mbedtls_mpi_size(&rsa->N);
-        put_uint16_t(mbedtls_mpi_size(&rsa->E), kb + 8 + kb_len); kb_len += 2;
+        kb_len += (uint16_t)mbedtls_mpi_size(&rsa->N);
+        put_uint16_t((uint16_t)mbedtls_mpi_size(&rsa->E), kb + 8 + kb_len); kb_len += 2;
         mbedtls_mpi_write_binary(&rsa->E, kb + 8 + kb_len, mbedtls_mpi_size(&rsa->E));
-        kb_len += mbedtls_mpi_size(&rsa->E);
+        kb_len += (uint16_t)mbedtls_mpi_size(&rsa->E);
 
         algo = (uint8_t *) "\x00\x0A\x04\x00\x7F\x00\x07\x02\x02\x02\x01\x02";
         algo_len = 12;
@@ -372,19 +371,19 @@ int dkek_encode_key(uint8_t id,
         }
         mbedtls_ecdsa_context *ecdsa = (mbedtls_ecdsa_context *) key_ctx;
         kb_len = 0;
-        put_uint16_t(mbedtls_mpi_size(&ecdsa->grp.P) * 8, kb + 8 + kb_len); kb_len += 2;
-        put_uint16_t(mbedtls_mpi_size(&ecdsa->grp.A), kb + 8 + kb_len); kb_len += 2;
+        put_uint16_t((uint16_t)mbedtls_mpi_size(&ecdsa->grp.P) * 8, kb + 8 + kb_len); kb_len += 2;
+        put_uint16_t((uint16_t)mbedtls_mpi_size(&ecdsa->grp.A), kb + 8 + kb_len); kb_len += 2;
         mbedtls_mpi_write_binary(&ecdsa->grp.A, kb + 8 + kb_len, mbedtls_mpi_size(&ecdsa->grp.A));
-        kb_len += mbedtls_mpi_size(&ecdsa->grp.A);
-        put_uint16_t(mbedtls_mpi_size(&ecdsa->grp.B), kb + 8 + kb_len); kb_len += 2;
+        kb_len += (uint16_t)mbedtls_mpi_size(&ecdsa->grp.A);
+        put_uint16_t((uint16_t)mbedtls_mpi_size(&ecdsa->grp.B), kb + 8 + kb_len); kb_len += 2;
         mbedtls_mpi_write_binary(&ecdsa->grp.B, kb + 8 + kb_len, mbedtls_mpi_size(&ecdsa->grp.B));
-        kb_len += mbedtls_mpi_size(&ecdsa->grp.B);
-        put_uint16_t(mbedtls_mpi_size(&ecdsa->grp.P), kb + 8 + kb_len); kb_len += 2;
+        kb_len += (uint16_t)mbedtls_mpi_size(&ecdsa->grp.B);
+        put_uint16_t((uint16_t)mbedtls_mpi_size(&ecdsa->grp.P), kb + 8 + kb_len); kb_len += 2;
         mbedtls_mpi_write_binary(&ecdsa->grp.P, kb + 8 + kb_len, mbedtls_mpi_size(&ecdsa->grp.P));
-        kb_len += mbedtls_mpi_size(&ecdsa->grp.P);
-        put_uint16_t(mbedtls_mpi_size(&ecdsa->grp.N), kb + 8 + kb_len); kb_len += 2;
+        kb_len += (uint16_t)mbedtls_mpi_size(&ecdsa->grp.P);
+        put_uint16_t((uint16_t)mbedtls_mpi_size(&ecdsa->grp.N), kb + 8 + kb_len); kb_len += 2;
         mbedtls_mpi_write_binary(&ecdsa->grp.N, kb + 8 + kb_len, mbedtls_mpi_size(&ecdsa->grp.N));
-        kb_len += mbedtls_mpi_size(&ecdsa->grp.N);
+        kb_len += (uint16_t)mbedtls_mpi_size(&ecdsa->grp.N);
 
         size_t olen = 0;
         mbedtls_ecp_point_write_binary(&ecdsa->grp,
@@ -393,12 +392,12 @@ int dkek_encode_key(uint8_t id,
                                        &olen,
                                        kb + 8 + kb_len + 2,
                                        sizeof(kb) - 8 - kb_len - 2);
-        put_uint16_t(olen, kb + 8 + kb_len);
-        kb_len += 2 + olen;
+        put_uint16_t((uint16_t)olen, kb + 8 + kb_len);
+        kb_len += 2 + (uint16_t)olen;
 
-        put_uint16_t(mbedtls_mpi_size(&ecdsa->d), kb + 8 + kb_len); kb_len += 2;
+        put_uint16_t((uint16_t)mbedtls_mpi_size(&ecdsa->d), kb + 8 + kb_len); kb_len += 2;
         mbedtls_mpi_write_binary(&ecdsa->d, kb + 8 + kb_len, mbedtls_mpi_size(&ecdsa->d));
-        kb_len += mbedtls_mpi_size(&ecdsa->d);
+        kb_len += (uint16_t)mbedtls_mpi_size(&ecdsa->d);
 
         mbedtls_ecp_point_write_binary(&ecdsa->grp,
                                        &ecdsa->Q,
@@ -406,8 +405,8 @@ int dkek_encode_key(uint8_t id,
                                        &olen,
                                        kb + 8 + kb_len + 2,
                                        sizeof(kb) - 8 - kb_len - 2);
-        put_uint16_t(olen, kb + 8 + kb_len);
-        kb_len += 2 + olen;
+        put_uint16_t((uint16_t)olen, kb + 8 + kb_len);
+        kb_len += 2 + (uint16_t)olen;
 
         algo = (uint8_t *) "\x00\x0A\x04\x00\x7F\x00\x07\x02\x02\x02\x02\x03";
         algo_len = 12;
@@ -450,7 +449,7 @@ int dkek_encode_key(uint8_t id,
 
     memcpy(kb, random_bytes_get(8), 8);
     kb_len += 8; //8 random bytes
-    int kb_len_pad = ((int) (kb_len / 16)) * 16;
+    uint16_t kb_len_pad = ((uint16_t) (kb_len / 16)) * 16;
     if (kb_len % 16 > 0) {
         kb_len_pad = ((int) (kb_len / 16) + 1) * 16;
     }
@@ -496,10 +495,10 @@ int dkek_type_key(const uint8_t *in) {
 int dkek_decode_key(uint8_t id,
                     void *key_ctx,
                     const uint8_t *in,
-                    size_t in_len,
+                    uint16_t in_len,
                     int *key_size_out,
                     uint8_t **allowed,
-                    size_t *allowed_len) {
+                    uint16_t *allowed_len) {
     uint8_t kcv[8];
     int r = 0;
     memset(kcv, 0, sizeof(kcv));
@@ -559,10 +558,10 @@ int dkek_decode_key(uint8_t id,
         return CCID_WRONG_DATA;
     }
 
-    size_t ofs = 9;
+    uint16_t ofs = 9;
 
     //OID
-    size_t len = get_uint16_t(in, ofs);
+    uint16_t len = get_uint16_t(in, ofs);
     ofs += len + 2;
 
     //Allowed algorithms

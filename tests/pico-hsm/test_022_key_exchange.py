@@ -29,7 +29,7 @@ def test_prepare_dkek(device):
     resp = device.import_dkek(DEFAULT_DKEK)
     resp = device.import_dkek(DEFAULT_DKEK)
     kcv = hashlib.sha256(b'\x00'*32).digest()[:8]
-    assert(resp[2:] == kcv)
+    assert(resp['kcv'] == kcv)
 
 @pytest.mark.parametrize(
     "curve", [ec.SECP192R1, ec.SECP256R1, ec.SECP384R1, ec.SECP521R1, ec.SECP256K1, ec.BrainpoolP256R1, ec.BrainpoolP384R1, ec.BrainpoolP512R1]

@@ -18,14 +18,13 @@
 #include "sc_hsm.h"
 
 int cmd_read_binary() {
-    uint16_t fid = 0x0;
-    uint32_t offset = 0;
+    uint16_t offset = 0;
     uint8_t ins = INS(apdu), p1 = P1(apdu), p2 = P2(apdu);
     const file_t *ef = NULL;
 
     if ((ins & 0x1) == 0) {
         if ((p1 & 0x80) != 0) {
-            if (!(ef = search_by_fid(p1 & 0x1f, NULL, SPECIFY_EF))) {
+            if (!(ef = search_file(p1 & 0x1f))) {
                 return SW_FILE_NOT_FOUND();
             }
             offset = p2;
@@ -37,7 +36,7 @@ int cmd_read_binary() {
     }
     else {
         if (p1 == 0 && (p2 & 0xE0) == 0 && (p2 & 0x1f) != 0 && (p2 & 0x1f) != 0x1f) {
-            if (!(ef = search_by_fid(p2 & 0x1f, NULL, SPECIFY_EF))) {
+            if (!(ef = search_file(p2 & 0x1f))) {
                 return SW_FILE_NOT_FOUND();
             }
         }
@@ -46,9 +45,7 @@ int cmd_read_binary() {
             if (file_id == 0x0) {
                 ef = currentEF;
             }
-            else if (!(ef =
-                           search_by_fid(file_id, NULL,
-                                         SPECIFY_EF)) && !(ef = search_dynamic_file(file_id))) {
+            else if (!(ef = search_file(file_id))) {
                 return SW_FILE_NOT_FOUND();
             }
 
@@ -63,12 +60,12 @@ int cmd_read_binary() {
         }
     }
 
-    if ((fid >> 8) == KEY_PREFIX || !authenticate_action(ef, ACL_OP_READ_SEARCH)) {
+    if ((ef->fid >> 8) == KEY_PREFIX || !authenticate_action(ef, ACL_OP_READ_SEARCH)) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
     if (ef->data) {
         if ((ef->type & FILE_DATA_FUNC) == FILE_DATA_FUNC) {
-            uint16_t data_len = ((int (*)(const file_t *, int))(ef->data))((const file_t *) ef, 1); //already copies content to res_APDU
+            uint16_t data_len = (uint16_t)((int (*)(const file_t *, int))(ef->data))((const file_t *) ef, 1); //already copies content to res_APDU
             if (offset > data_len) {
                 return SW_WRONG_P1P2();
             }

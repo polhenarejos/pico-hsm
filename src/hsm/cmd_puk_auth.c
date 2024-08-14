@@ -21,7 +21,7 @@
 
 int cmd_puk_auth() {
     uint8_t p1 = P1(apdu), p2 = P2(apdu);
-    file_t *ef_puk = search_by_fid(EF_PUKAUT, NULL, SPECIFY_EF);
+    file_t *ef_puk = search_file(EF_PUKAUT);
     if (!file_has_data(ef_puk)) {
         if (apdu.nc > 0) {
             return SW_FILE_NOT_FOUND();
@@ -36,8 +36,8 @@ int cmd_puk_auth() {
                 if (p2 != 0x0) {
                     return SW_INCORRECT_P1P2();
                 }
-                for (int i = 0; i < puk_data[0]; i++) {
-                    ef = search_dynamic_file(EF_PUK + i);
+                for (uint8_t i = 0; i < puk_data[0]; i++) {
+                    ef = search_file(EF_PUK + i);
                     if (!ef) { /* Never should not happen */
                         return SW_MEMORY_FAILURE();
                     }
@@ -48,7 +48,7 @@ int cmd_puk_auth() {
                 uint8_t *tmp = (uint8_t *) calloc(file_get_size(ef_puk), sizeof(uint8_t));
                 memcpy(tmp, puk_data, file_get_size(ef_puk));
                 tmp[1] = puk_data[1] - 1;
-                flash_write_data_to_file(ef_puk, tmp, file_get_size(ef_puk));
+                file_put_data(ef_puk, tmp, file_get_size(ef_puk));
                 puk_data = file_get_data(ef_puk);
                 free(tmp);
             }
@@ -56,12 +56,12 @@ int cmd_puk_auth() {
                 if (p2 >= puk_data[0]) {
                     return SW_INCORRECT_P1P2();
                 }
-                ef = search_dynamic_file(EF_PUK + p2);
+                ef = search_file(EF_PUK + p2);
                 if (!ef) { /* Never should not happen */
                     return SW_MEMORY_FAILURE();
                 }
             }
-            flash_write_data_to_file(ef, apdu.data, apdu.nc);
+            file_put_data(ef, apdu.data, (uint16_t)apdu.nc);
             low_flash_available();
         }
         else {
@@ -72,14 +72,14 @@ int cmd_puk_auth() {
         if (p2 >= puk_data[0]) {
             return SW_INCORRECT_P1P2();
         }
-        file_t *ef = search_dynamic_file(EF_PUK + p2);
+        file_t *ef = search_file(EF_PUK + p2);
         if (!ef) {
             return SW_INCORRECT_P1P2();
         }
         if (!file_has_data(ef)) {
             return SW_REFERENCE_NOT_FOUND();
         }
-        size_t chr_len = 0;
+        uint16_t chr_len = 0;
         const uint8_t *chr = cvc_get_chr(file_get_data(ef), file_get_size(ef), &chr_len);
         if (chr) {
             memcpy(res_APDU, chr, chr_len);

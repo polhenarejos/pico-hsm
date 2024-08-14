@@ -15,10 +15,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "common.h"
+#include "sc_hsm.h"
 #include "mbedtls/ecdsa.h"
 #include "crypto_utils.h"
-#include "sc_hsm.h"
 #include "cvc.h"
 
 #define MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED -0x006E
@@ -43,7 +42,7 @@ int cmd_derive_asym() {
     if (!isUserAuthenticated) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
-    if (!(fkey = search_dynamic_file((KEY_PREFIX << 8) | key_id)) || !file_has_data(fkey)) {
+    if (!(fkey = search_file((KEY_PREFIX << 8) | key_id)) || !file_has_data(fkey)) {
         return SW_FILE_NOT_FOUND();
     }
     if (key_has_purpose(fkey, ALGO_EC_DERIVE) == false) {

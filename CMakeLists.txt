@@ -17,6 +17,12 @@
 
 cmake_minimum_required(VERSION 3.13)
 
+if(ESP_PLATFORM)
+set(EXTRA_COMPONENT_DIRS src pico-keys-sdk/src)
+include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+set(USB_ITF_CCID 1)
+set(USB_ITF_WCID 1)
+else()
 if(ENABLE_EMULATION)
 else()
 include(pico_sdk_import.cmake)
@@ -27,8 +33,7 @@ project(pico_hsm C CXX ASM)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 
-if(ENABLE_EMULATION)
-else()
+if(NOT ENABLE_EMULATION)
 pico_sdk_init()
 endif()
 
@@ -40,7 +45,7 @@ if (__FOR_CI)
 endif()
 
 add_executable(pico_hsm)
-
+endif()
 set(SOURCES ${SOURCES}
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/sc_hsm.c
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_select.c
@@ -73,34 +78,48 @@ set(SOURCES ${SOURCES}
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cvc.c
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/files.c
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm/kek.c
-        ${CMAKE_CURRENT_LIST_DIR}/src/hsm/oid.c
 
         )
 set(USB_ITF_CCID 1)
+set(USB_ITF_WCID 1)
 include(pico-keys-sdk/pico_keys_sdk_import.cmake)
+if(ESP_PLATFORM)
+    project(pico_hsm)
+endif()
 
 set(INCLUDES ${INCLUDES}
         ${CMAKE_CURRENT_LIST_DIR}/src/hsm
         )
-
+if(NOT ESP_PLATFORM)
 target_sources(pico_hsm PUBLIC ${SOURCES})
 target_include_directories(pico_hsm PUBLIC ${INCLUDES})
 
 target_compile_options(pico_hsm PUBLIC
     -Wall
-    -Werror
 )
+if (NOT MSVC)
+    target_compile_options(pico_hsm PUBLIC
+        -Werror
+    )
+endif()
 
 if(ENABLE_EMULATION)
-
+if (NOT MSVC)
 target_compile_options(pico_hsm PUBLIC
         -fdata-sections
         -ffunction-sections
         )
+endif()
 if(APPLE)
 target_link_options(pico_hsm PUBLIC
         -Wl,-dead_strip
         )
+elseif(MSVC)
+    target_compile_options(pico_hsm PUBLIC
+        -WX
+    )
+
+    target_link_libraries(pico_hsm PUBLIC wsock32 ws2_32 Bcrypt)
 else()
 target_link_options(pico_hsm PUBLIC
         -Wl,--gc-sections
@@ -108,6 +127,6 @@ target_link_options(pico_hsm PUBLIC
 endif (APPLE)
 else()
 pico_add_extra_outputs(pico_hsm)
-
 target_link_libraries(pico_hsm PRIVATE pico_keys_sdk pico_stdlib pico_multicore hardware_flash hardware_sync hardware_adc pico_unique_id hardware_rtc tinyusb_device tinyusb_board)
+endif()
 endif()

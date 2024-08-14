@@ -25,13 +25,13 @@ int cmd_delete_file() {
 
     if (apdu.nc == 0) {
         ef = currentEF;
-        if (!(ef = search_dynamic_file(ef->fid))) {
+        if (!(ef = search_file(ef->fid))) {
             return SW_FILE_NOT_FOUND();
         }
     }
     else {
         uint16_t fid = (apdu.data[0] << 8) | apdu.data[1];
-        if (!(ef = search_dynamic_file(fid))) {
+        if (!(ef = search_file(fid))) {
             return SW_FILE_NOT_FOUND();
         }
     }

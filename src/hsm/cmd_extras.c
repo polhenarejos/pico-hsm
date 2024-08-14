@@ -15,11 +15,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "common.h"
-#include "mbedtls/ecdh.h"
 #include "sc_hsm.h"
-#ifndef ENABLE_EMULATION
+#include "mbedtls/ecdh.h"
+#if !defined(ENABLE_EMULATION) && !defined(ESP_PLATFORM)
 #include "hardware/rtc.h"
+#else
+#include <sys/time.h>
+#include <time.h>
 #endif
 #include "files.h"
 #include "random.h"
@@ -28,12 +30,22 @@
 #include "mbedtls/chachapoly.h"
 
 int cmd_extras() {
+#ifndef ENABLE_EMULATION
+    // Only allow change PHY without PIN
+    if (!isUserAuthenticated && P1(apdu) != 0x1B) {
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
+    }
+#endif
+    //check button (if enabled)
+    if (wait_button_pressed() == true) {
+        return SW_SECURE_MESSAGE_EXEC_ERROR();
+    }
     if (P1(apdu) == 0xA) { //datetime operations
         if (P2(apdu) != 0x0) {
             return SW_INCORRECT_P1P2();
         }
         if (apdu.nc == 0) {
-#ifndef ENABLE_EMULATION
+#if !defined(ENABLE_EMULATION) && !defined(ESP_PLATFORM)
             datetime_t dt;
             if (!rtc_get_datetime(&dt)) {
                 return SW_EXEC_ERROR();
@@ -46,13 +58,26 @@ int cmd_extras() {
             res_APDU[res_APDU_size++] = dt.hour;
             res_APDU[res_APDU_size++] = dt.min;
             res_APDU[res_APDU_size++] = dt.sec;
+#else
+            struct timeval tv;
+            struct tm *tm;
+            gettimeofday(&tv, NULL);
+            tm = localtime(&tv.tv_sec);
+            res_APDU[res_APDU_size++] = (tm->tm_year + 1900) >> 8;
+            res_APDU[res_APDU_size++] = (tm->tm_year + 1900) & 0xff;
+            res_APDU[res_APDU_size++] = tm->tm_mon;
+            res_APDU[res_APDU_size++] = tm->tm_mday;
+            res_APDU[res_APDU_size++] = tm->tm_wday;
+            res_APDU[res_APDU_size++] = tm->tm_hour;
+            res_APDU[res_APDU_size++] = tm->tm_min;
+            res_APDU[res_APDU_size++] = tm->tm_sec;
 #endif
         }
         else {
             if (apdu.nc != 8) {
                 return SW_WRONG_LENGTH();
             }
-#ifndef ENABLE_EMULATION
+#if !defined(ENABLE_EMULATION) && !defined(ESP_PLATFORM)
             datetime_t dt;
             dt.year = (apdu.data[0] << 8) | (apdu.data[1]);
             dt.month = apdu.data[2];
@@ -64,6 +89,18 @@ int cmd_extras() {
             if (!rtc_set_datetime(&dt)) {
                 return SW_WRONG_DATA();
             }
+#else
+            struct tm tm;
+            struct timeval tv;
+            tm.tm_year = ((apdu.data[0] << 8) | (apdu.data[1])) - 1900;
+            tm.tm_mon = apdu.data[2];
+            tm.tm_mday = apdu.data[3];
+            tm.tm_wday = apdu.data[4];
+            tm.tm_hour = apdu.data[5];
+            tm.tm_min = apdu.data[6];
+            tm.tm_sec = apdu.data[7];
+            tv.tv_sec = mktime(&tm);
+            settimeofday(&tv, NULL);
 #endif
         }
     }
@@ -81,8 +118,8 @@ int cmd_extras() {
         }
         else {
             uint8_t newopts[] = { apdu.data[0], (opts & 0xff) };
-            file_t *tf = search_by_fid(EF_DEVOPS, NULL, SPECIFY_EF);
-            flash_write_data_to_file(tf, newopts, sizeof(newopts));
+            file_t *tf = search_file(EF_DEVOPS);
+            file_put_data(tf, newopts, sizeof(newopts));
             low_flash_available();
         }
     }
@@ -149,7 +186,7 @@ int cmd_extras() {
                 return SW_EXEC_ERROR();
             }
             mse.init = true;
-            res_APDU_size = olen;
+            res_APDU_size = (uint16_t)olen;
         }
         else if (P2(apdu) == 0x02 || P2(apdu) == 0x03 || P2(apdu) == 0x04) {
             if (mse.init == false) {
@@ -167,14 +204,14 @@ int cmd_extras() {
                     (P2(apdu) == 0x04 && (opts & HSM_OPT_SECURE_LOCK))) {
                     uint16_t tfids[] = { EF_MKEK, EF_MKEK_SO };
                     for (int t = 0; t < sizeof(tfids) / sizeof(uint16_t); t++) {
-                        file_t *tf = search_by_fid(tfids[t], NULL, SPECIFY_EF);
+                        file_t *tf = search_file(tfids[t]);
                         if (tf) {
                             uint8_t *tmp = (uint8_t *) calloc(1, file_get_size(tf));
                             memcpy(tmp, file_get_data(tf), file_get_size(tf));
                             for (int i = 0; i < MKEK_KEY_SIZE; i++) {
                                 MKEK_KEY(tmp)[i] ^= apdu.data[i];
                             }
-                            flash_write_data_to_file(tf, tmp, file_get_size(tf));
+                            file_put_data(tf, tmp, file_get_size(tf));
                             free(tmp);
                         }
                     }
@@ -185,8 +222,8 @@ int cmd_extras() {
                 else if (P2(apdu) == 0x04) {
                     newopts[0] &= ~HSM_OPT_SECURE_LOCK >> 8;
                 }
-                file_t *tf = search_by_fid(EF_DEVOPS, NULL, SPECIFY_EF);
-                flash_write_data_to_file(tf, newopts, sizeof(newopts));
+                file_t *tf = search_file(EF_DEVOPS);
+                file_put_data(tf, newopts, sizeof(newopts));
                 low_flash_available();
             }
             else if (P2(apdu) == 0x03) {
@@ -195,6 +232,60 @@ int cmd_extras() {
             }
         }
     }
+#ifndef ENABLE_EMULATION
+    else if (P1(apdu) == 0x1B) { // Set PHY
+        if (apdu.nc == 0) {
+            if (file_has_data(ef_phy)) {
+                res_APDU_size = file_get_size(ef_phy);
+                memcpy(res_APDU, file_get_data(ef_phy), res_APDU_size);
+            }
+        }
+        else {
+            uint8_t tmp[PHY_MAX_SIZE];
+            memset(tmp, 0, sizeof(tmp));
+            uint16_t opts = 0;
+            if (file_has_data(ef_phy)) {
+                memcpy(tmp, file_get_data(ef_phy), MIN(sizeof(tmp), file_get_size(ef_phy)));
+                if (file_get_size(ef_phy) >= 8) {
+                    opts = (tmp[PHY_OPTS] << 8) | tmp[PHY_OPTS + 1];
+                }
+            }
+            if (P2(apdu) == PHY_VID) { // VIDPID
+                if (apdu.nc != 4) {
+                    return SW_WRONG_LENGTH();
+                }
+                memcpy(tmp + PHY_VID, apdu.data, 4);
+                opts |= PHY_OPT_VPID;
+            }
+            else if (P2(apdu) == PHY_LED_GPIO || P2(apdu) == PHY_LED_MODE) {
+                if (apdu.nc != 1) {
+                    return SW_WRONG_LENGTH();
+                }
+                tmp[P2(apdu)] = apdu.data[0];
+                if (P2(apdu) == PHY_LED_GPIO) {
+                    opts |= PHY_OPT_GPIO;
+                }
+                else if (P2(apdu) == PHY_LED_MODE) {
+                    opts |= PHY_OPT_LED;
+                }
+            }
+            else if (P2(apdu) == PHY_OPTS) {
+                if (apdu.nc != 2) {
+                    return SW_WRONG_LENGTH();
+                }
+                uint16_t opt = (apdu.data[0] << 8) | apdu.data[1];
+                opts = (opts & ~PHY_OPT_MASK) | (opt & PHY_OPT_MASK);
+            }
+            else {
+                return SW_INCORRECT_P1P2();
+            }
+            tmp[PHY_OPTS] = opts >> 8;
+            tmp[PHY_OPTS + 1] = opts & 0xff;
+            file_put_data(ef_phy, tmp, sizeof(tmp));
+            low_flash_available();
+        }
+    }
+#endif
     else {
         return SW_INCORRECT_P1P2();
     }

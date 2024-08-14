@@ -15,10 +15,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "common.h"
+#include "sc_hsm.h"
 #include "mbedtls/ecdh.h"
 #include "asn1.h"
-#include "sc_hsm.h"
 #include "random.h"
 #include "oid.h"
 #include "eac.h"
@@ -28,18 +27,20 @@ int cmd_general_authenticate() {
     if (P1(apdu) == 0x0 && P2(apdu) == 0x0) {
         if (apdu.data[0] == 0x7C) {
             int r = 0;
-            size_t pubkey_len = 0;
+            uint16_t pubkey_len = 0;
             const uint8_t *pubkey = NULL;
             uint16_t tag = 0x0;
             uint8_t *tag_data = NULL, *p = NULL;
-            size_t tag_len = 0;
-            while (walk_tlv(apdu.data + 2, apdu.nc - 2, &p, &tag, &tag_len, &tag_data)) {
+            uint16_t tag_len = 0;
+            asn1_ctx_t ctxi;
+            asn1_ctx_init(apdu.data + 2, (uint16_t)(apdu.nc - 2), &ctxi);
+            while (walk_tlv(&ctxi, &p, &tag, &tag_len, &tag_data)) {
                 if (tag == 0x80) {
                     pubkey = tag_data - 1; //mbedtls ecdh starts reading one pos before
                     pubkey_len = tag_len + 1;
                 }
             }
-            file_t *fkey = search_by_fid(EF_KEY_DEV, NULL, SPECIFY_EF);
+            file_t *fkey = search_file(EF_KEY_DEV);
             if (!fkey) {
                 return SW_EXEC_ERROR();
             }

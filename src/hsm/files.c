@@ -19,11 +19,12 @@
 
 extern const uint8_t sc_hsm_aid[];
 extern int parse_token_info(const file_t *f, int mode);
+extern int parse_ef_dir(const file_t *f, int mode);
 
 file_t file_entries[] = {
     /*  0 */ { .fid = 0x3f00, .parent = 0xff, .name = NULL, .type = FILE_TYPE_DF, .data = NULL,
                .ef_structure = 0, .acl = { 0 } },                                                                                    // MF
-    /*  1 */ { .fid = 0x2f00, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL,
+    /*  1 */ { .fid = 0x2f00, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF | FILE_DATA_FUNC, .data = (uint8_t *) parse_ef_dir,
                .ef_structure = FILE_EF_TRANSPARENT, .acl = { 0 } },                                                                                         //EF.DIR
     /*  2 */ { .fid = 0x2f01, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL,
                .ef_structure = FILE_EF_TRANSPARENT, .acl = { 0 } },                                                                                         //EF.ATR
@@ -41,22 +42,22 @@ file_t file_entries[] = {
                .ef_structure = FILE_EF_TRANSPARENT, .acl = { 0 } },                                                                                         //EF.TokenInfo
     /*  8 */ { .fid = 0x5033, .parent = 0, .name = NULL, .type = FILE_TYPE_WORKING_EF, .data = NULL,
                .ef_structure = FILE_EF_TRANSPARENT, .acl = { 0 } },                                                                                         //EF.UnusedSpace
-    /*  9 */ { .fid = 0x1081, .parent = 5, .name = NULL,
+    /*  9 */ { .fid = EF_PIN1, .parent = 5, .name = NULL,
                .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL,
                .ef_structure = FILE_EF_TRANSPARENT, .acl = { 0xff } },                                                                                                            //PIN (PIN1)
-    /* 10 */ { .fid = 0x1082, .parent = 5, .name = NULL,
+    /* 10 */ { .fid = EF_PIN1_MAX_RETRIES, .parent = 5, .name = NULL,
                .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL,
                .ef_structure = FILE_EF_TRANSPARENT, .acl = { 0xff } },                                                                                                            //max retries PIN (PIN1)
-    /* 11 */ { .fid = 0x1083, .parent = 5, .name = NULL,
+    /* 11 */ { .fid = EF_PIN1_RETRIES, .parent = 5, .name = NULL,
                .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL,
                .ef_structure = FILE_EF_TRANSPARENT, .acl = { 0xff } },                                                                                                            //retries PIN (PIN1)
-    /* 12 */ { .fid = 0x1088, .parent = 5, .name = NULL,
+    /* 12 */ { .fid = EF_SOPIN, .parent = 5, .name = NULL,
                .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL,
                .ef_structure = FILE_EF_TRANSPARENT, .acl = { 0xff } },                                                                                                            //PIN (SOPIN)
-    /* 13 */ { .fid = 0x1089, .parent = 5, .name = NULL,
+    /* 13 */ { .fid = EF_SOPIN_MAX_RETRIES, .parent = 5, .name = NULL,
                .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL,
                .ef_structure = FILE_EF_TRANSPARENT, .acl = { 0xff } },                                                                                                            //max retries PIN (SOPIN)
-    /* 14 */ { .fid = 0x108A, .parent = 5, .name = NULL,
+    /* 14 */ { .fid = EF_SOPIN_RETRIES, .parent = 5, .name = NULL,
                .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL,
                .ef_structure = FILE_EF_TRANSPARENT, .acl = { 0xff } },                                                                                                            //retries PIN (SOPIN)
     /* 15 */ { .fid = EF_DEVOPS, .parent = 5, .name = NULL,
@@ -101,7 +102,7 @@ file_t file_entries[] = {
     ///* 30 */ { .fid = 0x0000, .parent = 0, .name = openpgpcard_aid, .type = FILE_TYPE_WORKING_EF, .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = {0} },
     /* 31 */ { .fid = 0x0000, .parent = 5, .name = sc_hsm_aid, .type = FILE_TYPE_WORKING_EF,
                .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = { 0 } },
-    /* 32 */ { .fid = 0x0000, .parent = 0xff, .name = NULL, .type = FILE_TYPE_UNKNOWN, .data = NULL,
+    /* 32 */ { .fid = 0x0000, .parent = 0xff, .name = NULL, .type = FILE_TYPE_NOT_KNOWN, .data = NULL,
                .ef_structure = 0, .acl = { 0 } }                                                                                     //end
 };
 

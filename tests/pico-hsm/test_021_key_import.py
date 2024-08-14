@@ -31,7 +31,7 @@ def test_prepare_dkek(device):
     resp = device.import_dkek(DEFAULT_DKEK)
     resp = device.import_dkek(DEFAULT_DKEK)
     kcv = hashlib.sha256(b'\x00'*32).digest()[:8]
-    assert(resp[2:] == kcv)
+    assert(resp['kcv'] == kcv)
 
 @pytest.mark.parametrize(
     "modulus", [1024, 2048, 4096]

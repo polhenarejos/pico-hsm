@@ -15,23 +15,34 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "common.h"
-#include "crypto_utils.h"
 #include "sc_hsm.h"
+#include "crypto_utils.h"
 #include "kek.h"
 #include "cvc.h"
 
 int cmd_key_unwrap() {
-    int key_id = P1(apdu), r = 0;
+    uint8_t key_id = P1(apdu);
+    int r = 0;
     if (P2(apdu) != 0x93) {
         return SW_WRONG_P1P2();
     }
     if (!isUserAuthenticated) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
-    int key_type = dkek_type_key(apdu.data);
-    uint8_t kdom = -1, *allowed = NULL, prkd_buf[128];
-    size_t allowed_len = 0, prkd_len = 0;
+    uint8_t *data = apdu.data;
+    uint16_t data_len = apdu.nc;
+    if (data_len == 0) { // New style
+        file_t *tef = search_file(0x2F10);
+        if (!file_has_data(tef)) {
+            return SW_FILE_NOT_FOUND();
+        }
+        data = file_get_data(tef);
+        data_len = file_get_size(tef);
+    }
+    int key_type = dkek_type_key(data);
+    uint8_t *allowed = NULL;
+    int16_t kdom = -1;
+    uint16_t allowed_len = 0;
     if (key_type == 0x0) {
         return SW_DATA_INVALID();
     }
@@ -39,54 +50,50 @@ int cmd_key_unwrap() {
         mbedtls_rsa_context ctx;
         mbedtls_rsa_init(&ctx);
         do {
-            r = dkek_decode_key(++kdom, &ctx, apdu.data, apdu.nc, NULL, &allowed, &allowed_len);
+            r = dkek_decode_key((uint8_t)++kdom, &ctx, data, data_len, NULL, &allowed, &allowed_len);
         } while ((r == CCID_ERR_FILE_NOT_FOUND || r == CCID_WRONG_DKEK) && kdom < MAX_KEY_DOMAINS);
         if (r != CCID_OK) {
             mbedtls_rsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
         r = store_keys(&ctx, PICO_KEYS_KEY_RSA, key_id);
-        if ((res_APDU_size = asn1_cvc_aut(&ctx, PICO_KEYS_KEY_RSA, res_APDU, 4096, NULL, 0)) == 0) {
+        if ((res_APDU_size = (uint16_t)asn1_cvc_aut(&ctx, PICO_KEYS_KEY_RSA, res_APDU, 4096, NULL, 0)) == 0) {
             mbedtls_rsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
-        int key_size = ctx.len;
         mbedtls_rsa_free(&ctx);
         if (r != CCID_OK) {
             return SW_EXEC_ERROR();
         }
-        prkd_len = asn1_build_prkd_ecc(NULL, 0, NULL, 0, key_size * 8, prkd_buf, sizeof(prkd_buf));
     }
     else if (key_type & PICO_KEYS_KEY_EC) {
         mbedtls_ecp_keypair ctx;
         mbedtls_ecp_keypair_init(&ctx);
         do {
-            r = dkek_decode_key(++kdom, &ctx, apdu.data, apdu.nc, NULL, &allowed, &allowed_len);
+            r = dkek_decode_key((uint8_t)++kdom, &ctx, data, data_len, NULL, &allowed, &allowed_len);
         } while ((r == CCID_ERR_FILE_NOT_FOUND || r == CCID_WRONG_DKEK) && kdom < MAX_KEY_DOMAINS);
         if (r != CCID_OK) {
             mbedtls_ecp_keypair_free(&ctx);
             return SW_EXEC_ERROR();
         }
         r = store_keys(&ctx, PICO_KEYS_KEY_EC, key_id);
-        if ((res_APDU_size = asn1_cvc_aut(&ctx, PICO_KEYS_KEY_EC, res_APDU, 4096, NULL, 0)) == 0) {
+        if ((res_APDU_size = (uint16_t)asn1_cvc_aut(&ctx, PICO_KEYS_KEY_EC, res_APDU, 4096, NULL, 0)) == 0) {
             mbedtls_ecp_keypair_free(&ctx);
             return SW_EXEC_ERROR();
         }
-        int key_size = ctx.grp.nbits;
         mbedtls_ecp_keypair_free(&ctx);
         if (r != CCID_OK) {
             return SW_EXEC_ERROR();
         }
-        prkd_len = asn1_build_prkd_ecc(NULL, 0, NULL, 0, key_size, prkd_buf, sizeof(prkd_buf));
     }
     else if (key_type & PICO_KEYS_KEY_AES) {
         uint8_t aes_key[64];
         int key_size = 0, aes_type = 0;
         do {
-            r = dkek_decode_key(++kdom,
+            r = dkek_decode_key((uint8_t)++kdom,
                                 aes_key,
-                                apdu.data,
-                                apdu.nc,
+                                data,
+                                data_len,
                                 &key_size,
                                 &allowed,
                                 &allowed_len);
@@ -113,20 +120,19 @@ int cmd_key_unwrap() {
         if (r != CCID_OK) {
             return SW_EXEC_ERROR();
         }
-        prkd_len = asn1_build_prkd_aes(NULL, 0, NULL, 0, key_size * 8, prkd_buf, sizeof(prkd_buf));
     }
     if ((allowed != NULL && allowed_len > 0) || kdom >= 0) {
-        size_t meta_len = (allowed_len > 0 ? 2 + allowed_len : 0) + (kdom >= 0 ? 3 : 0);
+        uint16_t meta_len = (allowed_len > 0 ? 2 + allowed_len : 0) + (kdom >= 0 ? 3 : 0);
         uint8_t *meta = (uint8_t *) calloc(1, meta_len), *m = meta;
         if (allowed_len > 0) {
             *m++ = 0x91;
-            *m++ = allowed_len;
+            *m++ = (uint8_t)allowed_len;
             memcpy(m, allowed, allowed_len); m += allowed_len;
         }
         if (kdom >= 0) {
             *m++ = 0x92;
             *m++ = 1;
-            *m++ = kdom;
+            *m++ = (uint8_t)kdom;
         }
         r = meta_add((KEY_PREFIX << 8) | key_id, meta, meta_len);
         free(meta);
@@ -134,16 +140,9 @@ int cmd_key_unwrap() {
             return r;
         }
     }
-    if (prkd_len > 0) {
-        file_t *fpk = file_new((PRKD_PREFIX << 8) | key_id);
-        r = flash_write_data_to_file(fpk, prkd_buf, prkd_len);
-        if (r != 0) {
-            return SW_EXEC_ERROR();
-        }
-    }
     if (res_APDU_size > 0) {
         file_t *fpk = file_new((EE_CERTIFICATE_PREFIX << 8) | key_id);
-        r = flash_write_data_to_file(fpk, res_APDU, res_APDU_size);
+        r = file_put_data(fpk, res_APDU, res_APDU_size);
         if (r != 0) {
             return SW_EXEC_ERROR();
         }

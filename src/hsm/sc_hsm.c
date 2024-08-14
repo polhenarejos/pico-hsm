@@ -17,7 +17,6 @@
 
 #include "sc_hsm.h"
 #include "files.h"
-#include "common.h"
 #include "version.h"
 #include "crypto_utils.h"
 #include "kek.h"
@@ -42,7 +41,7 @@ const uint8_t atr_sc_hsm[] = {
 uint8_t session_pin[32], session_sopin[32];
 bool has_session_pin = false, has_session_sopin = false;
 const uint8_t *dev_name = NULL;
-size_t dev_name_len = 0;
+uint16_t dev_name_len = 0;
 
 static int sc_hsm_process_apdu();
 
@@ -52,6 +51,7 @@ static int sc_hsm_unload();
 extern int cmd_select();
 extern void select_file(file_t *pe);
 extern int cmd_list_keys();
+
 extern int cmd_read_binary();
 extern int cmd_verify();
 extern int cmd_reset_retry();
@@ -87,79 +87,80 @@ int sc_hsm_select_aid(app_t *a) {
     return CCID_OK;
 }
 
-void __attribute__((constructor)) sc_hsm_ctor() {
+INITIALIZER( sc_hsm_ctor ) {
+    printf("INITIALIZER\n");
     ccid_atr = atr_sc_hsm;
     register_app(sc_hsm_select_aid, sc_hsm_aid);
 }
 
 void scan_files() {
-    file_pin1 = search_by_fid(0x1081, NULL, SPECIFY_EF);
+    file_pin1 = search_file(EF_PIN1);
     if (file_pin1) {
         if (!file_pin1->data) {
-            printf("PIN1 is empty. Initializing with default password\r\n");
+            printf("PIN1 is empty. Initializing with default password\n");
             const uint8_t empty[33] = { 0 };
-            flash_write_data_to_file(file_pin1, empty, sizeof(empty));
+            file_put_data(file_pin1, empty, sizeof(empty));
         }
     }
     else {
-        printf("FATAL ERROR: PIN1 not found in memory!\r\n");
+        printf("FATAL ERROR: PIN1 not found in memory!\n");
     }
-    file_sopin = search_by_fid(0x1088, NULL, SPECIFY_EF);
+    file_sopin = search_file(EF_SOPIN);
     if (file_sopin) {
         if (!file_sopin->data) {
-            printf("SOPIN is empty. Initializing with default password\r\n");
+            printf("SOPIN is empty. Initializing with default password\n");
             const uint8_t empty[33] = { 0 };
-            flash_write_data_to_file(file_sopin, empty, sizeof(empty));
+            file_put_data(file_sopin, empty, sizeof(empty));
         }
     }
     else {
-        printf("FATAL ERROR: SOPIN not found in memory!\r\n");
+        printf("FATAL ERROR: SOPIN not found in memory!\n");
     }
-    file_retries_pin1 = search_by_fid(0x1083, NULL, SPECIFY_EF);
+    file_retries_pin1 = search_file(EF_PIN1_RETRIES);
     if (file_retries_pin1) {
         if (!file_retries_pin1->data) {
             printf("Retries PIN1 is empty. Initializing with default retriesr\n");
             const uint8_t retries = 3;
-            flash_write_data_to_file(file_retries_pin1, &retries, sizeof(uint8_t));
+            file_put_data(file_retries_pin1, &retries, sizeof(uint8_t));
         }
     }
     else {
-        printf("FATAL ERROR: Retries PIN1 not found in memory!\r\n");
+        printf("FATAL ERROR: Retries PIN1 not found in memory!\n");
     }
-    file_retries_sopin = search_by_fid(0x108A, NULL, SPECIFY_EF);
+    file_retries_sopin = search_file(EF_SOPIN_RETRIES);
     if (file_retries_sopin) {
         if (!file_retries_sopin->data) {
-            printf("Retries SOPIN is empty. Initializing with default retries\r\n");
+            printf("Retries SOPIN is empty. Initializing with default retries\n");
             const uint8_t retries = 15;
-            flash_write_data_to_file(file_retries_sopin, &retries, sizeof(uint8_t));
+            file_put_data(file_retries_sopin, &retries, sizeof(uint8_t));
         }
     }
     else {
-        printf("FATAL ERROR: Retries SOPIN not found in memory!\r\n");
+        printf("FATAL ERROR: Retries SOPIN not found in memory!\n");
     }
     file_t *tf = NULL;
 
-    tf = search_by_fid(0x1082, NULL, SPECIFY_EF);
+    tf = search_file(EF_PIN1_MAX_RETRIES);
     if (tf) {
         if (!tf->data) {
             printf("Max retries PIN1 is empty. Initializing with default max retriesr\n");
             const uint8_t retries = 3;
-            flash_write_data_to_file(tf, &retries, sizeof(uint8_t));
+            file_put_data(tf, &retries, sizeof(uint8_t));
         }
     }
     else {
-        printf("FATAL ERROR: Max Retries PIN1 not found in memory!\r\n");
+        printf("FATAL ERROR: Max Retries PIN1 not found in memory!\n");
     }
-    tf = search_by_fid(0x1089, NULL, SPECIFY_EF);
+    tf = search_file(EF_SOPIN_MAX_RETRIES);
     if (tf) {
         if (!tf->data) {
-            printf("Max Retries SOPIN is empty. Initializing with default max retries\r\n");
+            printf("Max Retries SOPIN is empty. Initializing with default max retries\n");
             const uint8_t retries = 15;
-            flash_write_data_to_file(tf, &retries, sizeof(uint8_t));
+            file_put_data(tf, &retries, sizeof(uint8_t));
         }
     }
     else {
-        printf("FATAL ERROR: Retries SOPIN not found in memory!\r\n");
+        printf("FATAL ERROR: Retries SOPIN not found in memory!\n");
     }
     low_flash_available();
 }
@@ -174,7 +175,7 @@ int puk_store_entries = 0;
 PUK *current_puk = NULL;
 uint8_t puk_status[MAX_PUK];
 
-int add_cert_puk_store(const uint8_t *data, size_t data_len, bool copy) {
+int add_cert_puk_store(const uint8_t *data, uint16_t data_len, bool copy) {
     if (data == NULL || data_len == 0) {
         return CCID_ERR_NULL_PARAM;
     }
@@ -226,17 +227,19 @@ void reset_puk_store() {
     }
     memset(puk_store, 0, sizeof(puk_store));
     puk_store_entries = 0;
-    file_t *fterm = search_by_fid(EF_TERMCA, NULL, SPECIFY_EF);
+    file_t *fterm = search_file(EF_TERMCA);
     if (fterm) {
         uint8_t *p = NULL, *fterm_data = file_get_data(fterm), *pq = fterm_data;
-        size_t fterm_data_len = file_get_size(fterm);
-        while (walk_tlv(fterm_data, fterm_data_len, &p, NULL, NULL, NULL)) {
-            add_cert_puk_store(pq, p - pq, false);
+        uint16_t fterm_data_len = file_get_size(fterm);
+        asn1_ctx_t ctxi;
+        asn1_ctx_init(fterm_data, fterm_data_len, &ctxi);
+        while (walk_tlv(&ctxi, &p, NULL, NULL, NULL)) {
+            add_cert_puk_store(pq, (uint16_t)(p - pq), false);
             pq = p;
         }
     }
     for (int i = 0; i < 0xfe; i++) {
-        file_t *ef = search_dynamic_file((CA_CERTIFICATE_PREFIX << 8) | i);
+        file_t *ef = search_file((CA_CERTIFICATE_PREFIX << 8) | (uint8_t)i);
         if (ef && file_get_size(ef) > 0) {
             add_cert_puk_store(file_get_data(ef), file_get_size(ef), false);
         }
@@ -261,9 +264,9 @@ int sc_hsm_unload() {
 }
 
 uint16_t get_device_options() {
-    file_t *ef = search_by_fid(EF_DEVOPS, NULL, SPECIFY_EF);
+    file_t *ef = search_file(EF_DEVOPS);
     if (file_has_data(ef)) {
-        return (file_read_uint8(file_get_data(ef)) << 8) | file_read_uint8(file_get_data(ef) + 1);
+        return (file_read_uint8(ef) << 8) | file_read_uint8_offset(ef, 1);
     }
     return 0x0;
 }
@@ -285,6 +288,7 @@ bool wait_button_pressed() {
 }
 
 int parse_token_info(const file_t *f, int mode) {
+    (void)f;
 #ifdef __FOR_CI
     char *label = "SmartCard-HSM";
 #else
@@ -297,34 +301,53 @@ int parse_token_info(const file_t *f, int mode) {
         *p++ = 0; //set later
         *p++ = 0x2; *p++ = 1; *p++ = HSM_VERSION_MAJOR;
 #ifndef ENABLE_EMULATION
-        *p++ = 0x4; *p++ = 8; pico_get_unique_board_id((pico_unique_board_id_t *) p); p += 8;
+        *p++ = 0x4; *p++ = 8; memcpy(p, pico_serial.id, 8); p += 8;
 #else
         *p++ = 0x4; *p++ = 8; memset(p, 0, 8); p += 8;
 #endif
-        *p++ = 0xC; *p++ = strlen(manu); strcpy((char *) p, manu); p += strlen(manu);
-        *p++ = 0x80; *p++ = strlen(label); strcpy((char *) p, label); p += strlen(label);
+        *p++ = 0xC; *p++ = (uint8_t)strlen(manu); strcpy((char *) p, manu); p += strlen(manu);
+        *p++ = 0x80; *p++ = (uint8_t)strlen(label); strcpy((char *) p, label); p += strlen(label);
         *p++ = 0x3; *p++ = 2; *p++ = 4; *p++ = 0x30;
-        res_APDU_size = p - res_APDU;
-        res_APDU[1] = res_APDU_size - 2;
+        res_APDU_size = (uint16_t)(p - res_APDU);
+        res_APDU[1] = (uint8_t)res_APDU_size - 2;
     }
-    return 2 + (2 + 1) + (2 + 8) + (2 + strlen(manu)) + (2 + strlen(label)) + (2 + 2);
+    return (int)(2 + (2 + 1) + (2 + 8) + (2 + strlen(manu)) + (2 + strlen(label)) + (2 + 2));
+}
+
+int parse_ef_dir(const file_t *f, int mode) {
+    (void)f;
+#ifdef __FOR_CI
+    char *label = "SmartCard-HSM";
+#else
+    char *label = "Pico-HSM";
+#endif
+    if (mode == 1) {
+        uint8_t *p = res_APDU;
+        *p++ = 0x61;
+        *p++ = 0; //set later
+        *p++ = 0x4F; *p++ = sc_hsm_aid[0]; memcpy(p, sc_hsm_aid + 1, sc_hsm_aid[0]); p += sc_hsm_aid[0];
+        *p++ = 0x50; *p++ = (uint8_t)strlen(label); strcpy((char *) p, label); p += strlen(label);
+        res_APDU_size = (uint16_t)(p - res_APDU);
+        res_APDU[1] = (uint8_t)res_APDU_size - 2;
+    }
+    return (int)(2 + (2 + sc_hsm_aid[0]) + (2 + strlen(label)));
 }
 
 int pin_reset_retries(const file_t *pin, bool force) {
     if (!pin) {
         return CCID_ERR_NULL_PARAM;
     }
-    const file_t *max = search_by_fid(pin->fid + 1, NULL, SPECIFY_EF);
-    const file_t *act = search_by_fid(pin->fid + 2, NULL, SPECIFY_EF);
+    const file_t *max = search_file(pin->fid + 1);
+    const file_t *act = search_file(pin->fid + 2);
     if (!max || !act) {
         return CCID_ERR_FILE_NOT_FOUND;
     }
-    uint8_t retries = file_read_uint8(file_get_data(act));
+    uint8_t retries = file_read_uint8(act);
     if (retries == 0 && force == false) { // blocked
         return CCID_ERR_BLOCKED;
     }
-    retries = file_read_uint8(file_get_data(max));
-    int r = flash_write_data_to_file((file_t *) act, &retries, sizeof(retries));
+    retries = file_read_uint8(max);
+    int r = file_put_data((file_t *) act, &retries, sizeof(retries));
     low_flash_available();
     return r;
 }
@@ -333,14 +356,14 @@ int pin_wrong_retry(const file_t *pin) {
     if (!pin) {
         return CCID_ERR_NULL_PARAM;
     }
-    const file_t *act = search_by_fid(pin->fid + 2, NULL, SPECIFY_EF);
+    const file_t *act = search_file(pin->fid + 2);
     if (!act) {
         return CCID_ERR_FILE_NOT_FOUND;
     }
-    uint8_t retries = file_read_uint8(file_get_data(act));
+    uint8_t retries = file_read_uint8(act);
     if (retries > 0) {
         retries -= 1;
-        int r = flash_write_data_to_file((file_t *) act, &retries, sizeof(retries));
+        int r = file_put_data((file_t *) act, &retries, sizeof(retries));
         if (r != CCID_OK) {
             return r;
         }
@@ -354,11 +377,11 @@ int pin_wrong_retry(const file_t *pin) {
 }
 
 bool pka_enabled() {
-    file_t *ef_puk = search_by_fid(EF_PUKAUT, NULL, SPECIFY_EF);
-    return file_has_data(ef_puk) && file_read_uint8(file_get_data(ef_puk)) > 0;
+    file_t *ef_puk = search_file(EF_PUKAUT);
+    return file_has_data(ef_puk) && file_read_uint8(ef_puk) > 0;
 }
 
-int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
+uint16_t check_pin(const file_t *pin, const uint8_t *data, uint16_t len) {
     if (!file_has_data((file_t *) pin)) {
         return SW_REFERENCE_NOT_FOUND();
     }
@@ -372,7 +395,7 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
             if ((retries = pin_wrong_retry(pin)) < CCID_OK) {
                 return SW_PIN_BLOCKED();
             }
-            return set_res_sw(0x63, 0xc0 | retries);
+            return set_res_sw(0x63, 0xc0 | (uint8_t)retries);
         }
     }
     else {
@@ -386,7 +409,7 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
             if ((retries = pin_wrong_retry(pin)) < CCID_OK) {
                 return SW_PIN_BLOCKED();
             }
-            return set_res_sw(0x63, 0xc0 | retries);
+            return set_res_sw(0x63, 0xc0 | (uint8_t)retries);
         }
     }
     int r = pin_reset_retries(pin, false);
@@ -414,16 +437,18 @@ int check_pin(const file_t *pin, const uint8_t *data, size_t len) {
     return SW_OK();
 }
 
-const uint8_t *get_meta_tag(file_t *ef, uint16_t meta_tag, size_t *tag_len) {
+const uint8_t *get_meta_tag(file_t *ef, uint16_t meta_tag, uint16_t *tag_len) {
     if (ef == NULL) {
         return NULL;
     }
     uint8_t *meta_data = NULL;
-    uint8_t meta_size = meta_find(ef->fid, &meta_data);
+    uint16_t meta_size = meta_find(ef->fid, &meta_data);
     if (meta_size > 0 && meta_data != NULL) {
         uint16_t tag = 0x0;
         uint8_t *tag_data = NULL, *p = NULL;
-        while (walk_tlv(meta_data, meta_size, &p, &tag, tag_len, &tag_data)) {
+        asn1_ctx_t ctxi;
+        asn1_ctx_init(meta_data, meta_size, &ctxi);
+        while (walk_tlv(&ctxi, &p, &tag, tag_len, &tag_data)) {
             if (tag == meta_tag) {
                 return tag_data;
             }
@@ -433,7 +458,7 @@ const uint8_t *get_meta_tag(file_t *ef, uint16_t meta_tag, size_t *tag_len) {
 }
 
 uint32_t get_key_counter(file_t *fkey) {
-    size_t tag_len = 0;
+    uint16_t tag_len = 0;
     const uint8_t *meta_tag = get_meta_tag(fkey, 0x90, &tag_len);
     if (meta_tag) {
         return (meta_tag[0] << 24) | (meta_tag[1] << 16) | (meta_tag[2] << 8) | meta_tag[3];
@@ -442,10 +467,10 @@ uint32_t get_key_counter(file_t *fkey) {
 }
 
 bool key_has_purpose(file_t *ef, uint8_t purpose) {
-    size_t tag_len = 0;
+    uint16_t tag_len = 0;
     const uint8_t *meta_tag = get_meta_tag(ef, 0x91, &tag_len);
     if (meta_tag) {
-        for (int i = 0; i < tag_len; i++) {
+        for (unsigned i = 0; i < tag_len; i++) {
             if (meta_tag[i] == purpose) {
                 return true;
             }
@@ -460,15 +485,17 @@ uint32_t decrement_key_counter(file_t *fkey) {
         return 0xffffff;
     }
     uint8_t *meta_data = NULL;
-    uint8_t meta_size = meta_find(fkey->fid, &meta_data);
+    uint16_t meta_size = meta_find(fkey->fid, &meta_data);
     if (meta_size > 0 && meta_data != NULL) {
         uint16_t tag = 0x0;
         uint8_t *tag_data = NULL, *p = NULL;
-        size_t tag_len = 0;
+        uint16_t tag_len = 0;
         uint8_t *cmeta = (uint8_t *) calloc(1, meta_size);
         /* We cannot modify meta_data, as it comes from flash memory. It must be cpied to an aux buffer */
         memcpy(cmeta, meta_data, meta_size);
-        while (walk_tlv(cmeta, meta_size, &p, &tag, &tag_len, &tag_data)) {
+        asn1_ctx_t ctxi;
+        asn1_ctx_init(meta_data, meta_size, &ctxi);
+        while (walk_tlv(&ctxi, &p, &tag, &tag_len, &tag_data)) {
             if (tag == 0x90) { // ofset tag
                 uint32_t val =
                     (tag_data[0] << 24) | (tag_data[1] << 16) | (tag_data[2] << 8) | tag_data[3];
@@ -478,7 +505,7 @@ uint32_t decrement_key_counter(file_t *fkey) {
                 tag_data[2] = (val >> 8) & 0xff;
                 tag_data[3] = val & 0xff;
 
-                int r = meta_add(fkey->fid, cmeta, meta_size);
+                int r = meta_add(fkey->fid, cmeta, (uint16_t)meta_size);
                 free(cmeta);
                 if (r != 0) {
                     return 0xffffffff;
@@ -494,20 +521,21 @@ uint32_t decrement_key_counter(file_t *fkey) {
 
 // Stores the private and public keys in flash
 int store_keys(void *key_ctx, int type, uint8_t key_id) {
-    int r, key_size = 0;
+    int r = 0;
+    uint16_t key_size = 0;
     uint8_t kdata[4096 / 8]; // worst case
     if (type & PICO_KEYS_KEY_RSA) {
         mbedtls_rsa_context *rsa = (mbedtls_rsa_context *) key_ctx;
-        key_size = mbedtls_mpi_size(&rsa->P) + mbedtls_mpi_size(&rsa->Q);
+        key_size = (uint16_t)mbedtls_mpi_size(&rsa->P) + (uint16_t)mbedtls_mpi_size(&rsa->Q);
         mbedtls_mpi_write_binary(&rsa->P, kdata, key_size / 2);
         mbedtls_mpi_write_binary(&rsa->Q, kdata + key_size / 2, key_size / 2);
     }
     else if (type & PICO_KEYS_KEY_EC) {
         mbedtls_ecdsa_context *ecdsa = (mbedtls_ecdsa_context *) key_ctx;
-        key_size = mbedtls_mpi_size(&ecdsa->d);
+        size_t olen = 0;
         kdata[0] = ecdsa->grp.id & 0xff;
-        mbedtls_ecp_write_key(ecdsa, kdata + 1, key_size);
-        key_size++;
+        mbedtls_ecp_write_key_ext(ecdsa, &olen, kdata + 1, sizeof(kdata) - 1);
+        key_size = olen + 1;
     }
     else if (type & PICO_KEYS_KEY_AES) {
         if (type == PICO_KEYS_KEY_AES_128) {
@@ -535,46 +563,56 @@ int store_keys(void *key_ctx, int type, uint8_t key_id) {
     if (r != CCID_OK) {
         return r;
     }
-    r = flash_write_data_to_file(fpk, kdata, key_size);
+    r = file_put_data(fpk, kdata, (uint16_t)key_size);
     if (r != CCID_OK) {
         return r;
+    }
+    char key_id_str[4] = {0};
+    sprintf(key_id_str, "%u", key_id);
+    if (type & PICO_KEYS_KEY_EC) {
+        key_size--;
+    }
+    uint16_t prkd_len = asn1_build_prkd_generic(NULL, 0, (uint8_t *)key_id_str, (uint16_t)strlen(key_id_str), key_size * 8, type, kdata, sizeof(kdata));
+    if (prkd_len > 0) {
+        fpk = file_new((PRKD_PREFIX << 8) | key_id);
+        r = file_put_data(fpk, kdata, prkd_len);
+        if (r != 0) {
+            return SW_EXEC_ERROR();
+        }
     }
     low_flash_available();
     return CCID_OK;
 }
 
 int find_and_store_meta_key(uint8_t key_id) {
-    size_t lt[4] = { 0, 0, 0, 0 }, meta_size = 0;
-    uint8_t *pt[4] = { NULL, NULL, NULL, NULL };
+    uint16_t meta_size = 0;
     uint8_t t90[4] = { 0xFF, 0xFF, 0xFF, 0xFE };
-    for (int t = 0; t < 4; t++) {
-        uint8_t *ptt = NULL;
-        size_t ltt = 0;
-        if (asn1_find_tag(apdu.data, apdu.nc, 0x90 + t, &ltt, &ptt) && ptt != NULL && ltt > 0) {
-            lt[t] = ltt;
-            pt[t] = ptt;
-            meta_size += asn1_len_tag(0x90 + t, lt[t]);
+    asn1_ctx_t ctxi, ctxo[4] = { 0 };
+    asn1_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
+    for (uint16_t t = 0; t < 4; t++) {
+        if (asn1_find_tag(&ctxi, 0x90 + t, &ctxo[t]) && asn1_len(&ctxo[t]) > 0) {
+            meta_size += asn1_len_tag(0x90 + t, ctxo[t].len);
         }
     }
-    if (lt[0] == 0 && pt[0] == NULL) {
+    if (asn1_len(&ctxo[0]) == 0) {
         uint16_t opts = get_device_options();
         if (opts & HSM_OPT_KEY_COUNTER_ALL) {
-            lt[0] = 4;
-            pt[0] = t90;
+            ctxo[0].len = 4;
+            ctxo[0].data = t90;
             meta_size += 6;
         }
     }
     if (meta_size) {
         uint8_t *meta = (uint8_t *) calloc(1, meta_size), *m = meta;
-        for (int t = 0; t < 4; t++) {
-            if (lt[t] > 0 && pt[t] != NULL) {
+        for (uint8_t t = 0; t < 4; t++) {
+            if (asn1_len(&ctxo[t]) > 0) {
                 *m++ = 0x90 + t;
-                m += format_tlv_len(lt[t], m);
-                memcpy(m, pt[t], lt[t]);
-                m += lt[t];
+                m += format_tlv_len(ctxo[t].len, m);
+                memcpy(m, ctxo[t].data, ctxo[t].len);
+                m += ctxo[t].len;
             }
         }
-        int r = meta_add((KEY_PREFIX << 8) | key_id, meta, meta_size);
+        int r = meta_add((KEY_PREFIX << 8) | key_id, meta, (uint16_t)meta_size);
         free(meta);
         if (r != 0) {
             return CCID_EXEC_ERROR;
@@ -588,7 +626,7 @@ int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
         return CCID_VERIFICATION_FAILED;
     }
 
-    int key_size = file_get_size(fkey);
+    uint16_t key_size = file_get_size(fkey);
     uint8_t kdata[4096 / 8];
     memcpy(kdata, file_get_data(fkey), key_size);
     if (mkek_decrypt(kdata, key_size) != 0) {
@@ -632,7 +670,7 @@ int load_private_key_ec(mbedtls_ecp_keypair *ctx, file_t *fkey) {
         return CCID_VERIFICATION_FAILED;
     }
 
-    int key_size = file_get_size(fkey);
+    uint16_t key_size = file_get_size(fkey);
     uint8_t kdata[67]; // Worst case, 521 bit + 1byte
     memcpy(kdata, file_get_data(fkey), key_size);
     if (mkek_decrypt(kdata, key_size) != 0) {
@@ -730,9 +768,9 @@ int sc_hsm_process_apdu() {
     }
     for (const cmd_t *cmd = cmds; cmd->ins != 0x00; cmd++) {
         if (cmd->ins == INS(apdu)) {
-            int r = cmd->cmd_handler();
+            int res = cmd->cmd_handler();
             sm_wrap();
-            return r;
+            return res;
         }
     }
     return SW_INS_NOT_SUPPORTED();

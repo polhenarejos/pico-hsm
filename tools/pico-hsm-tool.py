@@ -39,7 +39,7 @@ except ModuleNotFoundError:
     sys.exit(-1)
 
 try:
-    from picohsm import PicoHSM, PinType, DOPrefixes, KeyType, EncryptionMode, utils, APDUResponse, SWCodes
+    from picohsm import PicoHSM, PinType, DOPrefixes, KeyType, EncryptionMode, utils, APDUResponse, SWCodes, AES
 except ModuleNotFoundError:
     print('ERROR: picohsm module not found! Install picohsm package.\nTry with `pip install pypicohsm`')
     sys.exit(-1)
@@ -62,7 +62,7 @@ def hexy(a):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    subparser = parser.add_subparsers(title="commands", dest="command")
+    subparser = parser.add_subparsers(title="commands", dest="command", required=True)
     parser_init = subparser.add_parser('initialize', help='Performs the first initialization of the Pico HSM.')
     parser.add_argument('--pin', help='PIN number')
     parser_init.add_argument('--so-pin', help='SO-PIN number')
@@ -72,7 +72,7 @@ def parse_args():
     parser_attestate.add_argument('-k', '--key', help='The private key index', metavar='KEY_ID')
 
     parser_pki = subparser.add_parser('pki', help='Performs PKI operations.')
-    subparser_pki = parser_pki.add_subparsers(title='commands', dest='subcommand')
+    subparser_pki = parser_pki.add_subparsers(title='commands', dest='subcommand', required=True)
     parser_pki_init = subparser_pki.add_parser('initialize', help='Initializes the Public Key Infrastructure (PKI)')
 
     parser_pki_init.add_argument('--certs-dir', help='Store the PKI certificates into this directory.', default='certs')
@@ -80,36 +80,42 @@ def parse_args():
     parser_pki_init.add_argument('--force', help='Forces the download of certificates.', action='store_true')
 
     parser_rtc = subparser.add_parser('datetime', help='Datetime operations with the integrated Real Time Clock (RTC).')
-    subparser_rtc = parser_rtc.add_subparsers(title='commands', dest='subcommand')
+    subparser_rtc = parser_rtc.add_subparsers(title='commands', dest='subcommand', required=True)
     parser_rtc_set = subparser_rtc.add_parser('set', help='Sets the current datetime.')
     parser_rtc_get = subparser_rtc.add_parser('get', help='Gets the current datetime.')
 
     parser_opts = subparser.add_parser('options', help='Manage extra options.', formatter_class=RawTextHelpFormatter)
-    subparser_opts = parser_opts.add_subparsers(title='commands', dest='subcommand')
+    subparser_opts = parser_opts.add_subparsers(title='commands', dest='subcommand', required=True)
     parser_opts_set = subparser_opts.add_parser('set', help='Sets option OPT.')
-    parser_opts_get = subparser_opts.add_parser('get', help='Gets optiont OPT.')
+    parser_opts_get = subparser_opts.add_parser('get', help='Gets option OPT.')
     parser_opts.add_argument('opt', choices=['button', 'counter'], help='button: press-to-confirm button.\ncounter: every generated key has an internal counter.', metavar='OPT')
     parser_opts_set.add_argument('onoff', choices=['on', 'off'], help='Toggles state ON or OFF', metavar='ON/OFF', nargs='?')
 
+    parser_phy = subparser.add_parser('phy', help='Set PHY options.')
+    subparser_phy = parser_phy.add_subparsers(title='commands', dest='subcommand', required=True)
+    parser_phy_vp = subparser_phy.add_parser('vidpid', help='Sets VID/PID. Use VID:PID format (e.g. 1234:5678)')
+    parser_phy_ledn = subparser_phy.add_parser('led', help='Sets LED GPIO number.')
+    parser_phy_optwcid = subparser_phy.add_parser('wcid', help='Enable/Disable Web CCID interface.')
+    parser_phy_vp.add_argument('value', help='Value of the PHY option.', metavar='VAL', nargs='?')
+    parser_phy_ledn.add_argument('value', help='Value of the PHY option.', metavar='VAL', nargs='?')
+    parser_phy_optwcid.add_argument('value', choices=['enable', 'disable'], help='Enable/Disable Web CCID interface.', nargs='?')
+
     parser_secure = subparser.add_parser('secure', help='Manages security of Pico HSM.')
-    subparser_secure = parser_secure.add_subparsers(title='commands', dest='subcommand')
+    subparser_secure = parser_secure.add_subparsers(title='commands', dest='subcommand', required=True)
     parser_opts_enable = subparser_secure.add_parser('enable', help='Enables secure lock.')
     parser_opts_unlock = subparser_secure.add_parser('unlock', help='Unlocks the secure lock.')
     parser_opts_disable = subparser_secure.add_parser('disable', help='Disables secure lock.')
 
-    parser_cipher = subparser.add_parser('cipher', help='Implements extended symmetric ciphering with new algorithms and options.\n\tIf no file input/output is specified, stdin/stoud will be used.')
-    subparser_cipher = parser_cipher.add_subparsers(title='commands', dest='subcommand')
+    parser_cipher = subparser.add_parser('cipher', help='Implements extended symmetric ciphering with new algorithms and options.\n\tIf no file input/output is specified, stdin/stdout will be used.')
+    subparser_cipher = parser_cipher.add_subparsers(title='commands', dest='subcommand', required=True)
     parser_cipher_encrypt = subparser_cipher.add_parser('encrypt', help='Performs encryption.')
     parser_cipher_decrypt = subparser_cipher.add_parser('decrypt', help='Performs decryption.')
-    parser_cipher_keygen = subparser_cipher.add_parser('keygen', help='Generates new AES key.')
-    parser_cipher_hmac = subparser_cipher.add_parser('hmac', help='Computes HMAC.')
+    parser_cipher_hmac = subparser_cipher.add_parser('mac', help='Computes MAC (HMAC or CMAC).')
     parser_cipher_kdf = subparser_cipher.add_parser('kdf', help='Performs key derivation function on a secret key.')
-    parser_cipher_encrypt.add_argument('--alg', choices=['CHACHAPOLY'], required=True)
-    parser_cipher_encrypt.add_argument('--iteration', help='Iteration count.', required=any(['PBKDF2' in s for s in sys.argv]))
-    parser_cipher_decrypt.add_argument('--alg', choices=['CHACHAPOLY'], required=True)
-    parser_cipher_decrypt.add_argument('--iteration', help='Iteration count.', required=any(['PBKDF2' in s for s in sys.argv]))
+    parser_cipher_encrypt.add_argument('--alg', choices=['CHACHAPOLY','AES-ECB','AES-CBC','AES-OFB','AES-CFB','AES-GCM','AES-CCM','AES-CTR','AES-XTS'], required=True)
+    parser_cipher_decrypt.add_argument('--alg', choices=['CHACHAPOLY','AES-ECB','AES-CBC','AES-OFB','AES-CFB','AES-GCM','AES-CCM','AES-CTR','AES-XTS'], required=True)
 
-    parser_cipher_hmac.add_argument('--alg', choices=['HMAC-SHA1', 'HMAC-SHA224', 'HMAC-SHA256', 'HMAC-SHA384', 'HMAC-SHA512'], help='Selects the algorithm.', required=True)
+    parser_cipher_hmac.add_argument('--alg', choices=['CMAC', 'HMAC-SHA1', 'HMAC-SHA224', 'HMAC-SHA256', 'HMAC-SHA384', 'HMAC-SHA512'], help='Selects the algorithm.', required=True)
     parser_cipher_kdf.add_argument('--alg', choices=['HKDF-SHA256', 'HKDF-SHA384', 'HKDF-SHA512', 'PBKDF2-SHA1', 'PBKDF2-SHA224', 'PBKDF2-SHA256', 'PBKDF2-SHA384', 'PBKDF2-SHA512', 'X963-SHA1', 'X963-SHA224', 'X963-SHA256', 'X963-SHA384', 'X963-SHA512'], help='Selects the algorithm.', required=True)
     parser_cipher_kdf.add_argument('--output-len', help='Specifies the output length of derived material.')
     parser_cipher_kdf.add_argument('--iteration', help='Iteration count.', required=any(['PBKDF2' in s for s in sys.argv]))
@@ -119,23 +125,15 @@ def parse_args():
     parser_cipher.add_argument('--file-out', help='File to write the result.')
     parser_cipher.add_argument('--aad', help='Specifies the authentication data (it can be a string or hex string. Combine with --hex if necesary).')
     parser_cipher.add_argument('--hex', help='Parses the AAD parameter as a hex string (for binary data).', action='store_true')
-    parser_cipher.add_argument('-k', '--key', help='The private key index', metavar='KEY_ID', required=True)
+    parser_cipher.add_argument('-k', '--key', help='The private key index', metavar='KEY_ID', required=all(['keygen' not in s for s in sys.argv]))
     parser_cipher.add_argument('-s', '--key-size', default=32, help='Size of the key in bytes.')
 
-    parser_x25519 = argparse.ArgumentParser(add_help=False)
-    subparser_x25519 = parser_x25519.add_subparsers(title='commands', dest='subcommand')
-    parser_x25519_keygen = subparser_x25519.add_parser('keygen', help='Generates a keypair for X25519 or X448.')
-    parser_x25519.add_argument('-k', '--key', help='The private key index', metavar='KEY_ID', required=True)
-
-    # Subparsers based on parent
-
-    parser_create = subparser.add_parser("x25519", parents=[parser_x25519],
-                                        help='X25519 key management.')
-    # Add some arguments exclusively for parser_create
-
-    parser_update = subparser.add_parser("x448", parents=[parser_x25519],
-                                        help='X448 key management.')
-    # Add some arguments exclusively for parser_update
+    parser_keygen = subparser.add_parser('keygen', help='Generates private keypair or secret key.')
+    subparser_keygen = parser_keygen.add_subparsers(title='commands', dest='subcommand', required=True)
+    parser_keygen_aes = subparser_keygen.add_parser('aes', help='Generates an AES key.')
+    parser_keygen_aes.add_argument('--size', help='Specifies the size of AES key [128, 192 or 256]',choices=[128, 192, 256], default=128)
+    parser_keygen_x25519 = subparser_keygen.add_parser('x25519', help='Generates a private X25519 keypair.')
+    parser_keygen_x448 = subparser_keygen.add_parser('x448', help='Generates a private X448 keypair.')
 
     args = parser.parse_args()
     return args
@@ -363,104 +361,122 @@ def secure(picohsm, args):
         slck.disable_device_aut()
 
 def cipher(picohsm, args):
-    if (args.subcommand == 'keygen'):
-        ret = picohsm.key_generation(KeyType.AES, param=args.key_size * 8)
+    if (args.file_in):
+        fin = open(args.file_in, 'rb')
     else:
-        if (args.file_in):
-            fin = open(args.file_in, 'rb')
-        else:
-            fin = sys.stdin.buffer
-        enc = fin.read()
-        fin.close()
-        iv = args.iv
-        if (args.iv and args.hex):
-            iv = unhexlify(iv)
-        aad = args.aad
-        if (args.aad and args.hex):
-                aad = unhexlify(aad)
+        fin = sys.stdin.buffer
+    enc = fin.read()
+    fin.close()
+    iv = args.iv
+    if (args.iv and args.hex):
+        iv = unhexlify(iv)
+    aad = args.aad
+    if (args.aad and args.hex):
+            aad = unhexlify(aad)
+    kid = int(args.key)
 
-        mode = EncryptionMode.ENCRYPT if args.subcommand[0] == 'e' else EncryptionMode.DECRYPT
-        if (args.alg == 'CHACHAPOLY'):
-            ret = picohsm.chachapoly(args.key, mode, data=enc, iv=iv, aad=aad)
-        elif (args.alg == 'HMAC-SHA1'):
-            ret = picohsm.hmac(hashes.SHA1, args.key, data=enc)
-        elif (args.alg == 'HMAC-SHA224'):
-            ret = picohsm.hmac(hashes.SHA224, args.key, data=enc)
-        elif (args.alg == 'HMAC-SHA256'):
-            ret = picohsm.hmac(hashes.SHA256, args.key, data=enc)
-        elif (args.alg == 'HMAC-SHA384'):
-            ret = picohsm.hmac(hashes.SHA384, args.key, data=enc)
-        elif (args.alg == 'HMAC-SHA512'):
-            ret = picohsm.hmac(hashes.SHA512, args.key, data=enc)
-        elif (args.alg == 'HKDF-SHA256'):
-            ret = picohsm.hkdf(hashes.SHA256, args.key, data=enc, salt=iv, out_len=args.output_len)
-        elif (args.alg == 'HKDF-SHA384'):
-            ret = picohsm.hkdf(hashes.SHA384, args.key, data=enc, salt=iv, out_len=args.output_len)
-        elif (args.alg == 'HKDF-SHA512'):
-            ret = picohsm.hkdf(hashes.SHA512, args.key, data=enc, salt=iv, out_len=args.output_len)
-        elif (args.alg == 'PBKDF2-SHA1'):
-            ret = picohsm.pbkdf2(hashes.SHA1, args.key, salt=iv, iterations=args.iteration, out_len=args.output_len)
-        elif (args.alg == 'PBKDF2-SHA224'):
-            ret = picohsm.pbkdf2(hashes.SHA224, args.key, salt=iv, iterations=args.iteration, out_len=args.output_len)
-        elif (args.alg == 'PBKDF2-SHA256'):
-            ret = picohsm.pbkdf2(hashes.SHA256, args.key, salt=iv, iterations=args.iteration, out_len=args.output_len)
-        elif (args.alg == 'PBKDF2-SHA384'):
-            ret = picohsm.pbkdf2(hashes.SHA384, args.key, salt=iv, iterations=args.iteration, out_len=args.output_len)
-        elif (args.alg == 'PBKDF2-SHA512'):
-            ret = picohsm.pbkdf2(hashes.SHA512, args.key, salt=iv, iterations=args.iteration, out_len=args.output_len)
-        elif (args.alg == 'X963-SHA1'):
-            ret = picohsm.x963(hashes.SHA1, args.key, data=enc, out_len=args.output_len)
-        elif (args.alg == 'X963-SHA224'):
-            ret = picohsm.x963(hashes.SHA224, args.key, data=enc, out_len=args.output_len)
-        elif (args.alg == 'X963-SHA256'):
-            ret = picohsm.x963(hashes.SHA256, args.key, data=enc, out_len=args.output_len)
-        elif (args.alg == 'X963-SHA384'):
-            ret = picohsm.x963(hashes.SHA384, args.key, data=enc, out_len=args.output_len)
-        elif (args.alg == 'X963-SHA512'):
-            ret = picohsm.x963(hashes.SHA512, args.key, data=enc, out_len=args.output_len)
+    mode = EncryptionMode.ENCRYPT if args.subcommand[0] == 'e' else EncryptionMode.DECRYPT
+    if (args.alg == 'CHACHAPOLY'):
+        ret = picohsm.chachapoly(kid, mode, data=enc, iv=iv, aad=aad)
+    elif (args.alg == 'AES-ECB'):
+        ret = picohsm.aes(keyid=kid, mode=mode, algorithm=AES.ECB, data=enc, iv=iv, aad=aad)
+    elif (args.alg == 'AES-CBC'):
+        ret = picohsm.aes(keyid=kid, mode=mode, algorithm=AES.CBC, data=enc, iv=iv, aad=aad)
+    elif (args.alg == 'AES-OFB'):
+        ret = picohsm.aes(keyid=kid, mode=mode, algorithm=AES.OFB, data=enc, iv=iv, aad=aad)
+    elif (args.alg == 'AES-CFB'):
+        ret = picohsm.aes(keyid=kid, mode=mode, algorithm=AES.CFB, data=enc, iv=iv, aad=aad)
+    elif (args.alg == 'AES-GCM'):
+        ret = picohsm.aes(keyid=kid, mode=mode, algorithm=AES.GCM, data=enc, iv=iv, aad=aad)
+    elif (args.alg == 'AES-CCM'):
+        ret = picohsm.aes(keyid=kid, mode=mode, algorithm=AES.CCM, data=enc, iv=iv, aad=aad)
+    elif (args.alg == 'AES-CTR'):
+        ret = picohsm.aes(keyid=kid, mode=mode, algorithm=AES.CTR, data=enc, iv=iv, aad=aad)
+    elif (args.alg == 'AES-XTS'):
+        ret = picohsm.aes(keyid=kid, mode=mode, algorithm=AES.XTS, data=enc, iv=iv, aad=aad)
+    elif (args.alg == 'CMAC'):
+        ret = picohsm.cmac(keyid=kid, data=enc)
+    elif (args.alg == 'HMAC-SHA1'):
+        ret = picohsm.hmac(hashes.SHA1, kid, data=enc)
+    elif (args.alg == 'HMAC-SHA224'):
+        ret = picohsm.hmac(hashes.SHA224, kid, data=enc)
+    elif (args.alg == 'HMAC-SHA256'):
+        ret = picohsm.hmac(hashes.SHA256, kid, data=enc)
+    elif (args.alg == 'HMAC-SHA384'):
+        ret = picohsm.hmac(hashes.SHA384, kid, data=enc)
+    elif (args.alg == 'HMAC-SHA512'):
+        ret = picohsm.hmac(hashes.SHA512, kid, data=enc)
+    elif (args.alg == 'HKDF-SHA256'):
+        ret = picohsm.hkdf(hashes.SHA256, kid, data=enc, salt=iv, out_len=args.output_len)
+    elif (args.alg == 'HKDF-SHA384'):
+        ret = picohsm.hkdf(hashes.SHA384, kid, data=enc, salt=iv, out_len=args.output_len)
+    elif (args.alg == 'HKDF-SHA512'):
+        ret = picohsm.hkdf(hashes.SHA512, kid, data=enc, salt=iv, out_len=args.output_len)
+    elif (args.alg == 'PBKDF2-SHA1'):
+        ret = picohsm.pbkdf2(hashes.SHA1, kid, salt=iv, iterations=args.iteration, out_len=args.output_len)
+    elif (args.alg == 'PBKDF2-SHA224'):
+        ret = picohsm.pbkdf2(hashes.SHA224, kid, salt=iv, iterations=args.iteration, out_len=args.output_len)
+    elif (args.alg == 'PBKDF2-SHA256'):
+        ret = picohsm.pbkdf2(hashes.SHA256, kid, salt=iv, iterations=args.iteration, out_len=args.output_len)
+    elif (args.alg == 'PBKDF2-SHA384'):
+        ret = picohsm.pbkdf2(hashes.SHA384, kid, salt=iv, iterations=args.iteration, out_len=args.output_len)
+    elif (args.alg == 'PBKDF2-SHA512'):
+        ret = picohsm.pbkdf2(hashes.SHA512, kid, salt=iv, iterations=args.iteration, out_len=args.output_len)
+    elif (args.alg == 'X963-SHA1'):
+        ret = picohsm.x963(hashes.SHA1, kid, data=enc, out_len=args.output_len)
+    elif (args.alg == 'X963-SHA224'):
+        ret = picohsm.x963(hashes.SHA224, kid, data=enc, out_len=args.output_len)
+    elif (args.alg == 'X963-SHA256'):
+        ret = picohsm.x963(hashes.SHA256, kid, data=enc, out_len=args.output_len)
+    elif (args.alg == 'X963-SHA384'):
+        ret = picohsm.x963(hashes.SHA384, kid, data=enc, out_len=args.output_len)
+    elif (args.alg == 'X963-SHA512'):
+        ret = picohsm.x963(hashes.SHA512, kid, data=enc, out_len=args.output_len)
 
-        if (args.file_out):
-            fout = open(args.file_out, 'wb')
-        else:
-            fout = sys.stdout.buffer
-        if (args.hex):
-            fout.write(hexlify(bytes(ret)))
-        else:
-            fout.write(bytes(ret))
-        if (args.file_out):
-            fout.close()
+    if (args.file_out):
+        fout = open(args.file_out, 'wb')
+    else:
+        fout = sys.stdout.buffer
+    if (args.hex):
+        fout.write(hexlify(bytes(ret)))
+    else:
+        fout.write(bytes(ret))
+    if (args.file_out):
+        fout.close()
 
-def x25519(picohsm, args):
-    if (args.command == 'x25519'):
-        P = b'\x7f\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xed'
-        A = utils.int_to_bytes(0x01DB42)
-        N = b'\x10\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x14\xDE\xF9\xDE\xA2\xF7\x9C\xD6\x58\x12\x63\x1A\x5C\xF5\xD3\xED'
-        G = b'\x04\x09\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xd9\xd3\xce\x7e\xa2\xc5\xe9\x29\xb2\x61\x7c\x6d\x7e\x4d\x3d\x92\x4c\xd1\x48\x77\x2c\xdd\x1e\xe0\xb4\x86\xa0\xb8\xa1\x19\xae\x20'
-        h = b'\x08'
-    elif (args.command == 'x448'):
-        P = b'\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff'
-        A = utils.int_to_bytes(0x98AA)
-        N = b'\x3f\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\x7c\xca\x23\xe9\xc4\x4e\xdb\x49\xae\xd6\x36\x90\x21\x6c\xc2\x72\x8d\xc5\x8f\x55\x23\x78\xc2\x92\xab\x58\x44\xf3'
-        G = b'\x04\x05\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x1a\x5b\x7b\x45\x3d\x22\xd7\x6f\xf7\x7a\x67\x50\xb1\xc4\x12\x13\x21\x0d\x43\x46\x23\x7e\x02\xb8\xed\xf6\xf3\x8d\xc2\x5d\xf7\x60\xd0\x45\x55\xf5\x34\x5d\xae\xcb\xce\x6f\x32\x58\x6e\xab\x98\x6c\xf6\xb1\xf5\x95\x12\x5d\x23\x7d'
-        h = b'\x04'
-    oid = b'\x06\x0A\x04\x00\x7F\x00\x07\x02\x02\x02\x02\x03'
-    p_data = b'\x81' + bytes([len(P)]) + P
-    a_data = b'\x82' + bytes([len(A)]) + A
-    g_data = b'\x84' + bytes([len(G)]) + G
-    n_data = b'\x85' + bytes([len(N)]) + N
-    h_data = b'\x87' + bytes([len(h)]) + h
+def keygen(picohsm, args):
+    if (args.subcommand == 'aes'):
+        ret = picohsm.key_generation(KeyType.AES, param=args.size)
+    elif (args.subcommand in ['x25519', 'x448']):
+        curve = 'curve' + args.subcommand[1:]
+        ret = picohsm.key_generation(KeyType.ECC, curve)
+    print('Key generated successfully.')
+    print(f'Key ID: {ret}')
 
-    cdata =  b'\x5F\x29\x01\x00'
-    cdata += b'\x42\x0C\x55\x54\x44\x55\x4D\x4D\x59\x30\x30\x30\x30\x31'
-    cdata += b'\x7f\x49\x81' + bytes([len(oid)+len(p_data)+len(a_data)+len(g_data)+len(n_data)+len(h_data)]) + oid + p_data + a_data + g_data + n_data + h_data
-    cdata += b'\x5F\x20\x0C\x55\x54\x44\x55\x4D\x4D\x59\x30\x30\x30\x30\x31'
-    ret = picohsm.send(command=0x46, p1=args.key, data=list(cdata))
+def phy(picohsm, args):
+    val = args.value if 'value' in args else None
+    if (val):
+        if (args.subcommand == 'vidpid'):
+            sp = val.split(':')
+            if (len(sp) != 2):
+                print('ERROR: VID/PID have wrong format. Use VID:PID format (e.g. 1234:5678)')
+            val = int(sp[0],16).to_bytes(2, 'big') + int(sp[1],16).to_bytes(2, 'big')
+        elif (args.subcommand == 'led'):
+            val = [int(val)]
+        elif (args.subcommand == 'wcid'):
+            val = val == 'enable'
+    ret = picohsm.phy(args.subcommand, val)
+    if (ret):
+        print(f'Current value: {hexlify(ret)}')
+    else:
+        print('Command executed successfully. Please, restart your Pico Key.')
 
 def main(args):
-    sys.stderr.buffer.write(b'Pico HSM Tool v1.10\n')
+    sys.stderr.buffer.write(b'Pico HSM Tool v1.14\n')
     sys.stderr.buffer.write(b'Author: Pol Henarejos\n')
     sys.stderr.buffer.write(b'Report bugs to https://github.com/polhenarejos/pico-hsm/issues\n')
     sys.stderr.buffer.write(b'\n\n')
+    sys.stderr.flush()
 
     picohsm = PicoHSM(args.pin)
 
@@ -479,8 +495,10 @@ def main(args):
         secure(picohsm, args)
     elif (args.command == 'cipher'):
         cipher(picohsm, args)
-    elif (args.command == 'x25519' or args.command == 'x448'):
-        x25519(picohsm, args)
+    elif (args.command == 'keygen'):
+        keygen(picohsm, args)
+    elif (args.command == 'phy'):
+        phy(picohsm, args)
 
 
 def run():

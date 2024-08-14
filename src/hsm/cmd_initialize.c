@@ -28,7 +28,7 @@ extern void scan_all();
 
 extern char __StackLimit;
 int heapLeft() {
-#ifndef ENABLE_EMULATION
+#if !defined(ENABLE_EMULATION) && !defined(ESP_PLATFORM)
     char *p = malloc(256);   // try to avoid undue fragmentation
     int left = &__StackLimit - p;
     free(p);
@@ -48,18 +48,20 @@ int cmd_initialize() {
         has_session_pin = has_session_sopin = false;
         uint16_t tag = 0x0;
         uint8_t *tag_data = NULL, *p = NULL, *kds = NULL, *dkeks = NULL;
-        size_t tag_len = 0;
-        while (walk_tlv(apdu.data, apdu.nc, &p, &tag, &tag_len, &tag_data)) {
+        uint16_t tag_len = 0;
+        asn1_ctx_t ctxi;
+        asn1_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
+        while (walk_tlv(&ctxi, &p, &tag, &tag_len, &tag_data)) {
             if (tag == 0x80) { //options
-                file_t *tf = search_by_fid(EF_DEVOPS, NULL, SPECIFY_EF);
-                flash_write_data_to_file(tf, tag_data, tag_len);
+                file_t *tf = search_file(EF_DEVOPS);
+                file_put_data(tf, tag_data, tag_len);
             }
             else if (tag == 0x81) {   //user pin
                 if (file_pin1 && file_pin1->data) {
                     uint8_t dhash[33];
-                    dhash[0] = tag_len;
+                    dhash[0] = (uint8_t)tag_len;
                     double_hash_pin(tag_data, tag_len, dhash + 1);
-                    flash_write_data_to_file(file_pin1, dhash, sizeof(dhash));
+                    file_put_data(file_pin1, dhash, sizeof(dhash));
                     hash_multi(tag_data, tag_len, session_pin);
                     has_session_pin = true;
                 }
@@ -67,20 +69,20 @@ int cmd_initialize() {
             else if (tag == 0x82) {   //sopin pin
                 if (file_sopin && file_sopin->data) {
                     uint8_t dhash[33];
-                    dhash[0] = tag_len;
+                    dhash[0] = (uint8_t)tag_len;
                     double_hash_pin(tag_data, tag_len, dhash + 1);
-                    flash_write_data_to_file(file_sopin, dhash, sizeof(dhash));
+                    file_put_data(file_sopin, dhash, sizeof(dhash));
                     hash_multi(tag_data, tag_len, session_sopin);
                     has_session_sopin = true;
                 }
             }
             else if (tag == 0x91) {   //retries user pin
-                file_t *tf = search_by_fid(0x1082, NULL, SPECIFY_EF);
+                file_t *tf = search_file(EF_PIN1_MAX_RETRIES);
                 if (tf && tf->data) {
-                    flash_write_data_to_file(tf, tag_data, tag_len);
+                    file_put_data(tf, tag_data, tag_len);
                 }
                 if (file_retries_pin1 && file_retries_pin1->data) {
-                    flash_write_data_to_file(file_retries_pin1, tag_data, tag_len);
+                    file_put_data(file_retries_pin1, tag_data, tag_len);
                 }
             }
             else if (tag == 0x92) {
@@ -90,10 +92,10 @@ int cmd_initialize() {
                     release_mkek(mkek);
                     return SW_MEMORY_FAILURE();
                 }
-                flash_write_data_to_file(tf, NULL, 0);
+                file_put_data(tf, NULL, 0);
             }
             else if (tag == 0x93) {
-                file_t *ef_puk = search_by_fid(EF_PUKAUT, NULL, SPECIFY_EF);
+                file_t *ef_puk = search_file(EF_PUKAUT);
                 if (!ef_puk) {
                     release_mkek(mkek);
                     return SW_MEMORY_FAILURE();
@@ -103,14 +105,14 @@ int cmd_initialize() {
                 pk_status[0] = puks;
                 pk_status[1] = puks;
                 pk_status[2] = tag_data[1];
-                flash_write_data_to_file(ef_puk, pk_status, sizeof(pk_status));
-                for (int i = 0; i < puks; i++) {
+                file_put_data(ef_puk, pk_status, sizeof(pk_status));
+                for (uint8_t i = 0; i < puks; i++) {
                     file_t *tf = file_new(EF_PUK + i);
                     if (!tf) {
                         release_mkek(mkek);
                         return SW_MEMORY_FAILURE();
                     }
-                    flash_write_data_to_file(tf, NULL, 0);
+                    file_put_data(tf, NULL, 0);
                 }
             }
             else if (tag == 0x97) {
@@ -120,12 +122,12 @@ int cmd_initialize() {
                     file_t *tf = file_new(EF_DKEK+i);
                     if (!tf)
                         return SW_MEMORY_FAILURE();
-                    flash_write_data_to_file(tf, NULL, 0);
+                    file_put_data(tf, NULL, 0);
                    }
                  */
             }
         }
-        file_t *tf_kd = search_by_fid(EF_KEY_DOMAIN, NULL, SPECIFY_EF);
+        file_t *tf_kd = search_file(EF_KEY_DOMAIN);
         if (!tf_kd) {
             release_mkek(mkek);
             return SW_EXEC_ERROR();
@@ -141,7 +143,7 @@ int cmd_initialize() {
         if (dkeks) {
             if (*dkeks > 0) {
                 uint16_t d = *dkeks;
-                if (flash_write_data_to_file(tf_kd, (const uint8_t *) &d, sizeof(d)) != CCID_OK) {
+                if (file_put_data(tf_kd, (const uint8_t *) &d, sizeof(d)) != CCID_OK) {
                     return SW_EXEC_ERROR();
                 }
             }
@@ -151,28 +153,28 @@ int cmd_initialize() {
                     return SW_EXEC_ERROR();
                 }
                 uint16_t d = 0x0101;
-                if (flash_write_data_to_file(tf_kd, (const uint8_t *) &d, sizeof(d)) != CCID_OK) {
+                if (file_put_data(tf_kd, (const uint8_t *) &d, sizeof(d)) != CCID_OK) {
                     return SW_EXEC_ERROR();
                 }
             }
         }
         else {
             uint16_t d = 0x0000;
-            if (flash_write_data_to_file(tf_kd, (const uint8_t *) &d, sizeof(d)) != CCID_OK) {
+            if (file_put_data(tf_kd, (const uint8_t *) &d, sizeof(d)) != CCID_OK) {
                 return SW_EXEC_ERROR();
             }
         }
         if (kds) {
             uint8_t t[MAX_KEY_DOMAINS * 2], k = MIN(*kds, MAX_KEY_DOMAINS);
             memset(t, 0xff, 2 * k);
-            if (flash_write_data_to_file(tf_kd, t, 2 * k) != CCID_OK) {
+            if (file_put_data(tf_kd, t, 2 * k) != CCID_OK) {
                 return SW_EXEC_ERROR();
             }
         }
         /* When initialized, it has all credentials */
         isUserAuthenticated = true;
         /* Create terminal private key */
-        file_t *fdkey = search_by_fid(EF_KEY_DEV, NULL, SPECIFY_EF);
+        file_t *fdkey = search_file(EF_KEY_DEV);
         if (!fdkey) {
             return SW_EXEC_ERROR();
         }
@@ -198,8 +200,8 @@ int cmd_initialize() {
                 return SW_EXEC_ERROR();
             }
 
-            file_t *fpk = search_by_fid(EF_EE_DEV, NULL, SPECIFY_EF);
-            ret = flash_write_data_to_file(fpk, res_APDU, cvc_len);
+            file_t *fpk = search_file(EF_EE_DEV);
+            ret = file_put_data(fpk, res_APDU, (uint16_t)cvc_len);
             if (ret != 0) {
                 mbedtls_ecdsa_free(&ecdsa);
                 return SW_EXEC_ERROR();
@@ -211,8 +213,8 @@ int cmd_initialize() {
             }
             memcpy(res_APDU + cvc_len, res_APDU, cvc_len);
             mbedtls_ecdsa_free(&ecdsa);
-            fpk = search_by_fid(EF_TERMCA, NULL, SPECIFY_EF);
-            ret = flash_write_data_to_file(fpk, res_APDU, 2 * cvc_len);
+            fpk = search_file(EF_TERMCA);
+            ret = file_put_data(fpk, res_APDU, (uint16_t)(2 * cvc_len));
             if (ret != 0) {
                 return SW_EXEC_ERROR();
             }
@@ -220,15 +222,15 @@ int cmd_initialize() {
             const uint8_t *keyid =
                 (const uint8_t *) "\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0",
                           *label = (const uint8_t *) "ESPICOHSMTR";
-            size_t prkd_len = asn1_build_prkd_ecc(label,
-                                                  strlen((const char *) label),
+            uint16_t prkd_len = asn1_build_prkd_ecc(label,
+                                                  (uint16_t)strlen((const char *) label),
                                                   keyid,
                                                   20,
                                                   256,
                                                   res_APDU,
                                                   4096);
-            fpk = search_by_fid(EF_PRKD_DEV, NULL, SPECIFY_EF);
-            ret = flash_write_data_to_file(fpk, res_APDU, prkd_len);
+            fpk = search_file(EF_PRKD_DEV);
+            ret = file_put_data(fpk, res_APDU, prkd_len);
 
         }
         if (ret != 0) {

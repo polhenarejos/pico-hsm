@@ -26,12 +26,17 @@ def test_dkek(device):
     device.initialize(retries=DEFAULT_RETRIES, dkek_shares=DEFAULT_DKEK_SHARES)
     device.login(DEFAULT_PIN)
     resp = device.import_dkek(DEFAULT_DKEK)
-    assert(resp[0] == DEFAULT_DKEK_SHARES)
-    assert(resp[1] == DEFAULT_DKEK_SHARES-1)
+    assert('dkek' in resp)
+    assert('kcv' in resp)
+    assert(resp['dkek']['total'] == DEFAULT_DKEK_SHARES)
+    assert(resp['dkek']['missing'] == DEFAULT_DKEK_SHARES-1)
 
     resp = device.import_dkek(DEFAULT_DKEK)
-    assert(resp[1] == DEFAULT_DKEK_SHARES-2)
+    assert('dkek' in resp)
+    assert('kcv' in resp)
+    assert(resp['dkek']['total'] == DEFAULT_DKEK_SHARES)
+    assert(resp['dkek']['missing'] == DEFAULT_DKEK_SHARES-2)
 
     kcv = hashlib.sha256(b'\x00'*32).digest()[:8]
-    assert(resp[2:] == kcv)
+    assert(resp['kcv'] == kcv)
 

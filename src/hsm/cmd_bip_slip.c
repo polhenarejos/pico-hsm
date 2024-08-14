@@ -109,11 +109,11 @@ int node_fingerprint_slip(mbedtls_ecp_keypair *ctx, uint8_t fingerprint[4]) {
     return CCID_OK;
 }
 
-int load_master_bip(uint32_t mid, mbedtls_ecp_keypair *ctx, uint8_t chain[32],
+int load_master_bip(uint16_t mid, mbedtls_ecp_keypair *ctx, uint8_t chain[32],
                     uint8_t key_type[1]) {
     uint8_t mkey[65];
     mbedtls_ecp_keypair_init(ctx);
-    file_t *ef = search_dynamic_file(EF_MASTER_SEED | mid);
+    file_t *ef = search_file(EF_MASTER_SEED | mid);
     if (!file_has_data(ef)) {
         return CCID_ERR_FILE_NOT_FOUND;
     }
@@ -147,7 +147,7 @@ int load_master_bip(uint32_t mid, mbedtls_ecp_keypair *ctx, uint8_t chain[32],
 }
 
 int node_derive_path(const uint8_t *path,
-                     size_t path_len,
+                     uint16_t path_len,
                      mbedtls_ecp_keypair *ctx,
                      uint8_t chain[32],
                      uint8_t fingerprint[4],
@@ -155,13 +155,15 @@ int node_derive_path(const uint8_t *path,
                      uint8_t last_node[4],
                      uint8_t key_type[1]) {
     uint8_t *tag_data = NULL, *p = NULL;
-    size_t tag_len = 0;
-    uint16_t tag = 0x0;
+    uint16_t tag_len = 0, tag = 0x0;
     uint8_t node = 0, N[64] = { 0 };
     int r = 0;
     memset(last_node, 0, 4);
     memset(fingerprint, 0, 4);
-    for (; walk_tlv(path, path_len, &p, &tag, &tag_len, &tag_data); node++) {
+
+    asn1_ctx_t ctxi;
+    asn1_ctx_init((uint8_t *)path, path_len, &ctxi);
+    for (; walk_tlv(&ctxi, &p, &tag, &tag_len, &tag_data); node++) {
         if (tag == 0x02) {
             if ((node == 0 && tag_len != 1) || (node != 0 && tag_len != 4)) {
                 return CCID_WRONG_DATA;
@@ -231,7 +233,7 @@ int cmd_bip_slip() {
             random_gen(NULL, seed, seed_len);
         }
         else {
-            seed_len = MIN(apdu.nc, 64);
+            seed_len = MIN((uint8_t)apdu.nc, 64);
             memcpy(seed, apdu.data, seed_len);
         }
         if (p1 == 0x1 || p1 == 0x2) {
@@ -254,7 +256,7 @@ int cmd_bip_slip() {
         if (r != CCID_OK) {
             return SW_EXEC_ERROR();
         }
-        r = flash_write_data_to_file(ef, mkey, sizeof(mkey));
+        r = file_put_data(ef, mkey, sizeof(mkey));
         if (r != CCID_OK) {
             return SW_EXEC_ERROR();
         }
@@ -268,7 +270,7 @@ int cmd_bip_slip() {
         uint8_t chain[32] = { 0 }, fgpt[4] = { 0 }, last_node[4] = { 0 }, key_type = 0, nodes = 0;
         size_t olen = 0;
         int r =
-            node_derive_path(apdu.data, apdu.nc, &ctx, chain, fgpt, &nodes, last_node, &key_type);
+            node_derive_path(apdu.data, (uint16_t)apdu.nc, &ctx, chain, fgpt, &nodes, last_node, &key_type);
         if (r != CCID_OK) {
             mbedtls_ecp_keypair_free(&ctx);
             return SW_EXEC_ERROR();
@@ -292,7 +294,7 @@ int cmd_bip_slip() {
                                            pubkey,
                                            sizeof(pubkey));
             memcpy(res_APDU + res_APDU_size, pubkey, olen);
-            res_APDU_size += olen;
+            res_APDU_size += (uint16_t)olen;
         }
         else if (key_type == 0x3) {
             sha256_sha256(chain, 32, chain);
@@ -308,7 +310,7 @@ int cmd_bip_slip() {
     else if (p1 == 0x10) {
         uint8_t chain[32] = { 0 }, fgpt[4] = { 0 }, last_node[4] = { 0 }, nodes = 0;
         int r = node_derive_path(apdu.data,
-                                 apdu.nc,
+                                 (uint16_t)apdu.nc,
                                  &hd_context,
                                  chain,
                                  fgpt,
