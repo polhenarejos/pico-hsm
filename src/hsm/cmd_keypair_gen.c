@@ -80,15 +80,14 @@ int cmd_keypair_gen() {
                     return SW_FUNC_NOT_SUPPORTED();
                 }
                 if (ec_id == MBEDTLS_ECP_DP_CURVE25519 || ec_id == MBEDTLS_ECP_DP_CURVE448) {
-                    size_t g_len = 0;
-                    uint8_t *g = NULL;
-                    if (asn1_find_tag(p, tout, 0x83, &g_len, &g) != true) {
+                    asn1_ctx_t g = { 0 };
+                    if (asn1_find_tag(&ctxo, 0x83, &g) != true) {
                         return SW_WRONG_DATA();
                     }
-                    if (ec_id == MBEDTLS_ECP_DP_CURVE25519 && (g[0] != 9)) {
+                    if (ec_id == MBEDTLS_ECP_DP_CURVE25519 && (g.data[0] != 9)) {
                         ec_id = MBEDTLS_ECP_DP_ED25519;
                     }
-                    else if (ec_id == MBEDTLS_ECP_DP_CURVE448 && (g_len != 56 || g[0] != 5)) {
+                    else if (ec_id == MBEDTLS_ECP_DP_CURVE448 && (g.len != 56 || g.data[0] != 5)) {
                         ec_id = MBEDTLS_ECP_DP_ED448;
                     }
                 }

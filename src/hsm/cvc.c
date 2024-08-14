@@ -89,7 +89,7 @@ uint16_t asn1_cvc_public_key_ecdsa(mbedtls_ecp_keypair *ecdsa, uint8_t *buf, uin
     uint16_t ctot_size = asn1_len_tag(0x87, (uint16_t)c_size);
     uint16_t oid_len = asn1_len_tag(0x6, sizeof(oid_ecdsa));
     uint16_t tot_len = 0, tot_data_len = 0;
-    if (mbedtls_ecp_get_type(&ecdsa->grp) == MBEDTLS_ECP_TYPE_MONTGOMERY) || mbedtls_ecp_get_type(&ecdsa->grp) == MBEDTLS_ECP_TYPE_EDWARDS {
+    if (mbedtls_ecp_get_type(&ecdsa->grp) == MBEDTLS_ECP_TYPE_MONTGOMERY || mbedtls_ecp_get_type(&ecdsa->grp) == MBEDTLS_ECP_TYPE_EDWARDS) {
         tot_data_len = oid_len + ptot_size + otot_size + gtot_size + ytot_size;
         oid = oid_ri;
     }
