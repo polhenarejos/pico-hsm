@@ -317,8 +317,8 @@ int cmd_bip_slip() {
                                  &nodes,
                                  last_node,
                                  &hd_keytype);
+        mbedtls_ecp_keypair_free(&hd_context);
         if (r != CCID_OK) {
-            mbedtls_ecp_keypair_free(&hd_context);
             return SW_EXEC_ERROR();
         }
     }
