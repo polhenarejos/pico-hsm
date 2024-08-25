@@ -284,11 +284,13 @@ int cmd_signature() {
     }
     else if (p2 == ALGO_HD) {
         size_t olen = 0;
-        uint8_t buf[MBEDTLS_ECDSA_MAX_LEN];
+        uint8_t buf[MBEDTLS_ECDSA_MAX_LEN] = {0};
         if (hd_context.grp.id == MBEDTLS_ECP_DP_NONE) {
+            mbedtls_ecdsa_free(&hd_context);
             return SW_CONDITIONS_NOT_SATISFIED();
         }
         if (hd_keytype != 0x1 && hd_keytype != 0x2) {
+            mbedtls_ecdsa_free(&hd_context);
             return SW_INCORRECT_PARAMS();
         }
         md = MBEDTLS_MD_SHA256;
