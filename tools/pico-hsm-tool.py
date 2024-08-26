@@ -131,7 +131,7 @@ def parse_args():
     parser_keygen = subparser.add_parser('keygen', help='Generates private keypair or secret key.')
     subparser_keygen = parser_keygen.add_subparsers(title='commands', dest='subcommand', required=True)
     parser_keygen_aes = subparser_keygen.add_parser('aes', help='Generates an AES key.')
-    parser_keygen_aes.add_argument('--size', help='Specifies the size of AES key [128, 192 or 256]',choices=[128, 192, 256], default=128)
+    parser_keygen_aes.add_argument('--size', help='Specifies the size of AES key [128, 192 or 256]',choices=[128, 192, 256], default=128, type=int)
     parser_keygen_x25519 = subparser_keygen.add_parser('x25519', help='Generates a private X25519 keypair.')
     parser_keygen_x448 = subparser_keygen.add_parser('x448', help='Generates a private X448 keypair.')
 
