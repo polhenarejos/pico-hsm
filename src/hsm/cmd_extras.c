@@ -17,8 +17,8 @@
 
 #include "sc_hsm.h"
 #include "mbedtls/ecdh.h"
-#if !defined(ENABLE_EMULATION) && !defined(ESP_PLATFORM)
-#include "hardware/rtc.h"
+#ifdef PICO_PLATFORM
+#include "pico/aon_timer.h"
 #else
 #include <sys/time.h>
 #include <time.h>
@@ -45,24 +45,14 @@ int cmd_extras() {
             return SW_INCORRECT_P1P2();
         }
         if (apdu.nc == 0) {
-#if !defined(ENABLE_EMULATION) && !defined(ESP_PLATFORM)
-            datetime_t dt;
-            if (!rtc_get_datetime(&dt)) {
-                return SW_EXEC_ERROR();
-            }
-            res_APDU[res_APDU_size++] = dt.year >> 8;
-            res_APDU[res_APDU_size++] = dt.year & 0xff;
-            res_APDU[res_APDU_size++] = dt.month;
-            res_APDU[res_APDU_size++] = dt.day;
-            res_APDU[res_APDU_size++] = dt.dotw;
-            res_APDU[res_APDU_size++] = dt.hour;
-            res_APDU[res_APDU_size++] = dt.min;
-            res_APDU[res_APDU_size++] = dt.sec;
+#ifdef PICO_PLATFORM
+            struct timespec tv;
+            aon_timer_get_time(&tv);
 #else
             struct timeval tv;
-            struct tm *tm;
             gettimeofday(&tv, NULL);
-            tm = localtime(&tv.tv_sec);
+#endif
+            struct tm *tm = localtime(&tv.tv_sec);
             res_APDU[res_APDU_size++] = (tm->tm_year + 1900) >> 8;
             res_APDU[res_APDU_size++] = (tm->tm_year + 1900) & 0xff;
             res_APDU[res_APDU_size++] = tm->tm_mon;
@@ -71,27 +61,12 @@ int cmd_extras() {
             res_APDU[res_APDU_size++] = tm->tm_hour;
             res_APDU[res_APDU_size++] = tm->tm_min;
             res_APDU[res_APDU_size++] = tm->tm_sec;
-#endif
         }
         else {
             if (apdu.nc != 8) {
                 return SW_WRONG_LENGTH();
             }
-#if !defined(ENABLE_EMULATION) && !defined(ESP_PLATFORM)
-            datetime_t dt;
-            dt.year = (apdu.data[0] << 8) | (apdu.data[1]);
-            dt.month = apdu.data[2];
-            dt.day = apdu.data[3];
-            dt.dotw = apdu.data[4];
-            dt.hour = apdu.data[5];
-            dt.min = apdu.data[6];
-            dt.sec = apdu.data[7];
-            if (!rtc_set_datetime(&dt)) {
-                return SW_WRONG_DATA();
-            }
-#else
             struct tm tm;
-            struct timeval tv;
             tm.tm_year = ((apdu.data[0] << 8) | (apdu.data[1])) - 1900;
             tm.tm_mon = apdu.data[2];
             tm.tm_mday = apdu.data[3];
@@ -99,7 +74,12 @@ int cmd_extras() {
             tm.tm_hour = apdu.data[5];
             tm.tm_min = apdu.data[6];
             tm.tm_sec = apdu.data[7];
-            tv.tv_sec = mktime(&tm);
+            time_t tv_sec = mktime(&tm);
+#ifdef PICO_PLATFORM
+            struct timespec tv = {.tv_sec = tv_sec, .tv_nsec = 0};
+            aon_timer_set_time(&tv);
+#else
+            struct timeval tv = {.tv_sec = tv_sec, .tv_usec = 0};
             settimeofday(&tv, NULL);
 #endif
         }
@@ -131,16 +111,9 @@ int cmd_extras() {
             mbedtls_ecdh_context hkey;
             mbedtls_ecdh_init(&hkey);
             mbedtls_ecdh_setup(&hkey, MBEDTLS_ECP_DP_SECP256R1);
-            int ret = mbedtls_ecdh_gen_public(&hkey.ctx.mbed_ecdh.grp,
-                                              &hkey.ctx.mbed_ecdh.d,
-                                              &hkey.ctx.mbed_ecdh.Q,
-                                              random_gen,
-                                              NULL);
+            int ret = mbedtls_ecdh_gen_public(&hkey.ctx.mbed_ecdh.grp, &hkey.ctx.mbed_ecdh.d, &hkey.ctx.mbed_ecdh.Q, random_gen, NULL);
             mbedtls_mpi_lset(&hkey.ctx.mbed_ecdh.Qp.Z, 1);
-            ret = mbedtls_ecp_point_read_binary(&hkey.ctx.mbed_ecdh.grp,
-                                                &hkey.ctx.mbed_ecdh.Qp,
-                                                apdu.data,
-                                                apdu.nc);
+            ret = mbedtls_ecp_point_read_binary(&hkey.ctx.mbed_ecdh.grp, &hkey.ctx.mbed_ecdh.Qp, apdu.data, apdu.nc);
             if (ret != 0) {
                 mbedtls_ecdh_free(&hkey);
                 return SW_WRONG_DATA();
@@ -149,38 +122,20 @@ int cmd_extras() {
 
             uint8_t buf[MBEDTLS_ECP_MAX_BYTES];
             size_t olen = 0;
-            ret = mbedtls_ecdh_calc_secret(&hkey,
-                                           &olen,
-                                           buf,
-                                           MBEDTLS_ECP_MAX_BYTES,
-                                           random_gen,
-                                           NULL);
+            ret = mbedtls_ecdh_calc_secret(&hkey, &olen, buf, MBEDTLS_ECP_MAX_BYTES, random_gen, NULL);
             if (ret != 0) {
                 mbedtls_ecdh_free(&hkey);
                 mbedtls_platform_zeroize(buf, sizeof(buf));
                 return SW_WRONG_DATA();
             }
-            ret = mbedtls_hkdf(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256),
-                               NULL,
-                               0,
-                               buf,
-                               olen,
-                               mse.Qpt,
-                               sizeof(mse.Qpt),
-                               mse.key_enc,
-                               sizeof(mse.key_enc));
+            ret = mbedtls_hkdf(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), NULL, 0, buf, olen, mse.Qpt, sizeof(mse.Qpt), mse.key_enc, sizeof(mse.key_enc));
             mbedtls_platform_zeroize(buf, sizeof(buf));
             if (ret != 0) {
                 mbedtls_ecdh_free(&hkey);
                 return SW_EXEC_ERROR();
             }
 
-            ret = mbedtls_ecp_point_write_binary(&hkey.ctx.mbed_ecdh.grp,
-                                                 &hkey.ctx.mbed_ecdh.Q,
-                                                 MBEDTLS_ECP_PF_UNCOMPRESSED,
-                                                 &olen,
-                                                 res_APDU,
-                                                 4096);
+            ret = mbedtls_ecp_point_write_binary(&hkey.ctx.mbed_ecdh.grp, &hkey.ctx.mbed_ecdh.Q, MBEDTLS_ECP_PF_UNCOMPRESSED, &olen, res_APDU, 4096);
             mbedtls_ecdh_free(&hkey);
             if (ret != 0) {
                 return SW_EXEC_ERROR();
