@@ -102,28 +102,27 @@ if (NOT MSVC)
 endif()
 
 if(ENABLE_EMULATION)
-    if (NOT MSVC)
-    target_compile_options(pico_hsm PUBLIC
-            -fdata-sections
-            -ffunction-sections
-            )
-    endif()
-    if(APPLE)
-    target_link_options(pico_hsm PUBLIC
-            -Wl,-dead_strip
-            )
-    elseif(MSVC)
-        target_compile_options(pico_hsm PUBLIC
-            -WX
+if (NOT MSVC)
+target_compile_options(pico_hsm PUBLIC
+        -fdata-sections
+        -ffunction-sections
         )
+endif()
+if(APPLE)
+target_link_options(pico_hsm PUBLIC
+        -Wl,-dead_strip
+        )
+elseif(MSVC)
+    target_compile_options(pico_hsm PUBLIC
+        -WX
+    )
 
-        target_link_libraries(pico_hsm PUBLIC wsock32 ws2_32 Bcrypt)
-    else()
-    target_link_options(pico_hsm PUBLIC
-            -Wl,--gc-sections
-            )
-    endif (APPLE)
-    target_link_libraries(pico_hsm PRIVATE pthread m)
+    target_link_libraries(pico_hsm PUBLIC wsock32 ws2_32 Bcrypt)
+else()
+target_link_options(pico_hsm PUBLIC
+        -Wl,--gc-sections
+        )
+endif (APPLE)
 else()
 
 target_link_libraries(pico_hsm PRIVATE pico_keys_sdk pico_stdlib pico_multicore hardware_flash hardware_sync hardware_adc pico_unique_id pico_aon_timer tinyusb_device tinyusb_board)
