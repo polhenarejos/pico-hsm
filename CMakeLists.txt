@@ -20,8 +20,6 @@ cmake_minimum_required(VERSION 3.13)
 if(ESP_PLATFORM)
 set(EXTRA_COMPONENT_DIRS src pico-keys-sdk/src)
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-set(USB_ITF_CCID 1)
-set(USB_ITF_WCID 1)
 else()
 if(ENABLE_EMULATION)
 else()
@@ -104,29 +102,30 @@ if (NOT MSVC)
 endif()
 
 if(ENABLE_EMULATION)
-if (NOT MSVC)
-target_compile_options(pico_hsm PUBLIC
-        -fdata-sections
-        -ffunction-sections
-        )
-endif()
-if(APPLE)
-target_link_options(pico_hsm PUBLIC
-        -Wl,-dead_strip
-        )
-elseif(MSVC)
+    if (NOT MSVC)
     target_compile_options(pico_hsm PUBLIC
-        -WX
-    )
-
-    target_link_libraries(pico_hsm PUBLIC wsock32 ws2_32 Bcrypt)
-else()
-target_link_options(pico_hsm PUBLIC
-        -Wl,--gc-sections
+            -fdata-sections
+            -ffunction-sections
+            )
+    endif()
+    if(APPLE)
+    target_link_options(pico_hsm PUBLIC
+            -Wl,-dead_strip
+            )
+    elseif(MSVC)
+        target_compile_options(pico_hsm PUBLIC
+            -WX
         )
-endif (APPLE)
+
+        target_link_libraries(pico_hsm PUBLIC wsock32 ws2_32 Bcrypt)
+    else()
+    target_link_options(pico_hsm PUBLIC
+            -Wl,--gc-sections
+            )
+    endif (APPLE)
+    target_link_libraries(pico_hsm PRIVATE pthread m)
 else()
-pico_add_extra_outputs(pico_hsm)
-target_link_libraries(pico_hsm PRIVATE pico_keys_sdk pico_stdlib pico_multicore hardware_flash hardware_sync hardware_adc pico_unique_id hardware_rtc tinyusb_device tinyusb_board)
+
+target_link_libraries(pico_hsm PRIVATE pico_keys_sdk pico_stdlib pico_multicore hardware_flash hardware_sync hardware_adc pico_unique_id pico_aon_timer tinyusb_device tinyusb_board)
 endif()
 endif()

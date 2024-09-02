@@ -52,6 +52,9 @@ int cmd_key_domain() {
     if (tf_kd_size == 0) {
         return SW_WRONG_P1P2();
     }
+    if (2 * p2 >= tf_kd_size) {
+        return SW_INCORRECT_P1P2();
+    }
     uint8_t *kdata = file_get_data(tf_kd), dkeks = kdata ? kdata[2 * p2] : 0,
             current_dkeks = kdata ? kdata[2 * p2 + 1] : 0;
     if (p1 == 0x0) { //dkek import
@@ -90,9 +93,6 @@ int cmd_key_domain() {
         }
         else {
             file_t *tf = search_file(EF_XKEK + p2);
-            if (2 * p2 >= tf_kd_size) {
-                return SW_INCORRECT_P1P2();
-            }
             if (current_dkeks == 0xff && !file_has_data(tf)) { //XKEK have always 0xff
                 return SW_REFERENCE_NOT_FOUND();
             }

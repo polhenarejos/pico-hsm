@@ -664,6 +664,7 @@ int cmd_cipher_sym() {
                     secret[64] = { 0 };
             mbedtls_aes_init(&ctx);
             if (hd_keytype != 0x3) {
+                mbedtls_ecdsa_free(&hd_context);
                 return SW_INCORRECT_PARAMS();
             }
             key_size = 32;

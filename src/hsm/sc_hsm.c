@@ -80,7 +80,8 @@ extern int cmd_bip_slip();
 
 extern const uint8_t *ccid_atr;
 
-int sc_hsm_select_aid(app_t *a) {
+int sc_hsm_select_aid(app_t *a, uint8_t force) {
+    (void) force;
     a->process_apdu = sc_hsm_process_apdu;
     a->unload = sc_hsm_unload;
     init_sc_hsm();
@@ -270,8 +271,6 @@ uint16_t get_device_options() {
     }
     return 0x0;
 }
-
-extern uint32_t board_button_read(void);
 
 bool wait_button_pressed() {
     uint32_t val = EV_PRESS_BUTTON;
