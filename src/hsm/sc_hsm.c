@@ -272,8 +272,6 @@ uint16_t get_device_options() {
     return 0x0;
 }
 
-extern uint32_t board_button_read(void);
-
 bool wait_button_pressed() {
     uint32_t val = EV_PRESS_BUTTON;
 #ifndef ENABLE_EMULATION
