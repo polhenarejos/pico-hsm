@@ -134,6 +134,8 @@ def parse_args():
     parser_keygen_aes.add_argument('--size', help='Specifies the size of AES key [128, 192 or 256]',choices=[128, 192, 256], default=128, type=int)
     parser_keygen_x25519 = subparser_keygen.add_parser('x25519', help='Generates a private X25519 keypair.')
     parser_keygen_x448 = subparser_keygen.add_parser('x448', help='Generates a private X448 keypair.')
+    parser_keygen_x25519 = subparser_keygen.add_parser('ed25519', help='Generates a private Ed25519 keypair.')
+    parser_keygen_x448 = subparser_keygen.add_parser('ed448', help='Generates a private Ed448 keypair.')
 
     args = parser.parse_args()
     return args
@@ -447,8 +449,10 @@ def cipher(picohsm, args):
 def keygen(picohsm, args):
     if (args.subcommand == 'aes'):
         ret = picohsm.key_generation(KeyType.AES, param=args.size)
-    elif (args.subcommand in ['x25519', 'x448']):
-        curve = 'curve' + args.subcommand[1:]
+    elif (args.subcommand in ['x25519', 'x448', 'ed25519', 'ed448']):
+        curve = args.subcommand
+        if (args.subcommand in ['x25519', 'x448']):
+            curve = 'curve' + args.subcommand[1:]
         ret = picohsm.key_generation(KeyType.ECC, curve)
     print('Key generated successfully.')
     print(f'Key ID: {ret}')
@@ -472,7 +476,7 @@ def phy(picohsm, args):
         print('Command executed successfully. Please, restart your Pico Key.')
 
 def main(args):
-    sys.stderr.buffer.write(b'Pico HSM Tool v1.14\n')
+    sys.stderr.buffer.write(b'Pico HSM Tool v1.16\n')
     sys.stderr.buffer.write(b'Author: Pol Henarejos\n')
     sys.stderr.buffer.write(b'Report bugs to https://github.com/polhenarejos/pico-hsm/issues\n')
     sys.stderr.buffer.write(b'\n\n')
