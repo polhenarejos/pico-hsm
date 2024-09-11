@@ -29,6 +29,7 @@
 #include "mbedtls/ecdsa.h"
 #include "mbedtls/chachapoly.h"
 #include "files.h"
+#include "otp.h"
 
 extern bool has_session_pin, has_session_sopin;
 extern uint8_t session_pin[32], session_sopin[32];
@@ -72,18 +73,18 @@ int load_mkek(uint8_t *mkek) {
         return CCID_EXEC_ERROR;
     }
 
-    if (has_mkek_mask) {
-        for (int i = 0; i < MKEK_KEY_SIZE; i++) {
-            MKEK_KEY(mkek)[i] ^= mkek_mask[i];
-        }
-    }
-    int ret =
-        aes_decrypt_cfb_256(pin, MKEK_IV(mkek), MKEK_KEY(mkek), MKEK_KEY_SIZE + MKEK_KEY_CS_SIZE);
+    int ret = aes_decrypt_cfb_256(pin, MKEK_IV(mkek), MKEK_KEY(mkek), MKEK_KEY_SIZE + MKEK_KEY_CS_SIZE);
     if (ret != 0) {
         return CCID_EXEC_ERROR;
     }
     if (crc32c(MKEK_KEY(mkek), MKEK_KEY_SIZE) != *(uint32_t *) MKEK_CHECKSUM(mkek)) {
         return CCID_WRONG_DKEK;
+    }
+    if (has_mkek_mask || otp_key_1) {
+        const uint8_t *mask = otp_key_1 ? otp_key_1 : mkek_mask;
+        for (int i = 0; i < MKEK_KEY_SIZE; i++) {
+            MKEK_KEY(mkek)[i] ^= mask[i];
+        }
     }
     return CCID_OK;
 }
@@ -94,14 +95,7 @@ int mse_decrypt_ct(uint8_t *data, size_t len) {
     mbedtls_chachapoly_context chatx;
     mbedtls_chachapoly_init(&chatx);
     mbedtls_chachapoly_setkey(&chatx, mse.key_enc + 12);
-    int ret = mbedtls_chachapoly_auth_decrypt(&chatx,
-                                              len - 16,
-                                              mse.key_enc,
-                                              mse.Qpt,
-                                              65,
-                                              data + len - 16,
-                                              data,
-                                              data);
+    int ret = mbedtls_chachapoly_auth_decrypt(&chatx, len - 16, mse.key_enc, mse.Qpt, 65, data + len - 16, data, data);
     mbedtls_chachapoly_free(&chatx);
     return ret;
 }
@@ -141,10 +135,7 @@ int store_mkek(const uint8_t *mkek) {
             release_mkek(tmp_mkek_pin);
             return CCID_ERR_FILE_NOT_FOUND;
         }
-        aes_encrypt_cfb_256(session_pin,
-                            MKEK_IV(tmp_mkek_pin),
-                            MKEK_KEY(tmp_mkek_pin),
-                            MKEK_KEY_SIZE + MKEK_KEY_CS_SIZE);
+        aes_encrypt_cfb_256(session_pin, MKEK_IV(tmp_mkek_pin), MKEK_KEY(tmp_mkek_pin), MKEK_KEY_SIZE + MKEK_KEY_CS_SIZE);
         file_put_data(tf, tmp_mkek_pin, MKEK_SIZE);
         release_mkek(tmp_mkek_pin);
     }
@@ -157,10 +148,7 @@ int store_mkek(const uint8_t *mkek) {
             release_mkek(tmp_mkek_sopin);
             return CCID_ERR_FILE_NOT_FOUND;
         }
-        aes_encrypt_cfb_256(session_sopin,
-                            MKEK_IV(tmp_mkek_sopin),
-                            MKEK_KEY(tmp_mkek_sopin),
-                            MKEK_KEY_SIZE + MKEK_KEY_CS_SIZE);
+        aes_encrypt_cfb_256(session_sopin, MKEK_IV(tmp_mkek_sopin), MKEK_KEY(tmp_mkek_sopin), MKEK_KEY_SIZE + MKEK_KEY_CS_SIZE);
         file_put_data(tf, tmp_mkek_sopin, MKEK_SIZE);
         release_mkek(tmp_mkek_sopin);
     }
@@ -278,13 +266,7 @@ int mkek_decrypt(uint8_t *data, uint16_t len) {
     return r;
 }
 
-int dkek_encode_key(uint8_t id,
-                    void *key_ctx,
-                    int key_type,
-                    uint8_t *out,
-                    uint16_t *out_len,
-                    const uint8_t *allowed,
-                    uint16_t allowed_len) {
+int dkek_encode_key(uint8_t id, void *key_ctx, int key_type, uint8_t *out, uint16_t *out_len, const uint8_t *allowed, uint16_t allowed_len) {
     if (!(key_type & PICO_KEYS_KEY_RSA) && !(key_type & PICO_KEYS_KEY_EC) && !(key_type & PICO_KEYS_KEY_AES)) {
         return CCID_WRONG_DATA;
     }
@@ -386,12 +368,7 @@ int dkek_encode_key(uint8_t id,
         kb_len += (uint16_t)mbedtls_mpi_size(&ecdsa->grp.N);
 
         size_t olen = 0;
-        mbedtls_ecp_point_write_binary(&ecdsa->grp,
-                                       &ecdsa->grp.G,
-                                       MBEDTLS_ECP_PF_UNCOMPRESSED,
-                                       &olen,
-                                       kb + 8 + kb_len + 2,
-                                       sizeof(kb) - 8 - kb_len - 2);
+        mbedtls_ecp_point_write_binary(&ecdsa->grp, &ecdsa->grp.G, MBEDTLS_ECP_PF_UNCOMPRESSED, &olen, kb + 8 + kb_len + 2, sizeof(kb) - 8 - kb_len - 2);
         put_uint16_t((uint16_t)olen, kb + 8 + kb_len);
         kb_len += 2 + (uint16_t)olen;
 
@@ -399,12 +376,7 @@ int dkek_encode_key(uint8_t id,
         mbedtls_mpi_write_binary(&ecdsa->d, kb + 8 + kb_len, mbedtls_mpi_size(&ecdsa->d));
         kb_len += (uint16_t)mbedtls_mpi_size(&ecdsa->d);
 
-        mbedtls_ecp_point_write_binary(&ecdsa->grp,
-                                       &ecdsa->Q,
-                                       MBEDTLS_ECP_PF_UNCOMPRESSED,
-                                       &olen,
-                                       kb + 8 + kb_len + 2,
-                                       sizeof(kb) - 8 - kb_len - 2);
+        mbedtls_ecp_point_write_binary(&ecdsa->grp, &ecdsa->Q, MBEDTLS_ECP_PF_UNCOMPRESSED, &olen, kb + 8 + kb_len + 2, sizeof(kb) - 8 - kb_len - 2);
         put_uint16_t((uint16_t)olen, kb + 8 + kb_len);
         kb_len += 2 + (uint16_t)olen;
 
@@ -465,12 +437,7 @@ int dkek_encode_key(uint8_t id,
     memcpy(out + *out_len, kb, kb_len_pad);
     *out_len += kb_len_pad;
 
-    r = mbedtls_cipher_cmac(mbedtls_cipher_info_from_type(MBEDTLS_CIPHER_AES_256_ECB),
-                            kmac,
-                            256,
-                            out,
-                            *out_len,
-                            out + *out_len);
+    r = mbedtls_cipher_cmac(mbedtls_cipher_info_from_type(MBEDTLS_CIPHER_AES_256_ECB), kmac, 256, out, *out_len, out + *out_len);
 
     *out_len += 16;
     if (r != 0) {
@@ -492,13 +459,7 @@ int dkek_type_key(const uint8_t *in) {
     return 0x0;
 }
 
-int dkek_decode_key(uint8_t id,
-                    void *key_ctx,
-                    const uint8_t *in,
-                    uint16_t in_len,
-                    int *key_size_out,
-                    uint8_t **allowed,
-                    uint16_t *allowed_len) {
+int dkek_decode_key(uint8_t id, void *key_ctx, const uint8_t *in, uint16_t in_len, int *key_size_out, uint8_t **allowed, uint16_t *allowed_len) {
     uint8_t kcv[8];
     int r = 0;
     memset(kcv, 0, sizeof(kcv));
@@ -526,12 +487,7 @@ int dkek_decode_key(uint8_t id,
     }
 
     uint8_t signature[16];
-    r = mbedtls_cipher_cmac(mbedtls_cipher_info_from_type(MBEDTLS_CIPHER_AES_256_ECB),
-                            kmac,
-                            256,
-                            in,
-                            in_len - 16,
-                            signature);
+    r = mbedtls_cipher_cmac(mbedtls_cipher_info_from_type(MBEDTLS_CIPHER_AES_256_ECB), kmac, 256, in, in_len - 16, signature);
     if (r != 0) {
         return CCID_WRONG_SIGNATURE;
     }

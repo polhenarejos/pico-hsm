@@ -219,19 +219,11 @@ int cmd_initialize() {
                 return SW_EXEC_ERROR();
             }
 
-            const uint8_t *keyid =
-                (const uint8_t *) "\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0",
+            const uint8_t *keyid = (const uint8_t *) "\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0",
                           *label = (const uint8_t *) "ESPICOHSMTR";
-            uint16_t prkd_len = asn1_build_prkd_ecc(label,
-                                                  (uint16_t)strlen((const char *) label),
-                                                  keyid,
-                                                  20,
-                                                  256,
-                                                  res_APDU,
-                                                  4096);
+            uint16_t prkd_len = asn1_build_prkd_ecc(label, (uint16_t)strlen((const char *) label), keyid, 20, 256, res_APDU, 4096);
             fpk = search_file(EF_PRKD_DEV);
             ret = file_put_data(fpk, res_APDU, prkd_len);
-
         }
         if (ret != 0) {
             return SW_EXEC_ERROR();
