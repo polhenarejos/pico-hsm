@@ -212,7 +212,7 @@ int cmd_extras() {
                 memcpy(tmp + PHY_VID, apdu.data, 4);
                 opts |= PHY_OPT_VPID;
             }
-            else if (P2(apdu) == PHY_LED_GPIO || P2(apdu) == PHY_LED_MODE) {
+            else if (P2(apdu) == PHY_LED_GPIO || P2(apdu) == PHY_LED_BTNESS) {
                 if (apdu.nc != 1) {
                     return SW_WRONG_LENGTH();
                 }
@@ -220,8 +220,8 @@ int cmd_extras() {
                 if (P2(apdu) == PHY_LED_GPIO) {
                     opts |= PHY_OPT_GPIO;
                 }
-                else if (P2(apdu) == PHY_LED_MODE) {
-                    opts |= PHY_OPT_LED;
+                else if (P2(apdu) == PHY_LED_BTNESS) {
+                    opts |= PHY_OPT_BTNESS;
                 }
             }
             else if (P2(apdu) == PHY_OPTS) {

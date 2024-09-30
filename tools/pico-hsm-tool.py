@@ -94,11 +94,15 @@ def parse_args():
     parser_phy = subparser.add_parser('phy', help='Set PHY options.')
     subparser_phy = parser_phy.add_subparsers(title='commands', dest='subcommand', required=True)
     parser_phy_vp = subparser_phy.add_parser('vidpid', help='Sets VID/PID. Use VID:PID format (e.g. 1234:5678)')
-    parser_phy_ledn = subparser_phy.add_parser('led', help='Sets LED GPIO number.')
+    parser_phy_ledn = subparser_phy.add_parser('led_gpio', help='Sets LED GPIO number.')
     parser_phy_optwcid = subparser_phy.add_parser('wcid', help='Enable/Disable Web CCID interface.')
     parser_phy_vp.add_argument('value', help='Value of the PHY option.', metavar='VAL', nargs='?')
     parser_phy_ledn.add_argument('value', help='Value of the PHY option.', metavar='VAL', nargs='?')
     parser_phy_optwcid.add_argument('value', choices=['enable', 'disable'], help='Enable/Disable Web CCID interface.', nargs='?')
+    parser_phy_ledbtness = subparser_phy.add_parser('led_brightness', help='Sets LED max. brightness.')
+    parser_phy_ledbtness.add_argument('value', help='Value of the max. brightness.', metavar='VAL', nargs='?')
+    parser_phy_optdimm = subparser_phy.add_parser('led_dimmable', help='Enable/Disable LED dimming.')
+    parser_phy_optdimm.add_argument('value', choices=['enable', 'disable'], help='Enable/Disable LED dimming.', nargs='?')
 
     parser_secure = subparser.add_parser('secure', help='Manages security of Pico HSM.')
     subparser_secure = parser_secure.add_subparsers(title='commands', dest='subcommand', required=True)
@@ -460,10 +464,15 @@ def phy(picohsm, args):
             sp = val.split(':')
             if (len(sp) != 2):
                 print('ERROR: VID/PID have wrong format. Use VID:PID format (e.g. 1234:5678)')
+                return
             val = int(sp[0],16).to_bytes(2, 'big') + int(sp[1],16).to_bytes(2, 'big')
-        elif (args.subcommand == 'led'):
+        elif (args.subcommand in ['led_gpio', 'led_brightness']):
+            if (args.subcommand == 'led_brightness'):
+                if (int(val) > 15 or int(val) < 0):
+                    print('ERROR: LED brightness must be between 0 and 15.')
+                    return
             val = [int(val)]
-        elif (args.subcommand == 'wcid'):
+        elif (args.subcommand in ['wcid', 'led_dimmable']):
             val = val == 'enable'
     ret = picohsm.phy(args.subcommand, val)
     if (ret):
@@ -472,7 +481,7 @@ def phy(picohsm, args):
         print('Command executed successfully. Please, restart your Pico Key.')
 
 def main(args):
-    sys.stderr.buffer.write(b'Pico HSM Tool v1.14\n')
+    sys.stderr.buffer.write(b'Pico HSM Tool v1.16\n')
     sys.stderr.buffer.write(b'Author: Pol Henarejos\n')
     sys.stderr.buffer.write(b'Report bugs to https://github.com/polhenarejos/pico-hsm/issues\n')
     sys.stderr.buffer.write(b'\n\n')
