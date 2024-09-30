@@ -2,8 +2,14 @@
 
 VERSION_MAJOR="4"
 VERSION_MINOR="2"
+SUFFIX="${VERSION_MAJOR}.${VERSION_MINOR}"
+#if ! [[ -z "${GITHUB_SHA}" ]]; then
+#    SUFFIX="${SUFFIX}.${GITHUB_SHA}"
+#fi
 
 rm -rf release/*
+mkdir -p build_release
+mkdir -p release
 cd build_release
 
 for board in 0xcb_helios \
@@ -96,8 +102,7 @@ for board in 0xcb_helios \
     wiznet_w5100s_evb_pico
 do
     rm -rf *
-    PICO_SDK_PATH=~/Devel/pico/pico-sdk cmake .. -DPICO_BOARD=$board
-    make -kj20
-    mv pico_hsm.uf2 ../release/pico_hsm_$board-$VERSION_MAJOR.$VERSION_MINOR.uf2
-
+    PICO_SDK_PATH="${PICO_SDK_PATH:-../../pico-sdk}" cmake .. -DPICO_BOARD=$board
+    make -j`nproc`
+    mv pico_hsm.uf2 ../release/pico_hsm_$board-$SUFFIX.uf2
 done

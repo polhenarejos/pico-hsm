@@ -9,8 +9,17 @@ git clone https://github.com/raspberrypi/pico-sdk
 cd pico-sdk
 git submodule update --init
 cd ..
+git clone https://github.com/raspberrypi/picotool
+cd picotool
+git submodule update --init
 mkdir build
 cd build
+cmake -DPICO_SDK_PATH=../../pico-sdk ..
+make -j`nproc`
+sudo make install
+cd ../..
+mkdir build_pico
+cd build_pico
 cmake -DPICO_SDK_PATH=../pico-sdk ..
 make
 elif [[ $1 == "esp32" ]]; then
