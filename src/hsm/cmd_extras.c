@@ -29,6 +29,15 @@
 #include "mbedtls/hkdf.h"
 #include "mbedtls/chachapoly.h"
 
+#define CMD_DATETIME 0xA
+#define CMD_DYNOPS 0x6
+#define CMD_SECURE_LOCK 0x3A
+#define SECURE_LOCK_KEY_AGREEMENT 0x1
+#define SECURE_LOCK_ENABLE 0x2
+#define SECURE_LOCK_MASK 0x3
+#define SECURE_LOCK_DISABLE 0x4
+#define CMD_PHY 0x1B
+
 int cmd_extras() {
 #ifndef ENABLE_EMULATION
     // Only allow change PHY without PIN
@@ -40,7 +49,7 @@ int cmd_extras() {
     if (wait_button_pressed() == true) {
         return SW_SECURE_MESSAGE_EXEC_ERROR();
     }
-    if (P1(apdu) == 0xA) { //datetime operations
+    if (P1(apdu) == CMD_DATETIME) { //datetime operations
         if (P2(apdu) != 0x0) {
             return SW_INCORRECT_P1P2();
         }
@@ -84,7 +93,7 @@ int cmd_extras() {
 #endif
         }
     }
-    else if (P1(apdu) == 0x6) {   //dynamic options
+    else if (P1(apdu) == CMD_DYNOPS) {   //dynamic options
         if (P2(apdu) != 0x0) {
             return SW_INCORRECT_P1P2();
         }
@@ -103,11 +112,11 @@ int cmd_extras() {
             low_flash_available();
         }
     }
-    else if (P1(apdu) == 0x3A) {   // secure lock
+    else if (P1(apdu) == CMD_SECURE_LOCK) {   // secure lock
         if (apdu.nc == 0) {
             return SW_WRONG_LENGTH();
         }
-        if (P2(apdu) == 0x01) { // Key Agreement
+        if (P2(apdu) == SECURE_LOCK_KEY_AGREEMENT) { // Key Agreement
             mbedtls_ecdh_context hkey;
             mbedtls_ecdh_init(&hkey);
             mbedtls_ecdh_setup(&hkey, MBEDTLS_ECP_DP_SECP256R1);
@@ -143,7 +152,7 @@ int cmd_extras() {
             mse.init = true;
             res_APDU_size = (uint16_t)olen;
         }
-        else if (P2(apdu) == 0x02 || P2(apdu) == 0x03 || P2(apdu) == 0x04) {
+        else if (P2(apdu) == SECURE_LOCK_ENABLE || P2(apdu) == SECURE_LOCK_MASK || P2(apdu) == SECURE_LOCK_DISABLE) {
             if (mse.init == false) {
                 return SW_COMMAND_NOT_ALLOWED();
             }
@@ -152,11 +161,11 @@ int cmd_extras() {
             if (ret != 0) {
                 return SW_WRONG_DATA();
             }
-            if (P2(apdu) == 0x02 || P2(apdu) == 0x04) { // Enable
+            if (P2(apdu) == SECURE_LOCK_ENABLE || P2(apdu) == SECURE_LOCK_DISABLE) { // Enable
                 uint16_t opts = get_device_options();
                 uint8_t newopts[] = { opts >> 8, (opts & 0xff) };
-                if ((P2(apdu) == 0x02 && !(opts & HSM_OPT_SECURE_LOCK)) ||
-                    (P2(apdu) == 0x04 && (opts & HSM_OPT_SECURE_LOCK))) {
+                if ((P2(apdu) == SECURE_LOCK_ENABLE && !(opts & HSM_OPT_SECURE_LOCK)) ||
+                    (P2(apdu) == SECURE_LOCK_DISABLE && (opts & HSM_OPT_SECURE_LOCK))) {
                     uint16_t tfids[] = { EF_MKEK, EF_MKEK_SO };
                     for (int t = 0; t < sizeof(tfids) / sizeof(uint16_t); t++) {
                         file_t *tf = search_file(tfids[t]);
@@ -171,24 +180,24 @@ int cmd_extras() {
                         }
                     }
                 }
-                if (P2(apdu) == 0x02) {
+                if (P2(apdu) == SECURE_LOCK_ENABLE) {
                     newopts[0] |= HSM_OPT_SECURE_LOCK >> 8;
                 }
-                else if (P2(apdu) == 0x04) {
+                else if (P2(apdu) == SECURE_LOCK_DISABLE) {
                     newopts[0] &= ~HSM_OPT_SECURE_LOCK >> 8;
                 }
                 file_t *tf = search_file(EF_DEVOPS);
                 file_put_data(tf, newopts, sizeof(newopts));
                 low_flash_available();
             }
-            else if (P2(apdu) == 0x03) {
+            else if (P2(apdu) == SECURE_LOCK_MASK) {
                 memcpy(mkek_mask, apdu.data, apdu.nc);
                 has_mkek_mask = true;
             }
         }
     }
 #ifndef ENABLE_EMULATION
-    else if (P1(apdu) == 0x1B) { // Set PHY
+    else if (P1(apdu) == CMD_PHY) { // Set PHY
         if (apdu.nc == 0) {
             if (file_has_data(ef_phy)) {
                 res_APDU_size = file_get_size(ef_phy);
