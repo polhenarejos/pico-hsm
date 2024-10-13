@@ -28,6 +28,9 @@
 #include "kek.h"
 #include "mbedtls/hkdf.h"
 #include "mbedtls/chachapoly.h"
+#ifdef PICO_RP2350
+#include "otp.h"
+#endif
 
 #define CMD_DATETIME 0xA
 #define CMD_DYNOPS 0x6
@@ -251,7 +254,7 @@ int cmd_extras() {
         }
     }
 #endif
-#if RP2350
+#if PICO_RP2350
     else if (P1(apdu) == CMD_OTP) {
         if (apdu.nc < 2) {
             return SW_WRONG_LENGTH();
