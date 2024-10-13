@@ -37,6 +37,7 @@
 #define SECURE_LOCK_MASK 0x3
 #define SECURE_LOCK_DISABLE 0x4
 #define CMD_PHY 0x1B
+#define CMD_OTP 0x4C
 
 int cmd_extras() {
 #ifndef ENABLE_EMULATION
@@ -247,6 +248,29 @@ int cmd_extras() {
             tmp[PHY_OPTS + 1] = opts & 0xff;
             file_put_data(ef_phy, tmp, sizeof(tmp));
             low_flash_available();
+        }
+    }
+#endif
+#if RP2350
+    else if (P1(apdu) == CMD_OTP) {
+        if (apdu.nc < 2) {
+            return SW_WRONG_LENGTH();
+        }
+        uint16_t row = (apdu.data[0] << 8) | apdu.data[1];
+        apdu.nc -= 2;
+        apdu.data += 2;
+        if (apdu.nc == 2) {
+            memcpy(res_APDU, otp_buffer(row), apdu.ne);
+            res_APDU_size = apdu.ne;
+        }
+        else {
+            if (!(apdu.nc % 16)) {
+                return SW_WRONG_DATA();
+            }
+            int ret = otp_write_data(row, apdu.data, apdu.nc);
+            if (ret != 0) {
+                return SW_EXEC_ERROR();
+            }
         }
     }
 #endif
