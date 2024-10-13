@@ -260,13 +260,13 @@ int cmd_extras() {
             return SW_WRONG_LENGTH();
         }
         uint16_t row = (apdu.data[0] << 8) | apdu.data[1];
-        apdu.nc -= 2;
-        apdu.data += 2;
         if (apdu.nc == 2) {
             memcpy(res_APDU, otp_buffer(row), apdu.ne);
             res_APDU_size = apdu.ne;
         }
         else {
+            apdu.nc -= 2;
+            apdu.data += 2;
             if (!(apdu.nc % 16)) {
                 return SW_WRONG_DATA();
             }
