@@ -135,9 +135,14 @@ def parse_args():
     parser_keygen = subparser.add_parser('keygen', help='Generates private keypair or secret key.')
     subparser_keygen = parser_keygen.add_subparsers(title='commands', dest='subcommand', required=True)
     parser_keygen_aes = subparser_keygen.add_parser('aes', help='Generates an AES key.')
-    parser_keygen_aes.add_argument('--size', help='Specifies the size of AES key [128, 192 or 256]',choices=[128, 192, 256], default=128, type=int)
+    parser_keygen_aes.add_argument('--size', help='Specifies the size of AES key [128, 192 or 256]', choices=[128, 192, 256], default=128, type=int)
     parser_keygen_x25519 = subparser_keygen.add_parser('x25519', help='Generates a private X25519 keypair.')
     parser_keygen_x448 = subparser_keygen.add_parser('x448', help='Generates a private X448 keypair.')
+
+    parser_otp = subparser.add_parser('otp', help='Read/write OTP values.')
+    parser_otp.add_argument('subcommand', choices=['read', 'write'], help='Read/write.', nargs='?')
+    parser_otp.add_argument('--row', help='OTP row (in HEX)', required=True)
+    parser_otp.add_argument('-d', '--data', help='Data to write (in HEX) [e.g. 0011223344556677889900AABBCCDDEEFF]', required='write' in sys.argv)
 
     args = parser.parse_args()
     return args
@@ -480,8 +485,18 @@ def phy(picohsm, args):
     else:
         print('Command executed successfully. Please, restart your Pico Key.')
 
+def otp(picohsm, args):
+    row = int(args.row, 16)
+    if (args.subcommand == 'read'):
+        ret = picohsm.otp(row=row)
+        print(f'OTP row {args.row}: {hexlify(ret).decode()}')
+    elif (args.subcommand == 'write'):
+        data = unhexlify(args.data)
+        picohsm.otp(row=row, data=data)
+        print(f'OTP row {args.row} written successfully.')
+
 def main(args):
-    sys.stderr.buffer.write(b'Pico HSM Tool v1.16\n')
+    sys.stderr.buffer.write(b'Pico HSM Tool v1.18\n')
     sys.stderr.buffer.write(b'Author: Pol Henarejos\n')
     sys.stderr.buffer.write(b'Report bugs to https://github.com/polhenarejos/pico-hsm/issues\n')
     sys.stderr.buffer.write(b'\n\n')
@@ -508,7 +523,8 @@ def main(args):
         keygen(picohsm, args)
     elif (args.command == 'phy'):
         phy(picohsm, args)
-
+    elif (args.command == 'otp'):
+        otp(picohsm, args)
 
 def run():
     args = parse_args()
