@@ -261,6 +261,9 @@ int cmd_extras() {
         }
         uint16_t row = (apdu.data[0] << 8) | apdu.data[1];
         if (apdu.nc == 2) {
+            if (row > 0xbf) {
+                return SW_WRONG_DATA();
+            }
             memcpy(res_APDU, otp_buffer(row), apdu.ne);
             res_APDU_size = apdu.ne;
         }
