@@ -270,7 +270,7 @@ int cmd_extras() {
         else {
             apdu.nc -= 2;
             apdu.data += 2;
-            if (!(apdu.nc % 16)) {
+            if (!(apdu.nc % 2)) {
                 return SW_WRONG_DATA();
             }
             int ret = otp_write_data(row, apdu.data, apdu.nc);
