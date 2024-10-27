@@ -273,6 +273,10 @@ int cmd_extras() {
             if (apdu.nc % 2) {
                 return SW_WRONG_DATA();
             }
+            if ((uintptr_t)apdu.data & 1) { // Not aligned
+                memmove(apdu.data - 1, apdu.data, apdu.nc);
+                apdu.data--;
+            }
             int ret = otp_write_data(row, apdu.data, apdu.nc);
             if (ret != 0) {
                 return SW_EXEC_ERROR();
