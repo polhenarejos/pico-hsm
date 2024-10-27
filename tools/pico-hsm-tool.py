@@ -140,8 +140,8 @@ def parse_args():
     parser_keygen_x448 = subparser_keygen.add_parser('x448', help='Generates a private X448 keypair.')
 
     parser_otp = subparser.add_parser('otp', help='Read/write OTP values.')
-    parser_otp.add_argument('subcommand', choices=['read', 'write'], help='Read/write.', nargs='?')
-    parser_otp.add_argument('--row', help='OTP row (in HEX)', required=True)
+    parser_otp.add_argument('subcommand', choices=['read', 'write', 'secure_boot'], help='Read, write or enable Secure Boot', nargs='?')
+    parser_otp.add_argument('--row', help='OTP row (in HEX)', required='write' in sys.argv or 'read' in sys.argv)
     parser_otp.add_argument('-d', '--data', help='Data to write (in HEX) [e.g. 0011223344556677889900AABBCCDDEEFF]', required='write' in sys.argv)
 
     args = parser.parse_args()
@@ -486,14 +486,19 @@ def phy(picohsm, args):
         print('Command executed successfully. Please, restart your Pico Key.')
 
 def otp(picohsm, args):
-    row = int(args.row, 16)
     if (args.subcommand == 'read'):
+        row = int(args.row, 16)
         ret = picohsm.otp(row=row)
         print(f'OTP row {args.row}: {hexlify(ret).decode()}')
     elif (args.subcommand == 'write'):
+        row = int(args.row, 16)
         data = unhexlify(args.data)
         picohsm.otp(row=row, data=data)
         print(f'OTP row {args.row} written successfully.')
+    elif (args.subcommand == 'secure_boot'):
+        script_path = os.path.dirname(os.path.abspath(__file__))
+        boot_json = json.load(open(f'{script_path}/../pico-keys-sdk/config/rp2350/secure_boot.json'))
+        picohsm.secure_boot(boot_json['bootkey0'])
 
 def main(args):
     sys.stderr.buffer.write(b'Pico HSM Tool v1.18\n')
