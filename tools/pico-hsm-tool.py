@@ -503,7 +503,7 @@ def otp(picohsm, args):
         picohsm.secure_boot(BOOTKEY, bootkey_index=args.index, lock=args.lock)
 
 def main(args):
-    sys.stderr.buffer.write(b'Pico HSM Tool v1.18\n')
+    sys.stderr.buffer.write(b'Pico HSM Tool v2.0\n')
     sys.stderr.buffer.write(b'Author: Pol Henarejos\n')
     sys.stderr.buffer.write(b'Report bugs to https://github.com/polhenarejos/pico-hsm/issues\n')
     sys.stderr.buffer.write(b'\n\n')
