@@ -57,6 +57,8 @@ from argparse import RawTextHelpFormatter
 
 pin = None
 
+BOOTKEY = [225, 209, 107, 167, 100, 171, 215, 18, 212, 239, 110, 62, 221, 116, 78, 213, 99, 140, 38, 11, 119, 28, 249, 129, 81, 17, 11, 175, 172, 155, 200, 113]
+
 def hexy(a):
     return [hex(i) for i in a]
 
@@ -498,9 +500,7 @@ def otp(picohsm, args):
         picohsm.otp(row=row, data=data)
         print(f'OTP row {args.row} written successfully.')
     elif (args.subcommand == 'secure_boot'):
-        script_path = os.path.dirname(os.path.abspath(__file__))
-        boot_json = json.load(open(f'{script_path}/../pico-keys-sdk/config/rp2350/secure_boot.json'))
-        picohsm.secure_boot(boot_json['bootkey0'], bootkey_index=args.index, lock=args.lock)
+        picohsm.secure_boot(BOOTKEY, bootkey_index=args.index, lock=args.lock)
 
 def main(args):
     sys.stderr.buffer.write(b'Pico HSM Tool v1.18\n')
