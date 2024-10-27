@@ -260,24 +260,37 @@ int cmd_extras() {
             return SW_WRONG_LENGTH();
         }
         uint16_t row = (apdu.data[0] << 8) | apdu.data[1];
+        bool israw = P2(apdu) == 0x1;
         if (apdu.nc == 2) {
-            if (row > 0xbf) {
+            if (row > 0xbf && row < 0xf48) {
                 return SW_WRONG_DATA();
             }
-            memcpy(res_APDU, otp_buffer(row), apdu.ne);
+            if (israw) {
+                memcpy(res_APDU, otp_buffer_raw(row), apdu.ne);
+            }
+            else {
+                memcpy(res_APDU, otp_buffer(row), apdu.ne);
+            }
             res_APDU_size = apdu.ne;
         }
         else {
             apdu.nc -= 2;
             apdu.data += 2;
-            if (apdu.nc % 2) {
+            if (apdu.nc > 1024) {
+                return SW_WRONG_LENGTH();
+            }
+            if (apdu.nc % (israw ? 4 : 2)) {
                 return SW_WRONG_DATA();
             }
-            if ((uintptr_t)apdu.data & 1) { // Not aligned
-                memmove(apdu.data - 1, apdu.data, apdu.nc);
-                apdu.data--;
+            uint8_t adata[1024] __attribute__((aligned(4)));
+            memcpy(adata, apdu.data, apdu.nc);
+            int ret = 0;
+            if (israw) {
+                ret = otp_write_data_raw(row, adata, apdu.nc);
             }
-            int ret = otp_write_data(row, apdu.data, apdu.nc);
+            else {
+                ret = otp_write_data(row, adata, apdu.nc);
+            }
             if (ret != 0) {
                 return SW_EXEC_ERROR();
             }
