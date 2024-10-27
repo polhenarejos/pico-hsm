@@ -143,6 +143,7 @@ def parse_args():
     parser_otp.add_argument('subcommand', choices=['read', 'write', 'secure_boot'], help='Read, write or enable Secure Boot', nargs='?')
     parser_otp.add_argument('--row', help='OTP row (in HEX)', required='write' in sys.argv or 'read' in sys.argv)
     parser_otp.add_argument('-d', '--data', help='Data to write (in HEX) [e.g. 0011223344556677889900AABBCCDDEEFF]', required='write' in sys.argv)
+    parser_otp.add_argument('--lock', help='Lock & protect (no other firmwares can be loaded)', action='store_true')
 
     args = parser.parse_args()
     return args
@@ -498,7 +499,7 @@ def otp(picohsm, args):
     elif (args.subcommand == 'secure_boot'):
         script_path = os.path.dirname(os.path.abspath(__file__))
         boot_json = json.load(open(f'{script_path}/../pico-keys-sdk/config/rp2350/secure_boot.json'))
-        picohsm.secure_boot(boot_json['bootkey0'])
+        picohsm.secure_boot(boot_json['bootkey0'], lock=args.lock)
 
 def main(args):
     sys.stderr.buffer.write(b'Pico HSM Tool v1.18\n')
