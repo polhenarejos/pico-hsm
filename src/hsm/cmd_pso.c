@@ -40,11 +40,11 @@ int cmd_pso() {
             apdu.nc += tlv_len;
         }
         int r = cvc_verify(apdu.data, (uint16_t)apdu.nc, current_puk->cvcert, current_puk->cvcert_len);
-        if (r != CCID_OK) {
-            if (r == CCID_WRONG_DATA) {
+        if (r != PICOKEY_OK) {
+            if (r == PICOKEY_WRONG_DATA) {
                 return SW_DATA_INVALID();
             }
-            else if (r == CCID_WRONG_SIGNATURE) {
+            else if (r == PICOKEY_WRONG_SIGNATURE) {
                 return SW_CONDITIONS_NOT_SATISFIED();
             }
             return SW_EXEC_ERROR();
@@ -56,7 +56,7 @@ int cmd_pso() {
                 ca_ef = file_new(fid);
                 file_put_data(ca_ef, apdu.data, (uint16_t)apdu.nc);
                 if (add_cert_puk_store(file_get_data(ca_ef), file_get_size(ca_ef),
-                                       false) != CCID_OK) {
+                                       false) != PICOKEY_OK) {
                     return SW_FILE_FULL();
                 }
 

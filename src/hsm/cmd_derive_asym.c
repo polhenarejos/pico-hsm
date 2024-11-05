@@ -57,9 +57,9 @@ int cmd_derive_asym() {
 
         int r;
         r = load_private_key_ecdsa(&ctx, fkey);
-        if (r != CCID_OK) {
+        if (r != PICOKEY_OK) {
             mbedtls_ecdsa_free(&ctx);
-            if (r == CCID_VERIFICATION_FAILED) {
+            if (r == PICOKEY_VERIFICATION_FAILED) {
                 return SW_SECURE_MESSAGE_EXEC_ERROR();
             }
             return SW_EXEC_ERROR();
@@ -88,7 +88,7 @@ int cmd_derive_asym() {
             return SW_EXEC_ERROR();
         }
         r = store_keys(&ctx, PICO_KEYS_KEY_EC, dest_id);
-        if (r != CCID_OK) {
+        if (r != PICOKEY_OK) {
             mbedtls_ecdsa_free(&ctx);
             return SW_EXEC_ERROR();
         }

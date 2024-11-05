@@ -82,17 +82,17 @@ int pkcs1_strip_digest_info_prefix(mbedtls_md_type_t *algorithm,
                 *algorithm = digest_info_prefix[i].algorithm;
             }
             if (out_dat == NULL) {
-                return CCID_OK;
+                return PICOKEY_OK;
             }
             if (*out_len < hash_len) {
-                return CCID_WRONG_DATA;
+                return PICOKEY_WRONG_DATA;
             }
             memmove(out_dat, in_dat + hdr_len, hash_len);
             *out_len = hash_len;
-            return CCID_OK;
+            return PICOKEY_OK;
         }
     }
-    return CCID_EXEC_ERROR;
+    return PICOKEY_EXEC_ERROR;
 }
 //-----
 
@@ -142,9 +142,9 @@ int cmd_signature() {
         mbedtls_rsa_init(&ctx);
 
         int r = load_private_key_rsa(&ctx, fkey);
-        if (r != CCID_OK) {
+        if (r != PICOKEY_OK) {
             mbedtls_rsa_free(&ctx);
-            if (r == CCID_VERIFICATION_FAILED) {
+            if (r == PICOKEY_VERIFICATION_FAILED) {
                 return SW_SECURE_MESSAGE_EXEC_ERROR();
             }
             return SW_EXEC_ERROR();
@@ -153,7 +153,7 @@ int cmd_signature() {
         if (p2 == ALGO_RSA_PKCS1) { //DigestInfo attached
             uint16_t nc = (uint16_t)apdu.nc;
             if (pkcs1_strip_digest_info_prefix(&md, apdu.data, (uint16_t)apdu.nc, apdu.data,
-                                               &nc) != CCID_OK) {                                   //gets the MD algo id and strips it off
+                                               &nc) != PICOKEY_OK) {                                   //gets the MD algo id and strips it off
                 return SW_EXEC_ERROR();
             }
             apdu.nc = nc;
@@ -264,9 +264,9 @@ int cmd_signature() {
             md = MBEDTLS_MD_SHA512;
         }
         int r = load_private_key_ecdsa(&ctx, fkey);
-        if (r != CCID_OK) {
+        if (r != PICOKEY_OK) {
             mbedtls_ecdsa_free(&ctx);
-            if (r == CCID_VERIFICATION_FAILED) {
+            if (r == PICOKEY_VERIFICATION_FAILED) {
                 return SW_SECURE_MESSAGE_EXEC_ERROR();
             }
             return SW_EXEC_ERROR();

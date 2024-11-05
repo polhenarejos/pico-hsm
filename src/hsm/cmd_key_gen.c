@@ -56,10 +56,10 @@ int cmd_key_gen() {
         aes_type = PICO_KEYS_KEY_AES_512;
     }
     r = store_keys(aes_key, aes_type, key_id);
-    if (r != CCID_OK) {
+    if (r != PICOKEY_OK) {
         return SW_MEMORY_FAILURE();
     }
-    if (find_and_store_meta_key(key_id) != CCID_OK) {
+    if (find_and_store_meta_key(key_id) != PICOKEY_OK) {
         return SW_EXEC_ERROR();
     }
     low_flash_available();

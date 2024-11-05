@@ -132,10 +132,10 @@ int cmd_initialize() {
             release_mkek(mkek);
             return SW_EXEC_ERROR();
         }
-        if (ret_mkek != CCID_OK) {
+        if (ret_mkek != PICOKEY_OK) {
             ret_mkek = load_mkek(mkek); //Try again with new PIN/SO-PIN just in case some is the same
         }
-        if (store_mkek(ret_mkek == CCID_OK ? mkek : NULL) != CCID_OK) {
+        if (store_mkek(ret_mkek == PICOKEY_OK ? mkek : NULL) != PICOKEY_OK) {
             release_mkek(mkek);
             return SW_EXEC_ERROR();
         }
@@ -143,31 +143,31 @@ int cmd_initialize() {
         if (dkeks) {
             if (*dkeks > 0) {
                 uint16_t d = *dkeks;
-                if (file_put_data(tf_kd, (const uint8_t *) &d, sizeof(d)) != CCID_OK) {
+                if (file_put_data(tf_kd, (const uint8_t *) &d, sizeof(d)) != PICOKEY_OK) {
                     return SW_EXEC_ERROR();
                 }
             }
             else {
                 int r = save_dkek_key(0, random_bytes_get(32));
-                if (r != CCID_OK) {
+                if (r != PICOKEY_OK) {
                     return SW_EXEC_ERROR();
                 }
                 uint16_t d = 0x0101;
-                if (file_put_data(tf_kd, (const uint8_t *) &d, sizeof(d)) != CCID_OK) {
+                if (file_put_data(tf_kd, (const uint8_t *) &d, sizeof(d)) != PICOKEY_OK) {
                     return SW_EXEC_ERROR();
                 }
             }
         }
         else {
             uint16_t d = 0x0000;
-            if (file_put_data(tf_kd, (const uint8_t *) &d, sizeof(d)) != CCID_OK) {
+            if (file_put_data(tf_kd, (const uint8_t *) &d, sizeof(d)) != PICOKEY_OK) {
                 return SW_EXEC_ERROR();
             }
         }
         if (kds) {
             uint8_t t[MAX_KEY_DOMAINS * 2], k = MIN(*kds, MAX_KEY_DOMAINS);
             memset(t, 0xff, 2 * k);
-            if (file_put_data(tf_kd, t, 2 * k) != CCID_OK) {
+            if (file_put_data(tf_kd, t, 2 * k) != PICOKEY_OK) {
                 return SW_EXEC_ERROR();
             }
         }
@@ -179,7 +179,7 @@ int cmd_initialize() {
             return SW_EXEC_ERROR();
         }
         int ret = 0;
-        if (ret_mkek != CCID_OK || !file_has_data(fdkey)) {
+        if (ret_mkek != PICOKEY_OK || !file_has_data(fdkey)) {
             mbedtls_ecdsa_context ecdsa;
             mbedtls_ecdsa_init(&ecdsa);
             mbedtls_ecp_group_id ec_id = MBEDTLS_ECP_DP_SECP256R1;
@@ -190,7 +190,7 @@ int cmd_initialize() {
                 return SW_EXEC_ERROR();
             }
             ret = store_keys(&ecdsa, PICO_KEYS_KEY_EC, key_id);
-            if (ret != CCID_OK) {
+            if (ret != PICOKEY_OK) {
                 mbedtls_ecdsa_free(&ecdsa);
                 return SW_EXEC_ERROR();
             }
