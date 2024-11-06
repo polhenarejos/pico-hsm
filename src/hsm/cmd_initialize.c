@@ -23,6 +23,7 @@
 #include "version.h"
 #include "asn1.h"
 #include "cvc.h"
+#include "otp.h"
 
 extern void scan_all();
 
@@ -183,8 +184,13 @@ int cmd_initialize() {
             mbedtls_ecdsa_context ecdsa;
             mbedtls_ecdsa_init(&ecdsa);
             mbedtls_ecp_group_id ec_id = MBEDTLS_ECP_DP_SECP256R1;
-            uint8_t index = 0, key_id = 0;
-            ret = mbedtls_ecdsa_genkey(&ecdsa, ec_id, random_gen, &index);
+            uint8_t key_id = 0;
+            if (otp_key_2) {
+                ret = mbedtls_ecp_read_key(MBEDTLS_ECP_DP_SECP256K1, &ecdsa, otp_key_2, 32);
+            }
+            else {
+                ret = mbedtls_ecdsa_genkey(&ecdsa, ec_id, random_gen, NULL);
+            }
             if (ret != 0) {
                 mbedtls_ecdsa_free(&ecdsa);
                 return SW_EXEC_ERROR();
