@@ -43,6 +43,8 @@ bool has_session_pin = false, has_session_sopin = false;
 const uint8_t *dev_name = NULL;
 uint16_t dev_name_len = 0;
 
+uint8_t PICO_PRODUCT = 1;
+
 static int sc_hsm_process_apdu();
 
 static void init_sc_hsm();
