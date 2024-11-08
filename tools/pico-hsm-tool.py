@@ -69,6 +69,7 @@ def parse_args():
     parser.add_argument('--pin', help='PIN number')
     parser_init.add_argument('--so-pin', help='SO-PIN number')
     parser_init.add_argument('--silent', help='Confirms initialization silently.', action='store_true')
+    parser_init.add_argument('--no-dev-cert', help='Do not request a device certificate (it will use a self-signed certificate). Do not use if attestation is needed.', action='store_true', default=False)
 
     parser_attestate = subparser.add_parser('attestate', help='Generates an attestation report for a private key and verifies the private key was generated in the devices or outside.')
     parser_attestate.add_argument('-k', '--key', help='The private key index', metavar='KEY_ID')
@@ -217,9 +218,7 @@ def initialize(picohsm, args):
         so_pin = '57621880'
 
     picohsm.initialize(pin=pin, sopin=so_pin)
-    try:
-        picohsm.select_file(0x2f02)
-    except APDUResponse:
+    if (not args.no_dev_cert):
         response = picohsm.get_contents(DOPrefixes.EE_CERTIFICATE_PREFIX, 0x00)
 
         cert = bytearray(response)
