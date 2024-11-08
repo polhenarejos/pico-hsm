@@ -217,24 +217,27 @@ def initialize(picohsm, args):
         so_pin = '57621880'
 
     picohsm.initialize(pin=pin, sopin=so_pin)
-    response = picohsm.get_contents(DOPrefixes.EE_CERTIFICATE_PREFIX, 0x00)
+    try:
+        picohsm.select_file(0x2f02)
+    except APDUResponse:
+        response = picohsm.get_contents(DOPrefixes.EE_CERTIFICATE_PREFIX, 0x00)
 
-    cert = bytearray(response)
-    Y = CVC().decode(cert).pubkey().find(0x86).data()
-    print(f'Public Point: {hexlify(Y).decode()}')
+        cert = bytearray(response)
+        Y = CVC().decode(cert).pubkey().find(0x86).data()
+        print(f'Public Point: {hexlify(Y).decode()}')
 
-    pbk = base64.urlsafe_b64encode(Y)
-    data = urllib.parse.urlencode({'pubkey': pbk}).encode()
-    j = get_pki_data('cvc', data=data)
-    print('Device name: '+j['devname'])
-    dataef = base64.urlsafe_b64decode(
-        j['cvcert']) + base64.urlsafe_b64decode(j['dvcert']) + base64.urlsafe_b64decode(j['cacert'])
+        pbk = base64.urlsafe_b64encode(Y)
+        data = urllib.parse.urlencode({'pubkey': pbk}).encode()
+        j = get_pki_data('cvc', data=data)
+        print('Device name: '+j['devname'])
+        dataef = base64.urlsafe_b64decode(
+            j['cvcert']) + base64.urlsafe_b64decode(j['dvcert']) + base64.urlsafe_b64decode(j['cacert'])
 
-    picohsm.select_file(0x2f02)
-    response = picohsm.put_contents(0x0000, data=dataef)
+        picohsm.select_file(0x2f02)
+        response = picohsm.put_contents(0x0000, data=dataef)
 
-    print('Certificate uploaded successfully!')
-    print('')
+        print('Certificate uploaded successfully!')
+        print('')
     print('Note that the device is initialized with a default PIN and '
         'configuration.')
     print('Now you can initialize the device as usual with your chosen PIN '
