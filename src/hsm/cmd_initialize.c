@@ -200,27 +200,26 @@ int cmd_initialize() {
                 mbedtls_ecdsa_free(&ecdsa);
                 return SW_EXEC_ERROR();
             }
-            size_t cvc_len = 0;
-            if ((cvc_len = asn1_cvc_aut(&ecdsa, PICO_KEYS_KEY_EC, res_APDU, 4096, NULL, 0)) == 0) {
+            uint16_t ee_len = 0, term_len = 0;
+            if ((ee_len = asn1_cvc_aut(&ecdsa, PICO_KEYS_KEY_EC, res_APDU, 4096, NULL, 0)) == 0) {
                 mbedtls_ecdsa_free(&ecdsa);
                 return SW_EXEC_ERROR();
             }
 
             file_t *fpk = search_file(EF_EE_DEV);
-            ret = file_put_data(fpk, res_APDU, (uint16_t)cvc_len);
+            ret = file_put_data(fpk, res_APDU, ee_len);
             if (ret != 0) {
                 mbedtls_ecdsa_free(&ecdsa);
                 return SW_EXEC_ERROR();
             }
 
-            if ((cvc_len = asn1_cvc_cert(&ecdsa, PICO_KEYS_KEY_EC, res_APDU, 4096, NULL, 0, true)) == 0) {
+            if ((term_len = asn1_cvc_cert(&ecdsa, PICO_KEYS_KEY_EC, res_APDU + ee_len, 4096 - ee_len, NULL, 0, true)) == 0) {
                 mbedtls_ecdsa_free(&ecdsa);
                 return SW_EXEC_ERROR();
             }
-            memcpy(res_APDU + cvc_len, res_APDU, cvc_len);
             mbedtls_ecdsa_free(&ecdsa);
             fpk = search_file(EF_TERMCA);
-            ret = file_put_data(fpk, res_APDU, (uint16_t)(2 * cvc_len));
+            ret = file_put_data(fpk, res_APDU, ee_len + term_len);
             if (ret != 0) {
                 return SW_EXEC_ERROR();
             }
