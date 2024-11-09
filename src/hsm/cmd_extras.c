@@ -28,6 +28,19 @@
 #include "kek.h"
 #include "mbedtls/hkdf.h"
 #include "mbedtls/chachapoly.h"
+#ifdef PICO_RP2350
+#include "otp.h"
+#endif
+
+#define CMD_DATETIME 0xA
+#define CMD_DYNOPS 0x6
+#define CMD_SECURE_LOCK 0x3A
+#define SECURE_LOCK_KEY_AGREEMENT 0x1
+#define SECURE_LOCK_ENABLE 0x2
+#define SECURE_LOCK_MASK 0x3
+#define SECURE_LOCK_DISABLE 0x4
+#define CMD_PHY 0x1B
+#define CMD_OTP 0x4C
 
 int cmd_extras() {
 #ifndef ENABLE_EMULATION
@@ -40,7 +53,7 @@ int cmd_extras() {
     if (wait_button_pressed() == true) {
         return SW_SECURE_MESSAGE_EXEC_ERROR();
     }
-    if (P1(apdu) == 0xA) { //datetime operations
+    if (P1(apdu) == CMD_DATETIME) { //datetime operations
         if (P2(apdu) != 0x0) {
             return SW_INCORRECT_P1P2();
         }
@@ -84,7 +97,7 @@ int cmd_extras() {
 #endif
         }
     }
-    else if (P1(apdu) == 0x6) {   //dynamic options
+    else if (P1(apdu) == CMD_DYNOPS) {   //dynamic options
         if (P2(apdu) != 0x0) {
             return SW_INCORRECT_P1P2();
         }
@@ -103,11 +116,11 @@ int cmd_extras() {
             low_flash_available();
         }
     }
-    else if (P1(apdu) == 0x3A) {   // secure lock
+    else if (P1(apdu) == CMD_SECURE_LOCK) {   // secure lock
         if (apdu.nc == 0) {
             return SW_WRONG_LENGTH();
         }
-        if (P2(apdu) == 0x01) { // Key Agreement
+        if (P2(apdu) == SECURE_LOCK_KEY_AGREEMENT) { // Key Agreement
             mbedtls_ecdh_context hkey;
             mbedtls_ecdh_init(&hkey);
             mbedtls_ecdh_setup(&hkey, MBEDTLS_ECP_DP_SECP256R1);
@@ -143,7 +156,7 @@ int cmd_extras() {
             mse.init = true;
             res_APDU_size = (uint16_t)olen;
         }
-        else if (P2(apdu) == 0x02 || P2(apdu) == 0x03 || P2(apdu) == 0x04) {
+        else if (P2(apdu) == SECURE_LOCK_ENABLE || P2(apdu) == SECURE_LOCK_MASK || P2(apdu) == SECURE_LOCK_DISABLE) {
             if (mse.init == false) {
                 return SW_COMMAND_NOT_ALLOWED();
             }
@@ -152,11 +165,11 @@ int cmd_extras() {
             if (ret != 0) {
                 return SW_WRONG_DATA();
             }
-            if (P2(apdu) == 0x02 || P2(apdu) == 0x04) { // Enable
+            if (P2(apdu) == SECURE_LOCK_ENABLE || P2(apdu) == SECURE_LOCK_DISABLE) { // Enable
                 uint16_t opts = get_device_options();
                 uint8_t newopts[] = { opts >> 8, (opts & 0xff) };
-                if ((P2(apdu) == 0x02 && !(opts & HSM_OPT_SECURE_LOCK)) ||
-                    (P2(apdu) == 0x04 && (opts & HSM_OPT_SECURE_LOCK))) {
+                if ((P2(apdu) == SECURE_LOCK_ENABLE && !(opts & HSM_OPT_SECURE_LOCK)) ||
+                    (P2(apdu) == SECURE_LOCK_DISABLE && (opts & HSM_OPT_SECURE_LOCK))) {
                     uint16_t tfids[] = { EF_MKEK, EF_MKEK_SO };
                     for (int t = 0; t < sizeof(tfids) / sizeof(uint16_t); t++) {
                         file_t *tf = search_file(tfids[t]);
@@ -171,24 +184,24 @@ int cmd_extras() {
                         }
                     }
                 }
-                if (P2(apdu) == 0x02) {
+                if (P2(apdu) == SECURE_LOCK_ENABLE) {
                     newopts[0] |= HSM_OPT_SECURE_LOCK >> 8;
                 }
-                else if (P2(apdu) == 0x04) {
+                else if (P2(apdu) == SECURE_LOCK_DISABLE) {
                     newopts[0] &= ~HSM_OPT_SECURE_LOCK >> 8;
                 }
                 file_t *tf = search_file(EF_DEVOPS);
                 file_put_data(tf, newopts, sizeof(newopts));
                 low_flash_available();
             }
-            else if (P2(apdu) == 0x03) {
+            else if (P2(apdu) == SECURE_LOCK_MASK) {
                 memcpy(mkek_mask, apdu.data, apdu.nc);
                 has_mkek_mask = true;
             }
         }
     }
 #ifndef ENABLE_EMULATION
-    else if (P1(apdu) == 0x1B) { // Set PHY
+    else if (P1(apdu) == CMD_PHY) { // Set PHY
         if (apdu.nc == 0) {
             if (file_has_data(ef_phy)) {
                 res_APDU_size = file_get_size(ef_phy);
@@ -196,48 +209,82 @@ int cmd_extras() {
             }
         }
         else {
-            uint8_t tmp[PHY_MAX_SIZE];
-            memset(tmp, 0, sizeof(tmp));
-            uint16_t opts = 0;
-            if (file_has_data(ef_phy)) {
-                memcpy(tmp, file_get_data(ef_phy), MIN(sizeof(tmp), file_get_size(ef_phy)));
-                if (file_get_size(ef_phy) >= 8) {
-                    opts = (tmp[PHY_OPTS] << 8) | tmp[PHY_OPTS + 1];
-                }
-            }
-            if (P2(apdu) == PHY_VID) { // VIDPID
+            if (P2(apdu) == PHY_VIDPID) { // VIDPID
                 if (apdu.nc != 4) {
                     return SW_WRONG_LENGTH();
                 }
-                memcpy(tmp + PHY_VID, apdu.data, 4);
-                opts |= PHY_OPT_VPID;
+                phy_data.vid = (apdu.data[0] << 8) | apdu.data[1];
+                phy_data.pid = (apdu.data[2] << 8) | apdu.data[3];
+                phy_data.vidpid_present = true;
             }
-            else if (P2(apdu) == PHY_LED_GPIO || P2(apdu) == PHY_LED_MODE) {
-                if (apdu.nc != 1) {
-                    return SW_WRONG_LENGTH();
-                }
-                tmp[P2(apdu)] = apdu.data[0];
-                if (P2(apdu) == PHY_LED_GPIO) {
-                    opts |= PHY_OPT_GPIO;
-                }
-                else if (P2(apdu) == PHY_LED_MODE) {
-                    opts |= PHY_OPT_LED;
-                }
+            else if (P2(apdu) == PHY_LED_GPIO) {
+                phy_data.led_gpio = apdu.data[0];
+                phy_data.led_gpio_present = true;
+            }
+            else if (P2(apdu) == PHY_LED_BTNESS) {
+                phy_data.led_brightness = apdu.data[0];
+                phy_data.led_brightness_present = true;
             }
             else if (P2(apdu) == PHY_OPTS) {
                 if (apdu.nc != 2) {
                     return SW_WRONG_LENGTH();
                 }
-                uint16_t opt = (apdu.data[0] << 8) | apdu.data[1];
-                opts = (opts & ~PHY_OPT_MASK) | (opt & PHY_OPT_MASK);
+                phy_data.opts = (apdu.data[0] << 8) | apdu.data[1];
             }
             else {
                 return SW_INCORRECT_P1P2();
             }
-            tmp[PHY_OPTS] = opts >> 8;
-            tmp[PHY_OPTS + 1] = opts & 0xff;
-            file_put_data(ef_phy, tmp, sizeof(tmp));
+            uint8_t tmp[PHY_MAX_SIZE];
+            uint16_t tmp_len = 0;
+            memset(tmp, 0, sizeof(tmp));
+            if (phy_serialize_data(&phy_data, tmp, &tmp_len) != PICOKEY_OK) {
+                return SW_EXEC_ERROR();
+            }
+            file_put_data(ef_phy, tmp, tmp_len);
             low_flash_available();
+        }
+    }
+#endif
+#if PICO_RP2350
+    else if (P1(apdu) == CMD_OTP) {
+        if (apdu.nc < 2) {
+            return SW_WRONG_LENGTH();
+        }
+        uint16_t row = (apdu.data[0] << 8) | apdu.data[1];
+        bool israw = P2(apdu) == 0x1;
+        if (apdu.nc == 2) {
+            if (row > 0xbf && row < 0xf48) {
+                return SW_WRONG_DATA();
+            }
+            if (israw) {
+                memcpy(res_APDU, otp_buffer_raw(row), apdu.ne);
+            }
+            else {
+                memcpy(res_APDU, otp_buffer(row), apdu.ne);
+            }
+            res_APDU_size = apdu.ne;
+        }
+        else {
+            apdu.nc -= 2;
+            apdu.data += 2;
+            if (apdu.nc > 1024) {
+                return SW_WRONG_LENGTH();
+            }
+            if (apdu.nc % (israw ? 4 : 2)) {
+                return SW_WRONG_DATA();
+            }
+            uint8_t adata[1024] __attribute__((aligned(4)));
+            memcpy(adata, apdu.data, apdu.nc);
+            int ret = 0;
+            if (israw) {
+                ret = otp_write_data_raw(row, adata, apdu.nc);
+            }
+            else {
+                ret = otp_write_data(row, adata, apdu.nc);
+            }
+            if (ret != 0) {
+                return SW_EXEC_ERROR();
+            }
         }
     }
 #endif

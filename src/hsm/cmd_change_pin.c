@@ -42,7 +42,7 @@ int cmd_change_pin() {
             }
             uint8_t mkek[MKEK_SIZE];
             r = load_mkek(mkek); //loads the MKEK with old pin
-            if (r != CCID_OK) {
+            if (r != PICOKEY_OK) {
                 return SW_EXEC_ERROR();
             }
             //encrypt MKEK with new pin
@@ -57,7 +57,7 @@ int cmd_change_pin() {
             }
             r = store_mkek(mkek);
             release_mkek(mkek);
-            if (r != CCID_OK) {
+            if (r != PICOKEY_OK) {
                 return SW_EXEC_ERROR();
             }
             uint8_t dhash[33];

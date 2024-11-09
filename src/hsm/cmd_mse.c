@@ -51,7 +51,7 @@ int cmd_mse() {
                 }
                 else {
                     if (p2 == 0xB6) {
-                        if (puk_store_select_chr(tag_data) == CCID_OK) {
+                        if (puk_store_select_chr(tag_data) == PICOKEY_OK) {
                             return SW_OK();
                         }
                     }

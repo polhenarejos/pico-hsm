@@ -60,9 +60,9 @@ int cmd_key_wrap() {
         mbedtls_rsa_context ctx;
         mbedtls_rsa_init(&ctx);
         r = load_private_key_rsa(&ctx, ef);
-        if (r != CCID_OK) {
+        if (r != PICOKEY_OK) {
             mbedtls_rsa_free(&ctx);
-            if (r == CCID_VERIFICATION_FAILED) {
+            if (r == PICOKEY_VERIFICATION_FAILED) {
                 return SW_SECURE_MESSAGE_EXEC_ERROR();
             }
             return SW_EXEC_ERROR();
@@ -74,9 +74,9 @@ int cmd_key_wrap() {
         mbedtls_ecp_keypair ctx;
         mbedtls_ecp_keypair_init(&ctx);
         r = load_private_key_ec(&ctx, ef);
-        if (r != CCID_OK) {
+        if (r != PICOKEY_OK) {
             mbedtls_ecp_keypair_free(&ctx);
-            if (r == CCID_VERIFICATION_FAILED) {
+            if (r == PICOKEY_VERIFICATION_FAILED) {
                 return SW_SECURE_MESSAGE_EXEC_ERROR();
             }
             return SW_EXEC_ERROR();
@@ -110,7 +110,7 @@ int cmd_key_wrap() {
         r = dkek_encode_key(kdom, kdata_aes, aes_type, res_APDU, &wrap_len, meta_tag, tag_len);
         mbedtls_platform_zeroize(kdata_aes, sizeof(kdata_aes));
     }
-    if (r != CCID_OK) {
+    if (r != PICOKEY_OK) {
         return SW_EXEC_ERROR();
     }
     res_APDU_size = wrap_len;

@@ -59,19 +59,19 @@ int cmd_reset_retry() {
         dhash[0] = newpin_len;
         double_hash_pin(apdu.data + (apdu.nc - newpin_len), newpin_len, dhash + 1);
         file_put_data(file_pin1, dhash, sizeof(dhash));
-        if (pin_reset_retries(file_pin1, true) != CCID_OK) {
+        if (pin_reset_retries(file_pin1, true) != PICOKEY_OK) {
             return SW_MEMORY_FAILURE();
         }
         uint8_t mkek[MKEK_SIZE];
         int r = load_mkek(mkek); //loads the MKEK with SO pin
-        if (r != CCID_OK) {
+        if (r != PICOKEY_OK) {
             return SW_EXEC_ERROR();
         }
         hash_multi(apdu.data + (apdu.nc - newpin_len), newpin_len, session_pin);
         has_session_pin = true;
         r = store_mkek(mkek);
         release_mkek(mkek);
-        if (r != CCID_OK) {
+        if (r != PICOKEY_OK) {
             return SW_EXEC_ERROR();
         }
         low_flash_available();
@@ -99,7 +99,7 @@ int cmd_reset_retry() {
                 return SW_WRONG_LENGTH();
             }
         }
-        if (pin_reset_retries(file_pin1, true) != CCID_OK) {
+        if (pin_reset_retries(file_pin1, true) != PICOKEY_OK) {
             return SW_MEMORY_FAILURE();
         }
         return SW_OK();

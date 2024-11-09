@@ -51,8 +51,8 @@ int cmd_key_unwrap() {
         mbedtls_rsa_init(&ctx);
         do {
             r = dkek_decode_key((uint8_t)++kdom, &ctx, data, data_len, NULL, &allowed, &allowed_len);
-        } while ((r == CCID_ERR_FILE_NOT_FOUND || r == CCID_WRONG_DKEK) && kdom < MAX_KEY_DOMAINS);
-        if (r != CCID_OK) {
+        } while ((r == PICOKEY_ERR_FILE_NOT_FOUND || r == PICOKEY_WRONG_DKEK) && kdom < MAX_KEY_DOMAINS);
+        if (r != PICOKEY_OK) {
             mbedtls_rsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
@@ -62,7 +62,7 @@ int cmd_key_unwrap() {
             return SW_EXEC_ERROR();
         }
         mbedtls_rsa_free(&ctx);
-        if (r != CCID_OK) {
+        if (r != PICOKEY_OK) {
             return SW_EXEC_ERROR();
         }
     }
@@ -71,8 +71,8 @@ int cmd_key_unwrap() {
         mbedtls_ecp_keypair_init(&ctx);
         do {
             r = dkek_decode_key((uint8_t)++kdom, &ctx, data, data_len, NULL, &allowed, &allowed_len);
-        } while ((r == CCID_ERR_FILE_NOT_FOUND || r == CCID_WRONG_DKEK) && kdom < MAX_KEY_DOMAINS);
-        if (r != CCID_OK) {
+        } while ((r == PICOKEY_ERR_FILE_NOT_FOUND || r == PICOKEY_WRONG_DKEK) && kdom < MAX_KEY_DOMAINS);
+        if (r != PICOKEY_OK) {
             mbedtls_ecp_keypair_free(&ctx);
             return SW_EXEC_ERROR();
         }
@@ -82,7 +82,7 @@ int cmd_key_unwrap() {
             return SW_EXEC_ERROR();
         }
         mbedtls_ecp_keypair_free(&ctx);
-        if (r != CCID_OK) {
+        if (r != PICOKEY_OK) {
             return SW_EXEC_ERROR();
         }
     }
@@ -97,8 +97,8 @@ int cmd_key_unwrap() {
                                 &key_size,
                                 &allowed,
                                 &allowed_len);
-        } while ((r == CCID_ERR_FILE_NOT_FOUND || r == CCID_WRONG_DKEK) && kdom < MAX_KEY_DOMAINS);
-        if (r != CCID_OK) {
+        } while ((r == PICOKEY_ERR_FILE_NOT_FOUND || r == PICOKEY_WRONG_DKEK) && kdom < MAX_KEY_DOMAINS);
+        if (r != PICOKEY_OK) {
             return SW_EXEC_ERROR();
         }
         if (key_size == 64) {
@@ -117,7 +117,7 @@ int cmd_key_unwrap() {
             return SW_EXEC_ERROR();
         }
         r = store_keys(aes_key, aes_type, key_id);
-        if (r != CCID_OK) {
+        if (r != PICOKEY_OK) {
             return SW_EXEC_ERROR();
         }
     }
@@ -136,7 +136,7 @@ int cmd_key_unwrap() {
         }
         r = meta_add((KEY_PREFIX << 8) | key_id, meta, meta_len);
         free(meta);
-        if (r != CCID_OK) {
+        if (r != PICOKEY_OK) {
             return r;
         }
     }

@@ -138,6 +138,21 @@ Uses an MKEK to securely store all keys, encrypted with an ephemeral key derived
 ### > Hierarchical Deterministic Key Generation
 Supports BIP32 for asymmetric key derivation and SLIP10 for symmetric key derivation, enabling crypto wallet deployment with infinite key generation. Supports NIST 256 and Koblitz 256 curves for master key generation.[^4]
 
+### > One Time Programming (OTP) Storage
+The OTP securely stores the MKEK (Master Key Encryption Key) and Device Key permanently, making it inaccessible from external interfaces. This ensures that the key is protected against unauthorized access and tampering.
+
+### > Secure Boot
+Secure Boot ensures only authenticated firmware can run on the device, verifying each firmware’s digital signature to block unauthorized code.
+
+### > Secure Lock
+Secure Lock restricts the device to the manufacturer’s firmware only, locking out debug access and preventing any further boot key installations.
+
+### > Rescue Interface
+ A built-in rescue interface allows recovery of the device if it becomes unresponsive or undetectable. This feature provides a way to restore the device to operational status without compromising security.
+
+ ### > LED Customization
+ The LED can be customized to reflect device status and user preferences, offering flexible color and brightness options for an enhanced user experience.
+
 [^1]: PKCS11 modules (`pkcs11-tool` and `sc-tool`) do not support CMAC and key derivation. It must be processed through raw APDU command (`opensc-tool -s`).
 [^2]: Available via SCS3 tool. See [SCS3](/doc/scs3.md "SCS3") for more information.
 [^3]: Imports are available only if the Pico HSM is previously initialized with a DKEK and DKEK shares are available during the import process.
@@ -147,33 +162,45 @@ Supports BIP32 for asymmetric key derivation and SLIP10 for symmetric key deriva
 Pico HSM also supports ESP32-S3 boards, which add secure storage, flash encryption and secure boot.
 
 ### > Dynamic VID/PID
-Supports setting VID & PID on-the-fly. Use `pico-hsm-tool.py` for specify VID/PID values and reboot the device.
+Supports setting VID & PID on-the-fly. Use `pico-hsm-tool.py` or [Pico Commissioner](https://www.picokeys.com/pico-commissioner/ "Pico Commissioner") for specify VID/PID values and reboot the device.
 
-### > Rescue Pico HSM Tool
-Pico HSM Tool implements a new CCID stack to rescue the Pico HSM in case it has wrong VID/PID values and it is not recognized by the OS.
+### > Rescue Pico HSM Tool and Commissioner
+Pico HSM Tool implements a new CCID stack to rescue the Pico HSM in case it has wrong VID/PID values and it is not recognized by the OS. It can be accessed through `pico-hsm-tool.py` or [Pico Commissioner](https://www.picokeys.com/pico-commissioner/ "Pico Commissioner").
 
 ## Security considerations
-All secret keys (both asymmetric and symmetric) are encrypted and stored in the flash memory of the Raspberry Pico. The DKEK, a 256-bit AES key, is used to protect these private and secret keys. Keys are only held in RAM during signature and decryption operations, and are loaded and cleared each time to avoid potential security vulnerabilities.
+All secret keys (both asymmetric and symmetric) are encrypted and stored in the flash memory. The MKEK, a 256-bit AES key, is used to protect these private and secret keys. Keys are held in RAM only during signature and decryption operations, and are loaded and cleared each time to avoid potential security vulnerabilities.
 
-The DKEK itself is encrypted using a doubly salted and hashed PIN, and the PIN is hashed in memory during sessions. This ensures that the PIN is never stored in plain text, either in flash memory or in RAM. However, if no secure channel is used, the PIN is transmitted in plain text from the host to the HSM.
+The MKEK itself is encrypted using a doubly salted and hashed PIN, and the PIN is hashed in memory during sessions. This ensures that the PIN is never stored in plaintext, neither in flash memory nor in RAM. However, if no secure channel is used, the PIN may be transmitted in plaintext from the host to the HSM.
+
+DKEKs are used during the export and import of private/secret keys and are part of a Key Domain. A Key Domain is a set of secret/private keys that share the same DKEK. These are also shared by the custodians and are not specific to Pico HSM. Therefore, if a key does not belong to a Key Domain (and thus lacks a DKEK), it cannot be exported.
 
 In the event that the Pico is stolen, the private and secret key contents cannot be accessed without the PIN, even if the flash memory is dumped.
 
+### RP2350 and ESP32-S3
+RP2350 and ESP32-S3 microcontrollers are equipped with advanced security features, including Secure Boot and Secure Lock, ensuring that firmware integrity and authenticity are tightly controlled. Both devices support the storage of the Master Key Encryption Key (MKEK) in an OTP (One-Time Programmable) memory region, making it permanently inaccessible for external access or tampering. This secure, non-volatile region guarantees that critical security keys are embedded into the hardware, preventing unauthorized access and supporting robust defenses against code injection or firmware modification. Together, Secure Boot and Secure Lock enforce firmware authentication, while the MKEK in OTP memory solidifies the foundation for secure operations.
+
+### Secure Boot
+Secure Boot is a security feature that ensures that only trusted firmware, verified through digital signatures, can be loaded onto the device during the boot process. Once enabled, Secure Boot checks every piece of firmware against a cryptographic signature before execution, rejecting any unauthorized or modified code. This prevents malicious firmware from compromising the device’s operation and integrity. With Secure Boot activated, only firmware versions signed by a trusted authority, such as the device manufacturer, will be accepted, ensuring the device remains protected from unauthorized software modifications. **This is irreversible. Once enabled, it CANNOT be disabled.**
+
+**IMPORTANT:** For users wishing to develop and compile custom firmware, a private-public key pair is essential. Activating Secure Boot requires users to generate and manage their own unique private-public key pair. The public key from this pair must be embedded into the device to validate all firmware. Firmware will not boot without a proper digital signature from this key pair. This means that users must sign all future firmware versions with their private key and embed the public key in the device to ensure compatibility.
+
+### Secure Lock
+Secure Lock builds on Secure Boot by imposing an even stricter security model. Once activated, Secure Lock prevents any further installation of new boot keys, effectively locking the device to only run firmware that is authorized by the device's primary vendor—in this case, Pico Keys. In addition to preventing additional keys, Secure Lock disables debugging interfaces and puts additional safeguards in place to resist tampering and intrusion attempts. This ensures that the device operates exclusively with the original vendor’s firmware and resists unauthorized access, making it highly secure against external threats. **This is irreversible. Once enabled, it CANNOT be disabled.**
+
+**IMPORTANT:** Activating Secure Lock not only enables Secure Boot but also invalidates all keys except the official Pico Key. This means that only firmware signed by Pico Key will be recognized, and custom code will no longer be allowed. Once enabled, the Pico Key device will run solely on the official firmware available on the website, with no option for generating or compiling new code for the device.
+
 ## Download
-**If you own an ESP32-S3 board, go to [ESP32 support](https://www.picokeys.com/esp32-support/) for further information.**
+**If you own an ESP32-S3 board, go to [ESP32 Flasher](https://www.picokeys.com/esp32-flasher/) for flashing your Pico HSM.**
 
-Please, go to the Release page and download the UF2 file for your board.
+If you own a Raspberry Pico (RP2040 or RP2350), go to [Download page](https://www.picokeys.com/getting-started/), select your vendor and model and download the proper firmware; or go to [Release page](https://www.github.com/polhenarejos/pico-hsm/releases/) and download the UF2 file for your board.
 
-Note that UF2 files are shiped with a dummy VID/PID to avoid license issues (FEFF:FCFD). If you plan to use it with OpenSC or similar tools, you should modify Info.plist of CCID driver to add these VID/PID or use the [Pico Patcher tool](https://www.picokeys.com/pico-patcher/).
-
-Alternatively you can use the legacy VID/PID patcher as follows:
-`./patch_vidpid.sh VID:PID input_hsm_file.uf2 output_hsm_file.uf2`
+Note that UF2 files are shiped with a dummy VID/PID to avoid license issues (FEFF:FCFD). If you plan to use it with OpenSC or similar tools, you should modify Info.plist of CCID driver to add these VID/PID or use the [Pico Commissioner](https://www.picokeys.com/pico-commissioner/ "Pico Commissioner").
 
 You can use whatever VID/PID (i.e., 234b:0000 from FISJ), but remember that you are not authorized to distribute the binary with a VID/PID that you do not own.
 
-Note that the pure-browser option [Pico Patcher tool](https://www.picokeys.com/pico-patcher/) is the most recommended.
+Note that the pure-browser option [Pico Commissioner](https://www.picokeys.com/pico-commissioner/ "Pico Commissioner") is the most recommended.
 
-## Build
+## Build for Raspberry Pico
 Before building, ensure you have installed the toolchain for the Pico and the Pico SDK is properly located in your drive.
 
 ```
@@ -212,9 +239,9 @@ Independent from your Linux distribution or when using another OS that supports 
 
 ```
 sudo docker build \
-    --build-arg VERSION_PICO_SDK=1.5.0 \
-    --build-arg VERSION_MAJOR=3 \
-    --build-arg VERSION_MINOR=4 \
+    --build-arg VERSION_PICO_SDK=2.0.0 \
+    --build-arg VERSION_MAJOR=5 \
+    --build-arg VERSION_MINOR=0 \
     --build-arg PICO_BOARD=waveshare_rp2040_zero \
     --build-arg USB_VID=0xfeff \
     --build-arg USB_PID=0xfcfd \
@@ -321,8 +348,7 @@ For advanced usage scenarios, refer to the documentation and examples provided. 
 ### Important
 OpenSC relies on PCSC driver, which reads a list (`Info.plist`) that contains a pair of VID/PID of supported readers. In order to be detectable, you have several options:
 - Use `pico-hsm-tool.py` to modify VID/PID on-the-fly.
-- Use the online [Pico Patcher tool](https://www.picokeys.com/pico-patcher/).
-- Patch the UF2 binary (if you just downloaded from the [Release section](https://github.com/polhenarejos/pico-hsm/releases "Release section"))
+- Use the pure-browser online [Pico Commissioner](https://www.picokeys.com/pico-commissioner/ "Pico Commissioner") that commissions the Pico Key on-the-fly without external tools.
 - Build and configure the project with the proper VID/PID with `USB_VID` and `USB_PID` parameters in `CMake` (see [Build section](#build "Build section")). Note that you cannot distribute the patched/compiled binary if you do not own the VID/PID or have an explicit authorization.
 
 ## Credits

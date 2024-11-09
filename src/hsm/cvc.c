@@ -333,7 +333,7 @@ uint16_t asn1_cvc_aut(void *rsa_ecdsa,
     }
     mbedtls_ecp_keypair ectx;
     mbedtls_ecp_keypair_init(&ectx);
-    if (load_private_key_ec(&ectx, fkey) != CCID_OK) {
+    if (load_private_key_ec(&ectx, fkey) != PICOKEY_OK) {
         mbedtls_ecp_keypair_free(&ectx);
         return 0;
     }
@@ -702,12 +702,12 @@ int puk_verify(const uint8_t *sig,
     uint16_t puk_len = 0;
     const uint8_t *puk = cvc_get_pub(ca, ca_len, &puk_len);
     if (!puk) {
-        return CCID_WRONG_DATA;
+        return PICOKEY_WRONG_DATA;
     }
     uint16_t oid_len = 0;
     const uint8_t *oid = cvc_get_field(puk, puk_len, &oid_len, 0x6);
     if (!oid) {
-        return CCID_WRONG_DATA;
+        return PICOKEY_WRONG_DATA;
     }
     if (memcmp(oid, OID_ID_TA_RSA, 9) == 0) { //RSA
         uint16_t t81_len = 0, t82_len = 0;
@@ -716,7 +716,7 @@ int puk_verify(const uint8_t *sig,
                                                                                                &t81_len,
                                                                                                0x82);
         if (!t81 || !t82) {
-            return CCID_WRONG_DATA;
+            return PICOKEY_WRONG_DATA;
         }
         mbedtls_rsa_context rsa;
         mbedtls_rsa_init(&rsa);
@@ -744,32 +744,32 @@ int puk_verify(const uint8_t *sig,
         }
         if (md == MBEDTLS_MD_NONE) {
             mbedtls_rsa_free(&rsa);
-            return CCID_WRONG_DATA;
+            return PICOKEY_WRONG_DATA;
         }
         int r = mbedtls_mpi_read_binary(&rsa.N, t81, t81_len);
         if (r != 0) {
             mbedtls_rsa_free(&rsa);
-            return CCID_EXEC_ERROR;
+            return PICOKEY_EXEC_ERROR;
         }
         r = mbedtls_mpi_read_binary(&rsa.E, t82, t82_len);
         if (r != 0) {
             mbedtls_rsa_free(&rsa);
-            return CCID_EXEC_ERROR;
+            return PICOKEY_EXEC_ERROR;
         }
         r = mbedtls_rsa_complete(&rsa);
         if (r != 0) {
             mbedtls_rsa_free(&rsa);
-            return CCID_EXEC_ERROR;
+            return PICOKEY_EXEC_ERROR;
         }
         r = mbedtls_rsa_check_pubkey(&rsa);
         if (r != 0) {
             mbedtls_rsa_free(&rsa);
-            return CCID_EXEC_ERROR;
+            return PICOKEY_EXEC_ERROR;
         }
         r = mbedtls_rsa_pkcs1_verify(&rsa, md, (unsigned int)hash_len, hash, sig);
         mbedtls_rsa_free(&rsa);
         if (r != 0) {
-            return CCID_WRONG_SIGNATURE;
+            return PICOKEY_WRONG_SIGNATURE;
         }
     }
     else if (memcmp(oid, OID_ID_TA_ECDSA, 9) == 0) {   //ECC
@@ -790,34 +790,34 @@ int puk_verify(const uint8_t *sig,
             md = MBEDTLS_MD_SHA512;
         }
         if (md == MBEDTLS_MD_NONE) {
-            return CCID_WRONG_DATA;
+            return PICOKEY_WRONG_DATA;
         }
 
         uint16_t t86_len = 0;
         const uint8_t *t86 = cvc_get_field(puk, puk_len, &t86_len, 0x86);
         if (!t86) {
-            return CCID_WRONG_DATA;
+            return PICOKEY_WRONG_DATA;
         }
         mbedtls_ecp_group_id ec_id = cvc_inherite_ec_group(ca, ca_len);
         if (ec_id == MBEDTLS_ECP_DP_NONE) {
-            return CCID_WRONG_DATA;
+            return PICOKEY_WRONG_DATA;
         }
         mbedtls_ecdsa_context ecdsa;
         mbedtls_ecdsa_init(&ecdsa);
         int ret = mbedtls_ecp_group_load(&ecdsa.grp, ec_id);
         if (ret != 0) {
             mbedtls_ecdsa_free(&ecdsa);
-            return CCID_WRONG_DATA;
+            return PICOKEY_WRONG_DATA;
         }
         ret = mbedtls_ecp_point_read_binary(&ecdsa.grp, &ecdsa.Q, t86, t86_len);
         if (ret != 0) {
             mbedtls_ecdsa_free(&ecdsa);
-            return CCID_EXEC_ERROR;
+            return PICOKEY_EXEC_ERROR;
         }
         ret = mbedtls_ecp_check_pubkey(&ecdsa.grp, &ecdsa.Q);
         if (ret != 0) {
             mbedtls_ecdsa_free(&ecdsa);
-            return CCID_EXEC_ERROR;
+            return PICOKEY_EXEC_ERROR;
         }
         mbedtls_mpi r, s;
         mbedtls_mpi_init(&r);
@@ -827,44 +827,44 @@ int puk_verify(const uint8_t *sig,
             mbedtls_mpi_free(&r);
             mbedtls_mpi_free(&s);
             mbedtls_ecdsa_free(&ecdsa);
-            return CCID_EXEC_ERROR;
+            return PICOKEY_EXEC_ERROR;
         }
         ret = mbedtls_mpi_read_binary(&s, sig + sig_len / 2, sig_len / 2);
         if (ret != 0) {
             mbedtls_mpi_free(&r);
             mbedtls_mpi_free(&s);
             mbedtls_ecdsa_free(&ecdsa);
-            return CCID_EXEC_ERROR;
+            return PICOKEY_EXEC_ERROR;
         }
         ret = mbedtls_ecdsa_verify(&ecdsa.grp, hash, hash_len, &ecdsa.Q, &r, &s);
         mbedtls_mpi_free(&r);
         mbedtls_mpi_free(&s);
         mbedtls_ecdsa_free(&ecdsa);
         if (ret != 0) {
-            return CCID_WRONG_SIGNATURE;
+            return PICOKEY_WRONG_SIGNATURE;
         }
     }
-    return CCID_OK;
+    return PICOKEY_OK;
 }
 
 int cvc_verify(const uint8_t *cert, uint16_t cert_len, const uint8_t *ca, uint16_t ca_len) {
     uint16_t puk_len = 0;
     const uint8_t *puk = cvc_get_pub(ca, ca_len, &puk_len);
     if (!puk) {
-        return CCID_WRONG_DATA;
+        return PICOKEY_WRONG_DATA;
     }
     uint16_t oid_len = 0, cv_body_len = 0, sig_len = 0;
     const uint8_t *oid = cvc_get_field(puk, puk_len, &oid_len, 0x6);
     const uint8_t *cv_body = cvc_get_body(cert, cert_len, &cv_body_len);
     const uint8_t *sig = cvc_get_sig(cert, cert_len, &sig_len);
     if (!sig) {
-        return CCID_WRONG_DATA;
+        return PICOKEY_WRONG_DATA;
     }
     if (!cv_body) {
-        return CCID_WRONG_DATA;
+        return PICOKEY_WRONG_DATA;
     }
     if (!oid) {
-        return CCID_WRONG_DATA;
+        return PICOKEY_WRONG_DATA;
     }
     mbedtls_md_type_t md = MBEDTLS_MD_NONE;
     if (memcmp(oid, OID_ID_TA_RSA, 9) == 0) { //RSA
@@ -905,18 +905,18 @@ int cvc_verify(const uint8_t *cert, uint16_t cert_len, const uint8_t *ca, uint16
         }
     }
     if (md == MBEDTLS_MD_NONE) {
-        return CCID_WRONG_DATA;
+        return PICOKEY_WRONG_DATA;
     }
     const mbedtls_md_info_t *md_info = mbedtls_md_info_from_type(md);
     uint8_t hash[64], hash_len = mbedtls_md_get_size(md_info);
     uint8_t tlv_body = 2 + format_tlv_len(cv_body_len, NULL);
     int r = mbedtls_md(md_info, cv_body - tlv_body, cv_body_len + tlv_body, hash);
     if (r != 0) {
-        return CCID_EXEC_ERROR;
+        return PICOKEY_EXEC_ERROR;
     }
     r = puk_verify(sig, sig_len, hash, hash_len, ca, ca_len);
     if (r != 0) {
-        return CCID_WRONG_SIGNATURE;
+        return PICOKEY_WRONG_SIGNATURE;
     }
-    return CCID_OK;
+    return PICOKEY_OK;
 }
