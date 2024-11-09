@@ -38,7 +38,7 @@ int cmd_delete_file() {
     if (!authenticate_action(ef, ACL_OP_DELETE_SELF)) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
-    if (delete_file(ef) != CCID_OK) {
+    if (delete_file(ef) != PICOKEY_OK) {
         return SW_EXEC_ERROR();
     }
     return SW_OK();

@@ -57,6 +57,8 @@ from argparse import RawTextHelpFormatter
 
 pin = None
 
+BOOTKEY = [225, 209, 107, 167, 100, 171, 215, 18, 212, 239, 110, 62, 221, 116, 78, 213, 99, 140, 38, 11, 119, 28, 249, 129, 81, 17, 11, 175, 172, 155, 200, 113]
+
 def hexy(a):
     return [hex(i) for i in a]
 
@@ -67,6 +69,7 @@ def parse_args():
     parser.add_argument('--pin', help='PIN number')
     parser_init.add_argument('--so-pin', help='SO-PIN number')
     parser_init.add_argument('--silent', help='Confirms initialization silently.', action='store_true')
+    parser_init.add_argument('--no-dev-cert', help='Do not request a device certificate (it will use a self-signed certificate). Do not use if attestation is needed.', action='store_true', default=False)
 
     parser_attestate = subparser.add_parser('attestate', help='Generates an attestation report for a private key and verifies the private key was generated in the devices or outside.')
     parser_attestate.add_argument('-k', '--key', help='The private key index', metavar='KEY_ID')
@@ -94,11 +97,15 @@ def parse_args():
     parser_phy = subparser.add_parser('phy', help='Set PHY options.')
     subparser_phy = parser_phy.add_subparsers(title='commands', dest='subcommand', required=True)
     parser_phy_vp = subparser_phy.add_parser('vidpid', help='Sets VID/PID. Use VID:PID format (e.g. 1234:5678)')
-    parser_phy_ledn = subparser_phy.add_parser('led', help='Sets LED GPIO number.')
+    parser_phy_ledn = subparser_phy.add_parser('led_gpio', help='Sets LED GPIO number.')
     parser_phy_optwcid = subparser_phy.add_parser('wcid', help='Enable/Disable Web CCID interface.')
     parser_phy_vp.add_argument('value', help='Value of the PHY option.', metavar='VAL', nargs='?')
     parser_phy_ledn.add_argument('value', help='Value of the PHY option.', metavar='VAL', nargs='?')
     parser_phy_optwcid.add_argument('value', choices=['enable', 'disable'], help='Enable/Disable Web CCID interface.', nargs='?')
+    parser_phy_ledbtness = subparser_phy.add_parser('led_brightness', help='Sets LED max. brightness.')
+    parser_phy_ledbtness.add_argument('value', help='Value of the max. brightness.', metavar='VAL', nargs='?')
+    parser_phy_optdimm = subparser_phy.add_parser('led_dimmable', help='Enable/Disable LED dimming.')
+    parser_phy_optdimm.add_argument('value', choices=['enable', 'disable'], help='Enable/Disable LED dimming.', nargs='?')
 
     parser_secure = subparser.add_parser('secure', help='Manages security of Pico HSM.')
     subparser_secure = parser_secure.add_subparsers(title='commands', dest='subcommand', required=True)
@@ -131,9 +138,16 @@ def parse_args():
     parser_keygen = subparser.add_parser('keygen', help='Generates private keypair or secret key.')
     subparser_keygen = parser_keygen.add_subparsers(title='commands', dest='subcommand', required=True)
     parser_keygen_aes = subparser_keygen.add_parser('aes', help='Generates an AES key.')
-    parser_keygen_aes.add_argument('--size', help='Specifies the size of AES key [128, 192 or 256]',choices=[128, 192, 256], default=128, type=int)
+    parser_keygen_aes.add_argument('--size', help='Specifies the size of AES key [128, 192 or 256]', choices=[128, 192, 256], default=128, type=int)
     parser_keygen_x25519 = subparser_keygen.add_parser('x25519', help='Generates a private X25519 keypair.')
     parser_keygen_x448 = subparser_keygen.add_parser('x448', help='Generates a private X448 keypair.')
+
+    parser_otp = subparser.add_parser('otp', help='Read/write OTP values.')
+    parser_otp.add_argument('subcommand', choices=['read', 'write', 'secure_boot'], help='Read, write or enable Secure Boot', nargs='?')
+    parser_otp.add_argument('--row', help='OTP row (in HEX)', required='write' in sys.argv or 'read' in sys.argv)
+    parser_otp.add_argument('-d', '--data', help='Data to write (in HEX) [e.g. 0011223344556677889900AABBCCDDEEFF]', required='write' in sys.argv)
+    parser_otp.add_argument('--lock', help='Lock & protect (no other firmwares can be loaded)', action='store_true')
+    parser_otp.add_argument('--index', help='Bootkey index [0-3]', type=int, default=0, choices=[0, 1, 2, 3])
 
     args = parser.parse_args()
     return args
@@ -204,24 +218,25 @@ def initialize(picohsm, args):
         so_pin = '57621880'
 
     picohsm.initialize(pin=pin, sopin=so_pin)
-    response = picohsm.get_contents(DOPrefixes.EE_CERTIFICATE_PREFIX, 0x00)
+    if (not args.no_dev_cert):
+        response = picohsm.get_contents(DOPrefixes.EE_CERTIFICATE_PREFIX, 0x00)
 
-    cert = bytearray(response)
-    Y = CVC().decode(cert).pubkey().find(0x86).data()
-    print(f'Public Point: {hexlify(Y).decode()}')
+        cert = bytearray(response)
+        Y = CVC().decode(cert).pubkey().find(0x86).data()
+        print(f'Public Point: {hexlify(Y).decode()}')
 
-    pbk = base64.urlsafe_b64encode(Y)
-    data = urllib.parse.urlencode({'pubkey': pbk}).encode()
-    j = get_pki_data('cvc', data=data)
-    print('Device name: '+j['devname'])
-    dataef = base64.urlsafe_b64decode(
-        j['cvcert']) + base64.urlsafe_b64decode(j['dvcert']) + base64.urlsafe_b64decode(j['cacert'])
+        pbk = base64.urlsafe_b64encode(Y)
+        data = urllib.parse.urlencode({'pubkey': pbk}).encode()
+        j = get_pki_data('cvc', data=data)
+        print('Device name: '+j['devname'])
+        dataef = base64.urlsafe_b64decode(
+            j['cvcert']) + base64.urlsafe_b64decode(j['dvcert']) + base64.urlsafe_b64decode(j['cacert'])
 
-    picohsm.select_file(0x2f02)
-    response = picohsm.put_contents(0x0000, data=dataef)
+        picohsm.select_file(0x2f02)
+        response = picohsm.put_contents(0x0000, data=dataef)
 
-    print('Certificate uploaded successfully!')
-    print('')
+        print('Certificate uploaded successfully!')
+        print('')
     print('Note that the device is initialized with a default PIN and '
         'configuration.')
     print('Now you can initialize the device as usual with your chosen PIN '
@@ -460,10 +475,15 @@ def phy(picohsm, args):
             sp = val.split(':')
             if (len(sp) != 2):
                 print('ERROR: VID/PID have wrong format. Use VID:PID format (e.g. 1234:5678)')
+                return
             val = int(sp[0],16).to_bytes(2, 'big') + int(sp[1],16).to_bytes(2, 'big')
-        elif (args.subcommand == 'led'):
+        elif (args.subcommand in ['led_gpio', 'led_brightness']):
+            if (args.subcommand == 'led_brightness'):
+                if (int(val) > 15 or int(val) < 0):
+                    print('ERROR: LED brightness must be between 0 and 15.')
+                    return
             val = [int(val)]
-        elif (args.subcommand == 'wcid'):
+        elif (args.subcommand in ['wcid', 'led_dimmable']):
             val = val == 'enable'
     ret = picohsm.phy(args.subcommand, val)
     if (ret):
@@ -471,8 +491,21 @@ def phy(picohsm, args):
     else:
         print('Command executed successfully. Please, restart your Pico Key.')
 
+def otp(picohsm, args):
+    if (args.subcommand == 'read'):
+        row = int(args.row, 16)
+        ret = picohsm.otp(row=row)
+        print(f'OTP row {args.row}: {hexlify(ret).decode()}')
+    elif (args.subcommand == 'write'):
+        row = int(args.row, 16)
+        data = unhexlify(args.data)
+        picohsm.otp(row=row, data=data)
+        print(f'OTP row {args.row} written successfully.')
+    elif (args.subcommand == 'secure_boot'):
+        picohsm.secure_boot(BOOTKEY, bootkey_index=args.index, lock=args.lock)
+
 def main(args):
-    sys.stderr.buffer.write(b'Pico HSM Tool v1.14\n')
+    sys.stderr.buffer.write(b'Pico HSM Tool v2.0\n')
     sys.stderr.buffer.write(b'Author: Pol Henarejos\n')
     sys.stderr.buffer.write(b'Report bugs to https://github.com/polhenarejos/pico-hsm/issues\n')
     sys.stderr.buffer.write(b'\n\n')
@@ -499,7 +532,8 @@ def main(args):
         keygen(picohsm, args)
     elif (args.command == 'phy'):
         phy(picohsm, args)
-
+    elif (args.command == 'otp'):
+        otp(picohsm, args)
 
 def run():
     args = parse_args()

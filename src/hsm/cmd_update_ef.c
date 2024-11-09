@@ -78,7 +78,7 @@ int cmd_update_ef() {
         }
         if (offset == 0) {
             int r = file_put_data(ef, data, data_len);
-            if (r != CCID_OK) {
+            if (r != PICOKEY_OK) {
                 return SW_MEMORY_FAILURE();
             }
         }
@@ -92,7 +92,7 @@ int cmd_update_ef() {
             memcpy(data_merge + offset, data, data_len);
             int r = file_put_data(ef, data_merge, offset + data_len);
             free(data_merge);
-            if (r != CCID_OK) {
+            if (r != PICOKEY_OK) {
                 return SW_MEMORY_FAILURE();
             }
         }

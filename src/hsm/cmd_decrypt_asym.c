@@ -48,9 +48,9 @@ int cmd_decrypt_asym() {
             mbedtls_rsa_set_padding(&ctx, MBEDTLS_RSA_PKCS_V21, MBEDTLS_MD_SHA256);
         }
         int r = load_private_key_rsa(&ctx, ef);
-        if (r != CCID_OK) {
+        if (r != PICOKEY_OK) {
             mbedtls_rsa_free(&ctx);
-            if (r == CCID_VERIFICATION_FAILED) {
+            if (r == PICOKEY_VERIFICATION_FAILED) {
                 return SW_SECURE_MESSAGE_EXEC_ERROR();
             }
             return SW_EXEC_ERROR();
@@ -178,7 +178,7 @@ int cmd_decrypt_asym() {
                     if (file_get_size(tf) == kdom_uid.len &&
                         memcmp(file_get_data(tf), kdom_uid.data, kdom_uid.len) == 0) {
                         file_new(EF_DKEK + n);
-                        if (store_dkek_key(n, res_APDU + 1) != CCID_OK) {
+                        if (store_dkek_key(n, res_APDU + 1) != PICOKEY_OK) {
                             return SW_EXEC_ERROR();
                         }
                         mbedtls_platform_zeroize(res_APDU, 32);

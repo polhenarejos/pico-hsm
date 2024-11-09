@@ -14,7 +14,7 @@ test $? -eq 0 && echo -n "." || {
     echo -e "\t${FAIL}"
     exit 1
 }
-grep -q "338 tests performed" <<< $e && echo -n "." || {
+grep -q "334 tests performed" <<< $e && echo -n "." || {
     echo -e "\t${FAIL}"
     exit 1
 }

@@ -47,7 +47,7 @@ int cmd_general_authenticate() {
             mbedtls_ecdsa_context ectx;
             mbedtls_ecdsa_init(&ectx);
             r = load_private_key_ecdsa(&ectx, fkey);
-            if (r != CCID_OK) {
+            if (r != PICOKEY_OK) {
                 mbedtls_ecdsa_free(&ectx);
                 return SW_EXEC_ERROR();
             }
@@ -106,7 +106,7 @@ int cmd_general_authenticate() {
             r = sm_sign(t, pubkey_len + 16, res_APDU + res_APDU_size);
 
             free(t);
-            if (r != CCID_OK) {
+            if (r != PICOKEY_OK) {
                 return SW_EXEC_ERROR();
             }
             res_APDU_size += 8;

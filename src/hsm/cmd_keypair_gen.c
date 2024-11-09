@@ -63,7 +63,7 @@ int cmd_keypair_gen() {
                     return SW_EXEC_ERROR();
                 }
                 ret = store_keys(&rsa, PICO_KEYS_KEY_RSA, key_id);
-                if (ret != CCID_OK) {
+                if (ret != PICOKEY_OK) {
                     mbedtls_rsa_free(&rsa);
                     return SW_EXEC_ERROR();
                 }
@@ -131,7 +131,7 @@ int cmd_keypair_gen() {
                 }
                 ret = store_keys(&ecdsa, PICO_KEYS_KEY_EC, key_id);
                 mbedtls_ecdsa_free(&ecdsa);
-                if (ret != CCID_OK) {
+                if (ret != PICOKEY_OK) {
                     return SW_EXEC_ERROR();
                 }
             }
@@ -141,7 +141,7 @@ int cmd_keypair_gen() {
     else {
         return SW_WRONG_DATA();
     }
-    if (find_and_store_meta_key(key_id) != CCID_OK) {
+    if (find_and_store_meta_key(key_id) != PICOKEY_OK) {
         return SW_EXEC_ERROR();
     }
     file_t *fpk = file_new((EE_CERTIFICATE_PREFIX << 8) | key_id);

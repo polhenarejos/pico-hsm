@@ -43,6 +43,8 @@ bool has_session_pin = false, has_session_sopin = false;
 const uint8_t *dev_name = NULL;
 uint16_t dev_name_len = 0;
 
+uint8_t PICO_PRODUCT = 1;
+
 static int sc_hsm_process_apdu();
 
 static void init_sc_hsm();
@@ -85,7 +87,7 @@ int sc_hsm_select_aid(app_t *a, uint8_t force) {
     a->process_apdu = sc_hsm_process_apdu;
     a->unload = sc_hsm_unload;
     init_sc_hsm();
-    return CCID_OK;
+    return PICOKEY_OK;
 }
 
 INITIALIZER( sc_hsm_ctor ) {
@@ -178,10 +180,10 @@ uint8_t puk_status[MAX_PUK];
 
 int add_cert_puk_store(const uint8_t *data, uint16_t data_len, bool copy) {
     if (data == NULL || data_len == 0) {
-        return CCID_ERR_NULL_PARAM;
+        return PICOKEY_ERR_NULL_PARAM;
     }
     if (puk_store_entries == MAX_PUK_STORE_ENTRIES) {
-        return CCID_ERR_MEMORY_FATAL;
+        return PICOKEY_ERR_MEMORY_FATAL;
     }
 
     puk_store[puk_store_entries].copied = copy;
@@ -205,17 +207,17 @@ int add_cert_puk_store(const uint8_t *data, uint16_t data_len, bool copy) {
                                                    &puk_store[puk_store_entries].puk_len);
 
     puk_store_entries++;
-    return CCID_OK;
+    return PICOKEY_OK;
 }
 
 int puk_store_select_chr(const uint8_t *chr) {
     for (int i = 0; i < puk_store_entries; i++) {
         if (memcmp(puk_store[i].chr, chr, puk_store[i].chr_len) == 0) {
             current_puk = &puk_store[i];
-            return CCID_OK;
+            return PICOKEY_OK;
         }
     }
-    return CCID_ERR_FILE_NOT_FOUND;
+    return PICOKEY_ERR_FILE_NOT_FOUND;
 }
 
 void reset_puk_store() {
@@ -261,7 +263,7 @@ int sc_hsm_unload() {
     has_session_pin = has_session_sopin = false;
     isUserAuthenticated = false;
     sm_session_pin_len = 0;
-    return CCID_OK;
+    return PICOKEY_OK;
 }
 
 uint16_t get_device_options() {
@@ -334,16 +336,16 @@ int parse_ef_dir(const file_t *f, int mode) {
 
 int pin_reset_retries(const file_t *pin, bool force) {
     if (!pin) {
-        return CCID_ERR_NULL_PARAM;
+        return PICOKEY_ERR_NULL_PARAM;
     }
     const file_t *max = search_file(pin->fid + 1);
     const file_t *act = search_file(pin->fid + 2);
     if (!max || !act) {
-        return CCID_ERR_FILE_NOT_FOUND;
+        return PICOKEY_ERR_FILE_NOT_FOUND;
     }
     uint8_t retries = file_read_uint8(act);
     if (retries == 0 && force == false) { // blocked
-        return CCID_ERR_BLOCKED;
+        return PICOKEY_ERR_BLOCKED;
     }
     retries = file_read_uint8(max);
     int r = file_put_data((file_t *) act, &retries, sizeof(retries));
@@ -353,26 +355,26 @@ int pin_reset_retries(const file_t *pin, bool force) {
 
 int pin_wrong_retry(const file_t *pin) {
     if (!pin) {
-        return CCID_ERR_NULL_PARAM;
+        return PICOKEY_ERR_NULL_PARAM;
     }
     const file_t *act = search_file(pin->fid + 2);
     if (!act) {
-        return CCID_ERR_FILE_NOT_FOUND;
+        return PICOKEY_ERR_FILE_NOT_FOUND;
     }
     uint8_t retries = file_read_uint8(act);
     if (retries > 0) {
         retries -= 1;
         int r = file_put_data((file_t *) act, &retries, sizeof(retries));
-        if (r != CCID_OK) {
+        if (r != PICOKEY_OK) {
             return r;
         }
         low_flash_available();
         if (retries == 0) {
-            return CCID_ERR_BLOCKED;
+            return PICOKEY_ERR_BLOCKED;
         }
         return retries;
     }
-    return CCID_ERR_BLOCKED;
+    return PICOKEY_ERR_BLOCKED;
 }
 
 bool pka_enabled() {
@@ -391,7 +393,7 @@ uint16_t check_pin(const file_t *pin, const uint8_t *data, uint16_t len) {
     if (is_secured_apdu() && sm_session_pin_len > 0 && pin == file_pin1) {
         if (len == sm_session_pin_len && memcmp(data, sm_session_pin, len) != 0) {
             int retries;
-            if ((retries = pin_wrong_retry(pin)) < CCID_OK) {
+            if ((retries = pin_wrong_retry(pin)) < PICOKEY_OK) {
                 return SW_PIN_BLOCKED();
             }
             return set_res_sw(0x63, 0xc0 | (uint8_t)retries);
@@ -405,17 +407,17 @@ uint16_t check_pin(const file_t *pin, const uint8_t *data, uint16_t len) {
         }
         if (memcmp(file_get_data(pin) + 1, dhash, sizeof(dhash)) != 0) {
             int retries;
-            if ((retries = pin_wrong_retry(pin)) < CCID_OK) {
+            if ((retries = pin_wrong_retry(pin)) < PICOKEY_OK) {
                 return SW_PIN_BLOCKED();
             }
             return set_res_sw(0x63, 0xc0 | (uint8_t)retries);
         }
     }
     int r = pin_reset_retries(pin, false);
-    if (r == CCID_ERR_BLOCKED) {
+    if (r == PICOKEY_ERR_BLOCKED) {
         return SW_PIN_BLOCKED();
     }
-    if (r != CCID_OK) {
+    if (r != PICOKEY_OK) {
         return SW_MEMORY_FAILURE();
     }
     if (pka_enabled() == false) {
@@ -552,18 +554,18 @@ int store_keys(void *key_ctx, int type, uint8_t key_id) {
         memcpy(kdata, key_ctx, key_size);
     }
     else {
-        return CCID_WRONG_DATA;
+        return PICOKEY_WRONG_DATA;
     }
     file_t *fpk = file_new((KEY_PREFIX << 8) | key_id);
     if (!fpk) {
-        return CCID_ERR_MEMORY_FATAL;
+        return PICOKEY_ERR_MEMORY_FATAL;
     }
     r = mkek_encrypt(kdata, key_size);
-    if (r != CCID_OK) {
+    if (r != PICOKEY_OK) {
         return r;
     }
     r = file_put_data(fpk, kdata, (uint16_t)key_size);
-    if (r != CCID_OK) {
+    if (r != PICOKEY_OK) {
         return r;
     }
     char key_id_str[4] = {0};
@@ -580,7 +582,7 @@ int store_keys(void *key_ctx, int type, uint8_t key_id) {
         }
     }
     low_flash_available();
-    return CCID_OK;
+    return PICOKEY_OK;
 }
 
 int find_and_store_meta_key(uint8_t key_id) {
@@ -614,81 +616,81 @@ int find_and_store_meta_key(uint8_t key_id) {
         int r = meta_add((KEY_PREFIX << 8) | key_id, meta, (uint16_t)meta_size);
         free(meta);
         if (r != 0) {
-            return CCID_EXEC_ERROR;
+            return PICOKEY_EXEC_ERROR;
         }
     }
-    return CCID_OK;
+    return PICOKEY_OK;
 }
 
 int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
     if (wait_button_pressed() == true) { // timeout
-        return CCID_VERIFICATION_FAILED;
+        return PICOKEY_VERIFICATION_FAILED;
     }
 
     uint16_t key_size = file_get_size(fkey);
     uint8_t kdata[4096 / 8];
     memcpy(kdata, file_get_data(fkey), key_size);
     if (mkek_decrypt(kdata, key_size) != 0) {
-        return CCID_EXEC_ERROR;
+        return PICOKEY_EXEC_ERROR;
     }
     if (mbedtls_mpi_read_binary(&ctx->P, kdata, key_size / 2) != 0) {
         mbedtls_platform_zeroize(kdata, sizeof(kdata));
         mbedtls_rsa_free(ctx);
-        return CCID_WRONG_DATA;
+        return PICOKEY_WRONG_DATA;
     }
     if (mbedtls_mpi_read_binary(&ctx->Q, kdata + key_size / 2, key_size / 2) != 0) {
         mbedtls_platform_zeroize(kdata, sizeof(kdata));
         mbedtls_rsa_free(ctx);
-        return CCID_WRONG_DATA;
+        return PICOKEY_WRONG_DATA;
     }
     if (mbedtls_mpi_lset(&ctx->E, 0x10001) != 0) {
         mbedtls_platform_zeroize(kdata, sizeof(kdata));
         mbedtls_rsa_free(ctx);
-        return CCID_EXEC_ERROR;
+        return PICOKEY_EXEC_ERROR;
     }
     if (mbedtls_rsa_import(ctx, NULL, &ctx->P, &ctx->Q, NULL, &ctx->E) != 0) {
         mbedtls_platform_zeroize(kdata, sizeof(kdata));
         mbedtls_rsa_free(ctx);
-        return CCID_WRONG_DATA;
+        return PICOKEY_WRONG_DATA;
     }
     if (mbedtls_rsa_complete(ctx) != 0) {
         mbedtls_platform_zeroize(kdata, sizeof(kdata));
         mbedtls_rsa_free(ctx);
-        return CCID_WRONG_DATA;
+        return PICOKEY_WRONG_DATA;
     }
     if (mbedtls_rsa_check_privkey(ctx) != 0) {
         mbedtls_platform_zeroize(kdata, sizeof(kdata));
         mbedtls_rsa_free(ctx);
-        return CCID_WRONG_DATA;
+        return PICOKEY_WRONG_DATA;
     }
-    return CCID_OK;
+    return PICOKEY_OK;
 }
 
 int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey) {
     if (wait_button_pressed() == true) { // timeout
-        return CCID_VERIFICATION_FAILED;
+        return PICOKEY_VERIFICATION_FAILED;
     }
 
     uint16_t key_size = file_get_size(fkey);
     uint8_t kdata[67]; // Worst case, 521 bit + 1byte
     memcpy(kdata, file_get_data(fkey), key_size);
     if (mkek_decrypt(kdata, key_size) != 0) {
-        return CCID_EXEC_ERROR;
+        return PICOKEY_EXEC_ERROR;
     }
     mbedtls_ecp_group_id gid = kdata[0];
     int r = mbedtls_ecp_read_key(gid, ctx, kdata + 1, key_size - 1);
     if (r != 0) {
         mbedtls_platform_zeroize(kdata, sizeof(kdata));
         mbedtls_ecdsa_free(ctx);
-        return CCID_EXEC_ERROR;
+        return PICOKEY_EXEC_ERROR;
     }
     mbedtls_platform_zeroize(kdata, sizeof(kdata));
     r = mbedtls_ecp_mul(&ctx->grp, &ctx->Q, &ctx->d, &ctx->grp.G, random_gen, NULL);
     if (r != 0) {
         mbedtls_ecdsa_free(ctx);
-        return CCID_EXEC_ERROR;
+        return PICOKEY_EXEC_ERROR;
     }
-    return CCID_OK;
+    return PICOKEY_OK;
 }
 
 #define INS_VERIFY                  0x20
@@ -754,7 +756,7 @@ static const cmd_t cmds[] = {
 
 int sc_hsm_process_apdu() {
     int r = sm_unwrap();
-    if (r != CCID_OK) {
+    if (r != PICOKEY_OK) {
         return SW_DATA_INVALID();
     }
     for (const cmd_t *cmd = cmds; cmd->ins != 0x00; cmd++) {
