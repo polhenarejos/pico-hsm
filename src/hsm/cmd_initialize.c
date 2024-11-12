@@ -15,8 +15,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "crypto_utils.h"
 #include "sc_hsm.h"
+#include "crypto_utils.h"
 #include "files.h"
 #include "random.h"
 #include "kek.h"
@@ -187,6 +187,11 @@ int cmd_initialize() {
             uint8_t key_id = 0;
             if (otp_key_2) {
                 ret = mbedtls_ecp_read_key(MBEDTLS_ECP_DP_SECP256K1, &ecdsa, otp_key_2, 32);
+                if (ret != 0) {
+                    mbedtls_ecdsa_free(&ecdsa);
+                    return SW_EXEC_ERROR();
+                }
+                ret = mbedtls_ecp_mul(&ecdsa.grp, &ecdsa.Q, &ecdsa.d, &ecdsa.grp.G, random_gen, NULL);
             }
             else {
                 ret = mbedtls_ecdsa_genkey(&ecdsa, ec_id, random_gen, NULL);
