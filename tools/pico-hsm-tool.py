@@ -39,7 +39,7 @@ except ModuleNotFoundError:
     sys.exit(-1)
 
 try:
-    from picohsm import PicoHSM, PinType, DOPrefixes, KeyType, EncryptionMode, utils, APDUResponse, SWCodes, AES
+    from picohsm import PicoHSM, PinType, DOPrefixes, KeyType, EncryptionMode, utils, APDUResponse, SWCodes, AES, Platform
 except ModuleNotFoundError:
     print('ERROR: picohsm module not found! Install picohsm package.\nTry with `pip install pypicohsm`')
     sys.exit(-1)
@@ -226,7 +226,10 @@ def initialize(picohsm, args):
         print(f'Public Point: {hexlify(Y).decode()}')
 
         pbk = base64.urlsafe_b64encode(Y)
-        data = urllib.parse.urlencode({'pubkey': pbk}).encode()
+        params = {'pubkey': pbk}
+        if (picohsm.platform in (Platform.RP2350, Platform.ESP32)):
+            params['curve'] = 'secp256k1'
+        data = urllib.parse.urlencode(params).encode()
         j = get_pki_data('cvc', data=data)
         print('Device name: '+j['devname'])
         dataef = base64.urlsafe_b64decode(
