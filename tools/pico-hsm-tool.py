@@ -367,7 +367,7 @@ class SecureLock:
 
     def disable_device_aut(self):
         ct = self.get_skey()
-        self.picohsm.send(cla=0x80, command=0x64, p1=0x3A, p2=0x04, p3=list(ct))
+        self.picohsm.send(cla=0x80, command=0x64, p1=0x3A, p2=0x04, data=list(ct))
 
 def secure(picohsm, args):
     slck = SecureLock(picohsm)
