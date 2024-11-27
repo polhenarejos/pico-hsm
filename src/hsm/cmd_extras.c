@@ -19,6 +19,7 @@
 #include "mbedtls/ecdh.h"
 #ifdef PICO_PLATFORM
 #include "pico/aon_timer.h"
+#include "hardware/watchdog.h"
 #else
 #include <sys/time.h>
 #include <time.h>
@@ -35,6 +36,7 @@
 #define CMD_DATETIME 0xA
 #define CMD_DYNOPS 0x6
 #define CMD_SECURE_LOCK 0x3A
+#define CMD_REBOOT 0xFB
 #define SECURE_LOCK_KEY_AGREEMENT 0x1
 #define SECURE_LOCK_ENABLE 0x2
 #define SECURE_LOCK_MASK 0x3
@@ -286,6 +288,14 @@ int cmd_extras() {
                 return SW_EXEC_ERROR();
             }
         }
+    }
+#endif
+#ifdef PICO_PLATFORM
+    else if (P1(apdu) == CMD_REBOOT) {
+        if (apdu.nc != 0) {
+            return SW_WRONG_LENGTH();
+        }
+        watchdog_reboot(0, 0, 100);
     }
 #endif
     else {

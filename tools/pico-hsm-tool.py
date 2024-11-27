@@ -149,6 +149,8 @@ def parse_args():
     parser_otp.add_argument('--lock', help='Lock & protect (no other firmwares can be loaded)', action='store_true')
     parser_otp.add_argument('--index', help='Bootkey index [0-3]', type=int, default=0, choices=[0, 1, 2, 3])
 
+    parser_reboot = subparser.add_parser('reboot', help='Reboots the Pico HSM.')
+
     args = parser.parse_args()
     return args
 
@@ -507,6 +509,9 @@ def otp(picohsm, args):
     elif (args.subcommand == 'secure_boot'):
         picohsm.secure_boot(BOOTKEY, bootkey_index=args.index, lock=args.lock)
 
+def reboot(picohsm, args):
+    picohsm.reboot()
+
 def main(args):
     sys.stderr.buffer.write(b'Pico HSM Tool v2.0\n')
     sys.stderr.buffer.write(b'Author: Pol Henarejos\n')
@@ -537,6 +542,8 @@ def main(args):
         phy(picohsm, args)
     elif (args.command == 'otp'):
         otp(picohsm, args)
+    elif (args.command == 'reboot'):
+        reboot(picohsm, args)
 
 def run():
     args = parse_args()
