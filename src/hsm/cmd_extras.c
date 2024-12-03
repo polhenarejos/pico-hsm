@@ -197,7 +197,7 @@ int cmd_extras() {
                 low_flash_available();
             }
             else if (P2(apdu) == SECURE_LOCK_MASK) {
-                memcpy(mkek_mask, apdu.data, apdu.nc);
+                memcpy(mkek_mask, apdu.data, MKEK_KEY_SIZE);
                 has_mkek_mask = true;
             }
         }
