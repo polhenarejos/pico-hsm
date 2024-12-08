@@ -43,10 +43,14 @@ extern void reset_puk_store();
 int cmd_initialize() {
     if (apdu.nc > 0) {
         uint8_t mkek[MKEK_SIZE];
+        uint16_t opts = get_device_options();
+        if (opts & HSM_OPT_SECURE_LOCK && !has_mkek_mask) {
+            return SW_SECURITY_STATUS_NOT_SATISFIED();
+        }
         int ret_mkek = load_mkek(mkek); //Try loading MKEK with previous session
         initialize_flash(true);
         scan_all();
-        has_session_pin = has_session_sopin = false;
+        has_session_pin = has_session_sopin = has_mkek_mask = false;
         uint16_t tag = 0x0;
         uint8_t *tag_data = NULL, *p = NULL, *kds = NULL, *dkeks = NULL;
         uint16_t tag_len = 0;
