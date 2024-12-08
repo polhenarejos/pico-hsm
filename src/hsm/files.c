@@ -61,7 +61,7 @@ file_t file_entries[] = {
                .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL,
                .ef_structure = FILE_EF_TRANSPARENT, .acl = { 0xff } },                                                                                                            //retries PIN (SOPIN)
     /* 15 */ { .fid = EF_DEVOPS, .parent = 5, .name = NULL,
-               .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH, .data = NULL,
+               .type = FILE_TYPE_INTERNAL_EF | FILE_DATA_FLASH | FILE_PERSISTENT, .data = NULL,
                .ef_structure = FILE_EF_TRANSPARENT, .acl = { 0xff } },                                                                                                            //Device options
     /* 16 */ { .fid = EF_PRKDFS, .parent = 5, .name = NULL, .type = FILE_TYPE_WORKING_EF,
                .data = NULL, .ef_structure = FILE_EF_TRANSPARENT, .acl = { 0 } },                                                                           //EF.PrKDFs
