@@ -162,13 +162,12 @@ int cmd_extras() {
             if (mse.init == false) {
                 return SW_COMMAND_NOT_ALLOWED();
             }
-
+            uint16_t opts = get_device_options();
             int ret = mse_decrypt_ct(apdu.data, apdu.nc);
             if (ret != 0) {
                 return SW_WRONG_DATA();
             }
             if (P2(apdu) == SECURE_LOCK_ENABLE || P2(apdu) == SECURE_LOCK_DISABLE) { // Enable
-                uint16_t opts = get_device_options();
                 uint8_t newopts[] = { opts >> 8, (opts & 0xff) };
                 if ((P2(apdu) == SECURE_LOCK_ENABLE && !(opts & HSM_OPT_SECURE_LOCK)) ||
                     (P2(apdu) == SECURE_LOCK_DISABLE && (opts & HSM_OPT_SECURE_LOCK))) {
@@ -196,7 +195,7 @@ int cmd_extras() {
                 file_put_data(tf, newopts, sizeof(newopts));
                 low_flash_available();
             }
-            else if (P2(apdu) == SECURE_LOCK_MASK) {
+            else if (P2(apdu) == SECURE_LOCK_MASK && (opts & HSM_OPT_SECURE_LOCK)) {
                 memcpy(mkek_mask, apdu.data, MKEK_KEY_SIZE);
                 has_mkek_mask = true;
             }
