@@ -50,6 +50,14 @@ uint32_t crc32c(const uint8_t *buf, size_t len) {
     return ~crc;
 }
 
+void mkek_masked(uint8_t *mkek, const uint8_t *mask) {
+    if (mask) {
+        for (int i = 0; i < MKEK_KEY_SIZE; i++) {
+            MKEK_KEY(mkek)[i] ^= mask[i];
+        }
+    }
+}
+
 int load_mkek(uint8_t *mkek) {
     if (has_session_pin == false && has_session_sopin == false) {
         return PICOKEY_NO_LOGIN;
@@ -73,6 +81,10 @@ int load_mkek(uint8_t *mkek) {
         return PICOKEY_EXEC_ERROR;
     }
 
+    if (has_mkek_mask) {
+        mkek_masked(mkek, mkek_mask);
+    }
+
     int ret = aes_decrypt_cfb_256(pin, MKEK_IV(mkek), MKEK_KEY(mkek), MKEK_KEY_SIZE + MKEK_KEY_CS_SIZE);
     if (ret != 0) {
         return PICOKEY_EXEC_ERROR;
@@ -80,11 +92,8 @@ int load_mkek(uint8_t *mkek) {
     if (crc32c(MKEK_KEY(mkek), MKEK_KEY_SIZE) != *(uint32_t *) MKEK_CHECKSUM(mkek)) {
         return PICOKEY_WRONG_DKEK;
     }
-    if (has_mkek_mask || otp_key_1) {
-        const uint8_t *mask = otp_key_1 ? otp_key_1 : mkek_mask;
-        for (int i = 0; i < MKEK_KEY_SIZE; i++) {
-            MKEK_KEY(mkek)[i] ^= mask[i];
-        }
+    if (otp_key_1) {
+        mkek_masked(mkek, otp_key_1);
     }
     return PICOKEY_OK;
 }
