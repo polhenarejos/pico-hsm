@@ -119,8 +119,8 @@ int cmd_select() {
             res_APDU[res_APDU_size++] = 0x85;
             res_APDU[res_APDU_size++] = 5;
             uint16_t opts = get_device_options();
-            res_APDU[res_APDU_size++] = opts >> 8;
-            res_APDU[res_APDU_size++] = opts & 0xff;
+            put_uint16_t_be(opts, res_APDU + res_APDU_size);
+            res_APDU_size += 2;
             res_APDU[res_APDU_size++] = 0xFF;
             res_APDU[res_APDU_size++] = HSM_VERSION_MAJOR;
             res_APDU[res_APDU_size++] = HSM_VERSION_MINOR;

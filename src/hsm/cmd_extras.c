@@ -70,8 +70,8 @@ int cmd_extras() {
             gettimeofday(&tv, NULL);
 #endif
             struct tm *tm = localtime(&tv.tv_sec);
-            res_APDU[res_APDU_size++] = (tm->tm_year + 1900) >> 8;
-            res_APDU[res_APDU_size++] = (tm->tm_year + 1900) & 0xff;
+            put_uint16_t_be(tm->tm_year + 1900, res_APDU);
+            res_APDU_size += 2;
             res_APDU[res_APDU_size++] = tm->tm_mon;
             res_APDU[res_APDU_size++] = tm->tm_mday;
             res_APDU[res_APDU_size++] = tm->tm_wday;
@@ -110,8 +110,8 @@ int cmd_extras() {
         }
         uint16_t opts = get_device_options();
         if (apdu.nc == 0) {
-            res_APDU[res_APDU_size++] = opts >> 8;
-            res_APDU[res_APDU_size++] = opts & 0xff;
+            put_uint16_t_be(opts, res_APDU);
+            res_APDU_size += 2;
         }
         else {
             uint8_t newopts[] = { apdu.data[0], (opts & 0xff) };

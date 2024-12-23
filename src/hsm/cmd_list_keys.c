@@ -22,12 +22,12 @@ int cmd_list_keys() {
     /* First we send DEV private key */
     /* Both below conditions should be always TRUE */
     if (search_file(EF_PRKD_DEV)) {
-        res_APDU[res_APDU_size++] = EF_PRKD_DEV >> 8;
-        res_APDU[res_APDU_size++] = EF_PRKD_DEV & 0xff;
+        put_uint16_t_be(EF_PRKD_DEV, res_APDU + res_APDU_size);
+        res_APDU_size += 2;
     }
     if (search_file(EF_KEY_DEV)) {
-        res_APDU[res_APDU_size++] = EF_KEY_DEV >> 8;
-        res_APDU[res_APDU_size++] = EF_KEY_DEV & 0xff;
+        put_uint16_t_be(EF_KEY_DEV, res_APDU + res_APDU_size);
+        res_APDU_size += 2;
     }
     //first CC
     for (int i = 0; i < dynamic_files; i++) {
