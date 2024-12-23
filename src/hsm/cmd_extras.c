@@ -43,11 +43,13 @@
 #define SECURE_LOCK_DISABLE 0x4
 #define CMD_PHY 0x1B
 #define CMD_OTP 0x4C
+#define CMD_MEMORY 0x5
 
 int cmd_extras() {
+    int cmd = P1(apdu);
 #ifndef ENABLE_EMULATION
     // Only allow change PHY without PIN
-    if (!isUserAuthenticated && P1(apdu) != 0x1B) {
+    if (!isUserAuthenticated && cmd != CMD_PHY && cmd != CMD_MEMORY) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
 #endif
@@ -55,7 +57,7 @@ int cmd_extras() {
     if (wait_button_pressed() == true) {
         return SW_SECURE_MESSAGE_EXEC_ERROR();
     }
-    if (P1(apdu) == CMD_DATETIME) { //datetime operations
+    if (cmd == CMD_DATETIME) { //datetime operations
         if (P2(apdu) != 0x0) {
             return SW_INCORRECT_P1P2();
         }
@@ -99,7 +101,7 @@ int cmd_extras() {
 #endif
         }
     }
-    else if (P1(apdu) == CMD_DYNOPS) {   //dynamic options
+    else if (cmd == CMD_DYNOPS) {   //dynamic options
         if (P2(apdu) != 0x0) {
             return SW_INCORRECT_P1P2();
         }
@@ -118,7 +120,7 @@ int cmd_extras() {
             low_flash_available();
         }
     }
-    else if (P1(apdu) == CMD_SECURE_LOCK) {   // secure lock
+    else if (cmd == CMD_SECURE_LOCK) {   // secure lock
         if (apdu.nc == 0) {
             return SW_WRONG_LENGTH();
         }
@@ -202,7 +204,7 @@ int cmd_extras() {
         }
     }
 #ifndef ENABLE_EMULATION
-    else if (P1(apdu) == CMD_PHY) { // Set PHY
+    else if (cmd == CMD_PHY) { // Set PHY
         if (apdu.nc == 0) {
             if (file_has_data(ef_phy)) {
                 res_APDU_size = file_get_size(ef_phy);
@@ -247,7 +249,7 @@ int cmd_extras() {
     }
 #endif
 #if PICO_RP2350
-    else if (P1(apdu) == CMD_OTP) {
+    else if (cmd == CMD_OTP) {
         if (apdu.nc < 2) {
             return SW_WRONG_LENGTH();
         }
@@ -290,13 +292,37 @@ int cmd_extras() {
     }
 #endif
 #ifdef PICO_PLATFORM
-    else if (P1(apdu) == CMD_REBOOT) {
+    else if (cmd == CMD_REBOOT) {
         if (apdu.nc != 0) {
             return SW_WRONG_LENGTH();
         }
         watchdog_reboot(0, 0, 100);
     }
 #endif
+    else if (cmd == CMD_MEMORY) {
+        res_APDU_size = 0;
+        uint32_t free = flash_free_space(), total = flash_total_space(), used = flash_used_space(), nfiles = flash_num_files(), size = flash_size();
+        res_APDU[res_APDU_size++] = free >> 24;
+        res_APDU[res_APDU_size++] = free >> 16;
+        res_APDU[res_APDU_size++] = free >> 8;
+        res_APDU[res_APDU_size++] = free;
+        res_APDU[res_APDU_size++] = used >> 24;
+        res_APDU[res_APDU_size++] = used >> 16;
+        res_APDU[res_APDU_size++] = used >> 8;
+        res_APDU[res_APDU_size++] = used;
+        res_APDU[res_APDU_size++] = total >> 24;
+        res_APDU[res_APDU_size++] = total >> 16;
+        res_APDU[res_APDU_size++] = total >> 8;
+        res_APDU[res_APDU_size++] = total;
+        res_APDU[res_APDU_size++] = nfiles >> 24;
+        res_APDU[res_APDU_size++] = nfiles >> 16;
+        res_APDU[res_APDU_size++] = nfiles >> 8;
+        res_APDU[res_APDU_size++] = nfiles;
+        res_APDU[res_APDU_size++] = size >> 24;
+        res_APDU[res_APDU_size++] = size >> 16;
+        res_APDU[res_APDU_size++] = size >> 8;
+        res_APDU[res_APDU_size++] = size;
+    }
     else {
         return SW_INCORRECT_P1P2();
     }

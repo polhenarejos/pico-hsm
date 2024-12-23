@@ -151,6 +151,8 @@ def parse_args():
 
     parser_reboot = subparser.add_parser('reboot', help='Reboots the Pico HSM.')
 
+    parser_memory = subparser.add_parser('memory', help='Get memory usage.')
+
     args = parser.parse_args()
     return args
 
@@ -512,8 +514,17 @@ def otp(picohsm, args):
 def reboot(picohsm, args):
     picohsm.reboot()
 
+def memory(picohsm, args):
+    mem = picohsm.memory()
+    print(f'Memory usage:')
+    print(f'\tFree: {mem["free"]/1024:.2f} kilobytes ({mem["free"]*100/mem["total"]:.2f}%)')
+    print(f'\tUsed: {mem["used"]/1024:.2f} kilobytes ({mem["used"]*100/mem["total"]:.2f}%)')
+    print(f'\tTotal: {mem["total"]/1024:.2f} kilobytes')
+    print(f'\tFlash size: {mem["size"]/1024:.2f} kilobytes')
+    print(f'\tFiles: {mem["files"]}')
+
 def main(args):
-    sys.stderr.buffer.write(b'Pico HSM Tool v2.0\n')
+    sys.stderr.buffer.write(b'Pico HSM Tool v2.2\n')
     sys.stderr.buffer.write(b'Author: Pol Henarejos\n')
     sys.stderr.buffer.write(b'Report bugs to https://github.com/polhenarejos/pico-hsm/issues\n')
     sys.stderr.buffer.write(b'\n\n')
@@ -544,6 +555,8 @@ def main(args):
         otp(picohsm, args)
     elif (args.command == 'reboot'):
         reboot(picohsm, args)
+    elif (args.command == 'memory'):
+        memory(picohsm, args)
 
 def run():
     args = parse_args()
