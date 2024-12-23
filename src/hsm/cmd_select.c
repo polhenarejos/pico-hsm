@@ -48,7 +48,7 @@ int cmd_select() {
     //}
 
     if (apdu.nc == 2) {
-        fid = get_uint16_t_be(apdu.data, 0);
+        fid = get_uint16_t_be(apdu.data);
     }
 
     //if ((fid & 0xff00) == (KEY_PREFIX << 8))
@@ -119,8 +119,7 @@ int cmd_select() {
             res_APDU[res_APDU_size++] = 0x85;
             res_APDU[res_APDU_size++] = 5;
             uint16_t opts = get_device_options();
-            put_uint16_t_be(opts, res_APDU + res_APDU_size);
-            res_APDU_size += 2;
+            res_APDU_size += put_uint16_t_be(opts, res_APDU + res_APDU_size);
             res_APDU[res_APDU_size++] = 0xFF;
             res_APDU[res_APDU_size++] = HSM_VERSION_MAJOR;
             res_APDU[res_APDU_size++] = HSM_VERSION_MINOR;

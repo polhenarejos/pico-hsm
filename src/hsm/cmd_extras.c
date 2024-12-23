@@ -70,8 +70,7 @@ int cmd_extras() {
             gettimeofday(&tv, NULL);
 #endif
             struct tm *tm = localtime(&tv.tv_sec);
-            put_uint16_t_be(tm->tm_year + 1900, res_APDU);
-            res_APDU_size += 2;
+            res_APDU_size += put_uint16_t_be(tm->tm_year + 1900, res_APDU);
             res_APDU[res_APDU_size++] = tm->tm_mon;
             res_APDU[res_APDU_size++] = tm->tm_mday;
             res_APDU[res_APDU_size++] = tm->tm_wday;
@@ -84,7 +83,7 @@ int cmd_extras() {
                 return SW_WRONG_LENGTH();
             }
             struct tm tm;
-            tm.tm_year = ((apdu.data[0] << 8) | (apdu.data[1])) - 1900;
+            tm.tm_year = get_uint16_t_be(apdu.data) - 1900;
             tm.tm_mon = apdu.data[2];
             tm.tm_mday = apdu.data[3];
             tm.tm_wday = apdu.data[4];
@@ -110,8 +109,7 @@ int cmd_extras() {
         }
         uint16_t opts = get_device_options();
         if (apdu.nc == 0) {
-            put_uint16_t_be(opts, res_APDU);
-            res_APDU_size += 2;
+            res_APDU_size += put_uint16_t_be(opts, res_APDU);
         }
         else {
             uint8_t newopts[] = { apdu.data[0], (opts & 0xff) };
@@ -216,8 +214,8 @@ int cmd_extras() {
                 if (apdu.nc != 4) {
                     return SW_WRONG_LENGTH();
                 }
-                phy_data.vid = (apdu.data[0] << 8) | apdu.data[1];
-                phy_data.pid = (apdu.data[2] << 8) | apdu.data[3];
+                phy_data.vid = get_uint16_t_be(apdu.data);
+                phy_data.pid = get_uint16_t_be(apdu.data + 2);
                 phy_data.vidpid_present = true;
             }
             else if (P2(apdu) == PHY_LED_GPIO) {
@@ -232,7 +230,7 @@ int cmd_extras() {
                 if (apdu.nc != 2) {
                     return SW_WRONG_LENGTH();
                 }
-                phy_data.opts = (apdu.data[0] << 8) | apdu.data[1];
+                phy_data.opts = get_uint16_t_be(apdu.data);
             }
             else {
                 return SW_INCORRECT_P1P2();
@@ -253,7 +251,7 @@ int cmd_extras() {
         if (apdu.nc < 2) {
             return SW_WRONG_LENGTH();
         }
-        uint16_t row = (apdu.data[0] << 8) | apdu.data[1];
+        uint16_t row = get_uint16_t_be(apdu.data);
         bool israw = P2(apdu) == 0x1;
         if (apdu.nc == 2) {
             if (row > 0xbf && row < 0xf48) {
@@ -302,16 +300,11 @@ int cmd_extras() {
     else if (cmd == CMD_MEMORY) {
         res_APDU_size = 0;
         uint32_t free = flash_free_space(), total = flash_total_space(), used = flash_used_space(), nfiles = flash_num_files(), size = flash_size();
-        put_uint32_t_be(free, res_APDU + res_APDU_size);
-        res_APDU_size += 4;
-        put_uint32_t_be(used, res_APDU + res_APDU_size);
-        res_APDU_size += 4;
-        put_uint32_t_be(total, res_APDU + res_APDU_size);
-        res_APDU_size += 4;
-        put_uint32_t_be(nfiles, res_APDU + res_APDU_size);
-        res_APDU_size += 4;
-        put_uint32_t_be(size, res_APDU + res_APDU_size);
-        res_APDU_size += 4;
+        res_APDU_size += put_uint32_t_be(free, res_APDU + res_APDU_size);
+        res_APDU_size += put_uint32_t_be(used, res_APDU + res_APDU_size);
+        res_APDU_size += put_uint32_t_be(total, res_APDU + res_APDU_size);
+        res_APDU_size += put_uint32_t_be(nfiles, res_APDU + res_APDU_size);
+        res_APDU_size += put_uint32_t_be(size, res_APDU + res_APDU_size);
     }
     else {
         return SW_INCORRECT_P1P2();

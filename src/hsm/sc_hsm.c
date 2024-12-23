@@ -269,7 +269,7 @@ int sc_hsm_unload() {
 uint16_t get_device_options() {
     file_t *ef = search_file(EF_DEVOPS);
     if (file_has_data(ef)) {
-        return (file_read_uint8(ef) << 8) | file_read_uint8_offset(ef, 1);
+        return get_uint16_t_be(file_get_data(ef));
     }
     return 0x0;
 }
@@ -462,7 +462,7 @@ uint32_t get_key_counter(file_t *fkey) {
     uint16_t tag_len = 0;
     const uint8_t *meta_tag = get_meta_tag(fkey, 0x90, &tag_len);
     if (meta_tag) {
-        return (meta_tag[0] << 24) | (meta_tag[1] << 16) | (meta_tag[2] << 8) | meta_tag[3];
+        return get_uint32_t_be(meta_tag);
     }
     return 0xffffffff;
 }
@@ -498,8 +498,7 @@ uint32_t decrement_key_counter(file_t *fkey) {
         asn1_ctx_init(meta_data, meta_size, &ctxi);
         while (walk_tlv(&ctxi, &p, &tag, &tag_len, &tag_data)) {
             if (tag == 0x90) { // ofset tag
-                uint32_t val =
-                    (tag_data[0] << 24) | (tag_data[1] << 16) | (tag_data[2] << 8) | tag_data[3];
+                uint32_t val = get_uint32_t_be(tag_data);
                 val--;
                 put_uint32_t_be(val, tag_data);
                 int r = meta_add(fkey->fid, cmeta, (uint16_t)meta_size);

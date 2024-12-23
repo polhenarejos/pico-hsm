@@ -497,8 +497,7 @@ uint16_t asn1_build_prkd_generic(const uint8_t *label,
         p += format_tlv_len(asn1_len_tag(0x2, 2), p);
         *p++ = 0x2;
         p += format_tlv_len(2, p);
-        put_uint16_t_be(keysize, p);
-        p += 2;
+        p += put_uint16_t_be(keysize, p);
     }
 
     //Seq 4
@@ -517,8 +516,7 @@ uint16_t asn1_build_prkd_generic(const uint8_t *label,
     if (key_type & PICO_KEYS_KEY_EC || key_type & PICO_KEYS_KEY_RSA) {
         *p++ = 0x2;
         p += format_tlv_len(2, p);
-        put_uint16_t_be(keysize, p);
-        p += 2;
+        p += put_uint16_t_be(keysize, p);
     }
     return (uint16_t)(p - buf);
 }
