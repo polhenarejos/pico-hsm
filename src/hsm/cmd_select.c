@@ -48,7 +48,7 @@ int cmd_select() {
     //}
 
     if (apdu.nc == 2) {
-        fid = get_uint16_t(apdu.data, 0);
+        fid = get_uint16_t_be(apdu.data, 0);
     }
 
     //if ((fid & 0xff00) == (KEY_PREFIX << 8))

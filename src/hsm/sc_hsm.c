@@ -501,11 +501,7 @@ uint32_t decrement_key_counter(file_t *fkey) {
                 uint32_t val =
                     (tag_data[0] << 24) | (tag_data[1] << 16) | (tag_data[2] << 8) | tag_data[3];
                 val--;
-                tag_data[0] = (val >> 24) & 0xff;
-                tag_data[1] = (val >> 16) & 0xff;
-                tag_data[2] = (val >> 8) & 0xff;
-                tag_data[3] = val & 0xff;
-
+                put_uint32_t_be(val, tag_data);
                 int r = meta_add(fkey->fid, cmeta, (uint16_t)meta_size);
                 free(cmeta);
                 if (r != 0) {

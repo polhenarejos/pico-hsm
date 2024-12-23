@@ -143,10 +143,7 @@ int mbedtls_ansi_x963_kdf(mbedtls_md_type_t md_type,
         mbedtls_md_update(&md_ctx, input, input_len);
 
         //TODO: be careful with architecture little vs. big
-        counter_buf[0] = (uint8_t) ((counter >> 24) & 0xff);
-        counter_buf[1] = (uint8_t) ((counter >> 16) & 0xff);
-        counter_buf[2] = (uint8_t) ((counter >> 8) & 0xff);
-        counter_buf[3] = (uint8_t) ((counter >> 0) & 0xff);
+        put_uint32_t_be(counter, counter_buf);
 
         mbedtls_md_update(&md_ctx, counter_buf, 4);
 

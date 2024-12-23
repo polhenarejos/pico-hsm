@@ -302,26 +302,16 @@ int cmd_extras() {
     else if (cmd == CMD_MEMORY) {
         res_APDU_size = 0;
         uint32_t free = flash_free_space(), total = flash_total_space(), used = flash_used_space(), nfiles = flash_num_files(), size = flash_size();
-        res_APDU[res_APDU_size++] = free >> 24;
-        res_APDU[res_APDU_size++] = free >> 16;
-        res_APDU[res_APDU_size++] = free >> 8;
-        res_APDU[res_APDU_size++] = free;
-        res_APDU[res_APDU_size++] = used >> 24;
-        res_APDU[res_APDU_size++] = used >> 16;
-        res_APDU[res_APDU_size++] = used >> 8;
-        res_APDU[res_APDU_size++] = used;
-        res_APDU[res_APDU_size++] = total >> 24;
-        res_APDU[res_APDU_size++] = total >> 16;
-        res_APDU[res_APDU_size++] = total >> 8;
-        res_APDU[res_APDU_size++] = total;
-        res_APDU[res_APDU_size++] = nfiles >> 24;
-        res_APDU[res_APDU_size++] = nfiles >> 16;
-        res_APDU[res_APDU_size++] = nfiles >> 8;
-        res_APDU[res_APDU_size++] = nfiles;
-        res_APDU[res_APDU_size++] = size >> 24;
-        res_APDU[res_APDU_size++] = size >> 16;
-        res_APDU[res_APDU_size++] = size >> 8;
-        res_APDU[res_APDU_size++] = size;
+        put_uint32_t_be(free, res_APDU + res_APDU_size);
+        res_APDU_size += 4;
+        put_uint32_t_be(used, res_APDU + res_APDU_size);
+        res_APDU_size += 4;
+        put_uint32_t_be(total, res_APDU + res_APDU_size);
+        res_APDU_size += 4;
+        put_uint32_t_be(nfiles, res_APDU + res_APDU_size);
+        res_APDU_size += 4;
+        put_uint32_t_be(size, res_APDU + res_APDU_size);
+        res_APDU_size += 4;
     }
     else {
         return SW_INCORRECT_P1P2();

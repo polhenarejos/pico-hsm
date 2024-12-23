@@ -247,10 +247,8 @@ int cmd_initialize() {
     }
     else {   //free memory bytes request
         int heap_left = heapLeft();
-        res_APDU[0] = ((heap_left >> 24) & 0xff);
-        res_APDU[1] = ((heap_left >> 16) & 0xff);
-        res_APDU[2] = ((heap_left >> 8) & 0xff);
-        res_APDU[3] = ((heap_left >> 0) & 0xff);
+        put_uint32_t_be(heap_left, res_APDU);
+        res_APDU_size = 4;
         res_APDU[4] = 0;
         res_APDU[5] = HSM_VERSION_MAJOR;
         res_APDU[6] = HSM_VERSION_MINOR;
