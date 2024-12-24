@@ -150,7 +150,7 @@ int cmd_extras() {
                 return SW_EXEC_ERROR();
             }
 
-            ret = mbedtls_ecp_point_write_binary(&hkey.ctx.mbed_ecdh.grp, &hkey.ctx.mbed_ecdh.Q, MBEDTLS_ECP_PF_UNCOMPRESSED, &olen, res_APDU, 4096);
+            ret = mbedtls_ecp_point_write_binary(&hkey.ctx.mbed_ecdh.grp, &hkey.ctx.mbed_ecdh.Q, MBEDTLS_ECP_PF_UNCOMPRESSED, &olen, res_APDU, MAX_APDU_DATA);
             mbedtls_ecdh_free(&hkey);
             if (ret != 0) {
                 return SW_EXEC_ERROR();

@@ -410,13 +410,7 @@ int cmd_cipher_sym() {
             size_t olen = 0;
             mbedtls_asn1_buf params =
                 {.p = aad.data, .len = aad.len, .tag = (MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE)};
-            int r = mbedtls_pkcs5_pbes2_ext(&params,
-                                        algo == ALGO_EXT_CIPHER_ENCRYPT ? MBEDTLS_PKCS5_ENCRYPT : MBEDTLS_PKCS5_DECRYPT,
-                                        kdata,
-                                        key_size,
-                                        enc.data,
-                                        enc.len,
-                                        res_APDU, 4096, &olen);
+            int r = mbedtls_pkcs5_pbes2_ext(&params, algo == ALGO_EXT_CIPHER_ENCRYPT ? MBEDTLS_PKCS5_ENCRYPT : MBEDTLS_PKCS5_DECRYPT, kdata, key_size, enc.data, enc.len, res_APDU, MAX_APDU_DATA, &olen);
             mbedtls_platform_zeroize(kdata, sizeof(kdata));
             if (r != 0) {
                 return SW_WRONG_DATA();

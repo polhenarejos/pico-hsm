@@ -210,7 +210,7 @@ int cmd_initialize() {
                 return SW_EXEC_ERROR();
             }
             uint16_t ee_len = 0, term_len = 0;
-            if ((ee_len = asn1_cvc_aut(&ecdsa, PICO_KEYS_KEY_EC, res_APDU, 4096, NULL, 0)) == 0) {
+            if ((ee_len = asn1_cvc_aut(&ecdsa, PICO_KEYS_KEY_EC, res_APDU, MAX_APDU_DATA, NULL, 0)) == 0) {
                 mbedtls_ecdsa_free(&ecdsa);
                 return SW_EXEC_ERROR();
             }
@@ -222,7 +222,7 @@ int cmd_initialize() {
                 return SW_EXEC_ERROR();
             }
 
-            if ((term_len = asn1_cvc_cert(&ecdsa, PICO_KEYS_KEY_EC, res_APDU + ee_len, 4096 - ee_len, NULL, 0, true)) == 0) {
+            if ((term_len = asn1_cvc_cert(&ecdsa, PICO_KEYS_KEY_EC, res_APDU + ee_len, MAX_APDU_DATA - ee_len, NULL, 0, true)) == 0) {
                 mbedtls_ecdsa_free(&ecdsa);
                 return SW_EXEC_ERROR();
             }
@@ -235,7 +235,7 @@ int cmd_initialize() {
 
             const uint8_t *keyid = (const uint8_t *) "\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0",
                           *label = (const uint8_t *) "ESPICOHSMTR";
-            uint16_t prkd_len = asn1_build_prkd_ecc(label, (uint16_t)strlen((const char *) label), keyid, 20, 256, res_APDU, 4096);
+            uint16_t prkd_len = asn1_build_prkd_ecc(label, (uint16_t)strlen((const char *) label), keyid, 20, 256, res_APDU, MAX_APDU_DATA);
             fpk = search_file(EF_PRKD_DEV);
             ret = file_put_data(fpk, res_APDU, prkd_len);
         }
