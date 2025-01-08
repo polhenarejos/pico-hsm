@@ -134,6 +134,9 @@ int store_mkek(const uint8_t *mkek) {
     else {
         memcpy(tmp_mkek, mkek, MKEK_SIZE);
     }
+    if (otp_key_1) {
+        mkek_masked(tmp_mkek, otp_key_1);
+    }
     *(uint32_t *) MKEK_CHECKSUM(tmp_mkek) = crc32c(MKEK_KEY(tmp_mkek), MKEK_KEY_SIZE);
     if (has_session_pin) {
         uint8_t tmp_mkek_pin[MKEK_SIZE];
