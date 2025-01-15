@@ -80,7 +80,7 @@ set(USB_ITF_CCID 1)
 set(USB_ITF_WCID 1)
 include(pico-keys-sdk/pico_keys_sdk_import.cmake)
 
-SET_VERSION(ver_major ver_minor "${CMAKE_CURRENT_LIST_DIR}/src/hsm/version.h")
+SET_VERSION(ver_major ver_minor "${CMAKE_CURRENT_LIST_DIR}/src/hsm/version.h" 1)
 
 if(ESP_PLATFORM)
     project(pico_hsm)
