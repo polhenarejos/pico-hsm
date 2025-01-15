@@ -32,6 +32,9 @@
 #include "file.h"
 #include "apdu.h"
 #include "pico_keys.h"
+#include "usb.h"
+
+#define MAX_APDU_DATA (USB_BUFFER_SIZE - 20)
 
 extern const uint8_t sc_hsm_aid[];
 

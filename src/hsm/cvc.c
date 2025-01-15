@@ -431,8 +431,7 @@ uint16_t asn1_build_cert_description(const uint8_t *label,
     p += format_tlv_len(asn1_len_tag(0x4, sizeof(uint16_t)), p);
     *p++ = 0x4;
     p += format_tlv_len(sizeof(uint16_t), p);
-    *p++ = fid >> 8;
-    *p++ = fid & 0xff;
+    put_uint16_t_be(fid, p); p += sizeof(uint16_t);
     return (uint16_t)(p - buf);
 }
 
@@ -508,8 +507,7 @@ uint16_t asn1_build_prkd_generic(const uint8_t *label,
         p += format_tlv_len(asn1_len_tag(0x2, 2), p);
         *p++ = 0x2;
         p += format_tlv_len(2, p);
-        *p++ = (keysize >> 8) & 0xff;
-        *p++ = keysize & 0xff;
+        p += put_uint16_t_be(keysize, p);
     }
 
     //Seq 4
@@ -528,8 +526,7 @@ uint16_t asn1_build_prkd_generic(const uint8_t *label,
     if (key_type & PICO_KEYS_KEY_EC || key_type & PICO_KEYS_KEY_RSA) {
         *p++ = 0x2;
         p += format_tlv_len(2, p);
-        *p++ = (keysize >> 8) & 0xff;
-        *p++ = keysize & 0xff;
+        p += put_uint16_t_be(keysize, p);
     }
     return (uint16_t)(p - buf);
 }

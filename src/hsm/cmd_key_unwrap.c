@@ -57,7 +57,7 @@ int cmd_key_unwrap() {
             return SW_EXEC_ERROR();
         }
         r = store_keys(&ctx, PICO_KEYS_KEY_RSA, key_id);
-        if ((res_APDU_size = (uint16_t)asn1_cvc_aut(&ctx, PICO_KEYS_KEY_RSA, res_APDU, 4096, NULL, 0)) == 0) {
+        if ((res_APDU_size = (uint16_t)asn1_cvc_aut(&ctx, PICO_KEYS_KEY_RSA, res_APDU, MAX_APDU_DATA, NULL, 0)) == 0) {
             mbedtls_rsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
@@ -77,7 +77,7 @@ int cmd_key_unwrap() {
             return SW_EXEC_ERROR();
         }
         r = store_keys(&ctx, PICO_KEYS_KEY_EC, key_id);
-        if ((res_APDU_size = (uint16_t)asn1_cvc_aut(&ctx, PICO_KEYS_KEY_EC, res_APDU, 4096, NULL, 0)) == 0) {
+        if ((res_APDU_size = (uint16_t)asn1_cvc_aut(&ctx, PICO_KEYS_KEY_EC, res_APDU, MAX_APDU_DATA, NULL, 0)) == 0) {
             mbedtls_ecp_keypair_free(&ctx);
             return SW_EXEC_ERROR();
         }

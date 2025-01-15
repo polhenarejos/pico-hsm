@@ -151,6 +151,10 @@ def parse_args():
     parser_otp.add_argument('--lock', help='Lock & protect (no other firmwares can be loaded)', action='store_true')
     parser_otp.add_argument('--index', help='Bootkey index [0-3]', type=int, default=0, choices=[0, 1, 2, 3])
 
+    parser_reboot = subparser.add_parser('reboot', help='Reboots the Pico HSM.')
+
+    parser_memory = subparser.add_parser('memory', help='Get memory usage.')
+
     args = parser.parse_args()
     return args
 
@@ -369,7 +373,7 @@ class SecureLock:
 
     def disable_device_aut(self):
         ct = self.get_skey()
-        self.picohsm.send(cla=0x80, command=0x64, p1=0x3A, p2=0x04, p3=list(ct))
+        self.picohsm.send(cla=0x80, command=0x64, p1=0x3A, p2=0x04, data=list(ct))
 
 def secure(picohsm, args):
     slck = SecureLock(picohsm)
@@ -511,8 +515,20 @@ def otp(picohsm, args):
     elif (args.subcommand == 'secure_boot'):
         picohsm.secure_boot(BOOTKEY, bootkey_index=args.index, lock=args.lock)
 
+def reboot(picohsm, args):
+    picohsm.reboot()
+
+def memory(picohsm, args):
+    mem = picohsm.memory()
+    print(f'Memory usage:')
+    print(f'\tFree: {mem["free"]/1024:.2f} kilobytes ({mem["free"]*100/mem["total"]:.2f}%)')
+    print(f'\tUsed: {mem["used"]/1024:.2f} kilobytes ({mem["used"]*100/mem["total"]:.2f}%)')
+    print(f'\tTotal: {mem["total"]/1024:.2f} kilobytes')
+    print(f'\tFlash size: {mem["size"]/1024:.2f} kilobytes')
+    print(f'\tFiles: {mem["files"]}')
+
 def main(args):
-    sys.stderr.buffer.write(b'Pico HSM Tool v2.0\n')
+    sys.stderr.buffer.write(b'Pico HSM Tool v2.2\n')
     sys.stderr.buffer.write(b'Author: Pol Henarejos\n')
     sys.stderr.buffer.write(b'Report bugs to https://github.com/polhenarejos/pico-hsm/issues\n')
     sys.stderr.buffer.write(b'\n\n')
@@ -541,6 +557,10 @@ def main(args):
         phy(picohsm, args)
     elif (args.command == 'otp'):
         otp(picohsm, args)
+    elif (args.command == 'reboot'):
+        reboot(picohsm, args)
+    elif (args.command == 'memory'):
+        memory(picohsm, args)
 
 def run():
     args = parse_args()
