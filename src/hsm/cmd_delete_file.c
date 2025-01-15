@@ -30,7 +30,7 @@ int cmd_delete_file() {
         }
     }
     else {
-        uint16_t fid = (apdu.data[0] << 8) | apdu.data[1];
+        uint16_t fid = get_uint16_t_be(apdu.data);
         if (!(ef = search_file(fid))) {
             return SW_FILE_NOT_FOUND();
         }

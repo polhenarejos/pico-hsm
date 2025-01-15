@@ -43,10 +43,14 @@ extern void reset_puk_store();
 int cmd_initialize() {
     if (apdu.nc > 0) {
         uint8_t mkek[MKEK_SIZE];
+        uint16_t opts = get_device_options();
+        if (opts & HSM_OPT_SECURE_LOCK && !has_mkek_mask) {
+            return SW_SECURITY_STATUS_NOT_SATISFIED();
+        }
         int ret_mkek = load_mkek(mkek); //Try loading MKEK with previous session
         initialize_flash(true);
         scan_all();
-        has_session_pin = has_session_sopin = false;
+        has_session_pin = has_session_sopin = has_mkek_mask = false;
         uint16_t tag = 0x0;
         uint8_t *tag_data = NULL, *p = NULL, *kds = NULL, *dkeks = NULL;
         uint16_t tag_len = 0;
@@ -206,7 +210,7 @@ int cmd_initialize() {
                 return SW_EXEC_ERROR();
             }
             uint16_t ee_len = 0, term_len = 0;
-            if ((ee_len = asn1_cvc_aut(&ecdsa, PICO_KEYS_KEY_EC, res_APDU, 4096, NULL, 0)) == 0) {
+            if ((ee_len = asn1_cvc_aut(&ecdsa, PICO_KEYS_KEY_EC, res_APDU, MAX_APDU_DATA, NULL, 0)) == 0) {
                 mbedtls_ecdsa_free(&ecdsa);
                 return SW_EXEC_ERROR();
             }
@@ -218,7 +222,7 @@ int cmd_initialize() {
                 return SW_EXEC_ERROR();
             }
 
-            if ((term_len = asn1_cvc_cert(&ecdsa, PICO_KEYS_KEY_EC, res_APDU + ee_len, 4096 - ee_len, NULL, 0, true)) == 0) {
+            if ((term_len = asn1_cvc_cert(&ecdsa, PICO_KEYS_KEY_EC, res_APDU + ee_len, MAX_APDU_DATA - ee_len, NULL, 0, true)) == 0) {
                 mbedtls_ecdsa_free(&ecdsa);
                 return SW_EXEC_ERROR();
             }
@@ -231,7 +235,7 @@ int cmd_initialize() {
 
             const uint8_t *keyid = (const uint8_t *) "\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0",
                           *label = (const uint8_t *) "ESPICOHSMTR";
-            uint16_t prkd_len = asn1_build_prkd_ecc(label, (uint16_t)strlen((const char *) label), keyid, 20, 256, res_APDU, 4096);
+            uint16_t prkd_len = asn1_build_prkd_ecc(label, (uint16_t)strlen((const char *) label), keyid, 20, 256, res_APDU, MAX_APDU_DATA);
             fpk = search_file(EF_PRKD_DEV);
             ret = file_put_data(fpk, res_APDU, prkd_len);
         }
@@ -243,10 +247,7 @@ int cmd_initialize() {
     }
     else {   //free memory bytes request
         int heap_left = heapLeft();
-        res_APDU[0] = ((heap_left >> 24) & 0xff);
-        res_APDU[1] = ((heap_left >> 16) & 0xff);
-        res_APDU[2] = ((heap_left >> 8) & 0xff);
-        res_APDU[3] = ((heap_left >> 0) & 0xff);
+        res_APDU_size += put_uint32_t_be(heap_left, res_APDU);
         res_APDU[4] = 0;
         res_APDU[5] = HSM_VERSION_MAJOR;
         res_APDU[6] = HSM_VERSION_MINOR;

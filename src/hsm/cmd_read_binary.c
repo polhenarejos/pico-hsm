@@ -30,7 +30,7 @@ int cmd_read_binary() {
             offset = p2;
         }
         else {
-            offset = make_uint16_t(p1, p2) & 0x7fff;
+            offset = make_uint16_t_be(p1, p2) & 0x7fff;
             ef = currentEF;
         }
     }
@@ -41,7 +41,7 @@ int cmd_read_binary() {
             }
         }
         else {
-            uint16_t file_id = make_uint16_t(p1, p2); // & 0x7fff;
+            uint16_t file_id = make_uint16_t_be(p1, p2); // & 0x7fff;
             if (file_id == 0x0) {
                 ef = currentEF;
             }

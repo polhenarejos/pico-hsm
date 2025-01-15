@@ -143,10 +143,7 @@ int mbedtls_ansi_x963_kdf(mbedtls_md_type_t md_type,
         mbedtls_md_update(&md_ctx, input, input_len);
 
         //TODO: be careful with architecture little vs. big
-        counter_buf[0] = (uint8_t) ((counter >> 24) & 0xff);
-        counter_buf[1] = (uint8_t) ((counter >> 16) & 0xff);
-        counter_buf[2] = (uint8_t) ((counter >> 8) & 0xff);
-        counter_buf[3] = (uint8_t) ((counter >> 0) & 0xff);
+        put_uint32_t_be(counter, counter_buf);
 
         mbedtls_md_update(&md_ctx, counter_buf, 4);
 
@@ -413,13 +410,7 @@ int cmd_cipher_sym() {
             size_t olen = 0;
             mbedtls_asn1_buf params =
                 {.p = aad.data, .len = aad.len, .tag = (MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE)};
-            int r = mbedtls_pkcs5_pbes2_ext(&params,
-                                        algo == ALGO_EXT_CIPHER_ENCRYPT ? MBEDTLS_PKCS5_ENCRYPT : MBEDTLS_PKCS5_DECRYPT,
-                                        kdata,
-                                        key_size,
-                                        enc.data,
-                                        enc.len,
-                                        res_APDU, 4096, &olen);
+            int r = mbedtls_pkcs5_pbes2_ext(&params, algo == ALGO_EXT_CIPHER_ENCRYPT ? MBEDTLS_PKCS5_ENCRYPT : MBEDTLS_PKCS5_DECRYPT, kdata, key_size, enc.data, enc.len, res_APDU, MAX_APDU_DATA, &olen);
             mbedtls_platform_zeroize(kdata, sizeof(kdata));
             if (r != 0) {
                 return SW_WRONG_DATA();

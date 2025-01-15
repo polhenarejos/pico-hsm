@@ -19,6 +19,7 @@
 #include "mbedtls/ecdh.h"
 #ifdef PICO_PLATFORM
 #include "pico/aon_timer.h"
+#include "hardware/watchdog.h"
 #else
 #include <sys/time.h>
 #include <time.h>
@@ -35,17 +36,20 @@
 #define CMD_DATETIME 0xA
 #define CMD_DYNOPS 0x6
 #define CMD_SECURE_LOCK 0x3A
+#define CMD_REBOOT 0xFB
 #define SECURE_LOCK_KEY_AGREEMENT 0x1
 #define SECURE_LOCK_ENABLE 0x2
 #define SECURE_LOCK_MASK 0x3
 #define SECURE_LOCK_DISABLE 0x4
 #define CMD_PHY 0x1B
 #define CMD_OTP 0x4C
+#define CMD_MEMORY 0x5
 
 int cmd_extras() {
+    int cmd = P1(apdu);
 #ifndef ENABLE_EMULATION
     // Only allow change PHY without PIN
-    if (!isUserAuthenticated && P1(apdu) != 0x1B) {
+    if (!isUserAuthenticated && cmd != CMD_PHY && cmd != CMD_MEMORY) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
 #endif
@@ -53,7 +57,7 @@ int cmd_extras() {
     if (wait_button_pressed() == true) {
         return SW_SECURE_MESSAGE_EXEC_ERROR();
     }
-    if (P1(apdu) == CMD_DATETIME) { //datetime operations
+    if (cmd == CMD_DATETIME) { //datetime operations
         if (P2(apdu) != 0x0) {
             return SW_INCORRECT_P1P2();
         }
@@ -66,8 +70,7 @@ int cmd_extras() {
             gettimeofday(&tv, NULL);
 #endif
             struct tm *tm = localtime(&tv.tv_sec);
-            res_APDU[res_APDU_size++] = (tm->tm_year + 1900) >> 8;
-            res_APDU[res_APDU_size++] = (tm->tm_year + 1900) & 0xff;
+            res_APDU_size += put_uint16_t_be(tm->tm_year + 1900, res_APDU);
             res_APDU[res_APDU_size++] = tm->tm_mon;
             res_APDU[res_APDU_size++] = tm->tm_mday;
             res_APDU[res_APDU_size++] = tm->tm_wday;
@@ -80,7 +83,7 @@ int cmd_extras() {
                 return SW_WRONG_LENGTH();
             }
             struct tm tm;
-            tm.tm_year = ((apdu.data[0] << 8) | (apdu.data[1])) - 1900;
+            tm.tm_year = get_uint16_t_be(apdu.data) - 1900;
             tm.tm_mon = apdu.data[2];
             tm.tm_mday = apdu.data[3];
             tm.tm_wday = apdu.data[4];
@@ -97,7 +100,7 @@ int cmd_extras() {
 #endif
         }
     }
-    else if (P1(apdu) == CMD_DYNOPS) {   //dynamic options
+    else if (cmd == CMD_DYNOPS) {   //dynamic options
         if (P2(apdu) != 0x0) {
             return SW_INCORRECT_P1P2();
         }
@@ -106,8 +109,7 @@ int cmd_extras() {
         }
         uint16_t opts = get_device_options();
         if (apdu.nc == 0) {
-            res_APDU[res_APDU_size++] = opts >> 8;
-            res_APDU[res_APDU_size++] = opts & 0xff;
+            res_APDU_size += put_uint16_t_be(opts, res_APDU);
         }
         else {
             uint8_t newopts[] = { apdu.data[0], (opts & 0xff) };
@@ -116,7 +118,7 @@ int cmd_extras() {
             low_flash_available();
         }
     }
-    else if (P1(apdu) == CMD_SECURE_LOCK) {   // secure lock
+    else if (cmd == CMD_SECURE_LOCK) {   // secure lock
         if (apdu.nc == 0) {
             return SW_WRONG_LENGTH();
         }
@@ -148,7 +150,7 @@ int cmd_extras() {
                 return SW_EXEC_ERROR();
             }
 
-            ret = mbedtls_ecp_point_write_binary(&hkey.ctx.mbed_ecdh.grp, &hkey.ctx.mbed_ecdh.Q, MBEDTLS_ECP_PF_UNCOMPRESSED, &olen, res_APDU, 4096);
+            ret = mbedtls_ecp_point_write_binary(&hkey.ctx.mbed_ecdh.grp, &hkey.ctx.mbed_ecdh.Q, MBEDTLS_ECP_PF_UNCOMPRESSED, &olen, res_APDU, MAX_APDU_DATA);
             mbedtls_ecdh_free(&hkey);
             if (ret != 0) {
                 return SW_EXEC_ERROR();
@@ -160,13 +162,12 @@ int cmd_extras() {
             if (mse.init == false) {
                 return SW_COMMAND_NOT_ALLOWED();
             }
-
+            uint16_t opts = get_device_options();
             int ret = mse_decrypt_ct(apdu.data, apdu.nc);
             if (ret != 0) {
                 return SW_WRONG_DATA();
             }
             if (P2(apdu) == SECURE_LOCK_ENABLE || P2(apdu) == SECURE_LOCK_DISABLE) { // Enable
-                uint16_t opts = get_device_options();
                 uint8_t newopts[] = { opts >> 8, (opts & 0xff) };
                 if ((P2(apdu) == SECURE_LOCK_ENABLE && !(opts & HSM_OPT_SECURE_LOCK)) ||
                     (P2(apdu) == SECURE_LOCK_DISABLE && (opts & HSM_OPT_SECURE_LOCK))) {
@@ -194,14 +195,14 @@ int cmd_extras() {
                 file_put_data(tf, newopts, sizeof(newopts));
                 low_flash_available();
             }
-            else if (P2(apdu) == SECURE_LOCK_MASK) {
-                memcpy(mkek_mask, apdu.data, apdu.nc);
+            else if (P2(apdu) == SECURE_LOCK_MASK && (opts & HSM_OPT_SECURE_LOCK)) {
+                memcpy(mkek_mask, apdu.data, MKEK_KEY_SIZE);
                 has_mkek_mask = true;
             }
         }
     }
 #ifndef ENABLE_EMULATION
-    else if (P1(apdu) == CMD_PHY) { // Set PHY
+    else if (cmd == CMD_PHY) { // Set PHY
         if (apdu.nc == 0) {
             if (file_has_data(ef_phy)) {
                 res_APDU_size = file_get_size(ef_phy);
@@ -213,8 +214,8 @@ int cmd_extras() {
                 if (apdu.nc != 4) {
                     return SW_WRONG_LENGTH();
                 }
-                phy_data.vid = (apdu.data[0] << 8) | apdu.data[1];
-                phy_data.pid = (apdu.data[2] << 8) | apdu.data[3];
+                phy_data.vid = get_uint16_t_be(apdu.data);
+                phy_data.pid = get_uint16_t_be(apdu.data + 2);
                 phy_data.vidpid_present = true;
             }
             else if (P2(apdu) == PHY_LED_GPIO) {
@@ -229,7 +230,7 @@ int cmd_extras() {
                 if (apdu.nc != 2) {
                     return SW_WRONG_LENGTH();
                 }
-                phy_data.opts = (apdu.data[0] << 8) | apdu.data[1];
+                phy_data.opts = get_uint16_t_be(apdu.data);
             }
             else {
                 return SW_INCORRECT_P1P2();
@@ -246,11 +247,11 @@ int cmd_extras() {
     }
 #endif
 #if PICO_RP2350
-    else if (P1(apdu) == CMD_OTP) {
+    else if (cmd == CMD_OTP) {
         if (apdu.nc < 2) {
             return SW_WRONG_LENGTH();
         }
-        uint16_t row = (apdu.data[0] << 8) | apdu.data[1];
+        uint16_t row = get_uint16_t_be(apdu.data);
         bool israw = P2(apdu) == 0x1;
         if (apdu.nc == 2) {
             if (row > 0xbf && row < 0xf48) {
@@ -288,6 +289,23 @@ int cmd_extras() {
         }
     }
 #endif
+#ifdef PICO_PLATFORM
+    else if (cmd == CMD_REBOOT) {
+        if (apdu.nc != 0) {
+            return SW_WRONG_LENGTH();
+        }
+        watchdog_reboot(0, 0, 100);
+    }
+#endif
+    else if (cmd == CMD_MEMORY) {
+        res_APDU_size = 0;
+        uint32_t free = flash_free_space(), total = flash_total_space(), used = flash_used_space(), nfiles = flash_num_files(), size = flash_size();
+        res_APDU_size += put_uint32_t_be(free, res_APDU + res_APDU_size);
+        res_APDU_size += put_uint32_t_be(used, res_APDU + res_APDU_size);
+        res_APDU_size += put_uint32_t_be(total, res_APDU + res_APDU_size);
+        res_APDU_size += put_uint32_t_be(nfiles, res_APDU + res_APDU_size);
+        res_APDU_size += put_uint32_t_be(size, res_APDU + res_APDU_size);
+    }
     else {
         return SW_INCORRECT_P1P2();
     }
