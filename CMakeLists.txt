@@ -22,6 +22,7 @@ if(ESP_PLATFORM)
     include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 else()
     if(NOT ENABLE_EMULATION)
+        set(PICO_USE_FASTEST_SUPPORTED_CLOCK 1)
         include(pico_sdk_import.cmake)
     endif()
 

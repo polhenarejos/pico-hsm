@@ -235,14 +235,9 @@ int cmd_extras() {
             else {
                 return SW_INCORRECT_P1P2();
             }
-            uint8_t tmp[PHY_MAX_SIZE];
-            uint16_t tmp_len = 0;
-            memset(tmp, 0, sizeof(tmp));
-            if (phy_serialize_data(&phy_data, tmp, &tmp_len) != PICOKEY_OK) {
+            if (phy_save() != PICOKEY_OK) {
                 return SW_EXEC_ERROR();
             }
-            file_put_data(ef_phy, tmp, tmp_len);
-            low_flash_available();
         }
     }
 #endif
