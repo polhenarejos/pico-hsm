@@ -20,6 +20,9 @@
 #include "asn1.h"
 #include "mbedtls/oid.h"
 #include "random.h"
+#ifdef MBEDTLS_EDDSA_C
+#include "mbedtls/eddsa.h"
+#endif
 
 extern mbedtls_ecp_keypair hd_context;
 extern uint8_t hd_keytype;
@@ -228,8 +231,8 @@ int cmd_signature() {
         mbedtls_rsa_free(&ctx);
     }
     else if (p2 >= ALGO_EC_RAW && p2 <= ALGO_EC_SHA512) {
-        mbedtls_ecdsa_context ctx;
-        mbedtls_ecdsa_init(&ctx);
+        mbedtls_ecp_keypair ctx;
+        mbedtls_ecp_keypair_init(&ctx);
         md = MBEDTLS_MD_SHA256;
         if (p2 == ALGO_EC_RAW) {
             if (apdu.nc == 32) {
@@ -263,9 +266,9 @@ int cmd_signature() {
         else if (p2 == ALGO_EC_SHA512) {
             md = MBEDTLS_MD_SHA512;
         }
-        int r = load_private_key_ecdsa(&ctx, fkey);
+        int r = load_private_key_ec(&ctx, fkey);
         if (r != PICOKEY_OK) {
-            mbedtls_ecdsa_free(&ctx);
+            mbedtls_ecp_keypair_free(&ctx);
             if (r == PICOKEY_VERIFICATION_FAILED) {
                 return SW_SECURE_MESSAGE_EXEC_ERROR();
             }
@@ -273,36 +276,45 @@ int cmd_signature() {
         }
         size_t olen = 0;
         uint8_t buf[MBEDTLS_ECDSA_MAX_LEN];
-        if (mbedtls_ecdsa_write_signature(&ctx, md, apdu.data, apdu.nc, buf, MBEDTLS_ECDSA_MAX_LEN,
-                                          &olen, random_gen, NULL) != 0) {
-            mbedtls_ecdsa_free(&ctx);
+#ifdef MBEDTLS_EDDSA_C
+        if (ctx.grp.id == MBEDTLS_ECP_DP_ED25519 || ctx.grp.id == MBEDTLS_ECP_DP_ED448) {
+            r = mbedtls_eddsa_write_signature(&ctx, apdu.data, apdu.nc, buf, sizeof(buf), &olen, MBEDTLS_EDDSA_PURE, NULL, 0, random_gen, NULL);
+        }
+        else
+#endif
+        {
+            r = mbedtls_ecdsa_write_signature(&ctx, md, apdu.data, apdu.nc, buf, MBEDTLS_ECDSA_MAX_LEN,
+                                              &olen, random_gen, NULL);
+        }
+        if (r != 0) {
+            mbedtls_ecp_keypair_free(&ctx);
             return SW_EXEC_ERROR();
         }
         memcpy(res_APDU, buf, olen);
         res_APDU_size = (uint16_t)olen;
-        mbedtls_ecdsa_free(&ctx);
+        mbedtls_ecp_keypair_free(&ctx);
     }
     else if (p2 == ALGO_HD) {
         size_t olen = 0;
         uint8_t buf[MBEDTLS_ECDSA_MAX_LEN] = {0};
         if (hd_context.grp.id == MBEDTLS_ECP_DP_NONE) {
-            mbedtls_ecdsa_free(&hd_context);
+            mbedtls_ecp_keypair_free(&hd_context);
             return SW_CONDITIONS_NOT_SATISFIED();
         }
         if (hd_keytype != 0x1 && hd_keytype != 0x2) {
-            mbedtls_ecdsa_free(&hd_context);
+            mbedtls_ecp_keypair_free(&hd_context);
             return SW_INCORRECT_PARAMS();
         }
         md = MBEDTLS_MD_SHA256;
         if (mbedtls_ecdsa_write_signature(&hd_context, md, apdu.data, apdu.nc, buf,
                                           MBEDTLS_ECDSA_MAX_LEN,
                                           &olen, random_gen, NULL) != 0) {
-            mbedtls_ecdsa_free(&hd_context);
+            mbedtls_ecp_keypair_free(&hd_context);
             return SW_EXEC_ERROR();
         }
         memcpy(res_APDU, buf, olen);
         res_APDU_size = (uint16_t)olen;
-        mbedtls_ecdsa_free(&hd_context);
+        mbedtls_ecp_keypair_free(&hd_context);
         hd_keytype = 0;
     }
     else {

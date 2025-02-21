@@ -67,21 +67,21 @@ int cmd_key_unwrap() {
         }
     }
     else if (key_type & PICO_KEYS_KEY_EC) {
-        mbedtls_ecdsa_context ctx;
-        mbedtls_ecdsa_init(&ctx);
+        mbedtls_ecp_keypair ctx;
+        mbedtls_ecp_keypair_init(&ctx);
         do {
             r = dkek_decode_key((uint8_t)++kdom, &ctx, data, data_len, NULL, &allowed, &allowed_len);
         } while ((r == PICOKEY_ERR_FILE_NOT_FOUND || r == PICOKEY_WRONG_DKEK) && kdom < MAX_KEY_DOMAINS);
         if (r != PICOKEY_OK) {
-            mbedtls_ecdsa_free(&ctx);
+            mbedtls_ecp_keypair_free(&ctx);
             return SW_EXEC_ERROR();
         }
         r = store_keys(&ctx, PICO_KEYS_KEY_EC, key_id);
         if ((res_APDU_size = (uint16_t)asn1_cvc_aut(&ctx, PICO_KEYS_KEY_EC, res_APDU, MAX_APDU_DATA, NULL, 0)) == 0) {
-            mbedtls_ecdsa_free(&ctx);
+            mbedtls_ecp_keypair_free(&ctx);
             return SW_EXEC_ERROR();
         }
-        mbedtls_ecdsa_free(&ctx);
+        mbedtls_ecp_keypair_free(&ctx);
         if (r != PICOKEY_OK) {
             return SW_EXEC_ERROR();
         }

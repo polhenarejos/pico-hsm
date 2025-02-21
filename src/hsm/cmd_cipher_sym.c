@@ -655,7 +655,7 @@ int cmd_cipher_sym() {
                     secret[64] = { 0 };
             mbedtls_aes_init(&ctx);
             if (hd_keytype != 0x3) {
-                mbedtls_ecdsa_free(&hd_context);
+                mbedtls_ecp_keypair_free(&hd_context);
                 return SW_INCORRECT_PARAMS();
             }
             key_size = 32;
@@ -689,7 +689,7 @@ int cmd_cipher_sym() {
                 return SW_EXEC_ERROR();
             }
             res_APDU_size = enc.len;
-            mbedtls_ecdsa_free(&hd_context);
+            mbedtls_ecp_keypair_free(&hd_context);
             hd_keytype = 0;
         }
         else {

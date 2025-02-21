@@ -661,7 +661,7 @@ int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
     return PICOKEY_OK;
 }
 
-int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey) {
+int load_private_key_ec(mbedtls_ecp_keypair *ctx, file_t *fkey) {
     if (wait_button_pressed() == true) { // timeout
         return PICOKEY_VERIFICATION_FAILED;
     }
@@ -676,16 +676,27 @@ int load_private_key_ecdsa(mbedtls_ecdsa_context *ctx, file_t *fkey) {
     int r = mbedtls_ecp_read_key(gid, ctx, kdata + 1, key_size - 1);
     if (r != 0) {
         mbedtls_platform_zeroize(kdata, sizeof(kdata));
-        mbedtls_ecdsa_free(ctx);
+        mbedtls_ecp_keypair_free(ctx);
         return PICOKEY_EXEC_ERROR;
     }
     mbedtls_platform_zeroize(kdata, sizeof(kdata));
-    r = mbedtls_ecp_mul(&ctx->grp, &ctx->Q, &ctx->d, &ctx->grp.G, random_gen, NULL);
+#ifdef MBEDTLS_EDDSA_C
+    if (gid == MBEDTLS_ECP_DP_ED25519 || gid == MBEDTLS_ECP_DP_ED448) {
+        r = mbedtls_ecp_point_edwards(&ctx->grp, &ctx->Q, &ctx->d, random_gen, NULL);
+    }
+    else
+#endif
+    {
+        r = mbedtls_ecp_mul(&ctx->grp, &ctx->Q, &ctx->d, &ctx->grp.G, random_gen, NULL);
+    }
     if (r != 0) {
-        mbedtls_ecdsa_free(ctx);
+        mbedtls_ecp_keypair_free(ctx);
         return PICOKEY_EXEC_ERROR;
     }
     return PICOKEY_OK;
+}
+int load_private_key_ecdh(mbedtls_ecp_keypair *ctx, file_t *fkey) {
+    return load_private_key_ec(ctx, fkey);
 }
 
 #define INS_VERIFY                  0x20

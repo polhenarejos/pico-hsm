@@ -663,7 +663,16 @@ int dkek_decode_key(uint8_t id, void *key_ctx, const uint8_t *in, uint16_t in_le
         len = get_uint16_t_be(kb + ofs); ofs += len + 2;
 
         //G
-        len = get_uint16_t_be(kb + ofs); ofs += len + 2;
+        len = get_uint16_t_be(kb + ofs);
+#ifdef MBEDTLS_EDDSA_C
+        if (ec_id == MBEDTLS_ECP_DP_CURVE25519 && kb[ofs + 2] != 0x09) {
+            ec_id = MBEDTLS_ECP_DP_ED25519;
+        }
+        else if (ec_id == MBEDTLS_ECP_DP_CURVE448 && (len != 56 || kb[ofs + 2] != 0x05)) {
+            ec_id = MBEDTLS_ECP_DP_ED448;
+        }
+#endif
+        ofs += len + 2;
 
         //d
         len = get_uint16_t_be(kb + ofs); ofs += 2;
@@ -678,7 +687,15 @@ int dkek_decode_key(uint8_t id, void *key_ctx, const uint8_t *in, uint16_t in_le
         len = get_uint16_t_be(kb + ofs); ofs += 2;
         r = mbedtls_ecp_point_read_binary(&ecdsa->grp, &ecdsa->Q, kb + ofs, len);
         if (r != 0) {
-            r = mbedtls_ecp_mul(&ecdsa->grp, &ecdsa->Q, &ecdsa->d, &ecdsa->grp.G, random_gen, NULL);
+#ifdef MBEDTLS_EDDSA_C
+            if (mbedtls_ecp_get_type(&ecdsa->grp) == MBEDTLS_ECP_TYPE_EDWARDS) {
+                r = mbedtls_ecp_point_edwards(&ecdsa->grp, &ecdsa->Q, &ecdsa->d, random_gen, NULL);
+            }
+            else
+#endif
+            {
+                r = mbedtls_ecp_mul(&ecdsa->grp, &ecdsa->Q, &ecdsa->d, &ecdsa->grp.G, random_gen, NULL);
+            }
             if (r != 0) {
                 mbedtls_ecdsa_free(ecdsa);
                 return PICOKEY_EXEC_ERROR;

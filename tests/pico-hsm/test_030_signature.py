@@ -55,3 +55,12 @@ def test_signature_rsa(device, modulus, scheme):
     device.delete_file(DOPrefixes.KEY_PREFIX, keyid)
     device.verify(pubkey, data, signature, scheme)
 
+@pytest.mark.parametrize(
+    "curve", ['ed25519', 'ed448']
+)
+def test_signature_edwards(device, curve):
+    keyid = device.key_generation(KeyType.ECC, curve)
+    pubkey = device.public_key(keyid=keyid)
+    signature = device.sign(keyid=keyid, scheme=Algorithm.ALGO_EC_RAW, data=data)
+    device.delete_file(DOPrefixes.KEY_PREFIX, keyid)
+    device.verify(pubkey, data, signature)
