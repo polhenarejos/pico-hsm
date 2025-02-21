@@ -141,6 +141,8 @@ def parse_args():
     parser_keygen_aes.add_argument('--size', help='Specifies the size of AES key [128, 192 or 256]', choices=[128, 192, 256], default=128, type=int)
     parser_keygen_x25519 = subparser_keygen.add_parser('x25519', help='Generates a private X25519 keypair.')
     parser_keygen_x448 = subparser_keygen.add_parser('x448', help='Generates a private X448 keypair.')
+    parser_keygen_x25519 = subparser_keygen.add_parser('ed25519', help='Generates a private Ed25519 keypair.')
+    parser_keygen_x448 = subparser_keygen.add_parser('ed448', help='Generates a private Ed448 keypair.')
 
     parser_otp = subparser.add_parser('otp', help='Read/write OTP values.')
     parser_otp.add_argument('subcommand', choices=['read', 'write', 'secure_boot'], help='Read, write or enable Secure Boot', nargs='?')
@@ -469,8 +471,10 @@ def cipher(picohsm, args):
 def keygen(picohsm, args):
     if (args.subcommand == 'aes'):
         ret = picohsm.key_generation(KeyType.AES, param=args.size)
-    elif (args.subcommand in ['x25519', 'x448']):
-        curve = 'curve' + args.subcommand[1:]
+    elif (args.subcommand in ['x25519', 'x448', 'ed25519', 'ed448']):
+        curve = args.subcommand
+        if (args.subcommand in ['x25519', 'x448']):
+            curve = 'curve' + args.subcommand[1:]
         ret = picohsm.key_generation(KeyType.ECC, curve)
     print('Key generated successfully.')
     print(f'Key ID: {ret}')

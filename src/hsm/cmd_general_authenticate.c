@@ -44,11 +44,11 @@ int cmd_general_authenticate() {
             if (!fkey) {
                 return SW_EXEC_ERROR();
             }
-            mbedtls_ecdsa_context ectx;
-            mbedtls_ecdsa_init(&ectx);
-            r = load_private_key_ecdsa(&ectx, fkey);
+            mbedtls_ecp_keypair ectx;
+            mbedtls_ecp_keypair_init(&ectx);
+            r = load_private_key_ecdh(&ectx, fkey);
             if (r != PICOKEY_OK) {
-                mbedtls_ecdsa_free(&ectx);
+                mbedtls_ecp_keypair_free(&ectx);
                 return SW_EXEC_ERROR();
             }
             mbedtls_ecdh_context ctx;
@@ -56,12 +56,12 @@ int cmd_general_authenticate() {
             mbedtls_ecp_group_id gid = MBEDTLS_ECP_DP_SECP256R1;
             r = mbedtls_ecdh_setup(&ctx, gid);
             if (r != 0) {
-                mbedtls_ecdsa_free(&ectx);
+                mbedtls_ecp_keypair_free(&ectx);
                 mbedtls_ecdh_free(&ctx);
                 return SW_DATA_INVALID();
             }
             r = mbedtls_mpi_copy(&ctx.ctx.mbed_ecdh.d, &ectx.d);
-            mbedtls_ecdsa_free(&ectx);
+            mbedtls_ecp_keypair_free(&ectx);
             if (r != 0) {
                 mbedtls_ecdh_free(&ctx);
                 return SW_DATA_INVALID();

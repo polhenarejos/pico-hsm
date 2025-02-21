@@ -52,13 +52,13 @@ int cmd_derive_asym() {
         return SW_WRONG_LENGTH();
     }
     if (apdu.data[0] == ALGO_EC_DERIVE) {
-        mbedtls_ecdsa_context ctx;
-        mbedtls_ecdsa_init(&ctx);
+        mbedtls_ecp_keypair ctx;
+        mbedtls_ecp_keypair_init(&ctx);
 
         int r;
-        r = load_private_key_ecdsa(&ctx, fkey);
+        r = load_private_key_ec(&ctx, fkey);
         if (r != PICOKEY_OK) {
-            mbedtls_ecdsa_free(&ctx);
+            mbedtls_ecp_keypair_free(&ctx);
             if (r == PICOKEY_VERIFICATION_FAILED) {
                 return SW_SECURE_MESSAGE_EXEC_ERROR();
             }
@@ -69,7 +69,7 @@ int cmd_derive_asym() {
         mbedtls_mpi_init(&nd);
         r = mbedtls_mpi_read_binary(&a, apdu.data + 1, apdu.nc - 1);
         if (r != 0) {
-            mbedtls_ecdsa_free(&ctx);
+            mbedtls_ecp_keypair_free(&ctx);
             mbedtls_mpi_free(&a);
             mbedtls_mpi_free(&nd);
             return SW_DATA_INVALID();
@@ -77,22 +77,22 @@ int cmd_derive_asym() {
         r = mbedtls_mpi_add_mod(&ctx.grp, &nd, &ctx.d, &a);
         mbedtls_mpi_free(&a);
         if (r != 0) {
-            mbedtls_ecdsa_free(&ctx);
+            mbedtls_ecp_keypair_free(&ctx);
             mbedtls_mpi_free(&nd);
             return SW_EXEC_ERROR();
         }
         r = mbedtls_mpi_copy(&ctx.d, &nd);
         mbedtls_mpi_free(&nd);
         if (r != 0) {
-            mbedtls_ecdsa_free(&ctx);
+            mbedtls_ecp_keypair_free(&ctx);
             return SW_EXEC_ERROR();
         }
         r = store_keys(&ctx, PICO_KEYS_KEY_EC, dest_id);
         if (r != PICOKEY_OK) {
-            mbedtls_ecdsa_free(&ctx);
+            mbedtls_ecp_keypair_free(&ctx);
             return SW_EXEC_ERROR();
         }
-        mbedtls_ecdsa_free(&ctx);
+        mbedtls_ecp_keypair_free(&ctx);
     }
     else {
         return SW_WRONG_DATA();
