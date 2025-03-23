@@ -67,6 +67,7 @@ def parse_args():
     subparser = parser.add_subparsers(title="commands", dest="command", required=True)
     parser_init = subparser.add_parser('initialize', help='Performs the first initialization of the Pico HSM.')
     parser.add_argument('--pin', help='PIN number')
+    parser.add_argument('--slot', help='Select specific slot', type=int, default=-1)
     parser_init.add_argument('--so-pin', help='SO-PIN number')
     parser_init.add_argument('--silent', help='Confirms initialization silently.', action='store_true')
     parser_init.add_argument('--no-dev-cert', help='Do not request a device certificate (it will use a self-signed certificate). Do not use if attestation is needed.', action='store_true', default=False)
@@ -528,13 +529,13 @@ def memory(picohsm, args):
     print(f'\tFiles: {mem["files"]}')
 
 def main(args):
-    sys.stderr.buffer.write(b'Pico HSM Tool v2.2\n')
+    sys.stderr.buffer.write(b'Pico HSM Tool v2.4\n')
     sys.stderr.buffer.write(b'Author: Pol Henarejos\n')
     sys.stderr.buffer.write(b'Report bugs to https://github.com/polhenarejos/pico-hsm/issues\n')
     sys.stderr.buffer.write(b'\n\n')
     sys.stderr.flush()
 
-    picohsm = PicoHSM(args.pin)
+    picohsm = PicoHSM(args.pin, slot=args.slot)
 
     # Following commands may raise APDU exception on error
     if (args.command == 'initialize'):
