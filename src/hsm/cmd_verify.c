@@ -59,8 +59,5 @@ int cmd_verify() {
         }
         return set_res_sw(0x63, 0xc0 | file_read_uint8(file_retries_sopin));
     }
-    else if (p2 == 0x85) {
-        return SW_OK();
-    }
     return SW_REFERENCE_NOT_FOUND();
 }
