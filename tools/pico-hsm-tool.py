@@ -234,7 +234,7 @@ def initialize(picohsm, args):
 
         pbk = base64.urlsafe_b64encode(Y)
         params = {'pubkey': pbk}
-        if (picohsm.platform in (Platform.RP2350, Platform.ESP32)):
+        if (picohsm.platform in (Platform.RP2350, Platform.ESP32, Platform.EMULATION)):
             params['curve'] = 'secp256k1'
         data = urllib.parse.urlencode(params).encode()
         j = get_pki_data('cvc', data=data)
