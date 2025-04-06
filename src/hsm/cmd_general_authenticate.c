@@ -22,6 +22,7 @@
 #include "oid.h"
 #include "eac.h"
 #include "files.h"
+#include "otp.h"
 
 int cmd_general_authenticate() {
     if (P1(apdu) == 0x0 && P2(apdu) == 0x0) {
@@ -54,6 +55,9 @@ int cmd_general_authenticate() {
             mbedtls_ecdh_context ctx;
             mbedtls_ecdh_init(&ctx);
             mbedtls_ecp_group_id gid = MBEDTLS_ECP_DP_SECP256R1;
+            if (otp_key_2) {
+                gid = MBEDTLS_ECP_DP_SECP256K1;
+            }
             r = mbedtls_ecdh_setup(&ctx, gid);
             if (r != 0) {
                 mbedtls_ecp_keypair_free(&ectx);
