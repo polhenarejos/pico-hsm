@@ -761,6 +761,7 @@ static const cmd_t cmds[] = {
 };
 
 int sc_hsm_process_apdu() {
+    uint32_t ne = apdu.ne;
     int r = sm_unwrap();
     if (r != PICOKEY_OK) {
         return SW_DATA_INVALID();
@@ -769,6 +770,9 @@ int sc_hsm_process_apdu() {
         if (cmd->ins == INS(apdu)) {
             int res = cmd->cmd_handler();
             sm_wrap();
+            if ((CLA(apdu) >> 2) & 0x3) {
+                apdu.ne = ne;
+            }
             return res;
         }
     }
