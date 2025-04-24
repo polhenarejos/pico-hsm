@@ -24,7 +24,7 @@ RUN apt install -y libccid \
     cmake \
     vsmartcard-vpcd \
     && rm -rf /var/lib/apt/lists/*
-RUN pip3 install pytest pycvc cryptography pyscard base58
+RUN pip3 install pytest pycvc cryptography pyscard==2.2.1 base58
 WORKDIR /
 RUN git clone https://github.com/OpenSC/OpenSC
 WORKDIR /OpenSC
