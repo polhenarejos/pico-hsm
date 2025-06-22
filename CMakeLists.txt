@@ -44,6 +44,12 @@ else()
 
     add_executable(pico_hsm)
 endif()
+set(USB_ITF_CCID 1)
+set(USB_ITF_WCID 1)
+include(pico-keys-sdk/pico_keys_sdk_import.cmake)
+if(NOT ESP_PLATFORM)
+    set(SOURCES ${PICO_KEYS_SOURCES})
+endif()
 set(SOURCES ${SOURCES}
     ${CMAKE_CURRENT_LIST_DIR}/src/hsm/sc_hsm.c
     ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_select.c
@@ -77,9 +83,6 @@ set(SOURCES ${SOURCES}
     ${CMAKE_CURRENT_LIST_DIR}/src/hsm/files.c
     ${CMAKE_CURRENT_LIST_DIR}/src/hsm/kek.c
 )
-set(USB_ITF_CCID 1)
-set(USB_ITF_WCID 1)
-include(pico-keys-sdk/pico_keys_sdk_import.cmake)
 
 SET_VERSION(ver_major ver_minor "${CMAKE_CURRENT_LIST_DIR}/src/hsm/version.h" 1)
 
