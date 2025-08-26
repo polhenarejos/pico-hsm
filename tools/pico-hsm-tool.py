@@ -156,6 +156,22 @@ def parse_args():
 
     parser_memory = subparser.add_parser('memory', help='Get memory usage.')
 
+    parser_bip32 = subparser.add_parser('bip32', help='Performs bip32 operations.')
+    parser_bip32.add_argument('--id', help='Master key id (0-255)', required=True)
+    subparser_bip32 = parser_bip32.add_subparsers(title='commands', dest='subcommand', required=True)
+    parser_bip32_init = subparser_bip32.add_parser('initialize', help='Initializes a master key.')
+    parser_bip32_derive = subparser_bip32.add_parser('derive', help='Derives a extended public key (xpub).')
+    parser_bip32_sign = subparser_bip32.add_parser('sign', help='Sign message.\n\tIf no file input/output is specified, stdin/stdout will be used.')
+
+    parser_bip32_init.add_argument('--curve', choices=['secp256k1', 'secp256r1', 'symmetric'], required=True)
+    parser_bip32_init.add_argument('--seed-file', help='File with the master seed. Specify "-" for stdin.')
+
+    parser_bip32_derive.add_argument('--path', help='Derivation path (e.g. m/0h/1/2)', required=True)
+
+    parser_bip32_sign.add_argument('--path', help='Derivation path (e.g. m/0h/1/2)', required=True)
+    parser_bip32_sign.add_argument('--file-in', help='File to sign.')
+    parser_bip32_sign.add_argument('--file-out', help='File to write the signature.')
+
     args = parser.parse_args()
     return args
 
@@ -528,6 +544,59 @@ def memory(picohsm, args):
     print(f'\tFlash size: {mem["size"]/1024:.2f} kilobytes')
     print(f'\tFiles: {mem["files"]}')
 
+def bip32(picohsm, args):
+    id = 0
+    if args.id != "":
+        id = int(args.id)
+    if (args.subcommand == 'initialize'):
+        seed = None
+        if args.seed_file:
+            if args.seed_file != '-':
+                fin = open(args.seed_file, 'rb')
+                seed = fin.read()
+                fin.close()
+            else:
+                seed = sys.stdin.buffer.read()
+        picohsm.hd_generate_master_node(curve=args.curve, id=id, seed=seed)
+    elif (args.subcommand == 'derive'):
+        path = parse_derivation_path(args.path)
+        ret = picohsm.hd_derive_node([id] + path)
+        sys.stdout.buffer.write(bytes(ret))
+    elif (args.subcommand == 'sign'):
+        if (args.file_in):
+            fin = open(args.file_in, 'rb')
+        else:
+            fin = sys.stdin.buffer
+        data = fin.read()
+        fin.close()
+        path = parse_derivation_path(args.path)
+        ret = picohsm.hd_signature([id] + path, data)
+        if (args.file_out):
+            fout = open(args.file_out, 'wb')
+            fout.write(bytes(ret))
+            fout.close()
+        else:
+            sys.stdout.buffer.write(bytes(ret))
+
+def parse_derivation_path(path):
+    if path == "m":
+        return []
+    if len(path) < 3:
+        raise ValueError(f"derivation path too short: {path}")
+    elems = path.split("/")
+    if elems[0] != 'm':
+        raise ValueError(f"derivation path {path} does not begin with 'm/'")
+    indices = []
+    for e in elems[1:]:
+        if len(e) == 0:
+            raise ValueError(f"derivation path contains empty index: {path}")
+        off = 0
+        if e[-1:] in ["'", "h"]:
+            off = 0x80000000
+            e = e[:-1]
+        indices.append(int(e) + off)
+    return indices
+
 def main(args):
     sys.stderr.buffer.write(b'Pico HSM Tool v2.4\n')
     sys.stderr.buffer.write(b'Author: Pol Henarejos\n')
@@ -562,6 +631,8 @@ def main(args):
         reboot(picohsm, args)
     elif (args.command == 'memory'):
         memory(picohsm, args)
+    elif (args.command == 'bip32'):
+        bip32(picohsm, args)
 
 def run():
     args = parse_args()
