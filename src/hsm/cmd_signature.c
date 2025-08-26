@@ -305,6 +305,9 @@ int cmd_signature() {
             mbedtls_ecp_keypair_free(&hd_context);
             return SW_INCORRECT_PARAMS();
         }
+        if (wait_button_pressed() == true) { // timeout
+            return SW_SECURE_MESSAGE_EXEC_ERROR();
+        }
         md = MBEDTLS_MD_SHA256;
         if (mbedtls_ecdsa_write_signature(&hd_context, md, apdu.data, apdu.nc, buf,
                                           MBEDTLS_ECDSA_MAX_LEN,
