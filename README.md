@@ -1,4 +1,4 @@
-# Raspberry Pico HSM
+# Pico HSM
 This project aims to transform a Raspberry Pi Pico or ESP32 microcontroller into a Hardware Security Module (HSM). The modified Pico or ESP32 board will be capable of generating and storing private keys, performing AES encryption or decryption, and signing data without exposing the private key. Specifically, the private key remains securely on the board and cannot be retrieved since it is encrypted within the flash memory.
 
 ## Capabilities
@@ -350,6 +350,33 @@ OpenSC relies on PCSC driver, which reads a list (`Info.plist`) that contains a 
 - Use `pico-hsm-tool.py` to modify VID/PID on-the-fly.
 - Use the pure-browser online [Pico Commissioner](https://www.picokeys.com/pico-commissioner/ "Pico Commissioner") that commissions the Pico Key on-the-fly without external tools.
 - Build and configure the project with the proper VID/PID with `USB_VID` and `USB_PID` parameters in `CMake` (see [Build section](#build "Build section")). Note that you cannot distribute the patched/compiled binary if you do not own the VID/PID or have an explicit authorization.
+
+## License and Commercial Use
+
+This project is available under two editions:
+
+**Community Edition (FOSS)**
+- Released under the GNU Affero General Public License v3 (AGPLv3).
+- You are free to study, modify, and run the code, including for internal evaluation.
+- If you distribute modified binaries/firmware, OR if you run a modified version of this project as a network-accessible service, you must provide the corresponding source code to the users of that binary or service, as required by AGPLv3.
+- No warranty. No SLA. No guaranteed support.
+
+**Enterprise / Commercial Edition**
+- Proprietary license for organizations that want to:
+  - run this in production with multiple users/devices,
+  - integrate it into their own product/appliance,
+  - enforce corporate policies (PIN policy, admin/user roles, revocation),
+  - and *not* be required to publish derivative source code.
+- Includes access to enterprise-only features (bulk provisioning, multi-user policy controls, device inventory & revocation, custom attestation/identity), official signed builds, and an onboarding call.
+
+Typical licensing models:
+- Internal use (within one legal entity).
+- Redistribution / OEM (shipping this as part of your product).
+
+For commercial licensing and enterprise features, email pol@henarejos.me
+Subject: `ENTERPRISE LICENSE <your company name>`
+
+See `ENTERPRISE.md` for details.
 
 ## Credits
 Pico HSM uses the following libraries or portion of code:
