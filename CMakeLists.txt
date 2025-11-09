@@ -31,10 +31,6 @@ else()
     set(CMAKE_C_STANDARD 11)
     set(CMAKE_CXX_STANDARD 17)
 
-    if(NOT ENABLE_EMULATION)
-        pico_sdk_init()
-    endif()
-
     if(NOT DEFINED __FOR_CI)
         set(__FOR_CI 0)
     endif()
