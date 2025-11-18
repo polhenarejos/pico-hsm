@@ -26,6 +26,7 @@
 #include "pico_keys.h"
 #include "usb.h"
 #include "random.h"
+#include "version.h"
 
 const uint8_t sc_hsm_aid[] = {
     11,
@@ -44,6 +45,8 @@ const uint8_t *dev_name = NULL;
 uint16_t dev_name_len = 0;
 
 uint8_t PICO_PRODUCT = 1;
+uint8_t PICO_VERSION_MAJOR = HSM_VERSION_MAJOR;
+uint8_t PICO_VERSION_MINOR = HSM_VERSION_MINOR;
 
 static int sc_hsm_process_apdu();
 
