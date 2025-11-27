@@ -37,7 +37,7 @@ RUN make clean
 RUN ldconfig
 WORKDIR /
 RUN git clone https://github.com/polhenarejos/pypicohsm.git
-RUN pip3 install -e pypicohsm
+RUN pip3 install pypicohsm
 RUN git clone https://github.com/CardContact/sc-hsm-embedded
 WORKDIR /sc-hsm-embedded
 RUN autoreconf -fi
