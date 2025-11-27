@@ -22,7 +22,6 @@ RUN apt install -y libccid \
     swig \
     libssl-dev \
     cmake \
-    python3-pyscard \
     vsmartcard-vpcd \
     && rm -rf /var/lib/apt/lists/*
 RUN pip3 install pytest pycvc cryptography base58
