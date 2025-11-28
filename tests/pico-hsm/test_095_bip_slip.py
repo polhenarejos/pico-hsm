@@ -37,7 +37,7 @@ def sha256_sha256(data):
     return hashlib.sha256(hashlib.sha256(data).digest()).digest()
 
 def test_initialize(device):
-    device.initialize(dkek_shares=DEFAULT_DKEK_SHARES)
+    device.initialize(dkek_shares=DEFAULT_DKEK_SHARES, no_dev_cert=True)
     resp = device.import_dkek(DEFAULT_DKEK)
     resp = device.import_dkek(DEFAULT_DKEK)
 

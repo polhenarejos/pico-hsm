@@ -27,7 +27,7 @@ KEY_DOMAINS = 3
 TEST_KEY_DOMAIN = 1
 
 def test_key_domains(device):
-    device.initialize(key_domains=KEY_DOMAINS)
+    device.initialize(key_domains=KEY_DOMAINS, no_dev_cert=True)
     for k in range(KEY_DOMAINS):
         kd = device.get_key_domain(key_domain=k)
         assert('error' in kd)

@@ -23,7 +23,7 @@ def test_select(device):
     device.select_applet()
 
 def test_initialization(device):
-    device.initialize()
+    device.initialize(no_dev_cert=True)
 
 def test_termca(device):
     data = device.get_termca()

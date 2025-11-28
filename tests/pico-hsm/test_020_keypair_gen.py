@@ -21,7 +21,7 @@ import pytest
 from picohsm import KeyType, DOPrefixes
 
 def test_gen_initialize(device):
-    device.initialize()
+    device.initialize(no_dev_cert=True)
 
 @pytest.mark.parametrize(
     "curve", ['secp192r1', 'secp256r1', 'secp384r1', 'secp521r1', 'brainpoolP256r1', 'brainpoolP384r1', 'brainpoolP512r1', 'secp192k1', 'secp256k1', 'curve25519', 'curve448', 'ed25519', 'ed448']

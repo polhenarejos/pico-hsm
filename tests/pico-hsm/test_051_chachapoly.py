@@ -31,7 +31,7 @@ MESSAGE = b'a secret message'
 AAD = b'this is a tag for AAD'
 
 def test_prepare_chachapoly(device):
-    device.initialize(dkek_shares=DEFAULT_DKEK_SHARES)
+    device.initialize(dkek_shares=DEFAULT_DKEK_SHARES, no_dev_cert=True)
     resp = device.import_dkek(DEFAULT_DKEK)
     resp = device.import_dkek(DEFAULT_DKEK)
 

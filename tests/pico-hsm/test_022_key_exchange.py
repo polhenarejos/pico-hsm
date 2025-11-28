@@ -25,7 +25,7 @@ from picohsm.const import DEFAULT_RETRIES, DEFAULT_DKEK_SHARES
 from const import DEFAULT_DKEK
 
 def test_prepare_dkek(device):
-    device.initialize(retries=DEFAULT_RETRIES, dkek_shares=DEFAULT_DKEK_SHARES)
+    device.initialize(retries=DEFAULT_RETRIES, dkek_shares=DEFAULT_DKEK_SHARES, no_dev_cert=True)
     resp = device.import_dkek(DEFAULT_DKEK)
     resp = device.import_dkek(DEFAULT_DKEK)
     kcv = hashlib.sha256(b'\x00'*32).digest()[:8]

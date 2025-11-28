@@ -23,7 +23,7 @@ from picohsm.const import DEFAULT_DKEK_SHARES, DEFAULT_PIN, DEFAULT_RETRIES
 from const import  DEFAULT_DKEK
 
 def test_dkek(device):
-    device.initialize(retries=DEFAULT_RETRIES, dkek_shares=DEFAULT_DKEK_SHARES)
+    device.initialize(retries=DEFAULT_RETRIES, dkek_shares=DEFAULT_DKEK_SHARES, no_dev_cert=True)
     device.login(DEFAULT_PIN)
     resp = device.import_dkek(DEFAULT_DKEK)
     assert('dkek' in resp)
