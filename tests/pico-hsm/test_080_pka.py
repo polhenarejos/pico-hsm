@@ -21,7 +21,7 @@ import pytest
 from binascii import unhexlify, hexlify
 from cvc.certificates import CVC
 from picohsm.utils import int_to_bytes
-from picohsm import APDUResponse, SWCodes
+from picokey import APDUResponse, SWCodes
 from const import TERM_CERT, DICA_CERT
 from cryptography.hazmat.primitives.asymmetric import ec, utils
 from cryptography.hazmat.primitives import hashes

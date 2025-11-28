@@ -20,7 +20,7 @@
 import pytest
 import hashlib
 from const import DEFAULT_DKEK
-from picohsm import APDUResponse, SWCodes
+from picokey import APDUResponse, SWCodes
 from picohsm.const import DEFAULT_DKEK_SHARES
 
 KEY_DOMAINS = 3

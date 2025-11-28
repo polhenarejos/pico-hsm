@@ -27,7 +27,8 @@ from cvc.certificates import CVC
 from cvc import oid
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import hashes
-from picohsm import EncryptionMode, APDUResponse, SWCodes, PicoHSM
+from picohsm import EncryptionMode, PicoHSM
+from picokey import APDUResponse, SWCodes
 import hashlib
 
 TEST_STRING = b'Pico Keys are awesome!'

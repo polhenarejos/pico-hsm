@@ -18,7 +18,7 @@
 """
 
 import pytest
-from picohsm import APDUResponse, SWCodes
+from picokey import APDUResponse, SWCodes
 from picohsm.const import DEFAULT_PIN, DEFAULT_RETRIES
 
 WRONG_PIN = '112233'

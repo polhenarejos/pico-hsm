@@ -18,7 +18,8 @@
 """
 
 import pytest
-from picohsm import KeyType, DOPrefixes, APDUResponse, SWCodes
+from picohsm import KeyType, DOPrefixes
+from picokey import APDUResponse, SWCodes
 from binascii import hexlify
 import hashlib
 from const import DEFAULT_DKEK

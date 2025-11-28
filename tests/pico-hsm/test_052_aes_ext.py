@@ -20,8 +20,7 @@
 import pytest
 import os
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes, aead
-import cryptography.exceptions
-from picohsm import APDUResponse, DOPrefixes, EncryptionMode, SWCodes, AES
+from picohsm import EncryptionMode, AES
 from picohsm.const import DEFAULT_DKEK_SHARES
 from const import DEFAULT_DKEK
 from binascii import hexlify
