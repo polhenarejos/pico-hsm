@@ -24,11 +24,11 @@ RUN apt install -y libccid \
     cmake \
     vsmartcard-vpcd \
     && rm -rf /var/lib/apt/lists/*
-RUN pip3 install pytest pycvc cryptography pyscard==2.2.1 base58
+RUN pip3 install pytest pycvc cryptography base58
 WORKDIR /
 RUN git clone https://github.com/OpenSC/OpenSC
 WORKDIR /OpenSC
-RUN git checkout tags/0.25.1
+RUN git checkout tags/0.26.1
 RUN ./bootstrap
 RUN ./configure --enable-openssl
 RUN make -j `nproc`
@@ -37,7 +37,9 @@ RUN make clean
 RUN ldconfig
 WORKDIR /
 RUN git clone https://github.com/polhenarejos/pypicohsm.git
-RUN pip3 install -e pypicohsm
+WORKDIR /pypicohsm
+RUN pip3 install .
+WORKDIR /
 RUN git clone https://github.com/CardContact/sc-hsm-embedded
 WORKDIR /sc-hsm-embedded
 RUN autoreconf -fi

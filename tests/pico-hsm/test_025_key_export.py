@@ -18,7 +18,8 @@
 """
 
 import pytest
-from picohsm import KeyType, DOPrefixes, APDUResponse, SWCodes
+from picohsm import KeyType, DOPrefixes
+from picokey import APDUResponse, SWCodes
 from binascii import hexlify
 import hashlib
 from const import DEFAULT_DKEK
@@ -28,7 +29,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import serialization
 
 def test_initialize(device):
-    device.initialize(key_domains=1)
+    device.initialize(key_domains=1, no_dev_cert=True)
     assert(device.get_key_domains() == 1)
 
     device.set_key_domain(key_domain=0, total=2)

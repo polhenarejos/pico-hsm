@@ -39,13 +39,13 @@ except ModuleNotFoundError:
     sys.exit(-1)
 
 try:
-    from picohsm import PicoHSM, PinType, DOPrefixes, KeyType, EncryptionMode, utils, APDUResponse, SWCodes, AES, Platform
+    from picohsm import PicoHSM, PinType, DOPrefixes, KeyType, EncryptionMode, AES
+    from picohsm.utils import get_pki_data
+    from picokey import APDUResponse, Platform
 except ModuleNotFoundError:
     print('ERROR: picohsm module not found! Install picohsm package.\nTry with `pip install pypicohsm`')
     sys.exit(-1)
 
-import json
-import urllib.request
 import base64
 from binascii import hexlify, unhexlify
 import sys
@@ -175,21 +175,6 @@ def parse_args():
     args = parser.parse_args()
     return args
 
-def get_pki_data(url, data=None, method='GET'):
-    user_agent = 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; '
-    'rv:1.9.0.7) Gecko/2009021910 Firefox/3.0.7'
-    method = 'GET'
-    if (data is not None):
-        method = 'POST'
-    req = urllib.request.Request(f"https://www.picokeys.com/pico/pico-hsm/{url}/",
-                                method=method,
-                                data=data,
-                                headers={'User-Agent': user_agent, })
-    response = urllib.request.urlopen(req)
-    resp = response.read().decode('utf-8')
-    j = json.loads(resp)
-    return j
-
 def get_pki_certs(certs_dir='certs', force=False):
     certs = get_pki_data('certs')
     if (os.path.exists(certs_dir) is False):
@@ -222,45 +207,9 @@ def initialize(picohsm, args):
         print('Are you sure?')
         _ = input('[Press enter to confirm]')
 
-    if (args.pin):
-        try:
-            picohsm.login(args.pin)
-        except APDUResponse:
-            pass
-        pin = args.pin
-    else:
-        pin = '648219'
+    picohsm.initialize(pin=args.pin, sopin=args.so_pin, no_dev_cert=args.no_dev_cert)
 
-    if (args.so_pin):
-        try:
-            picohsm.login(args.so_pin, who=PinType.SO_PIN)
-        except APDUResponse:
-            pass
-        so_pin = args.so_pin
-    else:
-        so_pin = '57621880'
-
-    picohsm.initialize(pin=pin, sopin=so_pin)
     if (not args.no_dev_cert):
-        response = picohsm.get_contents(DOPrefixes.EE_CERTIFICATE_PREFIX, 0x00)
-
-        cert = bytearray(response)
-        Y = CVC().decode(cert).pubkey().find(0x86).data()
-        print(f'Public Point: {hexlify(Y).decode()}')
-
-        pbk = base64.urlsafe_b64encode(Y)
-        params = {'pubkey': pbk}
-        if (picohsm.platform in (Platform.RP2350, Platform.ESP32, Platform.EMULATION)):
-            params['curve'] = 'secp256k1'
-        data = urllib.parse.urlencode(params).encode()
-        j = get_pki_data('cvc', data=data)
-        print('Device name: '+j['devname'])
-        dataef = base64.urlsafe_b64decode(
-            j['cvcert']) + base64.urlsafe_b64decode(j['dvcert']) + base64.urlsafe_b64decode(j['cacert'])
-
-        picohsm.select_file(0x2f02)
-        response = picohsm.put_contents(0x0000, data=dataef)
-
         print('Certificate uploaded successfully!')
         print('')
     print('Note that the device is initialized with a default PIN and '
