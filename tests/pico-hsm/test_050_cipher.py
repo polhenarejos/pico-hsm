@@ -27,7 +27,7 @@ from const import DEFAULT_DKEK
 MESSAGE = b'a secret message'
 
 def test_prepare_aes(device):
-    device.initialize(dkek_shares=DEFAULT_DKEK_SHARES)
+    device.initialize(dkek_shares=DEFAULT_DKEK_SHARES, no_dev_cert=True)
     resp = device.import_dkek(DEFAULT_DKEK)
     resp = device.import_dkek(DEFAULT_DKEK)
 

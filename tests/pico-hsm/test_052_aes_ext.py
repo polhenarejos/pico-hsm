@@ -20,8 +20,7 @@
 import pytest
 import os
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes, aead
-import cryptography.exceptions
-from picohsm import APDUResponse, DOPrefixes, EncryptionMode, SWCodes, AES
+from picohsm import EncryptionMode, AES
 from picohsm.const import DEFAULT_DKEK_SHARES
 from const import DEFAULT_DKEK
 from binascii import hexlify
@@ -30,7 +29,7 @@ MESSAGE = b'a secret message'
 AAD = b'this is a tag for AAD'
 
 def test_prepare_aes(device):
-    device.initialize(dkek_shares=DEFAULT_DKEK_SHARES)
+    device.initialize(dkek_shares=DEFAULT_DKEK_SHARES, no_dev_cert=True)
     resp = device.import_dkek(DEFAULT_DKEK)
     resp = device.import_dkek(DEFAULT_DKEK)
 

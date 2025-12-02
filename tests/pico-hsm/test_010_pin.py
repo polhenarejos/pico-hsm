@@ -18,22 +18,22 @@
 """
 
 import pytest
-from picohsm import APDUResponse, SWCodes
+from picokey import APDUResponse, SWCodes
 from picohsm.const import DEFAULT_PIN, DEFAULT_RETRIES
 
 WRONG_PIN = '112233'
 
 def test_pin_init_retries(device):
-    device.initialize(retries=DEFAULT_RETRIES)
+    device.initialize(retries=DEFAULT_RETRIES, no_dev_cert=True)
     retries = device.get_login_retries()
     assert(retries == DEFAULT_RETRIES)
 
 def test_pin_login(device):
-    device.initialize(retries=DEFAULT_RETRIES)
+    device.initialize(retries=DEFAULT_RETRIES, no_dev_cert=True)
     device.login(DEFAULT_PIN)
 
 def test_pin_retries(device):
-    device.initialize(retries=DEFAULT_RETRIES)
+    device.initialize(retries=DEFAULT_RETRIES, no_dev_cert=True)
     device.login(DEFAULT_PIN)
 
     for ret in range(DEFAULT_RETRIES-1):
@@ -45,7 +45,7 @@ def test_pin_retries(device):
         device.login(WRONG_PIN)
     assert(e.value.sw == SWCodes.SW_PIN_BLOCKED)
 
-    device.initialize(retries=DEFAULT_RETRIES)
+    device.initialize(retries=DEFAULT_RETRIES, no_dev_cert=True)
     retries = device.get_login_retries()
     assert(retries == DEFAULT_RETRIES)
 
