@@ -83,14 +83,6 @@ int cmd_keypair_gen() {
                     if (asn1_find_tag(&ctxo, 0x83, &g) != true) {
                         return SW_WRONG_DATA();
                     }
-#ifdef MBEDTLS_EDDSA_C
-                    if (ec_id == MBEDTLS_ECP_DP_CURVE25519 && (g.data[0] != 9)) {
-                        ec_id = MBEDTLS_ECP_DP_ED25519;
-                    }
-                    else if (ec_id == MBEDTLS_ECP_DP_CURVE448 && (g.len != 56 || g.data[0] != 5)) {
-                        ec_id = MBEDTLS_ECP_DP_ED448;
-                    }
-#endif
                 }
                 printf("KEYPAIR ECC %d\r\n", ec_id);
                 mbedtls_ecdsa_context ecdsa;

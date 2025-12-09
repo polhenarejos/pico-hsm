@@ -26,9 +26,6 @@
 #include "oid.h"
 #include "mbedtls/md.h"
 #include "files.h"
-#ifdef MBEDTLS_EDDSA_C
-#include "mbedtls/eddsa.h"
-#endif
 
 extern const uint8_t *dev_name;
 extern uint16_t dev_name_len;
@@ -91,11 +88,7 @@ uint16_t asn1_cvc_public_key_ecdsa(mbedtls_ecp_keypair *ecdsa, uint8_t *buf, uin
     uint16_t ctot_size = asn1_len_tag(0x87, (uint16_t)c_size);
     uint16_t oid_len = asn1_len_tag(0x6, sizeof(oid_ecdsa));
     uint16_t tot_len = 0, tot_data_len = 0;
-    if (mbedtls_ecp_get_type(&ecdsa->grp) == MBEDTLS_ECP_TYPE_MONTGOMERY
-#ifdef MBEDTLS_EDDSA_C
-     || mbedtls_ecp_get_type(&ecdsa->grp) == MBEDTLS_ECP_TYPE_EDWARDS
-#endif
-    ) {
+    if (mbedtls_ecp_get_type(&ecdsa->grp) == MBEDTLS_ECP_TYPE_MONTGOMERY) {
         tot_data_len = oid_len + ptot_size + otot_size + gtot_size + ytot_size;
         oid = oid_ri;
     }
@@ -116,11 +109,7 @@ uint16_t asn1_cvc_public_key_ecdsa(mbedtls_ecp_keypair *ecdsa, uint8_t *buf, uin
     //oid
     *p++ = 0x6; p += format_tlv_len(sizeof(oid_ecdsa), p); memcpy(p, oid, sizeof(oid_ecdsa));
     p += sizeof(oid_ecdsa);
-    if (mbedtls_ecp_get_type(&ecdsa->grp) == MBEDTLS_ECP_TYPE_MONTGOMERY
-#ifdef MBEDTLS_EDDSA_C
-    || mbedtls_ecp_get_type(&ecdsa->grp) == MBEDTLS_ECP_TYPE_EDWARDS
-#endif
-    ) {
+    if (mbedtls_ecp_get_type(&ecdsa->grp) == MBEDTLS_ECP_TYPE_MONTGOMERY) {
         //p
         *p++ = 0x81; p += format_tlv_len((uint16_t)p_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.P, p, p_size);
         p += p_size;
@@ -307,15 +296,7 @@ uint16_t asn1_cvc_cert(void *rsa_ecdsa,
         mbedtls_ecp_keypair *ecdsa = (mbedtls_ecp_keypair *) rsa_ecdsa;
         mbedtls_mpi_init(&r);
         mbedtls_mpi_init(&s);
-#ifdef MBEDTLS_EDDSA_C
-        if (ecdsa->grp.id == MBEDTLS_ECP_DP_ED25519 || ecdsa->grp.id == MBEDTLS_ECP_DP_ED448) {
-            ret = mbedtls_eddsa_sign(&ecdsa->grp, &r, &s, &ecdsa->d, body, body_size, MBEDTLS_EDDSA_PURE, NULL, 0, random_gen, NULL);
-        }
-        else
-#endif
-        {
-            ret = mbedtls_ecdsa_sign(&ecdsa->grp, &r, &s, &ecdsa->d, hsh, sizeof(hsh), random_gen, NULL);
-        }
+        ret = mbedtls_ecdsa_sign(&ecdsa->grp, &r, &s, &ecdsa->d, hsh, sizeof(hsh), random_gen, NULL);
         if (ret == 0) {
             mbedtls_mpi_write_binary(&r, p, key_size / 2); p += key_size / 2;
             mbedtls_mpi_write_binary(&s, p, key_size / 2); p += key_size / 2;
@@ -372,17 +353,9 @@ uint16_t asn1_cvc_aut(void *rsa_ecdsa,
     mbedtls_mpi r, s;
     mbedtls_mpi_init(&r);
     mbedtls_mpi_init(&s);
-#ifdef MBEDTLS_EDDSA_C
-    if (ectx.grp.id == MBEDTLS_ECP_DP_ED25519 || ectx.grp.id == MBEDTLS_ECP_DP_ED448) {
-        ret = mbedtls_eddsa_sign(&ectx.grp, &r, &s, &ectx.d, body, cvcert_size + outcar_size, MBEDTLS_EDDSA_PURE, NULL, 0, random_gen, NULL);
-    }
-    else
-#endif
-    {
-        uint8_t hsh[32];
-        hash256(body, cvcert_size + outcar_size, hsh);
-        ret = mbedtls_ecdsa_sign(&ectx.grp, &r, &s, &ectx.d, hsh, sizeof(hsh), random_gen, NULL);
-    }
+    uint8_t hsh[32];
+    hash256(body, cvcert_size + outcar_size, hsh);
+    ret = mbedtls_ecdsa_sign(&ectx.grp, &r, &s, &ectx.d, hsh, sizeof(hsh), random_gen, NULL);
     mbedtls_ecp_keypair_free(&ectx);
     if (ret != 0) {
         mbedtls_mpi_free(&r);

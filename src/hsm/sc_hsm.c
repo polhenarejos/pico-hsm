@@ -683,15 +683,7 @@ int load_private_key_ec(mbedtls_ecp_keypair *ctx, file_t *fkey) {
         return PICOKEY_EXEC_ERROR;
     }
     mbedtls_platform_zeroize(kdata, sizeof(kdata));
-#ifdef MBEDTLS_EDDSA_C
-    if (gid == MBEDTLS_ECP_DP_ED25519 || gid == MBEDTLS_ECP_DP_ED448) {
-        r = mbedtls_ecp_point_edwards(&ctx->grp, &ctx->Q, &ctx->d, random_gen, NULL);
-    }
-    else
-#endif
-    {
-        r = mbedtls_ecp_mul(&ctx->grp, &ctx->Q, &ctx->d, &ctx->grp.G, random_gen, NULL);
-    }
+    r = mbedtls_ecp_mul(&ctx->grp, &ctx->Q, &ctx->d, &ctx->grp.G, random_gen, NULL);
     if (r != 0) {
         mbedtls_ecp_keypair_free(ctx);
         return PICOKEY_EXEC_ERROR;
