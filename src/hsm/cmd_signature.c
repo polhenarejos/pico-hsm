@@ -20,6 +20,9 @@
 #include "asn1.h"
 #include "mbedtls/oid.h"
 #include "random.h"
+#ifdef MBEDTLS_EDDSA_C
+#include "mbedtls/eddsa.h"
+#endif
 
 extern mbedtls_ecp_keypair hd_context;
 extern uint8_t hd_keytype;
@@ -273,7 +276,16 @@ int cmd_signature() {
         }
         size_t olen = 0;
         uint8_t buf[MBEDTLS_ECDSA_MAX_LEN];
-        r = mbedtls_ecdsa_write_signature(&ctx, md, apdu.data, apdu.nc, buf, MBEDTLS_ECDSA_MAX_LEN, &olen, random_gen, NULL);
+#ifdef MBEDTLS_EDDSA_C
+        if (ctx.grp.id == MBEDTLS_ECP_DP_ED25519 || ctx.grp.id == MBEDTLS_ECP_DP_ED448) {
+            r = mbedtls_eddsa_write_signature(&ctx, apdu.data, apdu.nc, buf, sizeof(buf), &olen, MBEDTLS_EDDSA_PURE, NULL, 0, random_gen, NULL);
+        }
+        else
+#endif
+        {
+            r = mbedtls_ecdsa_write_signature(&ctx, md, apdu.data, apdu.nc, buf, MBEDTLS_ECDSA_MAX_LEN,
+                                              &olen, random_gen, NULL);
+        }
         if (r != 0) {
             mbedtls_ecp_keypair_free(&ctx);
             return SW_EXEC_ERROR();

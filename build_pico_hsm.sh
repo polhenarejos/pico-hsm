@@ -24,8 +24,9 @@ cd build_release
 
 PICO_SDK_PATH="${PICO_SDK_PATH:-../../pico-sdk}"
 SECURE_BOOT_PKEY="${SECURE_BOOT_PKEY:-../../ec_private_key.pem}"
-board_dir=${PICO_SDK_PATH}/src/boards/include/boards
-for board in "$board_dir"/*
+boards=("pico" "pico2")
+
+for board_name in "${boards[@]}"
 do
     board_name="$(basename -- "$board" .h)"
     rm -rf -- ./*
@@ -37,7 +38,7 @@ done
 # Build with EDDSA
 
 if [[ $NO_EDDSA -eq 0 ]]; then
-    for board in "$board_dir"/*
+    for board_name in "${boards[@]}"
     do
         board_name="$(basename -- "$board" .h)"
         rm -rf -- ./*

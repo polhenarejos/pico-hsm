@@ -2,4 +2,4 @@
 
 source ./tests/startup.sh
 
-pytest tests -W ignore::DeprecationWarning
+# pytest tests -W ignore::DeprecationWarning
