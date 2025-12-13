@@ -37,7 +37,9 @@ gen_and_delete() {
     test $? -eq 0 && echo -n "." || exit $?
 }
 reset() {
-    python3 tools/pico-hsm-tool.py --pin 648219 initialize --so-pin 57621880 --silent --no-dev-cert > /dev/null 2>&1
+    #python3 tools/pico-hsm-tool.py --pin 648219 initialize --so-pin 57621880 --silent --no-dev-cert > /dev/null 2>&1
+    rm -f memory.flash
+    tar -xf tests/memory.tar.gz
     test $? -eq 0 || exit $?
 }
 
