@@ -28,9 +28,9 @@ PIN=648219
 [^1]: `openssl version -a` will return the `OPENSSLDIR`, which contains `openssl.cnf` file and `ENGINESDIR`, which contains the p11 engine.
 
 ## Initialization
-The first step is to initialize the HSM. To do so, use the `pico-hsm-tool.py` in `tools` folder:
+The first step is to initialize the HSM. To do so, use:
 ```
-$ python3 tools/pico-hsm-tool.py --pin 648219 initialize --so-pin 57621880
+$ sc-hsm-tool --initialize --so-pin 3537363231383830 --pin 648219
 ```
 The PIN number is used to manage all private keys in the device. It supports three attemps. After the third PIN failure, it gets blocked.
 The PIN accepts from 6 to 16 characters.

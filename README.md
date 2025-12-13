@@ -162,10 +162,10 @@ Secure Lock restricts the device to the manufacturer’s firmware only, locking 
 Pico HSM also supports ESP32-S3 boards, which add secure storage, flash encryption and secure boot.
 
 ### > Dynamic VID/PID
-Supports setting VID & PID on-the-fly. Use `pico-hsm-tool.py` or [Pico Commissioner](https://www.picokeys.com/pico-commissioner/ "Pico Commissioner") for specify VID/PID values and reboot the device.
+Supports setting VID & PID on-the-fly. U
 
 ### > Rescue Pico HSM Tool and Commissioner
-Pico HSM Tool implements a new CCID stack to rescue the Pico HSM in case it has wrong VID/PID values and it is not recognized by the OS. It can be accessed through `pico-hsm-tool.py` or [Pico Commissioner](https://www.picokeys.com/pico-commissioner/ "Pico Commissioner").
+Pico HSM Tool implements a new CCID stack to rescue the Pico HSM in case it has wrong VID/PID values and it is not recognized by the OS.
 
 ## Security considerations
 All secret keys (both asymmetric and symmetric) are encrypted and stored in the flash memory. The MKEK, a 256-bit AES key, is used to protect these private and secret keys. Keys are held in RAM only during signature and decryption operations, and are loaded and cleared each time to avoid potential security vulnerabilities.
@@ -344,12 +344,6 @@ Internally, the Pico HSM organizes and manages its data using the PKCS#15 struct
 Communication with the Pico HSM follows the same protocols and methods used with other smart cards, such as OpenPGP cards or similar devices.
 
 For advanced usage scenarios, refer to the documentation and examples provided. Additionally, the Pico HSM supports the SCS3 tool for more sophisticated operations and includes features like multiple key domains. For detailed information on SCS3 usage, refer to [SCS3 documentation](/doc/scs3.md).
-
-### Important
-OpenSC relies on PCSC driver, which reads a list (`Info.plist`) that contains a pair of VID/PID of supported readers. In order to be detectable, you have several options:
-- Use `pico-hsm-tool.py` to modify VID/PID on-the-fly.
-- Use the pure-browser online [Pico Commissioner](https://www.picokeys.com/pico-commissioner/ "Pico Commissioner") that commissions the Pico Key on-the-fly without external tools.
-- Build and configure the project with the proper VID/PID with `USB_VID` and `USB_PID` parameters in `CMake` (see [Build section](#build "Build section")). Note that you cannot distribute the patched/compiled binary if you do not own the VID/PID or have an explicit authorization.
 
 ## License and Commercial Use
 
