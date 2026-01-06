@@ -164,7 +164,7 @@ Pico HSM also supports ESP32-S3 boards, which add secure storage, flash encrypti
 ### > Dynamic VID/PID
 Supports setting VID & PID on-the-fly. U
 
-### > Rescue Pico HSM Tool and Commissioner
+### > Rescue Pico HSM
 Pico HSM Tool implements a new CCID stack to rescue the Pico HSM in case it has wrong VID/PID values and it is not recognized by the OS.
 
 ## Security considerations
@@ -179,26 +179,16 @@ In the event that the Pico is stolen, the private and secret key contents cannot
 ### RP2350 and ESP32-S3
 RP2350 and ESP32-S3 microcontrollers are equipped with advanced security features, including Secure Boot and Secure Lock, ensuring that firmware integrity and authenticity are tightly controlled. Both devices support the storage of the Master Key Encryption Key (MKEK) in an OTP (One-Time Programmable) memory region, making it permanently inaccessible for external access or tampering. This secure, non-volatile region guarantees that critical security keys are embedded into the hardware, preventing unauthorized access and supporting robust defenses against code injection or firmware modification. Together, Secure Boot and Secure Lock enforce firmware authentication, while the MKEK in OTP memory solidifies the foundation for secure operations.
 
-### Secure Boot
-Secure Boot is a security feature that ensures that only trusted firmware, verified through digital signatures, can be loaded onto the device during the boot process. Once enabled, Secure Boot checks every piece of firmware against a cryptographic signature before execution, rejecting any unauthorized or modified code. This prevents malicious firmware from compromising the device’s operation and integrity. With Secure Boot activated, only firmware versions signed by a trusted authority, such as the device manufacturer, will be accepted, ensuring the device remains protected from unauthorized software modifications. **This is irreversible. Once enabled, it CANNOT be disabled.**
-
-**IMPORTANT:** For users wishing to develop and compile custom firmware, a private-public key pair is essential. Activating Secure Boot requires users to generate and manage their own unique private-public key pair. The public key from this pair must be embedded into the device to validate all firmware. Firmware will not boot without a proper digital signature from this key pair. This means that users must sign all future firmware versions with their private key and embed the public key in the device to ensure compatibility.
-
-### Secure Lock
-Secure Lock builds on Secure Boot by imposing an even stricter security model. Once activated, Secure Lock prevents any further installation of new boot keys, effectively locking the device to only run firmware that is authorized by the device's primary vendor—in this case, Pico Keys. In addition to preventing additional keys, Secure Lock disables debugging interfaces and puts additional safeguards in place to resist tampering and intrusion attempts. This ensures that the device operates exclusively with the original vendor’s firmware and resists unauthorized access, making it highly secure against external threats. **This is irreversible. Once enabled, it CANNOT be disabled.**
-
-**IMPORTANT:** Activating Secure Lock not only enables Secure Boot but also invalidates all keys except the official Pico Key. This means that only firmware signed by Pico Key will be recognized, and custom code will no longer be allowed. Once enabled, the Pico Key device will run solely on the official firmware available on the website, with no option for generating or compiling new code for the device.
-
 ## Download
 **If you own an ESP32-S3 board, go to [ESP32 Flasher](https://www.picokeys.com/esp32-flasher/) for flashing your Pico HSM.**
 
-If you own a Raspberry Pico (RP2040 or RP2350), go to [Download page](https://www.picokeys.com/getting-started/), select your vendor and model and download the proper firmware; or go to [Release page](https://www.github.com/polhenarejos/pico-hsm/releases/) and download the UF2 file for your board.
+If you own a Raspberry Pico (RP2040 or RP2350), go to [Download page](https://www.picokeys.com/getting-started/). If your board is mounted with the RP2040, then select Pico. If your board is mounted with the RP2350 or RP2354, select Pico2.
 
-Note that UF2 files are shiped with a dummy VID/PID to avoid license issues (FEFF:FCFD). If you plan to use it with OpenSC or similar tools, you should modify Info.plist of CCID driver to add these VID/PID or use the [Pico Commissioner](https://www.picokeys.com/pico-commissioner/ "Pico Commissioner").
+Note that UF2 files are shiped with a dummy VID/PID to avoid license issues (FEFF:FCFD). If you plan to use it with OpenSC or similar tools, you should modify Info.plist of CCID driver to add these VID/PID or use the [PicoKey App](https://www.picokeys.com/picokeyapp/ "PicoKey App").
 
 You can use whatever VID/PID (i.e., 234b:0000 from FISJ), but remember that you are not authorized to distribute the binary with a VID/PID that you do not own.
 
-Note that the pure-browser option [Pico Commissioner](https://www.picokeys.com/pico-commissioner/ "Pico Commissioner") is the most recommended.
+Note that the [PicoKey App](https://www.picokeys.com/picokeyapp/ "PicoKey App") is the most recommended.
 
 ## Build for Raspberry Pico
 Before building, ensure you have installed the toolchain for the Pico and the Pico SDK is properly located in your drive.
