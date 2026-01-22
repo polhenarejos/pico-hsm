@@ -59,6 +59,16 @@
 #define OID_ID_TA_ECDSA_SHA_384         OID_ID_TA_ECDSA "\x04"
 #define OID_ID_TA_ECDSA_SHA_512         OID_ID_TA_ECDSA "\x05"
 
+#define OID_PQC                         "\x06\x08\x60\x86\x48\x01\x65\x03\x04"
+#define OID_SIGALGS                     OID_PQC "\x03"
+#define OID_ML_DSA_44                   OID_SIGALGS "\x11"
+#define OID_ML_DSA_65                   OID_SIGALGS "\x12"
+#define OID_ML_DSA_87                   OID_SIGALGS "\x13"
+#define OID_KEMS                        OID_PQC "\x04"
+#define OID_ML_KEM_512                  OID_KEMS "\x01"
+#define OID_ML_KEM_768                  OID_KEMS "\x02"
+#define OID_ML_KEM_1024                 OID_KEMS "\x03"
+
 #define OID_ID_CA                       OID_BSI_DE "\x02\x02\x03"
 
 #define OID_ID_CA_DH                    OID_ID_CA "\x01"

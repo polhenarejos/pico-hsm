@@ -19,11 +19,7 @@
 #define _SC_HSM_H_
 
 #include <stdlib.h>
-#ifndef ESP_PLATFORM
-#include "common.h"
-#else
-#define MBEDTLS_ALLOW_PRIVATE_ACCESS
-#endif
+#include "pico_keys.h"
 #include "mbedtls/rsa.h"
 #include "mbedtls/ecdsa.h"
 #if !defined(ENABLE_EMULATION) && !defined(ESP_PLATFORM)
@@ -31,7 +27,6 @@
 #endif
 #include "file.h"
 #include "apdu.h"
-#include "pico_keys.h"
 #include "usb.h"
 
 #define MAX_APDU_DATA (USB_BUFFER_SIZE - 20)

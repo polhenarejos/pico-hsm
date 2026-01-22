@@ -17,13 +17,6 @@
 
 #include "sc_hsm.h"
 #include "mbedtls/ecdh.h"
-#ifdef PICO_PLATFORM
-#include "pico/aon_timer.h"
-#include "hardware/watchdog.h"
-#else
-#include <sys/time.h>
-#include <time.h>
-#endif
 #include "files.h"
 #include "random.h"
 #include "kek.h"
@@ -57,50 +50,7 @@ int cmd_extras() {
     if (wait_button_pressed() == true) {
         return SW_SECURE_MESSAGE_EXEC_ERROR();
     }
-    if (cmd == CMD_DATETIME) { //datetime operations
-        if (P2(apdu) != 0x0) {
-            return SW_INCORRECT_P1P2();
-        }
-        if (apdu.nc == 0) {
-#ifdef PICO_PLATFORM
-            struct timespec tv;
-            aon_timer_get_time(&tv);
-#else
-            struct timeval tv;
-            gettimeofday(&tv, NULL);
-#endif
-            struct tm *tm = localtime(&tv.tv_sec);
-            res_APDU_size += put_uint16_t_be(tm->tm_year + 1900, res_APDU);
-            res_APDU[res_APDU_size++] = tm->tm_mon;
-            res_APDU[res_APDU_size++] = tm->tm_mday;
-            res_APDU[res_APDU_size++] = tm->tm_wday;
-            res_APDU[res_APDU_size++] = tm->tm_hour;
-            res_APDU[res_APDU_size++] = tm->tm_min;
-            res_APDU[res_APDU_size++] = tm->tm_sec;
-        }
-        else {
-            if (apdu.nc != 8) {
-                return SW_WRONG_LENGTH();
-            }
-            struct tm tm;
-            tm.tm_year = get_uint16_t_be(apdu.data) - 1900;
-            tm.tm_mon = apdu.data[2];
-            tm.tm_mday = apdu.data[3];
-            tm.tm_wday = apdu.data[4];
-            tm.tm_hour = apdu.data[5];
-            tm.tm_min = apdu.data[6];
-            tm.tm_sec = apdu.data[7];
-            time_t tv_sec = mktime(&tm);
-#ifdef PICO_PLATFORM
-            struct timespec tv = {.tv_sec = tv_sec, .tv_nsec = 0};
-            aon_timer_set_time(&tv);
-#else
-            struct timeval tv = {.tv_sec = tv_sec, .tv_usec = 0};
-            settimeofday(&tv, NULL);
-#endif
-        }
-    }
-    else if (cmd == CMD_DYNOPS) {   //dynamic options
+    if (cmd == CMD_DYNOPS) {   //dynamic options
         if (P2(apdu) != 0x0) {
             return SW_INCORRECT_P1P2();
         }
@@ -200,106 +150,6 @@ int cmd_extras() {
                 has_mkek_mask = true;
             }
         }
-    }
-#ifndef ENABLE_EMULATION
-    else if (cmd == CMD_PHY) { // Set PHY
-        if (apdu.nc == 0) {
-            if (file_has_data(ef_phy)) {
-                res_APDU_size = file_get_size(ef_phy);
-                memcpy(res_APDU, file_get_data(ef_phy), res_APDU_size);
-            }
-        }
-        else {
-            if (P2(apdu) == PHY_VIDPID) { // VIDPID
-                if (apdu.nc != 4) {
-                    return SW_WRONG_LENGTH();
-                }
-                phy_data.vid = get_uint16_t_be(apdu.data);
-                phy_data.pid = get_uint16_t_be(apdu.data + 2);
-                phy_data.vidpid_present = true;
-            }
-            else if (P2(apdu) == PHY_LED_GPIO) {
-                phy_data.led_gpio = apdu.data[0];
-                phy_data.led_gpio_present = true;
-            }
-            else if (P2(apdu) == PHY_LED_BTNESS) {
-                phy_data.led_brightness = apdu.data[0];
-                phy_data.led_brightness_present = true;
-            }
-            else if (P2(apdu) == PHY_OPTS) {
-                if (apdu.nc != 2) {
-                    return SW_WRONG_LENGTH();
-                }
-                phy_data.opts = get_uint16_t_be(apdu.data);
-            }
-            else {
-                return SW_INCORRECT_P1P2();
-            }
-            if (phy_save() != PICOKEY_OK) {
-                return SW_EXEC_ERROR();
-            }
-        }
-    }
-#endif
-#if PICO_RP2350
-    else if (cmd == CMD_OTP) {
-        if (apdu.nc < 2) {
-            return SW_WRONG_LENGTH();
-        }
-        uint16_t row = get_uint16_t_be(apdu.data);
-        bool israw = P2(apdu) == 0x1;
-        if (apdu.nc == 2) {
-            if (row > 0xbf && row < 0xf48) {
-                return SW_WRONG_DATA();
-            }
-            if (israw) {
-                memcpy(res_APDU, otp_buffer_raw(row), apdu.ne);
-            }
-            else {
-                memcpy(res_APDU, otp_buffer(row), apdu.ne);
-            }
-            res_APDU_size = apdu.ne;
-        }
-        else {
-            apdu.nc -= 2;
-            apdu.data += 2;
-            if (apdu.nc > 1024) {
-                return SW_WRONG_LENGTH();
-            }
-            if (apdu.nc % (israw ? 4 : 2)) {
-                return SW_WRONG_DATA();
-            }
-            uint8_t adata[1024] __attribute__((aligned(4)));
-            memcpy(adata, apdu.data, apdu.nc);
-            int ret = 0;
-            if (israw) {
-                ret = otp_write_data_raw(row, adata, apdu.nc);
-            }
-            else {
-                ret = otp_write_data(row, adata, apdu.nc);
-            }
-            if (ret != 0) {
-                return SW_EXEC_ERROR();
-            }
-        }
-    }
-#endif
-#ifdef PICO_PLATFORM
-    else if (cmd == CMD_REBOOT) {
-        if (apdu.nc != 0) {
-            return SW_WRONG_LENGTH();
-        }
-        watchdog_reboot(0, 0, 100);
-    }
-#endif
-    else if (cmd == CMD_MEMORY) {
-        res_APDU_size = 0;
-        uint32_t free = flash_free_space(), total = flash_total_space(), used = flash_used_space(), nfiles = flash_num_files(), size = flash_size();
-        res_APDU_size += put_uint32_t_be(free, res_APDU + res_APDU_size);
-        res_APDU_size += put_uint32_t_be(used, res_APDU + res_APDU_size);
-        res_APDU_size += put_uint32_t_be(total, res_APDU + res_APDU_size);
-        res_APDU_size += put_uint32_t_be(nfiles, res_APDU + res_APDU_size);
-        res_APDU_size += put_uint32_t_be(size, res_APDU + res_APDU_size);
     }
     else {
         return SW_INCORRECT_P1P2();

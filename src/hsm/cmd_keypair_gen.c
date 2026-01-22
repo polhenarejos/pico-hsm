@@ -23,6 +23,9 @@
 #include "oid.h"
 #include "random.h"
 #include "kek.h"
+#ifdef ENABLE_PQC
+#include "mlkem_native_all.h"
+#endif
 
 int cmd_keypair_gen() {
     uint8_t key_id = P1(apdu);
@@ -143,7 +146,19 @@ int cmd_keypair_gen() {
                     return SW_EXEC_ERROR();
                 }
             }
-
+#ifdef ENABLE_PQC
+            else if (memcmp(oid.data, OID_ML_KEM_768, MIN(oid.len, 10)) == 0) { //Post-Quantum ML KEM 768
+                uint8_t public_key[MLKEM768_PUBLICKEYBYTES];
+                uint8_t secret_key[MLKEM768_SECRETKEYBYTES];
+                int rc = mlkem512_keypair(public_key, secret_key);
+                if (rc != PICOKEY_OK) {
+                    return SW_EXEC_ERROR();
+                }
+            }
+#endif
+            else {
+                return SW_FUNC_NOT_SUPPORTED();
+            }
         }
     }
     else {
