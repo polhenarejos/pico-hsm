@@ -17,6 +17,9 @@
 
 cmake_minimum_required(VERSION 3.13)
 
+set(USB_VID 0x2E8A)
+set(USB_PID 0x10FD)
+
 if(ESP_PLATFORM)
     set(EXTRA_COMPONENT_DIRS pico-keys-sdk/config/esp32/components src/hsm)
     include($ENV{IDF_PATH}/tools/cmake/project.cmake)
