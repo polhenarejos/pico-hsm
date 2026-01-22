@@ -18,7 +18,7 @@
 cmake_minimum_required(VERSION 3.13)
 
 if(ESP_PLATFORM)
-    set(EXTRA_COMPONENT_DIRS src pico-keys-sdk/src)
+    set(EXTRA_COMPONENT_DIRS pico-keys-sdk/config/esp32/components src/hsm)
     include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 else()
     if(NOT ENABLE_EMULATION)
@@ -124,7 +124,7 @@ if(NOT ESP_PLATFORM)
                 -Wl,--gc-sections
             )
         endif(APPLE)
-        target_link_libraries(pico_hsm PRIVATE pthread m)
+        target_link_libraries(pico_hsm PRIVATE pico_keys_sdk pthread m mbedtls)
     else()
         pico_add_extra_outputs(${CMAKE_PROJECT_NAME})
     endif()
