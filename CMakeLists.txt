@@ -83,7 +83,7 @@ set(SOURCES ${SOURCES}
     ${CMAKE_CURRENT_LIST_DIR}/src/hsm/kek.c
 )
 
-SET_VERSION(ver_major ver_minor "${CMAKE_CURRENT_LIST_DIR}/src/hsm/version.h" 2)
+SET_VERSION(ver_major ver_minor "${CMAKE_CURRENT_LIST_DIR}/src/hsm/version.h" 3)
 
 if(ESP_PLATFORM)
     project(pico_hsm)
