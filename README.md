@@ -195,8 +195,8 @@ Before building, ensure you have installed the toolchain for the Pico and the Pi
 
 ```
 git clone https://github.com/polhenarejos/pico-hsm
-git submodule update --init --recursive
 cd pico-hsm
+git submodule update --init --recursive
 mkdir build
 cd build
 PICO_SDK_PATH=/path/to/pico-sdk cmake .. -DPICO_BOARD=board_type -DUSB_VID=0x1234 -DUSB_PID=0x5678
