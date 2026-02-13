@@ -18,7 +18,7 @@
 #include "files.h"
 
 extern const uint8_t sc_hsm_aid[];
-extern int parse_token_info(const file_t *f, int mode);
+/* extern int parse_token_info(const file_t *f, int mode); */
 extern int parse_ef_dir(const file_t *f, int mode);
 
 file_t file_entries[] = {
@@ -32,7 +32,7 @@ file_t file_entries[] = {
                .type = FILE_TYPE_WORKING_EF | FILE_DATA_FLASH | FILE_PERSISTENT, .data = NULL,
                .ef_structure = FILE_EF_TRANSPARENT, .acl = { 0 } },                                                                                                                             //EF.GDO
     /*  4 */ { .fid = 0x2f03, .parent = 5, .name = NULL,
-               .type = FILE_TYPE_WORKING_EF | FILE_DATA_FUNC, .data = (uint8_t *) parse_token_info,
+               .type = FILE_TYPE_WORKING_EF | FILE_DATA_FLASH, .data = NULL,                                                      // ToDo: Check why callback to parse_token_info will cause a crash of the pico
                .ef_structure = FILE_EF_TRANSPARENT, .acl = { 0 } },                                                                                                                                //EF.TokenInfo
     /*  5 */ { .fid = 0x5015, .parent = 0, .name = NULL, .type = FILE_TYPE_DF, .data = NULL,
                .ef_structure = 0, .acl = { 0 } },                                                                                 //DF.PKCS15
