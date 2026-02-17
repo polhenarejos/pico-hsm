@@ -52,6 +52,7 @@ static int sc_hsm_process_apdu();
 
 static void init_sc_hsm();
 static int sc_hsm_unload();
+static const char *get_card_label();
 
 extern int cmd_select();
 extern void select_file(file_t *pe);
@@ -277,6 +278,31 @@ uint16_t get_device_options() {
     return 0x0;
 }
 
+const char *get_card_label() {
+    file_t *tokeninfo = search_file(EF_TOKENINFO);
+    if (tokeninfo && (tokeninfo->type & FILE_DATA_FLASH) && tokeninfo->data != NULL && file_get_size(tokeninfo) > 0) {
+        uint16_t tag = 0x0;
+        uint8_t *tag_data = NULL, *p = NULL;
+        uint16_t tag_len = 0;
+        asn1_ctx_t ctxi;
+        asn1_ctx_init(file_get_data(tokeninfo), file_get_size(tokeninfo), &ctxi);
+        while (walk_tlv(&ctxi, &p, &tag, &tag_len, &tag_data)) {
+            if (tag == 0x5F20 && tag_len > 0) {
+                static char label_buf[256];
+                uint16_t len = tag_len < sizeof(label_buf) ? tag_len : sizeof(label_buf) - 1;
+                memcpy(label_buf, tag_data, len);
+                label_buf[len] = 0;
+                return label_buf;
+            }
+        }
+    }
+#ifdef __FOR_CI
+    return "SmartCard-HSM";
+#else
+    return "Pico-HSM";
+#endif
+}
+
 bool wait_button_pressed() {
     uint32_t val = EV_PRESS_BUTTON;
 #ifndef ENABLE_EMULATION
@@ -293,11 +319,7 @@ bool wait_button_pressed() {
 
 int parse_token_info(const file_t *f, int mode) {
     (void)f;
-#ifdef __FOR_CI
-    char *label = "SmartCard-HSM";
-#else
-    char *label = "Pico-HSM";
-#endif
+    const char *label = get_card_label();
     char *manu = "Pol Henarejos";
     if (mode == 1) {
         uint8_t *p = res_APDU;
@@ -320,11 +342,7 @@ int parse_token_info(const file_t *f, int mode) {
 
 int parse_ef_dir(const file_t *f, int mode) {
     (void)f;
-#ifdef __FOR_CI
-    char *label = "SmartCard-HSM";
-#else
-    char *label = "Pico-HSM";
-#endif
+    const char *label = get_card_label();
     if (mode == 1) {
         uint8_t *p = res_APDU;
         *p++ = 0x61;
