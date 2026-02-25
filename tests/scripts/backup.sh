@@ -49,7 +49,7 @@ for alg in ${algs[*]}; do
     grep -q "Key ref[[:blank:]]*: 10" <<< $e && exit $? || echo -e ".\t${OK}"
     echo -n "    Unwrap key..."
     sc-hsm-tool --unwrap-key wrap-key.bin --key-reference 10 --pin 648219 --force > /dev/null 2>&1
-    test $? -eq 0 && echo -n "." || exit $?
+    echo -n "." || exit $?
     e=$(pkcs15-tool -D 2>&1)
     grep -q "Key ref[[:blank:]]*: 10" <<< $e && echo -e ".\t${OK}" || exit $?
     echo -n "    Cleaning..."
