@@ -128,7 +128,7 @@ if(NOT ESP_PLATFORM)
                 -Wl,--gc-sections
             )
         endif(APPLE)
-        target_link_libraries(pico_hsm PRIVATE pico_keys_sdk pthread m mbedtls)
+        target_link_libraries(pico_hsm PRIVATE pico_keys_sdk pthread m)
     else()
         pico_add_extra_outputs(${CMAKE_PROJECT_NAME})
     endif()
