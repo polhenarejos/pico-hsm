@@ -34,6 +34,9 @@ int cmd_reset_retry() {
         return SW_COMMAND_NOT_ALLOWED();
     }
     if (P1(apdu) == 0x0 || P1(apdu) == 0x2) {
+        if (opts & HSM_OPT_RRC_RESET_ONLY) {
+            return SW_COMMAND_NOT_ALLOWED();
+        }
         uint8_t newpin_len = 0;
         if (P1(apdu) == 0x0) {
             uint8_t so_pin_len = file_read_uint8(file_sopin);
@@ -78,9 +81,6 @@ int cmd_reset_retry() {
         return SW_OK();
     }
     else if (P1(apdu) == 0x1 || P1(apdu) == 0x3) {
-        if (!(opts & HSM_OPT_RRC_RESET_ONLY)) {
-            return SW_COMMAND_NOT_ALLOWED();
-        }
         if (P1(apdu) == 0x1) {
             uint8_t so_pin_len = file_read_uint8(file_sopin);
             if (apdu.nc != so_pin_len) {
