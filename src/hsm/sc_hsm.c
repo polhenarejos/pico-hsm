@@ -630,7 +630,11 @@ int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
     }
 
     uint16_t key_size = file_get_size(fkey);
+#ifdef ENABLE_EMULATION
+    uint8_t kdata[8192 / 8];
+#else
     uint8_t kdata[4096 / 8];
+#endif
     memcpy(kdata, file_get_data(fkey), key_size);
     if (mkek_decrypt(kdata, key_size) != 0) {
         return PICOKEY_EXEC_ERROR;
