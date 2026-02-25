@@ -522,7 +522,11 @@ uint32_t decrement_key_counter(file_t *fkey) {
 int store_keys(void *key_ctx, int type, uint8_t key_id) {
     int r = 0;
     uint16_t key_size = 0;
+#ifdef ENABLE_EMULATION
+    uint8_t kdata[8192 / 8]; // worst case
+#else
     uint8_t kdata[4096 / 8]; // worst case
+#endif
     if (type & PICO_KEYS_KEY_RSA) {
         mbedtls_rsa_context *rsa = (mbedtls_rsa_context *) key_ctx;
         key_size = (uint16_t)mbedtls_mpi_size(&rsa->P) + (uint16_t)mbedtls_mpi_size(&rsa->Q);
