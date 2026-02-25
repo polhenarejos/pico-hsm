@@ -17,6 +17,9 @@
 
 cmake_minimum_required(VERSION 3.13)
 
+set(USB_VID 0x2E8A)
+set(USB_PID 0x10FD)
+
 if(ESP_PLATFORM)
     set(ENABLE_PQC 1)
     set(EXTRA_COMPONENT_DIRS pico-keys-sdk/config/esp32/components src/hsm)
@@ -81,7 +84,7 @@ set(SOURCES ${SOURCES}
     ${CMAKE_CURRENT_LIST_DIR}/src/hsm/kek.c
 )
 
-SET_VERSION(ver_major ver_minor "${CMAKE_CURRENT_LIST_DIR}/src/hsm/version.h" 2)
+SET_VERSION(ver_major ver_minor "${CMAKE_CURRENT_LIST_DIR}/src/hsm/version.h" 3)
 
 if(ESP_PLATFORM)
     project(pico_hsm)
