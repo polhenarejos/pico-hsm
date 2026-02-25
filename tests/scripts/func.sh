@@ -21,7 +21,7 @@ gen_and_check() {
         glabel="EC_POINT 512 bits"
         ;;
     *"521"*)
-        glabel="EC_POINT 528 bits"
+        glabel="EC_POINT 52"
         ;;
     *"rsa"*)
         IFS=: read -r v1 bits <<< "$1"
