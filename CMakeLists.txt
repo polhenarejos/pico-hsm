@@ -39,7 +39,7 @@ else()
         set(__FOR_CI 0)
     endif()
     if(__FOR_CI)
-        add_definitions(-D__FOR_CI)
+        add_compile_definitions(__FOR_CI)
     endif()
 
     add_executable(pico_hsm)
@@ -84,7 +84,7 @@ set(SOURCES ${SOURCES}
     ${CMAKE_CURRENT_LIST_DIR}/src/hsm/kek.c
 )
 
-SET_VERSION(ver_major ver_minor "${CMAKE_CURRENT_LIST_DIR}/src/hsm/version.h" 3)
+SET_VERSION(ver_major ver_minor "${CMAKE_CURRENT_LIST_DIR}/src/hsm/version.h")
 
 if(ESP_PLATFORM)
     project(pico_hsm)
@@ -128,7 +128,11 @@ if(NOT ESP_PLATFORM)
                 -Wl,--gc-sections
             )
         endif(APPLE)
-        target_link_libraries(pico_hsm PRIVATE pico_keys_sdk pthread m)
+        set(PICO_HSM_EMU_LIBS pico_keys_sdk pthread m)
+        if(NOT SKIP_MBEDTLS_FOR_OPENSSL_EMULATION)
+            list(APPEND PICO_HSM_EMU_LIBS mbedtls)
+        endif()
+        target_link_libraries(pico_hsm PRIVATE ${PICO_HSM_EMU_LIBS})
     else()
         pico_add_extra_outputs(${CMAKE_PROJECT_NAME})
     endif()
