@@ -20,35 +20,35 @@ cmake_minimum_required(VERSION 3.13)
 set(USB_VID 0x2E8A)
 set(USB_PID 0x10FD)
 
-if (ESP_PLATFORM)
+if(ESP_PLATFORM)
     set(EXTRA_COMPONENT_DIRS pico-keys-sdk/config/esp32/components src/hsm)
     include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 else()
-    if (NOT ENABLE_EMULATION)
+    if(NOT ENABLE_EMULATION)
         set(PICO_USE_FASTEST_SUPPORTED_CLOCK 1)
         include(pico_sdk_import.cmake)
-    endif ()
+    endif()
 
     project(pico_hsm C CXX ASM)
 
     set(CMAKE_C_STANDARD 11)
     set(CMAKE_CXX_STANDARD 17)
 
-    if (NOT DEFINED __FOR_CI)
+    if(NOT DEFINED __FOR_CI)
         set(__FOR_CI 0)
-    endif ()
-    if (__FOR_CI)
+    endif()
+    if(__FOR_CI)
         add_compile_definitions(__FOR_CI)
-    endif ()
+    endif()
 
     add_executable(pico_hsm)
-endif ()
+endif()
 set(USB_ITF_CCID 1)
 set(USB_ITF_WCID 1)
 include(pico-keys-sdk/pico_keys_sdk_import.cmake)
-if (NOT ESP_PLATFORM)
+if(NOT ESP_PLATFORM)
     set(SOURCES ${PICO_KEYS_SOURCES})
-endif ()
+endif()
 set(SOURCES ${SOURCES}
     ${CMAKE_CURRENT_LIST_DIR}/src/hsm/sc_hsm.c
     ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_select.c
@@ -85,38 +85,38 @@ set(SOURCES ${SOURCES}
 
 SET_VERSION(ver_major ver_minor "${CMAKE_CURRENT_LIST_DIR}/src/hsm/version.h")
 
-if (ESP_PLATFORM)
+if(ESP_PLATFORM)
     project(pico_hsm)
-endif ()
+endif()
 
 set(INCLUDES ${INCLUDES}
     ${CMAKE_CURRENT_LIST_DIR}/src/hsm
 )
-if (NOT ESP_PLATFORM)
+if(NOT ESP_PLATFORM)
     target_sources(pico_hsm PUBLIC ${SOURCES})
     target_include_directories(pico_hsm PUBLIC ${INCLUDES})
 
     target_compile_options(pico_hsm PUBLIC
         -Wall
     )
-    if (NOT MSVC)
+    if(NOT MSVC)
         target_compile_options(pico_hsm PUBLIC
             -Werror
         )
-    endif ()
+    endif()
 
-    if (ENABLE_EMULATION)
-        if (NOT MSVC)
+    if(ENABLE_EMULATION)
+        if(NOT MSVC)
             target_compile_options(pico_hsm PUBLIC
                 -fdata-sections
                 -ffunction-sections
             )
-        endif ()
-        if (APPLE)
+        endif()
+        if(APPLE)
             target_link_options(pico_hsm PUBLIC
                 -Wl,-dead_strip
             )
-        elseif (MSVC)
+        elseif(MSVC)
             target_compile_options(pico_hsm PUBLIC
                 -WX
             )
@@ -126,13 +126,13 @@ if (NOT ESP_PLATFORM)
             target_link_options(pico_hsm PUBLIC
                 -Wl,--gc-sections
             )
-        endif (APPLE)
+        endif(APPLE)
         set(PICO_HSM_EMU_LIBS pico_keys_sdk pthread m)
-        if (NOT SKIP_MBEDTLS_FOR_OPENSSL_EMULATION)
+        if(NOT SKIP_MBEDTLS_FOR_OPENSSL_EMULATION)
             list(APPEND PICO_HSM_EMU_LIBS mbedtls)
-        endif ()
+        endif()
         target_link_libraries(pico_hsm PRIVATE ${PICO_HSM_EMU_LIBS})
     else()
         pico_add_extra_outputs(${CMAKE_PROJECT_NAME})
-    endif ()
-endif ()
+    endif()
+endif()
