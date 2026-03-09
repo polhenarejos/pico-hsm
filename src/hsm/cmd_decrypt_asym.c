@@ -25,7 +25,7 @@
 #include "random.h"
 #include "oid.h"
 
-int cmd_decrypt_asym() {
+int cmd_decrypt_asym(void) {
     uint8_t key_id = P1(apdu);
     uint8_t p2 = P2(apdu);
     if (!isUserAuthenticated) {

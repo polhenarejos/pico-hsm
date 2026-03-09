@@ -24,7 +24,7 @@
 #include "files.h"
 #include "otp.h"
 
-int cmd_general_authenticate() {
+int cmd_general_authenticate(void) {
     if (P1(apdu) == 0x0 && P2(apdu) == 0x0) {
         if (apdu.data[0] == 0x7C) {
             int r = 0;

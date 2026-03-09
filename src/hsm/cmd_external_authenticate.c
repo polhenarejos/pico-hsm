@@ -24,7 +24,7 @@ extern file_t *ef_puk_aut;
 extern uint8_t challenge[256];
 extern uint8_t challenge_len;
 
-int cmd_external_authenticate() {
+int cmd_external_authenticate(void) {
     if (P1(apdu) != 0x0 || P2(apdu) != 0x0) {
         return SW_INCORRECT_P1P2();
     }

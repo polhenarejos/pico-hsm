@@ -33,7 +33,7 @@ uint8_t get_key_domain(file_t *fkey) {
     return 0x0;
 }
 
-int cmd_key_domain() {
+int cmd_key_domain(void) {
     //if (dkeks == 0)
     //    return SW_COMMAND_NOT_ALLOWED();
     uint8_t p1 = P1(apdu), p2 = P2(apdu);

@@ -30,10 +30,7 @@
 #include "mbedtls/eddsa.h"
 #endif
 
-extern const uint8_t *dev_name;
-extern uint16_t dev_name_len;
-
-uint16_t asn1_cvc_public_key_rsa(mbedtls_rsa_context *rsa, uint8_t *buf, uint16_t buf_len) {
+static uint16_t asn1_cvc_public_key_rsa(mbedtls_rsa_context *rsa, uint8_t *buf, uint16_t buf_len) {
     const uint8_t oid_rsa[] = { 0x04, 0x00, 0x7F, 0x00, 0x07, 0x02, 0x02, 0x02, 0x01, 0x02 };
     uint16_t n_size = (uint16_t)mbedtls_mpi_size(&rsa->N), e_size = (uint16_t)mbedtls_mpi_size(&rsa->E);
     uint16_t ntot_size = asn1_len_tag(0x81, n_size), etot_size = asn1_len_tag(0x82, e_size);
@@ -74,7 +71,7 @@ const uint8_t *pointA[] = {
     "\x01\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFC",
 };
 
-uint16_t asn1_cvc_public_key_ecdsa(mbedtls_ecp_keypair *ecdsa, uint8_t *buf, uint16_t buf_len) {
+static uint16_t asn1_cvc_public_key_ecdsa(mbedtls_ecp_keypair *ecdsa, uint8_t *buf, uint16_t buf_len) {
     uint8_t Y_buf[MBEDTLS_ECP_MAX_PT_LEN], G_buf[MBEDTLS_ECP_MAX_PT_LEN];
     const uint8_t oid_ecdsa[] = { 0x04, 0x00, 0x7F, 0x00, 0x07, 0x02, 0x02, 0x02, 0x02, 0x03 };
     const uint8_t oid_ri[]    = { 0x04, 0x00, 0x7F, 0x00, 0x07, 0x02, 0x02, 0x05, 0x02, 0x03 };
@@ -167,13 +164,13 @@ uint16_t asn1_cvc_public_key_ecdsa(mbedtls_ecp_keypair *ecdsa, uint8_t *buf, uin
     return tot_len;
 }
 
-uint16_t asn1_cvc_cert_body(void *rsa_ecdsa,
-                          uint8_t key_type,
-                          uint8_t *buf,
-                          uint16_t buf_len,
-                          const uint8_t *ext,
-                          uint16_t ext_len,
-                          bool full) {
+static uint16_t asn1_cvc_cert_body(void *rsa_ecdsa,
+                                   uint8_t key_type,
+                                   uint8_t *buf,
+                                   uint16_t buf_len,
+                                   const uint8_t *ext,
+                                   uint16_t ext_len,
+                                   bool full) {
     uint16_t pubkey_size = 0;
     if (key_type & PICO_KEYS_KEY_RSA) {
         pubkey_size = asn1_cvc_public_key_rsa(rsa_ecdsa, NULL, 0);
@@ -611,7 +608,7 @@ const uint8_t *cvc_get_field(const uint8_t *data, uint16_t len, uint16_t *olen, 
     return ctxo.data;
 }
 
-const uint8_t *cvc_get_body(const uint8_t *data, uint16_t len, uint16_t *olen) {
+static const uint8_t *cvc_get_body(const uint8_t *data, uint16_t len, uint16_t *olen) {
     const uint8_t *bkdata = data;
     if ((data = cvc_get_field(data, len, olen, 0x67)) == NULL) { /* Check for CSR */
         data = bkdata;
@@ -622,7 +619,7 @@ const uint8_t *cvc_get_body(const uint8_t *data, uint16_t len, uint16_t *olen) {
     return NULL;
 }
 
-const uint8_t *cvc_get_sig(const uint8_t *data, uint16_t len, uint16_t *olen) {
+static const uint8_t *cvc_get_sig(const uint8_t *data, uint16_t len, uint16_t *olen) {
     const uint8_t *bkdata = data;
     if ((data = cvc_get_field(data, len, olen, 0x67)) == NULL) { /* Check for CSR */
         data = bkdata;
@@ -664,7 +661,7 @@ const uint8_t *cvc_get_ext(const uint8_t *data, uint16_t len, uint16_t *olen) {
 extern PUK puk_store[MAX_PUK_STORE_ENTRIES];
 extern int puk_store_entries;
 
-int puk_store_index(const uint8_t *chr, uint16_t chr_len) {
+static int puk_store_index(const uint8_t *chr, uint16_t chr_len) {
     for (int i = 0; i < puk_store_entries; i++) {
         if (memcmp(puk_store[i].chr, chr, chr_len) == 0) {
             return i;

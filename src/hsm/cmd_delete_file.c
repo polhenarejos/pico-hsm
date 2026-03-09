@@ -17,7 +17,7 @@
 
 #include "sc_hsm.h"
 
-int cmd_delete_file() {
+int cmd_delete_file(void) {
     file_t *ef = NULL;
     if (!isUserAuthenticated) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();

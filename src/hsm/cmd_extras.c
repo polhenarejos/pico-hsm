@@ -45,7 +45,7 @@
 #define CMD_OTP 0x4C
 #define CMD_MEMORY 0x5
 
-int cmd_extras() {
+int cmd_extras(void) {
     int cmd = P1(apdu);
 #ifndef ENABLE_EMULATION
     // Only allow change PHY without PIN
@@ -172,7 +172,7 @@ int cmd_extras() {
                 if ((P2(apdu) == SECURE_LOCK_ENABLE && !(opts & HSM_OPT_SECURE_LOCK)) ||
                     (P2(apdu) == SECURE_LOCK_DISABLE && (opts & HSM_OPT_SECURE_LOCK))) {
                     uint16_t tfids[] = { EF_MKEK, EF_MKEK_SO };
-                    for (int t = 0; t < sizeof(tfids) / sizeof(uint16_t); t++) {
+                    for (size_t t = 0; t < sizeof(tfids) / sizeof(uint16_t); t++) {
                         file_t *tf = search_file(tfids[t]);
                         if (tf) {
                             uint8_t *tmp = (uint8_t *) calloc(1, file_get_size(tf));
@@ -241,7 +241,7 @@ int cmd_extras() {
         }
     }
 #endif
-#if PICO_RP2350
+#if defined(PICO_RP2350) && PICO_RP2350
     else if (cmd == CMD_OTP) {
         if (apdu.nc < 2) {
             return SW_WRONG_LENGTH();

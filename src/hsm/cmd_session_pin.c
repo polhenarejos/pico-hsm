@@ -19,7 +19,7 @@
 #include "random.h"
 #include "eac.h"
 
-int cmd_session_pin() {
+int cmd_session_pin(void) {
     if (P1(apdu) == 0x01 && P2(apdu) == 0x81) {
         memcpy(sm_session_pin, random_bytes_get(8), 8);
         sm_session_pin_len = 8;

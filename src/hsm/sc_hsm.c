@@ -48,44 +48,14 @@ uint8_t PICO_PRODUCT = 1;
 uint8_t PICO_VERSION_MAJOR = HSM_VERSION_MAJOR;
 uint8_t PICO_VERSION_MINOR = HSM_VERSION_MINOR;
 
-static int sc_hsm_process_apdu();
+static int sc_hsm_process_apdu(void);
 
-static void init_sc_hsm();
-static int sc_hsm_unload();
-
-extern int cmd_select();
-extern void select_file(file_t *pe);
-extern int cmd_list_keys();
-
-extern int cmd_read_binary();
-extern int cmd_verify();
-extern int cmd_reset_retry();
-extern int cmd_challenge();
-extern int cmd_external_authenticate();
-extern int cmd_mse();
-extern int cmd_initialize();
-extern int cmd_key_domain();
-extern int cmd_key_wrap();
-extern int cmd_keypair_gen();
-extern int cmd_update_ef();
-extern int cmd_delete_file();
-extern int cmd_change_pin();
-extern int cmd_key_gen();
-extern int cmd_signature();
-extern int cmd_key_unwrap();
-extern int cmd_decrypt_asym();
-extern int cmd_cipher_sym();
-extern int cmd_derive_asym();
-extern int cmd_extras();
-extern int cmd_general_authenticate();
-extern int cmd_session_pin();
-extern int cmd_puk_auth();
-extern int cmd_pso();
-extern int cmd_bip_slip();
+static void init_sc_hsm(void);
+static int sc_hsm_unload(void);
 
 extern const uint8_t *ccid_atr;
 
-int sc_hsm_select_aid(app_t *a, uint8_t force) {
+static int sc_hsm_select_aid(app_t *a, uint8_t force) {
     (void) force;
     a->process_apdu = sc_hsm_process_apdu;
     a->unload = sc_hsm_unload;
@@ -99,7 +69,7 @@ INITIALIZER( sc_hsm_ctor ) {
     register_app(sc_hsm_select_aid, sc_hsm_aid);
 }
 
-void scan_files() {
+static void scan_files(void) {
     file_pin1 = search_file(EF_PIN1);
     if (file_pin1) {
         if (!file_pin1->data) {
@@ -171,7 +141,7 @@ void scan_files() {
     low_flash_available();
 }
 
-void scan_all() {
+void scan_all(void) {
     scan_flash();
     scan_files();
 }
@@ -223,7 +193,7 @@ int puk_store_select_chr(const uint8_t *chr) {
     return PICOKEY_ERR_FILE_NOT_FOUND;
 }
 
-void reset_puk_store() {
+void reset_puk_store(void) {
     if (puk_store_entries > 0) { /* From previous session */
         for (int i = 0; i < puk_store_entries; i++) {
             if (puk_store[i].copied == true) {
@@ -254,7 +224,7 @@ void reset_puk_store() {
     memset(puk_status, 0, sizeof(puk_status));
 }
 
-void init_sc_hsm() {
+void init_sc_hsm(void) {
     scan_all();
     has_session_pin = has_session_sopin = false;
     isUserAuthenticated = false;
@@ -262,14 +232,14 @@ void init_sc_hsm() {
     reset_puk_store();
 }
 
-int sc_hsm_unload() {
+int sc_hsm_unload(void) {
     has_session_pin = has_session_sopin = false;
     isUserAuthenticated = false;
     sm_session_pin_len = 0;
     return PICOKEY_OK;
 }
 
-uint16_t get_device_options() {
+uint16_t get_device_options(void) {
     file_t *ef = search_file(EF_DEVOPS);
     if (file_has_data(ef)) {
         return get_uint16_t_be(file_get_data(ef));
@@ -277,7 +247,7 @@ uint16_t get_device_options() {
     return 0x0;
 }
 
-bool wait_button_pressed() {
+bool wait_button_pressed(void) {
     uint32_t val = EV_PRESS_BUTTON;
 #ifndef ENABLE_EMULATION
     uint16_t opts = get_device_options();
@@ -294,11 +264,11 @@ bool wait_button_pressed() {
 int parse_token_info(const file_t *f, int mode) {
     (void)f;
 #ifdef __FOR_CI
-    char *label = "SmartCard-HSM";
+    const char *label = "SmartCard-HSM";
 #else
-    char *label = "Pico-HSM";
+    const char *label = "Pico-HSM";
 #endif
-    char *manu = "Pol Henarejos";
+    const char *manu = "Pol Henarejos";
     if (mode == 1) {
         uint8_t *p = res_APDU;
         *p++ = 0x30;
@@ -321,9 +291,9 @@ int parse_token_info(const file_t *f, int mode) {
 int parse_ef_dir(const file_t *f, int mode) {
     (void)f;
 #ifdef __FOR_CI
-    char *label = "SmartCard-HSM";
+    const char *label = "SmartCard-HSM";
 #else
-    char *label = "Pico-HSM";
+    const char *label = "Pico-HSM";
 #endif
     if (mode == 1) {
         uint8_t *p = res_APDU;
@@ -380,7 +350,7 @@ int pin_wrong_retry(const file_t *pin) {
     return PICOKEY_ERR_BLOCKED;
 }
 
-bool pka_enabled() {
+bool pka_enabled(void) {
     file_t *ef_puk = search_file(EF_PUKAUT);
     return file_has_data(ef_puk) && file_read_uint8(ef_puk) > 0;
 }
@@ -763,7 +733,7 @@ static const cmd_t cmds[] = {
     { 0x00, 0x0 }
 };
 
-int sc_hsm_process_apdu() {
+int sc_hsm_process_apdu(void) {
     uint32_t ne = apdu.ne;
     int r = sm_unwrap();
     if (r != PICOKEY_OK) {

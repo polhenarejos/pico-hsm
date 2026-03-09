@@ -19,7 +19,7 @@
 #include "sc_hsm.h"
 #include "kek.h"
 
-int cmd_change_pin() {
+int cmd_change_pin(void) {
     if (P1(apdu) == 0x0) {
         if (P2(apdu) == 0x81 || P2(apdu) == 0x88) {
             file_t *file_pin = NULL;

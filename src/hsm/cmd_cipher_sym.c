@@ -77,10 +77,18 @@ static int pkcs5_parse_pbkdf2_params(const mbedtls_asn1_buf *params,
         return 0;
     }
 
-    if ((ret = mbedtls_asn1_get_int(&p, end, (int *)keylen)) != 0) {
+    int keylen_i = 0;
+    if ((ret = mbedtls_asn1_get_int(&p, end, &keylen_i)) != 0) {
         if (ret != MBEDTLS_ERR_ASN1_UNEXPECTED_TAG) {
             return MBEDTLS_ERROR_ADD(MBEDTLS_ERR_PKCS5_INVALID_FORMAT, ret);
         }
+    }
+    else if (keylen_i < 0 || keylen_i > UINT16_MAX) {
+        return MBEDTLS_ERROR_ADD(MBEDTLS_ERR_PKCS5_INVALID_FORMAT,
+                                 MBEDTLS_ERR_ASN1_INVALID_LENGTH);
+    }
+    else {
+        *keylen = (uint16_t) keylen_i;
     }
 
     if (p == end) {
@@ -104,13 +112,13 @@ static int pkcs5_parse_pbkdf2_params(const mbedtls_asn1_buf *params,
 }
 
 /* Taken from https://github.com/Mbed-TLS/mbedtls/issues/2335 */
-int mbedtls_ansi_x963_kdf(mbedtls_md_type_t md_type,
-                          uint16_t input_len,
-                          uint8_t *input,
-                          uint16_t shared_info_len,
-                          uint8_t *shared_info,
-                          uint16_t output_len,
-                          uint8_t *output) {
+static int mbedtls_ansi_x963_kdf(mbedtls_md_type_t md_type,
+                                 uint16_t input_len,
+                                 uint8_t *input,
+                                 uint16_t shared_info_len,
+                                 uint8_t *shared_info,
+                                 uint16_t output_len,
+                                 uint8_t *output) {
     mbedtls_md_context_t md_ctx;
     const mbedtls_md_info_t *md_info = NULL;
     int hashlen = 0, exit_code = MBEDTLS_ERR_MD_BAD_INPUT_DATA;
@@ -128,7 +136,7 @@ int mbedtls_ansi_x963_kdf(mbedtls_md_type_t md_type,
         return exit_code;
     }
 
-    if (input_len + shared_info_len + 4 >= (1ULL << 61) - 1) {
+    if ((uint64_t) input_len + (uint64_t) shared_info_len + 4ULL >= (1ULL << 61) - 1) {
         return exit_code;
     }
 
@@ -158,7 +166,7 @@ int mbedtls_ansi_x963_kdf(mbedtls_md_type_t md_type,
     return 0;
 }
 
-int cmd_cipher_sym() {
+int cmd_cipher_sym(void) {
     uint8_t key_id = P1(apdu), algo = P2(apdu);
     if (!isUserAuthenticated) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();

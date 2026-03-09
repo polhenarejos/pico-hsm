@@ -21,9 +21,7 @@
 #include "kek.h"
 #include "files.h"
 
-extern uint8_t get_key_domain(file_t *fkey);
-
-int cmd_key_wrap() {
+int cmd_key_wrap(void) {
     int r = 0;
     uint8_t key_id = P1(apdu);
     if (P2(apdu) != 0x92) {

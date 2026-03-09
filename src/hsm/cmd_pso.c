@@ -20,10 +20,9 @@
 #include "asn1.h"
 #include "cvc.h"
 
-extern int add_cert_puk_store(const uint8_t *data, uint16_t data_len, bool copy);
 extern PUK *current_puk;
 
-int cmd_pso() {
+int cmd_pso(void) {
     uint8_t p1 = P1(apdu), p2 = P2(apdu);
     if (p1 == 0x0 && (p2 == 0x92 || p2 == 0xAE || p2 == 0xBE)) { /* Verify certificate */
         if (apdu.nc == 0) {

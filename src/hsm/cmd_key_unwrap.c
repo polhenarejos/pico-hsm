@@ -20,7 +20,7 @@
 #include "kek.h"
 #include "cvc.h"
 
-int cmd_key_unwrap() {
+int cmd_key_unwrap(void) {
     uint8_t key_id = P1(apdu);
     int r = 0;
     if (P2(apdu) != 0x93) {

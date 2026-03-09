@@ -31,13 +31,11 @@
 #include "files.h"
 #include "otp.h"
 
-extern bool has_session_pin, has_session_sopin;
-extern uint8_t session_pin[32], session_sopin[32];
 uint8_t mkek_mask[MKEK_KEY_SIZE];
 bool has_mkek_mask = false;
 uint8_t pending_save_dkek = 0xff;
 
-void mkek_masked(uint8_t *mkek, const uint8_t *mask) {
+static void mkek_masked(uint8_t *mkek, const uint8_t *mask) {
     if (mask) {
         for (int i = 0; i < MKEK_KEY_SIZE; i++) {
             MKEK_KEY(mkek)[i] ^= mask[i];
@@ -76,7 +74,9 @@ int load_mkek(uint8_t *mkek) {
     if (ret != 0) {
         return PICOKEY_EXEC_ERROR;
     }
-    if (crc32c(MKEK_KEY(mkek), MKEK_KEY_SIZE) != *(uint32_t *) MKEK_CHECKSUM(mkek)) {
+    uint32_t mkek_checksum = 0;
+    memcpy(&mkek_checksum, MKEK_CHECKSUM(mkek), sizeof(mkek_checksum));
+    if (crc32c(MKEK_KEY(mkek), MKEK_KEY_SIZE) != mkek_checksum) {
         return PICOKEY_WRONG_DKEK;
     }
     if (otp_key_1) {
@@ -96,7 +96,7 @@ int mse_decrypt_ct(uint8_t *data, size_t len) {
     return ret;
 }
 
-int load_dkek(uint8_t id, uint8_t *dkek) {
+static int load_dkek(uint8_t id, uint8_t *dkek) {
     file_t *tf = search_file(EF_DKEK + id);
     if (!file_has_data(tf)) {
         return PICOKEY_ERR_FILE_NOT_FOUND;
@@ -124,7 +124,8 @@ int store_mkek(const uint8_t *mkek) {
     if (otp_key_1) {
         mkek_masked(tmp_mkek, otp_key_1);
     }
-    *(uint32_t *) MKEK_CHECKSUM(tmp_mkek) = crc32c(MKEK_KEY(tmp_mkek), MKEK_KEY_SIZE);
+    uint32_t mkek_checksum = crc32c(MKEK_KEY(tmp_mkek), MKEK_KEY_SIZE);
+    memcpy(MKEK_CHECKSUM(tmp_mkek), &mkek_checksum, sizeof(mkek_checksum));
     if (has_session_pin) {
         uint8_t tmp_mkek_pin[MKEK_SIZE];
         memcpy(tmp_mkek_pin, tmp_mkek, MKEK_SIZE);
@@ -217,7 +218,7 @@ int dkek_kcv(uint8_t id, uint8_t *kcv) { //kcv 8 bytes
     return PICOKEY_OK;
 }
 
-int dkek_kenc(uint8_t id, uint8_t *kenc) { //kenc 32 bytes
+static int dkek_kenc(uint8_t id, uint8_t *kenc) { //kenc 32 bytes
     uint8_t dkek[DKEK_KEY_SIZE + 4];
     memset(kenc, 0, 32);
     int r = load_dkek(id, dkek);
@@ -230,7 +231,7 @@ int dkek_kenc(uint8_t id, uint8_t *kenc) { //kenc 32 bytes
     return PICOKEY_OK;
 }
 
-int dkek_kmac(uint8_t id, uint8_t *kmac) { //kmac 32 bytes
+static int dkek_kmac(uint8_t id, uint8_t *kmac) { //kmac 32 bytes
     uint8_t dkek[DKEK_KEY_SIZE + 4];
     memset(kmac, 0, 32);
     int r = load_dkek(id, dkek);

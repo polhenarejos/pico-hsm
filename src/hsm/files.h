@@ -51,9 +51,4 @@
 #define EF_TOKENINFO    0x2F03
 #define EF_STATICTOKEN  0xCB00
 
-extern file_t *file_pin1;
-extern file_t *file_retries_pin1;
-extern file_t *file_sopin;
-extern file_t *file_retries_sopin;
-
 #endif

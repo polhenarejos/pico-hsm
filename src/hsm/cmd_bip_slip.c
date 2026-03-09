@@ -27,11 +27,11 @@ const uint8_t *sym_seed = (const uint8_t *) "Symmetric key seed";
 mbedtls_ecp_keypair hd_context = { 0 };
 uint8_t hd_keytype = 0;
 
-int node_derive_bip_child(const mbedtls_ecp_keypair *parent,
-                          const uint8_t cpar[32],
-                          const uint8_t *i,
-                          mbedtls_ecp_keypair *child,
-                          uint8_t cchild[32]) {
+static int node_derive_bip_child(const mbedtls_ecp_keypair *parent,
+                                 const uint8_t cpar[32],
+                                 const uint8_t *i,
+                                 mbedtls_ecp_keypair *child,
+                                 uint8_t cchild[32]) {
     uint8_t data[1 + 32 + 4], I[64], *iL = I, *iR = I + 32;
     mbedtls_mpi il, kchild;
     mbedtls_mpi_init(&il);
@@ -75,19 +75,19 @@ int node_derive_bip_child(const mbedtls_ecp_keypair *parent,
     return PICOKEY_OK;
 }
 
-int sha256_ripemd160(const uint8_t *buffer, size_t buffer_len, uint8_t *output) {
+static int sha256_ripemd160(const uint8_t *buffer, size_t buffer_len, uint8_t *output) {
     mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), buffer, buffer_len, output);
     mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_RIPEMD160), output, 32, output);
     return PICOKEY_OK;
 }
 
-int sha256_sha256(const uint8_t *buffer, size_t buffer_len, uint8_t *output) {
+static int sha256_sha256(const uint8_t *buffer, size_t buffer_len, uint8_t *output) {
     mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), buffer, buffer_len, output);
     mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), output, 32, output);
     return PICOKEY_OK;
 }
 
-int node_fingerprint_bip(mbedtls_ecp_keypair *ctx, uint8_t fingerprint[4]) {
+static int node_fingerprint_bip(mbedtls_ecp_keypair *ctx, uint8_t fingerprint[4]) {
     size_t olen = 0;
     uint8_t buffer[33];
     mbedtls_ecp_point_write_binary(&ctx->grp,
@@ -101,7 +101,7 @@ int node_fingerprint_bip(mbedtls_ecp_keypair *ctx, uint8_t fingerprint[4]) {
     return PICOKEY_OK;
 }
 
-int node_fingerprint_slip(mbedtls_ecp_keypair *ctx, uint8_t fingerprint[4]) {
+static int node_fingerprint_slip(mbedtls_ecp_keypair *ctx, uint8_t fingerprint[4]) {
     uint8_t buffer[32];
     mbedtls_mpi_write_binary(&ctx->d, buffer, sizeof(buffer));
     sha256_ripemd160(buffer, sizeof(buffer), buffer);
@@ -109,8 +109,8 @@ int node_fingerprint_slip(mbedtls_ecp_keypair *ctx, uint8_t fingerprint[4]) {
     return PICOKEY_OK;
 }
 
-int load_master_bip(uint16_t mid, mbedtls_ecp_keypair *ctx, uint8_t chain[32],
-                    uint8_t key_type[1]) {
+static int load_master_bip(uint16_t mid, mbedtls_ecp_keypair *ctx, uint8_t chain[32],
+                           uint8_t key_type[1]) {
     uint8_t mkey[65];
     mbedtls_ecp_keypair_init(ctx);
     file_t *ef = search_file(EF_MASTER_SEED | mid);
@@ -146,14 +146,14 @@ int load_master_bip(uint16_t mid, mbedtls_ecp_keypair *ctx, uint8_t chain[32],
     return PICOKEY_OK;
 }
 
-int node_derive_path(const uint8_t *path,
-                     uint16_t path_len,
-                     mbedtls_ecp_keypair *ctx,
-                     uint8_t chain[32],
-                     uint8_t fingerprint[4],
-                     uint8_t *nodes,
-                     uint8_t last_node[4],
-                     uint8_t key_type[1]) {
+static int node_derive_path(const uint8_t *path,
+                            uint16_t path_len,
+                            mbedtls_ecp_keypair *ctx,
+                            uint8_t chain[32],
+                            uint8_t fingerprint[4],
+                            uint8_t *nodes,
+                            uint8_t last_node[4],
+                            uint8_t key_type[1]) {
     uint8_t *tag_data = NULL, *p = NULL;
     uint16_t tag_len = 0, tag = 0x0;
     uint8_t node = 0, N[64] = { 0 };
@@ -205,7 +205,7 @@ int node_derive_path(const uint8_t *path,
     return PICOKEY_OK;
 }
 
-int cmd_bip_slip() {
+int cmd_bip_slip(void) {
     uint8_t p1 = P1(apdu), p2 = P2(apdu);
     if (p1 == 0x1 || p1 == 0x2 || p1 == 0x3) { // Master generation (K1 and P1)
         if (p2 >= 10) {

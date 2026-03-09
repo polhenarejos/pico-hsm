@@ -25,10 +25,8 @@
 #include "cvc.h"
 #include "otp.h"
 
-extern void scan_all();
-
 extern char __StackLimit;
-int heapLeft() {
+static int heapLeft(void) {
 #if !defined(ENABLE_EMULATION) && !defined(ESP_PLATFORM)
     char *p = malloc(256);   // try to avoid undue fragmentation
     int left = &__StackLimit - p;
@@ -39,8 +37,7 @@ int heapLeft() {
     return left;
 }
 
-extern void reset_puk_store();
-int cmd_initialize() {
+int cmd_initialize(void) {
     if (apdu.nc > 0) {
         uint8_t mkek[MKEK_SIZE];
         uint16_t opts = get_device_options();

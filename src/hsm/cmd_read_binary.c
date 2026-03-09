@@ -17,7 +17,9 @@
 
 #include "sc_hsm.h"
 
-int cmd_read_binary() {
+typedef int (*file_data_handler_t)(const file_t *f, int mode);
+
+int cmd_read_binary(void) {
     uint16_t offset = 0;
     uint8_t ins = INS(apdu), p1 = P1(apdu), p2 = P2(apdu);
     const file_t *ef = NULL;
@@ -65,7 +67,11 @@ int cmd_read_binary() {
     }
     if (ef->data) {
         if ((ef->type & FILE_DATA_FUNC) == FILE_DATA_FUNC) {
-            uint16_t data_len = (uint16_t)((int (*)(const file_t *, int))(ef->data))((const file_t *) ef, 1); //already copies content to res_APDU
+            union {
+                uint8_t *data;
+                file_data_handler_t handler;
+            } data_func = { .data = ef->data };
+            uint16_t data_len = (uint16_t)data_func.handler((const file_t *) ef, 1); //already copies content to res_APDU
             if (offset > data_len) {
                 return SW_WRONG_P1P2();
             }

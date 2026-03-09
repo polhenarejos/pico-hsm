@@ -72,11 +72,11 @@ static const struct digest_info_prefix {
     { MBEDTLS_MD_RIPEMD160, hdr_ripemd160, sizeof(hdr_ripemd160), 20 },
     { 0, NULL, 0, 0 }
 };
-int pkcs1_strip_digest_info_prefix(mbedtls_md_type_t *algorithm,
-                                   const uint8_t *in_dat,
-                                   uint16_t in_len,
-                                   uint8_t *out_dat,
-                                   uint16_t *out_len) {
+static int pkcs1_strip_digest_info_prefix(mbedtls_md_type_t *algorithm,
+                                          const uint8_t *in_dat,
+                                          uint16_t in_len,
+                                          uint8_t *out_dat,
+                                          uint16_t *out_len) {
     for (int i = 0; digest_info_prefix[i].algorithm != 0; i++) {
         uint16_t hdr_len = digest_info_prefix[i].hdr_len, hash_len = digest_info_prefix[i].hash_len;
         const uint8_t *hdr = digest_info_prefix[i].hdr;
@@ -99,7 +99,7 @@ int pkcs1_strip_digest_info_prefix(mbedtls_md_type_t *algorithm,
 }
 //-----
 
-int cmd_signature() {
+int cmd_signature(void) {
     uint8_t key_id = P1(apdu);
     uint8_t p2 = P2(apdu);
     mbedtls_md_type_t md = MBEDTLS_MD_NONE;

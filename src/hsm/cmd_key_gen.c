@@ -19,7 +19,7 @@
 #include "sc_hsm.h"
 #include "random.h"
 
-int cmd_key_gen() {
+int cmd_key_gen(void) {
     uint8_t key_id = P1(apdu);
     uint8_t p2 = P2(apdu);
     uint8_t key_size = 32;

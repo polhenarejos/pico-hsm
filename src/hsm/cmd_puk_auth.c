@@ -19,7 +19,7 @@
 #include "files.h"
 #include "cvc.h"
 
-int cmd_puk_auth() {
+int cmd_puk_auth(void) {
     uint8_t p1 = P1(apdu), p2 = P2(apdu);
     file_t *ef_puk = search_file(EF_PUKAUT);
     if (!file_has_data(ef_puk)) {

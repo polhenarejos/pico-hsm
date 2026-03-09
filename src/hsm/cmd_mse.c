@@ -24,7 +24,7 @@
 
 file_t *ef_puk_aut = NULL;
 
-int cmd_mse() {
+int cmd_mse(void) {
     int p1 = P1(apdu);
     int p2 = P2(apdu);
     if (p2 != 0xA4 && p2 != 0xA6 && p2 != 0xAA && p2 != 0xB4 && p2 != 0xB6 && p2 != 0xB8) {

@@ -35,7 +35,7 @@ cleanup:
     return ret;
 }
 
-int cmd_derive_asym() {
+int cmd_derive_asym(void) {
     uint8_t key_id = P1(apdu);
     uint8_t dest_id = P2(apdu);
     file_t *fkey;

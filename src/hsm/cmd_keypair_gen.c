@@ -24,7 +24,7 @@
 #include "random.h"
 #include "kek.h"
 
-int cmd_keypair_gen() {
+int cmd_keypair_gen(void) {
     uint8_t key_id = P1(apdu);
     if (!isUserAuthenticated) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();

@@ -28,7 +28,7 @@ extern int load_mkek(uint8_t *);
 extern int store_mkek(const uint8_t *);
 extern int save_dkek_key(uint8_t, const uint8_t *key);
 extern int store_dkek_key(uint8_t, uint8_t *);
-extern void init_mkek();
+extern void init_mkek(void);
 extern void release_mkek(uint8_t *);
 extern int import_dkek_share(uint8_t, const uint8_t *share);
 extern int dkek_kcv(uint8_t, uint8_t *kcv);

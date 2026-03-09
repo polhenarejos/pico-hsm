@@ -18,9 +18,7 @@
 #include "sc_hsm.h"
 #include "asn1.h"
 
-extern void select_file(file_t *pe);
-
-int cmd_update_ef() {
+int cmd_update_ef(void) {
     uint8_t p1 = P1(apdu), p2 = P2(apdu);
     uint16_t fid = (p1 << 8) | p2;
     uint8_t *data = NULL;
