@@ -84,6 +84,9 @@ int cmd_update_ef(void) {
             if (!file_has_data(ef)) {
                 return SW_DATA_INVALID();
             }
+            if (offset + data_len > file_get_size(ef)) {
+                return SW_WRONG_LENGTH();
+            }
 
             uint8_t *data_merge = (uint8_t *) calloc(1, offset + data_len);
             memcpy(data_merge, file_get_data(ef), offset);
