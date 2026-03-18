@@ -82,8 +82,6 @@ extern const uint8_t sc_hsm_aid[];
 
 #define HSM_OPT_RRC                 0x0001
 #define HSM_OPT_TRANSPORT_PIN       0x0002
-#define HSM_OPT_SESSION_PIN         0x0004
-#define HSM_OPT_SESSION_PIN_EXPL    0x000C
 #define HSM_OPT_REPLACE_PKA         0x0008
 #define HSM_OPT_COMBINED_AUTH       0x0010
 #define HSM_OPT_RRC_RESET_ONLY      0x0020
@@ -158,7 +156,6 @@ extern int cmd_cipher_sym(void);
 extern int cmd_derive_asym(void);
 extern int cmd_extras(void);
 extern int cmd_general_authenticate(void);
-extern int cmd_session_pin(void);
 extern int cmd_puk_auth(void);
 extern int cmd_pso(void);
 extern int cmd_bip_slip(void);

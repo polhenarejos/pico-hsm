@@ -235,7 +235,6 @@ void init_sc_hsm(void) {
 int sc_hsm_unload(void) {
     has_session_pin = has_session_sopin = false;
     isUserAuthenticated = false;
-    sm_session_pin_len = 0;
     return PICOKEY_OK;
 }
 
@@ -363,28 +362,17 @@ uint16_t check_pin(const file_t *pin, const uint8_t *data, uint16_t len) {
         isUserAuthenticated = false;
     }
     has_session_pin = has_session_sopin = false;
-    if (is_secured_apdu() && sm_session_pin_len > 0 && pin == file_pin1) {
-        if (len == sm_session_pin_len && memcmp(data, sm_session_pin, len) != 0) {
-            int retries;
-            if ((retries = pin_wrong_retry(pin)) < PICOKEY_OK) {
-                return SW_PIN_BLOCKED();
-            }
-            return set_res_sw(0x63, 0xc0 | (uint8_t)retries);
-        }
+    uint8_t dhash[32];
+    double_hash_pin(data, len, dhash);
+    if (sizeof(dhash) != file_get_size(pin) - 1) { // 1 byte for pin len
+        return SW_CONDITIONS_NOT_SATISFIED();
     }
-    else {
-        uint8_t dhash[32];
-        double_hash_pin(data, len, dhash);
-        if (sizeof(dhash) != file_get_size(pin) - 1) { // 1 byte for pin len
-            return SW_CONDITIONS_NOT_SATISFIED();
+    if (memcmp(file_get_data(pin) + 1, dhash, sizeof(dhash)) != 0) {
+        int retries;
+        if ((retries = pin_wrong_retry(pin)) < PICOKEY_OK) {
+            return SW_PIN_BLOCKED();
         }
-        if (memcmp(file_get_data(pin) + 1, dhash, sizeof(dhash)) != 0) {
-            int retries;
-            if ((retries = pin_wrong_retry(pin)) < PICOKEY_OK) {
-                return SW_PIN_BLOCKED();
-            }
-            return set_res_sw(0x63, 0xc0 | (uint8_t)retries);
-        }
+        return set_res_sw(0x63, 0xc0 | (uint8_t)retries);
     }
     int r = pin_reset_retries(pin, false);
     if (r == PICOKEY_ERR_BLOCKED) {
@@ -684,7 +672,6 @@ int load_private_key_ecdh(mbedtls_ecp_keypair *ctx, file_t *fkey) {
 #define INS_KEY_DOMAIN              0x52
 #define INS_PUK_AUTH                0x54
 #define INS_LIST_KEYS               0x58
-#define INS_SESSION_PIN             0x5A
 #define INS_DECRYPT_ASYM            0x62
 #define INS_EXTRAS                  0x64
 #define INS_SIGNATURE               0x68
@@ -725,7 +712,6 @@ static const cmd_t cmds[] = {
     { INS_EXTRAS, cmd_extras },
     { INS_MSE, cmd_mse },
     { INS_GENERAL_AUTHENTICATE, cmd_general_authenticate },
-    { INS_SESSION_PIN, cmd_session_pin },
     { INS_PUK_AUTH, cmd_puk_auth },
     { INS_PSO, cmd_pso },
     { INS_EXTERNAL_AUTHENTICATE, cmd_external_authenticate },

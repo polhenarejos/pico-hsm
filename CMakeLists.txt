@@ -74,7 +74,6 @@ set(SOURCES ${SOURCES}
     ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_derive_asym.c
     ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_extras.c
     ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_general_authenticate.c
-    ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_session_pin.c
     ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_puk_auth.c
     ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_pso.c
     ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cmd_bip_slip.c
