@@ -22,7 +22,7 @@ typedef int (*file_data_handler_t)(const file_t *f, int mode);
 int cmd_read_binary(void) {
     uint16_t offset = 0;
     uint8_t ins = INS(apdu), p1 = P1(apdu), p2 = P2(apdu);
-    const file_t *ef = NULL;
+    file_t *ef = NULL;
 
     if ((ins & 0x1) == 0) {
         if ((p1 & 0x80) != 0) {
@@ -60,6 +60,18 @@ int cmd_read_binary(void) {
                 offset |= apdu.data[2 + d] << (apdu.data[1] - 1 - d) * 8;
             }
         }
+    }
+
+    if (ef == NULL) {
+        return SW_FILE_NOT_FOUND();
+    }
+
+    if (offset > 0x7fff) {
+        return SW_WRONG_P1P2();
+    }
+
+    if ((ef->fid >> 8) == PROT_DATA_PREFIX) {
+        ef->acl[ACL_OP_READ_SEARCH] = 0x90; //force PIN for protected data objects
     }
 
     if ((ef->fid >> 8) == KEY_PREFIX || !authenticate_action(ef, ACL_OP_READ_SEARCH)) {
