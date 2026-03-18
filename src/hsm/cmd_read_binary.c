@@ -71,7 +71,7 @@ int cmd_read_binary(void) {
     }
 
     if ((ef->fid >> 8) == PROT_DATA_PREFIX) {
-        ef->acl[ACL_OP_READ_SEARCH] = 0x90; //force PIN for protected data objects
+        memset(ef->acl, 0x90, sizeof(ef->acl)); //force PIN for protected data objects
     }
 
     if ((ef->fid >> 8) == KEY_PREFIX || !authenticate_action(ef, ACL_OP_READ_SEARCH)) {
