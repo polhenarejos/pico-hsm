@@ -23,15 +23,15 @@ def test_select(device):
     device.select_applet()
 
 def test_initialization(device):
-    device.initialize(no_dev_cert=True)
+    device.initialize()
 
 def test_termca(device):
     data = device.get_termca()
-    assert(b'ESPICOHSMTR' == data['cv']['chr'][:11])
-    assert(b'ESPICOHSMDV' == data['cv']['car'][:11] or b'ESPICOHSMTR' == data['cv']['car'][:11])
+    assert(b'ESPICOHSMTR' == data['dev']['chr'][:11])
+    assert(b'ESPICOHSMDV' == data['dev']['car'][:11] or b'ESPICOHSMTR' == data['dev']['car'][:11])
     assert(b'ESPICOHSMDV' == data['dv']['chr'][:11] or b'ESPICOHSMTR' == data['dv']['chr'][:11])
     assert(b'ESPICOHSMCA' == data['dv']['car'][:11] or b'ESPICOHSMTR' == data['dv']['car'][:11])
-    assert(data['cv']['car'] == data['dv']['chr'])
+    assert(data['dev']['car'] == data['dv']['chr'])
 
 def test_get_version(device):
     version = device.get_version()
