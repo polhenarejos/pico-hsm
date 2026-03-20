@@ -209,8 +209,10 @@ void reset_puk_store(void) {
         uint16_t fterm_data_len = file_get_size(fterm);
         asn1_ctx_t ctxi;
         asn1_ctx_init(fterm_data, fterm_data_len, &ctxi);
+        DEBUG_DATA(fterm_data,fterm_data_len);
         while (walk_tlv(&ctxi, &p, NULL, NULL, NULL)) {
             add_cert_puk_store(pq, (uint16_t)(p - pq), false);
+            DEBUG_PAYLOAD(pq, (p - pq));
             pq = p;
         }
     }
@@ -362,12 +364,18 @@ uint16_t check_pin(const file_t *pin, const uint8_t *data, uint16_t len) {
         isUserAuthenticated = false;
     }
     has_session_pin = has_session_sopin = false;
-    uint8_t dhash[32];
-    double_hash_pin(data, len, dhash);
-    if (sizeof(dhash) != file_get_size(pin) - 1) { // 1 byte for pin len
-        return SW_CONDITIONS_NOT_SATISFIED();
+    uint8_t dhash[32], off = 2;
+    if (sizeof(dhash) == file_get_size(pin) - 1) { // Old style
+        off = 1;
+        double_hash_pin(data, len, dhash);
     }
-    if (memcmp(file_get_data(pin) + 1, dhash, sizeof(dhash)) != 0) {
+    else if (sizeof(dhash) == file_get_size(pin) - 2) {
+        pin_derive_verifier(data, len, dhash);
+    }
+    else {
+        return SW_WRONG_DATA();
+    }
+    if (memcmp(file_get_data(pin) + off, dhash, sizeof(dhash)) != 0) {
         int retries;
         if ((retries = pin_wrong_retry(pin)) < PICOKEY_OK) {
             return SW_PIN_BLOCKED();
@@ -381,15 +389,54 @@ uint16_t check_pin(const file_t *pin, const uint8_t *data, uint16_t len) {
     if (r != PICOKEY_OK) {
         return SW_MEMORY_FAILURE();
     }
+    if (off == 1) { // Upgrade PIN format
+        if (r != PICOKEY_OK) {
+            return SW_MEMORY_FAILURE();
+        }
+        if (pin == file_pin1) {
+            hash_multi(data, len, session_pin);
+            has_session_pin = true;
+        }
+        else if (pin == file_sopin) {
+            hash_multi(data, len, session_sopin);
+            has_session_sopin = true;
+        }
+        uint8_t mkek[MKEK_SIZE_OLD]; // Old MKEK size, as it is encrypted with old PIN format
+        r = load_mkek(mkek); //loads the MKEK with old format
+        if (r != PICOKEY_OK) {
+            return SW_MEMORY_FAILURE();
+        }
+        if (pin == file_pin1) {
+            pin_derive_session(data, len, session_pin);
+        }
+        else if (pin == file_sopin) {
+            pin_derive_session(data, len, session_sopin);
+        }
+        r = store_mkek(mkek); //stores the MKEK with new format
+        mbedtls_platform_zeroize(mkek, sizeof(mkek));
+        if (r != PICOKEY_OK) {
+            return SW_MEMORY_FAILURE();
+        }
+
+        uint8_t pin_data[34];
+        pin_data[0] = len;
+        pin_data[1] = 1; // new format indicator
+        pin_derive_verifier(data, len, pin_data + 2);
+        r = file_put_data((file_t *) pin, pin_data, sizeof(pin_data));
+        if (r != PICOKEY_OK) {
+            return SW_MEMORY_FAILURE();
+        }
+        low_flash_available();
+    }
     if (pka_enabled() == false) {
         isUserAuthenticated = true;
     }
     if (pin == file_pin1) {
-        hash_multi(data, len, session_pin);
+        pin_derive_session(data, len, session_pin);
         has_session_pin = true;
     }
     else if (pin == file_sopin) {
-        hash_multi(data, len, session_sopin);
+        pin_derive_session(data, len, session_sopin);
         has_session_sopin = true;
     }
     if (pending_save_dkek != 0xff) {

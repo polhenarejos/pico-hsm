@@ -60,21 +60,23 @@ int cmd_initialize(void) {
             }
             else if (tag == 0x81) {   //user pin
                 if (file_pin1 && file_pin1->data) {
-                    uint8_t dhash[33];
-                    dhash[0] = (uint8_t)tag_len;
-                    double_hash_pin(tag_data, tag_len, dhash + 1);
-                    file_put_data(file_pin1, dhash, sizeof(dhash));
-                    hash_multi(tag_data, tag_len, session_pin);
+                    uint8_t pin_data[34];
+                    pin_data[0] = (uint8_t)tag_len;
+                    pin_data[1] = 1; // Format
+                    pin_derive_verifier(tag_data, tag_len, pin_data + 2);
+                    file_put_data(file_pin1, pin_data, sizeof(pin_data));
+                    pin_derive_session(tag_data, tag_len, session_pin);
                     has_session_pin = true;
                 }
             }
             else if (tag == 0x82) {   //sopin pin
                 if (file_sopin && file_sopin->data) {
-                    uint8_t dhash[33];
-                    dhash[0] = (uint8_t)tag_len;
-                    double_hash_pin(tag_data, tag_len, dhash + 1);
-                    file_put_data(file_sopin, dhash, sizeof(dhash));
-                    hash_multi(tag_data, tag_len, session_sopin);
+                    uint8_t pin_data[34];
+                    pin_data[0] = (uint8_t)tag_len;
+                    pin_data[1] = 1; // Format
+                    pin_derive_verifier(tag_data, tag_len, pin_data + 2);
+                    file_put_data(file_sopin, pin_data, sizeof(pin_data));
+                    pin_derive_session(tag_data, tag_len, session_sopin);
                     has_session_sopin = true;
                 }
             }

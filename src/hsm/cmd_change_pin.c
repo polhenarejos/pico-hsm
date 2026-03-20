@@ -48,11 +48,11 @@ int cmd_change_pin(void) {
             //encrypt MKEK with new pin
 
             if (P2(apdu) == 0x81) {
-                hash_multi(apdu.data + pin_len, (uint16_t)(apdu.nc - pin_len), session_pin);
+                pin_derive_session(apdu.data + pin_len, (uint16_t)(apdu.nc - pin_len), session_pin);
                 has_session_pin = true;
             }
             else if (P2(apdu) == 0x88) {
-                hash_multi(apdu.data + pin_len, (uint16_t)(apdu.nc - pin_len), session_sopin);
+                pin_derive_session(apdu.data + pin_len, (uint16_t)(apdu.nc - pin_len), session_sopin);
                 has_session_sopin = true;
             }
             r = store_mkek(mkek);
@@ -60,9 +60,10 @@ int cmd_change_pin(void) {
             if (r != PICOKEY_OK) {
                 return SW_EXEC_ERROR();
             }
-            uint8_t dhash[33];
+            uint8_t dhash[34];
             dhash[0] = (uint8_t)apdu.nc - pin_len;
-            double_hash_pin(apdu.data + pin_len, (uint16_t)(apdu.nc - pin_len), dhash + 1);
+            dhash[1] = 1; // Format
+            pin_derive_verifier(apdu.data + pin_len, (uint16_t)(apdu.nc - pin_len), dhash + 2);
             file_put_data(file_pin, dhash, sizeof(dhash));
             low_flash_available();
             return SW_OK();
