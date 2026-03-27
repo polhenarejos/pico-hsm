@@ -209,10 +209,8 @@ void reset_puk_store(void) {
         uint16_t fterm_data_len = file_get_size(fterm);
         asn1_ctx_t ctxi;
         asn1_ctx_init(fterm_data, fterm_data_len, &ctxi);
-        DEBUG_DATA(fterm_data,fterm_data_len);
         while (walk_tlv(&ctxi, &p, NULL, NULL, NULL)) {
             add_cert_puk_store(pq, (uint16_t)(p - pq), false);
-            DEBUG_PAYLOAD(pq, (p - pq));
             pq = p;
         }
     }
