@@ -19,11 +19,7 @@
 #define _SC_HSM_H_
 
 #include <stdlib.h>
-#ifndef ESP_PLATFORM
-#include "common.h"
-#else
 #define MBEDTLS_ALLOW_PRIVATE_ACCESS
-#endif
 #include "mbedtls/rsa.h"
 #include "mbedtls/ecdsa.h"
 #if !defined(ENABLE_EMULATION) && !defined(ESP_PLATFORM)
