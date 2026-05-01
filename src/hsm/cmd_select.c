@@ -16,7 +16,11 @@
  */
 
 #include "sc_hsm.h"
+#include "files.h"
 #include "version.h"
+
+extern const file_t *file_openpgp;
+extern const file_t *file_sc_hsm;
 
 void select_file(file_t *pe) {
     if (!pe) {
@@ -48,7 +52,7 @@ int cmd_select(void) {
     //}
 
     if (apdu.nc == 2) {
-        fid = get_uint16_t_be(apdu.data);
+        fid = get_uint16_be(apdu.data);
     }
 
     //if ((fid & 0xff00) == (KEY_PREFIX << 8))
@@ -63,7 +67,7 @@ int cmd_select(void) {
         pfx == DCOD_PREFIX ||
         pfx == DATA_PREFIX ||
         pfx == PROT_DATA_PREFIX) {*/
-    if (fid != 0x0 && !(pe = search_file(fid))) {
+    if (fid != 0x0 && !(pe = file_search(fid))) {
         return SW_FILE_NOT_FOUND();
     }
     /*}*/
@@ -74,18 +78,18 @@ int cmd_select(void) {
                 //ac_fini();
             }
             else if (apdu.nc == 2) {
-                if (!(pe = search_by_fid(fid, NULL, SPECIFY_ANY))) {
+                if (!(pe = file_search_by_fid(fid, NULL, SPECIFY_ANY))) {
                     return SW_FILE_NOT_FOUND();
                 }
             }
         }
         else if (p1 == 0x01) {   //Select child DF - DF identifier
-            if (!(pe = search_by_fid(fid, currentDF, SPECIFY_DF))) {
+            if (!(pe = file_search_by_fid(fid, currentDF, SPECIFY_DF))) {
                 return SW_FILE_NOT_FOUND();
             }
         }
         else if (p1 == 0x02) {   //Select EF under the current DF - EF identifier
-            if (!(pe = search_by_fid(fid, currentDF, SPECIFY_EF))) {
+            if (!(pe = file_search_by_fid(fid, currentDF, SPECIFY_EF))) {
                 return SW_FILE_NOT_FOUND();
             }
         }
@@ -95,7 +99,7 @@ int cmd_select(void) {
             }
         }
         else if (p1 == 0x04) {   //Select by DF name - e.g., [truncated] application identifier
-            if (!(pe = search_by_name(apdu.data, (uint16_t)apdu.nc))) {
+            if (!(pe = file_search_by_name(apdu.data, (uint16_t)apdu.nc))) {
                 return SW_FILE_NOT_FOUND();
             }
             if (card_terminated) {
@@ -103,23 +107,23 @@ int cmd_select(void) {
             }
         }
         else if (p1 == 0x08) {   //Select from the MF - Path without the MF identifier
-            if (!(pe = search_by_path(apdu.data, (uint8_t)apdu.nc, MF))) {
+            if (!(pe = file_search_by_path(apdu.data, (uint8_t)apdu.nc, MF))) {
                 return SW_FILE_NOT_FOUND();
             }
         }
         else if (p1 == 0x09) {   //Select from the current DF - Path without the current DF identifier
-            if (!(pe = search_by_path(apdu.data, (uint8_t)apdu.nc, currentDF))) {
+            if (!(pe = file_search_by_path(apdu.data, (uint8_t)apdu.nc, currentDF))) {
                 return SW_FILE_NOT_FOUND();
             }
         }
     }
     if ((p2 & 0xfc) == 0x00 || (p2 & 0xfc) == 0x04) {
-        process_fci(pe, 0);
+        file_process_fci(pe, 0);
         if (pe == file_sc_hsm) {
             res_APDU[res_APDU_size++] = 0x85;
             res_APDU[res_APDU_size++] = 5;
             uint16_t opts = get_device_options();
-            res_APDU_size += put_uint16_t_be(opts, res_APDU + res_APDU_size);
+            res_APDU_size += put_uint16_be(opts, res_APDU + res_APDU_size);
             res_APDU[res_APDU_size++] = 0xFF;
             res_APDU[res_APDU_size++] = HSM_VERSION_MAJOR;
             res_APDU[res_APDU_size++] = HSM_VERSION_MINOR;

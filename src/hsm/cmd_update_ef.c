@@ -40,7 +40,7 @@ int cmd_update_ef(void) {
        }
      */
 
-    if (ef && !authenticate_action(ef, ACL_OP_UPDATE_ERASE)) {
+    if (ef && !file_authenticate_action(ef, ACL_OP_UPDATE_ERASE)) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
 
@@ -70,13 +70,13 @@ int cmd_update_ef(void) {
         if (fid == 0x0 && !ef) {
             return SW_FILE_NOT_FOUND();
         }
-        else if (fid != 0x0 && !(ef = search_file(fid))) {                           //if does not exist, create it
+        else if (fid != 0x0 && !(ef = file_search(fid))) {                           //if does not exist, create it
             //return SW_FILE_NOT_FOUND();
             ef = file_new(fid);
         }
         if (offset == 0) {
             int r = file_put_data(ef, data, data_len);
-            if (r != PICOKEY_OK) {
+            if (r != PICOKEYS_OK) {
                 return SW_MEMORY_FAILURE();
             }
         }
@@ -93,11 +93,11 @@ int cmd_update_ef(void) {
             memcpy(data_merge + offset, data, data_len);
             int r = file_put_data(ef, data_merge, offset + data_len);
             free(data_merge);
-            if (r != PICOKEY_OK) {
+            if (r != PICOKEYS_OK) {
                 return SW_MEMORY_FAILURE();
             }
         }
-        low_flash_available();
+        flash_commit();
     }
     return SW_OK();
 }

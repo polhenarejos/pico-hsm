@@ -41,14 +41,14 @@ int cmd_general_authenticate(void) {
                     pubkey_len = tag_len + 1;
                 }
             }
-            file_t *fkey = search_file(EF_KEY_DEV);
+            file_t *fkey = file_search(EF_KEY_DEV);
             if (!fkey) {
                 return SW_EXEC_ERROR();
             }
             mbedtls_ecp_keypair ectx;
             mbedtls_ecp_keypair_init(&ectx);
             r = load_private_key_ecdh(&ectx, fkey);
-            if (r != PICOKEY_OK) {
+            if (r != PICOKEYS_OK) {
                 mbedtls_ecp_keypair_free(&ectx);
                 return SW_EXEC_ERROR();
             }
@@ -77,12 +77,7 @@ int cmd_general_authenticate(void) {
             }
             size_t olen = 0;
             uint8_t derived[MBEDTLS_ECP_MAX_BYTES];
-            r = mbedtls_ecdh_calc_secret(&ctx,
-                                         &olen,
-                                         derived,
-                                         MBEDTLS_ECP_MAX_BYTES,
-                                         random_gen,
-                                         NULL);
+            r = mbedtls_ecdh_calc_secret(&ctx, &olen, derived, MBEDTLS_ECP_MAX_BYTES, random_fill_iterator, NULL);
             mbedtls_ecdh_free(&ctx);
             if (r != 0) {
                 return SW_EXEC_ERROR();
@@ -110,7 +105,7 @@ int cmd_general_authenticate(void) {
             r = sm_sign(t, pubkey_len + 16, res_APDU + res_APDU_size);
 
             free(t);
-            if (r != PICOKEY_OK) {
+            if (r != PICOKEYS_OK) {
                 return SW_EXEC_ERROR();
             }
             res_APDU_size += 8;

@@ -59,13 +59,13 @@ int cmd_extras(void) {
         }
         uint16_t opts = get_device_options();
         if (apdu.nc == 0) {
-            res_APDU_size += put_uint16_t_be(opts, res_APDU);
+            res_APDU_size += put_uint16_be(opts, res_APDU);
         }
         else {
             uint8_t newopts[] = { apdu.data[0], (opts & 0xff) };
-            file_t *tf = search_file(EF_DEVOPS);
+            file_t *tf = file_search(EF_DEVOPS);
             file_put_data(tf, newopts, sizeof(newopts));
-            low_flash_available();
+            flash_commit();
         }
     }
     else if (cmd == CMD_SECURE_LOCK) {   // secure lock
@@ -76,7 +76,7 @@ int cmd_extras(void) {
             mbedtls_ecdh_context hkey;
             mbedtls_ecdh_init(&hkey);
             mbedtls_ecdh_setup(&hkey, MBEDTLS_ECP_DP_SECP256R1);
-            int ret = mbedtls_ecdh_gen_public(&hkey.ctx.mbed_ecdh.grp, &hkey.ctx.mbed_ecdh.d, &hkey.ctx.mbed_ecdh.Q, random_gen, NULL);
+            int ret = mbedtls_ecdh_gen_public(&hkey.ctx.mbed_ecdh.grp, &hkey.ctx.mbed_ecdh.d, &hkey.ctx.mbed_ecdh.Q, random_fill_iterator, NULL);
             mbedtls_mpi_lset(&hkey.ctx.mbed_ecdh.Qp.Z, 1);
             ret = mbedtls_ecp_point_read_binary(&hkey.ctx.mbed_ecdh.grp, &hkey.ctx.mbed_ecdh.Qp, apdu.data, apdu.nc);
             if (ret != 0) {
@@ -87,7 +87,7 @@ int cmd_extras(void) {
 
             uint8_t buf[MBEDTLS_ECP_MAX_BYTES];
             size_t olen = 0;
-            ret = mbedtls_ecdh_calc_secret(&hkey, &olen, buf, MBEDTLS_ECP_MAX_BYTES, random_gen, NULL);
+            ret = mbedtls_ecdh_calc_secret(&hkey, &olen, buf, MBEDTLS_ECP_MAX_BYTES, random_fill_iterator, NULL);
             if (ret != 0) {
                 mbedtls_ecdh_free(&hkey);
                 mbedtls_platform_zeroize(buf, sizeof(buf));
@@ -123,7 +123,7 @@ int cmd_extras(void) {
                     (P2(apdu) == SECURE_LOCK_DISABLE && (opts & HSM_OPT_SECURE_LOCK))) {
                     uint16_t tfids[] = { EF_MKEK, EF_MKEK_SO };
                     for (size_t t = 0; t < sizeof(tfids) / sizeof(uint16_t); t++) {
-                        file_t *tf = search_file(tfids[t]);
+                        file_t *tf = file_search(tfids[t]);
                         if (tf) {
                             uint8_t *tmp = (uint8_t *) calloc(1, file_get_size(tf));
                             memcpy(tmp, file_get_data(tf), file_get_size(tf));
@@ -141,9 +141,9 @@ int cmd_extras(void) {
                 else if (P2(apdu) == SECURE_LOCK_DISABLE) {
                     newopts[0] &= ~HSM_OPT_SECURE_LOCK >> 8;
                 }
-                file_t *tf = search_file(EF_DEVOPS);
+                file_t *tf = file_search(EF_DEVOPS);
                 file_put_data(tf, newopts, sizeof(newopts));
-                low_flash_available();
+                flash_commit();
             }
             else if (P2(apdu) == SECURE_LOCK_MASK && (opts & HSM_OPT_SECURE_LOCK)) {
                 memcpy(mkek_mask, apdu.data, MKEK_KEY_SIZE);

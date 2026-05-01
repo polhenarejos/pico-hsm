@@ -18,6 +18,7 @@
 #include "crypto_utils.h"
 #include "sc_hsm.h"
 #include "kek.h"
+#include "files.h"
 
 int cmd_reset_retry(void) {
     if (P2(apdu) != 0x81) {
@@ -55,19 +56,19 @@ int cmd_reset_retry(void) {
             }
             newpin_len = (uint8_t)apdu.nc;
         }
-        if (pin_reset_retries(file_pin1, true) != PICOKEY_OK) {
+        if (pin_reset_retries(file_pin1, true) != PICOKEYS_OK) {
             return SW_MEMORY_FAILURE();
         }
         uint8_t mkek[MKEK_SIZE];
         int r = load_mkek(mkek); //loads the MKEK with SO pin
-        if (r != PICOKEY_OK) {
+        if (r != PICOKEYS_OK) {
             return SW_EXEC_ERROR();
         }
         pin_derive_session(apdu.data + (apdu.nc - newpin_len), newpin_len, session_pin);
         has_session_pin = true;
         r = store_mkek(mkek);
         release_mkek(mkek);
-        if (r != PICOKEY_OK) {
+        if (r != PICOKEYS_OK) {
             return SW_EXEC_ERROR();
         }
         uint8_t dhash[34];
@@ -75,7 +76,7 @@ int cmd_reset_retry(void) {
         dhash[1] = 1; // Format
         pin_derive_verifier(apdu.data + (apdu.nc - newpin_len), newpin_len, dhash + 2);
         file_put_data(file_pin1, dhash, sizeof(dhash));
-        low_flash_available();
+        flash_commit();
         return SW_OK();
     }
     else if (P1(apdu) == 0x1 || P1(apdu) == 0x3) {
@@ -100,7 +101,7 @@ int cmd_reset_retry(void) {
                 return SW_WRONG_LENGTH();
             }
         }
-        if (pin_reset_retries(file_pin1, true) != PICOKEY_OK) {
+        if (pin_reset_retries(file_pin1, true) != PICOKEYS_OK) {
             return SW_MEMORY_FAILURE();
         }
         return SW_OK();

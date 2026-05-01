@@ -34,7 +34,7 @@ int cmd_external_authenticate(void) {
     if (apdu.nc == 0) {
         return SW_WRONG_LENGTH();
     }
-    file_t *ef_puk = search_file(EF_PUKAUT);
+    file_t *ef_puk = file_search(EF_PUKAUT);
     if (!file_has_data(ef_puk)) {
         return SW_FILE_NOT_FOUND();
     }
@@ -44,13 +44,7 @@ int cmd_external_authenticate(void) {
     memcpy(input, dev_name, dev_name_len);
     memcpy(input + dev_name_len, challenge, challenge_len);
     hash256(input, dev_name_len + challenge_len, hash);
-    int r =
-        puk_verify(apdu.data,
-                   (uint16_t)apdu.nc,
-                   hash,
-                   32,
-                   file_get_data(ef_puk_aut),
-                   file_get_size(ef_puk_aut));
+    int r = puk_verify(apdu.data, (uint16_t)apdu.nc, hash, 32, file_get_data(ef_puk_aut), file_get_size(ef_puk_aut));
     free(input);
     if (r != 0) {
         return SW_CONDITIONS_NOT_SATISFIED();

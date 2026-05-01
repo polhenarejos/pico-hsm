@@ -42,7 +42,7 @@ int cmd_derive_asym(void) {
     if (!isUserAuthenticated) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
-    if (!(fkey = search_file((KEY_PREFIX << 8) | key_id)) || !file_has_data(fkey)) {
+    if (!(fkey = file_search((KEY_PREFIX << 8) | key_id)) || !file_has_data(fkey)) {
         return SW_FILE_NOT_FOUND();
     }
     if (key_has_purpose(fkey, ALGO_EC_DERIVE) == false) {
@@ -57,9 +57,9 @@ int cmd_derive_asym(void) {
 
         int r;
         r = load_private_key_ec(&ctx, fkey);
-        if (r != PICOKEY_OK) {
+        if (r != PICOKEYS_OK) {
             mbedtls_ecp_keypair_free(&ctx);
-            if (r == PICOKEY_VERIFICATION_FAILED) {
+            if (r == PICOKEYS_VERIFICATION_FAILED) {
                 return SW_SECURE_MESSAGE_EXEC_ERROR();
             }
             return SW_EXEC_ERROR();
@@ -87,8 +87,8 @@ int cmd_derive_asym(void) {
             mbedtls_ecp_keypair_free(&ctx);
             return SW_EXEC_ERROR();
         }
-        r = store_keys(&ctx, PICO_KEYS_KEY_EC, dest_id);
-        if (r != PICOKEY_OK) {
+        r = store_keys(&ctx, PICOKEYS_KEY_EC, dest_id);
+        if (r != PICOKEYS_OK) {
             mbedtls_ecp_keypair_free(&ctx);
             return SW_EXEC_ERROR();
         }

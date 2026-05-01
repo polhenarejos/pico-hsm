@@ -21,7 +21,7 @@
 
 int cmd_puk_auth(void) {
     uint8_t p1 = P1(apdu), p2 = P2(apdu);
-    file_t *ef_puk = search_file(EF_PUKAUT);
+    file_t *ef_puk = file_search(EF_PUKAUT);
     if (!file_has_data(ef_puk)) {
         if (apdu.nc > 0) {
             return SW_FILE_NOT_FOUND();
@@ -37,7 +37,7 @@ int cmd_puk_auth(void) {
                     return SW_INCORRECT_P1P2();
                 }
                 for (uint8_t i = 0; i < puk_data[0]; i++) {
-                    ef = search_file(EF_PUK + i);
+                    ef = file_search(EF_PUK + i);
                     if (!ef) { /* Never should not happen */
                         return SW_MEMORY_FAILURE();
                     }
@@ -56,13 +56,13 @@ int cmd_puk_auth(void) {
                 if (p2 >= puk_data[0]) {
                     return SW_INCORRECT_P1P2();
                 }
-                ef = search_file(EF_PUK + p2);
+                ef = file_search(EF_PUK + p2);
                 if (!ef) { /* Never should not happen */
                     return SW_MEMORY_FAILURE();
                 }
             }
             file_put_data(ef, apdu.data, (uint16_t)apdu.nc);
-            low_flash_available();
+            flash_commit();
         }
         else {
             return SW_INCORRECT_P1P2();
@@ -72,7 +72,7 @@ int cmd_puk_auth(void) {
         if (p2 >= puk_data[0]) {
             return SW_INCORRECT_P1P2();
         }
-        file_t *ef = search_file(EF_PUK + p2);
+        file_t *ef = file_search(EF_PUK + p2);
         if (!ef) {
             return SW_INCORRECT_P1P2();
         }

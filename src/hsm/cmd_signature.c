@@ -85,17 +85,17 @@ static int pkcs1_strip_digest_info_prefix(mbedtls_md_type_t *algorithm,
                 *algorithm = digest_info_prefix[i].algorithm;
             }
             if (out_dat == NULL) {
-                return PICOKEY_OK;
+                return PICOKEYS_OK;
             }
             if (*out_len < hash_len) {
-                return PICOKEY_WRONG_DATA;
+                return PICOKEYS_WRONG_DATA;
             }
             memmove(out_dat, in_dat + hdr_len, hash_len);
             *out_len = hash_len;
-            return PICOKEY_OK;
+            return PICOKEYS_OK;
         }
     }
-    return PICOKEY_EXEC_ERROR;
+    return PICOKEYS_EXEC_ERROR;
 }
 //-----
 
@@ -107,7 +107,7 @@ int cmd_signature(void) {
     if (!isUserAuthenticated) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
-    if (!(fkey = search_file((KEY_PREFIX << 8) | key_id)) || !file_has_data(fkey)) {
+    if (!(fkey = file_search((KEY_PREFIX << 8) | key_id)) || !file_has_data(fkey)) {
         return SW_FILE_NOT_FOUND();
     }
     if (get_key_counter(fkey) == 0) {
@@ -145,9 +145,9 @@ int cmd_signature(void) {
         mbedtls_rsa_init(&ctx);
 
         int r = load_private_key_rsa(&ctx, fkey);
-        if (r != PICOKEY_OK) {
+        if (r != PICOKEYS_OK) {
             mbedtls_rsa_free(&ctx);
-            if (r == PICOKEY_VERIFICATION_FAILED) {
+            if (r == PICOKEYS_VERIFICATION_FAILED) {
                 return SW_SECURE_MESSAGE_EXEC_ERROR();
             }
             return SW_EXEC_ERROR();
@@ -156,7 +156,7 @@ int cmd_signature(void) {
         if (p2 == ALGO_RSA_PKCS1) { //DigestInfo attached
             uint16_t nc = (uint16_t)apdu.nc;
             if (pkcs1_strip_digest_info_prefix(&md, apdu.data, (uint16_t)apdu.nc, apdu.data,
-                                               &nc) != PICOKEY_OK) {                                   //gets the MD algo id and strips it off
+                                               &nc) != PICOKEYS_OK) {                                   //gets the MD algo id and strips it off
                 return SW_EXEC_ERROR();
             }
             apdu.nc = nc;
@@ -214,11 +214,11 @@ int cmd_signature(void) {
             if (apdu.nc < key_size) { //needs padding
                 memset(apdu.data + apdu.nc, 0, key_size - apdu.nc);
             }
-            r = mbedtls_rsa_private(&ctx, random_gen, NULL, apdu.data, res_APDU);
+            r = mbedtls_rsa_private(&ctx, random_fill_iterator, NULL, apdu.data, res_APDU);
         }
         else {
             uint8_t *signature = (uint8_t *) calloc(key_size, sizeof(uint8_t));
-            r = mbedtls_rsa_pkcs1_sign(&ctx, random_gen, NULL, md, hash.len, hash.data, signature);
+            r = mbedtls_rsa_pkcs1_sign(&ctx, random_fill_iterator, NULL, md, hash.len, hash.data, signature);
             memcpy(res_APDU, signature, key_size);
             free(signature);
         }
@@ -267,9 +267,9 @@ int cmd_signature(void) {
             md = MBEDTLS_MD_SHA512;
         }
         int r = load_private_key_ec(&ctx, fkey);
-        if (r != PICOKEY_OK) {
+        if (r != PICOKEYS_OK) {
             mbedtls_ecp_keypair_free(&ctx);
-            if (r == PICOKEY_VERIFICATION_FAILED) {
+            if (r == PICOKEYS_VERIFICATION_FAILED) {
                 return SW_SECURE_MESSAGE_EXEC_ERROR();
             }
             return SW_EXEC_ERROR();
@@ -278,13 +278,12 @@ int cmd_signature(void) {
         uint8_t buf[MBEDTLS_ECDSA_MAX_LEN];
 #ifdef MBEDTLS_EDDSA_C
         if (ctx.grp.id == MBEDTLS_ECP_DP_ED25519 || ctx.grp.id == MBEDTLS_ECP_DP_ED448) {
-            r = mbedtls_eddsa_write_signature(&ctx, apdu.data, apdu.nc, buf, sizeof(buf), &olen, MBEDTLS_EDDSA_PURE, NULL, 0, random_gen, NULL);
+            r = mbedtls_eddsa_write_signature(&ctx, apdu.data, apdu.nc, buf, sizeof(buf), &olen, MBEDTLS_EDDSA_PURE, NULL, 0, random_fill_iterator, NULL);
         }
         else
 #endif
         {
-            r = mbedtls_ecdsa_write_signature(&ctx, md, apdu.data, apdu.nc, buf, MBEDTLS_ECDSA_MAX_LEN,
-                                              &olen, random_gen, NULL);
+            r = mbedtls_ecdsa_write_signature(&ctx, md, apdu.data, apdu.nc, buf, MBEDTLS_ECDSA_MAX_LEN, &olen, random_fill_iterator, NULL);
         }
         if (r != 0) {
             mbedtls_ecp_keypair_free(&ctx);
@@ -306,9 +305,7 @@ int cmd_signature(void) {
             return SW_INCORRECT_PARAMS();
         }
         md = MBEDTLS_MD_SHA256;
-        if (mbedtls_ecdsa_write_signature(&hd_context, md, apdu.data, apdu.nc, buf,
-                                          MBEDTLS_ECDSA_MAX_LEN,
-                                          &olen, random_gen, NULL) != 0) {
+        if (mbedtls_ecdsa_write_signature(&hd_context, md, apdu.data, apdu.nc, buf, MBEDTLS_ECDSA_MAX_LEN, &olen, random_fill_iterator, NULL) != 0) {
             mbedtls_ecp_keypair_free(&hd_context);
             return SW_EXEC_ERROR();
         }

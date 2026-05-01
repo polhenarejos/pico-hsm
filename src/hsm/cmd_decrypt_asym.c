@@ -31,7 +31,7 @@ int cmd_decrypt_asym(void) {
     if (!isUserAuthenticated) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
-    file_t *ef = search_file((KEY_PREFIX << 8) | key_id);
+    file_t *ef = file_search((KEY_PREFIX << 8) | key_id);
     if (!ef) {
         return SW_FILE_NOT_FOUND();
     }
@@ -48,9 +48,9 @@ int cmd_decrypt_asym(void) {
             mbedtls_rsa_set_padding(&ctx, MBEDTLS_RSA_PKCS_V21, MBEDTLS_MD_SHA256);
         }
         int r = load_private_key_rsa(&ctx, ef);
-        if (r != PICOKEY_OK) {
+        if (r != PICOKEYS_OK) {
             mbedtls_rsa_free(&ctx);
-            if (r == PICOKEY_VERIFICATION_FAILED) {
+            if (r == PICOKEYS_VERIFICATION_FAILED) {
                 return SW_SECURE_MESSAGE_EXEC_ERROR();
             }
             return SW_EXEC_ERROR();
@@ -61,13 +61,13 @@ int cmd_decrypt_asym(void) {
         }
         if (p2 == ALGO_RSA_DECRYPT_PKCS1 || p2 == ALGO_RSA_DECRYPT_OEP) {
             size_t olen = apdu.nc;
-            r = mbedtls_rsa_pkcs1_decrypt(&ctx, random_gen, NULL, &olen, apdu.data, res_APDU, 512);
+            r = mbedtls_rsa_pkcs1_decrypt(&ctx, random_fill_iterator, NULL, &olen, apdu.data, res_APDU, 512);
             if (r == 0) {
                 res_APDU_size = (uint16_t)olen;
             }
         }
         else {
-            r = mbedtls_rsa_private(&ctx, random_gen, NULL, apdu.data, res_APDU);
+            r = mbedtls_rsa_private(&ctx, random_fill_iterator, NULL, apdu.data, res_APDU);
             if (r == 0) {
                 res_APDU_size = key_size;
             }
@@ -134,9 +134,7 @@ int cmd_decrypt_asym(void) {
         // The SmartCard-HSM returns the point result of the DH operation
         // with a leading '04'
         res_APDU[0] = 0x04;
-        r =
-            mbedtls_ecdh_calc_secret(&ctx, &olen, res_APDU + 1, MBEDTLS_ECP_MAX_BYTES, random_gen,
-                                     NULL);
+        r = mbedtls_ecdh_calc_secret(&ctx, &olen, res_APDU + 1, MBEDTLS_ECP_MAX_BYTES, random_fill_iterator, NULL);
         mbedtls_ecdh_free(&ctx);
         if (r != 0) {
             return SW_EXEC_ERROR();
@@ -158,10 +156,7 @@ int cmd_decrypt_asym(void) {
             while (walk_tlv(&ctxi, &p, &tag, &ctxo.len, &ctxo.data)) {
                 if (tag == 0x73) {
                     asn1_ctx_t oid = {0};
-                    if (asn1_find_tag(&ctxo, 0x6, &oid) == true &&
-                        oid.len == strlen(OID_ID_KEY_DOMAIN_UID) &&
-                        memcmp(oid.data, OID_ID_KEY_DOMAIN_UID,
-                               strlen(OID_ID_KEY_DOMAIN_UID)) == 0) {
+                    if (asn1_find_tag(&ctxo, 0x6, &oid) == true && oid.len == strlen(OID_ID_KEY_DOMAIN_UID) && memcmp(oid.data, OID_ID_KEY_DOMAIN_UID, strlen(OID_ID_KEY_DOMAIN_UID)) == 0) {
                         if (asn1_find_tag(&ctxo, 0x80, &kdom_uid) == false) {
                             return SW_WRONG_DATA();
                         }
@@ -173,12 +168,11 @@ int cmd_decrypt_asym(void) {
                 return SW_WRONG_DATA();
             }
             for (uint8_t n = 0; n < MAX_KEY_DOMAINS; n++) {
-                file_t *tf = search_file(EF_XKEK + n);
+                file_t *tf = file_search(EF_XKEK + n);
                 if (tf) {
-                    if (file_get_size(tf) == kdom_uid.len &&
-                        memcmp(file_get_data(tf), kdom_uid.data, kdom_uid.len) == 0) {
+                    if (file_get_size(tf) == kdom_uid.len && memcmp(file_get_data(tf), kdom_uid.data, kdom_uid.len) == 0) {
                         file_new(EF_DKEK + n);
-                        if (store_dkek_key(n, res_APDU + 1) != PICOKEY_OK) {
+                        if (store_dkek_key(n, res_APDU + 1) != PICOKEYS_OK) {
                             return SW_EXEC_ERROR();
                         }
                         mbedtls_platform_zeroize(res_APDU, 32);

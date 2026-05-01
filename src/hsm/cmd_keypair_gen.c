@@ -49,17 +49,16 @@ int cmd_keypair_gen(void) {
                 }
                 mbedtls_rsa_context rsa;
                 mbedtls_rsa_init(&rsa);
-                uint8_t index = 0;
-                ret = mbedtls_rsa_gen_key(&rsa, random_gen, &index, key_size, exponent);
+                ret = mbedtls_rsa_gen_key(&rsa, random_fill_iterator, NULL, key_size, exponent);
                 if (ret != 0) {
                     mbedtls_rsa_free(&rsa);
                     return SW_EXEC_ERROR();
                 }
-                if ((res_APDU_size = (uint16_t)asn1_cvc_aut(&rsa, PICO_KEYS_KEY_RSA, res_APDU, MAX_APDU_DATA, NULL, 0)) == 0) {
+                if ((res_APDU_size = (uint16_t)asn1_cvc_aut(&rsa, PICOKEYS_KEY_RSA, res_APDU, MAX_APDU_DATA, NULL, 0)) == 0) {
                     return SW_EXEC_ERROR();
                 }
-                ret = store_keys(&rsa, PICO_KEYS_KEY_RSA, key_id);
-                if (ret != PICOKEY_OK) {
+                ret = store_keys(&rsa, PICOKEYS_KEY_RSA, key_id);
+                if (ret != PICOKEYS_OK) {
                     mbedtls_rsa_free(&rsa);
                     return SW_EXEC_ERROR();
                 }
@@ -90,8 +89,7 @@ int cmd_keypair_gen(void) {
                 }
                 mbedtls_ecdsa_context ecdsa;
                 mbedtls_ecdsa_init(&ecdsa);
-                uint8_t index = 0;
-                ret = mbedtls_ecdsa_genkey(&ecdsa, ec_id, random_gen, &index);
+                ret = mbedtls_ecdsa_genkey(&ecdsa, ec_id, random_fill_iterator, NULL);
                 if (ret != 0) {
                     mbedtls_ecdsa_free(&ecdsa);
                     return SW_EXEC_ERROR();
@@ -107,12 +105,11 @@ int cmd_keypair_gen(void) {
                             if (a92.data[0] > MAX_KEY_DOMAINS) {
                                 return SW_WRONG_DATA();
                             }
-                            file_t *tf_xkek = search_file(EF_XKEK + a92.data[0]);
+                            file_t *tf_xkek = file_search(EF_XKEK + a92.data[0]);
                             if (!tf_xkek) {
                                 return SW_WRONG_DATA();
                             }
-                            ext.len = 2 + 2 + (uint16_t)strlen(OID_ID_KEY_DOMAIN_UID) + 2 + file_get_size(
-                                tf_xkek);
+                            ext.len = 2 + 2 + (uint16_t)strlen(OID_ID_KEY_DOMAIN_UID) + 2 + file_get_size(tf_xkek);
                             ext.data = (uint8_t *) calloc(1, ext.len);
                             uint8_t *pe = ext.data;
                             *pe++ = 0x73;
@@ -127,7 +124,7 @@ int cmd_keypair_gen(void) {
                         }
                     }
                 }
-                if ((res_APDU_size = (uint16_t)asn1_cvc_aut(&ecdsa, PICO_KEYS_KEY_EC, res_APDU, MAX_APDU_DATA, ext.data, ext.len)) == 0) {
+                if ((res_APDU_size = (uint16_t)asn1_cvc_aut(&ecdsa, PICOKEYS_KEY_EC, res_APDU, MAX_APDU_DATA, ext.data, ext.len)) == 0) {
                     if (ext.data) {
                         free(ext.data);
                     }
@@ -137,9 +134,9 @@ int cmd_keypair_gen(void) {
                 if (ext.data) {
                     free(ext.data);
                 }
-                ret = store_keys(&ecdsa, PICO_KEYS_KEY_EC, key_id);
+                ret = store_keys(&ecdsa, PICOKEYS_KEY_EC, key_id);
                 mbedtls_ecdsa_free(&ecdsa);
-                if (ret != PICOKEY_OK) {
+                if (ret != PICOKEYS_OK) {
                     return SW_EXEC_ERROR();
                 }
             }
@@ -149,7 +146,7 @@ int cmd_keypair_gen(void) {
     else {
         return SW_WRONG_DATA();
     }
-    if (find_and_store_meta_key(key_id) != PICOKEY_OK) {
+    if (find_and_store_meta_key(key_id) != PICOKEYS_OK) {
         return SW_EXEC_ERROR();
     }
     file_t *fpk = file_new((EE_CERTIFICATE_PREFIX << 8) | key_id);
@@ -160,6 +157,6 @@ int cmd_keypair_gen(void) {
     if (apdu.ne == 0) {
         apdu.ne = res_APDU_size;
     }
-    low_flash_available();
+    flash_commit();
     return SW_OK();
 }

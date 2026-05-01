@@ -51,13 +51,13 @@ int cmd_mse(void) {
                 }
                 else {
                     if (p2 == 0xB6) {
-                        if (puk_store_select_chr(tag_data) == PICOKEY_OK) {
+                        if (puk_store_select_chr(tag_data) == PICOKEYS_OK) {
                             return SW_OK();
                         }
                     }
                     else if (p2 == 0xA4) {   /* Aut */
                         for (uint8_t i = 0; i < MAX_PUK; i++) {
-                            file_t *ef = search_file(EF_PUK + i);
+                            file_t *ef = file_search(EF_PUK + i);
                             if (!ef) {
                                 break;
                             }

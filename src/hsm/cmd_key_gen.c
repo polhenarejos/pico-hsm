@@ -44,24 +44,24 @@ int cmd_key_gen(void) {
     memcpy(aes_key, random_bytes_get(key_size), key_size);
     int aes_type = 0x0;
     if (key_size == 16) {
-        aes_type = PICO_KEYS_KEY_AES_128;
+        aes_type = PICOKEYS_KEY_AES_128;
     }
     else if (key_size == 24) {
-        aes_type = PICO_KEYS_KEY_AES_192;
+        aes_type = PICOKEYS_KEY_AES_192;
     }
     else if (key_size == 32) {
-        aes_type = PICO_KEYS_KEY_AES_256;
+        aes_type = PICOKEYS_KEY_AES_256;
     }
     else if (key_size == 64) {
-        aes_type = PICO_KEYS_KEY_AES_512;
+        aes_type = PICOKEYS_KEY_AES_512;
     }
     r = store_keys(aes_key, aes_type, key_id);
-    if (r != PICOKEY_OK) {
+    if (r != PICOKEYS_OK) {
         return SW_MEMORY_FAILURE();
     }
-    if (find_and_store_meta_key(key_id) != PICOKEY_OK) {
+    if (find_and_store_meta_key(key_id) != PICOKEYS_OK) {
         return SW_EXEC_ERROR();
     }
-    low_flash_available();
+    flash_commit();
     return SW_OK();
 }

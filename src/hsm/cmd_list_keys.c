@@ -18,14 +18,17 @@
 #include "sc_hsm.h"
 #include "files.h"
 
+extern uint16_t dynamic_files;
+extern file_t dynamic_file[];
+
 int cmd_list_keys(void) {
     /* First we send DEV private key */
     /* Both below conditions should be always TRUE */
-    if (search_file(EF_PRKD_DEV)) {
-        res_APDU_size += put_uint16_t_be(EF_PRKD_DEV, res_APDU + res_APDU_size);
+    if (file_search(EF_PRKD_DEV)) {
+        res_APDU_size += put_uint16_be(EF_PRKD_DEV, res_APDU + res_APDU_size);
     }
-    if (search_file(EF_KEY_DEV)) {
-        res_APDU_size += put_uint16_t_be(EF_KEY_DEV, res_APDU + res_APDU_size);
+    if (file_search(EF_KEY_DEV)) {
+        res_APDU_size += put_uint16_be(EF_KEY_DEV, res_APDU + res_APDU_size);
     }
     //first CC
     for (int i = 0; i < dynamic_files; i++) {

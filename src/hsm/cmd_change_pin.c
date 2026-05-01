@@ -18,6 +18,7 @@
 #include "crypto_utils.h"
 #include "sc_hsm.h"
 #include "kek.h"
+#include "files.h"
 
 int cmd_change_pin(void) {
     if (P1(apdu) == 0x0) {
@@ -42,7 +43,7 @@ int cmd_change_pin(void) {
             }
             uint8_t mkek[MKEK_SIZE];
             r = load_mkek(mkek); //loads the MKEK with old pin
-            if (r != PICOKEY_OK) {
+            if (r != PICOKEYS_OK) {
                 return SW_EXEC_ERROR();
             }
             //encrypt MKEK with new pin
@@ -57,7 +58,7 @@ int cmd_change_pin(void) {
             }
             r = store_mkek(mkek);
             release_mkek(mkek);
-            if (r != PICOKEY_OK) {
+            if (r != PICOKEYS_OK) {
                 return SW_EXEC_ERROR();
             }
             uint8_t dhash[34];
@@ -65,7 +66,7 @@ int cmd_change_pin(void) {
             dhash[1] = 1; // Format
             pin_derive_verifier(apdu.data + pin_len, (uint16_t)(apdu.nc - pin_len), dhash + 2);
             file_put_data(file_pin, dhash, sizeof(dhash));
-            low_flash_available();
+            flash_commit();
             return SW_OK();
         }
     }

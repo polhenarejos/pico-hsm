@@ -16,6 +16,7 @@
  */
 
 #include "sc_hsm.h"
+#include "files.h"
 
 int cmd_verify(void) {
     uint8_t p1 = P1(apdu);

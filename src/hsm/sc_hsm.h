@@ -27,7 +27,7 @@
 #endif
 #include "file.h"
 #include "apdu.h"
-#include "pico_keys.h"
+#include "picokeys.h"
 #include "usb.h"
 
 #define MAX_APDU_DATA (USB_BUFFER_SIZE - 20)

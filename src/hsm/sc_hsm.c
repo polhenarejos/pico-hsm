@@ -15,6 +15,8 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include "picokeys.h"
+#include "serial.h"
 #include "sc_hsm.h"
 #include "files.h"
 #include "version.h"
@@ -23,7 +25,6 @@
 #include "eac.h"
 #include "cvc.h"
 #include "asn1.h"
-#include "pico_keys.h"
 #include "usb.h"
 #include "random.h"
 #include "version.h"
@@ -60,17 +61,21 @@ static int sc_hsm_select_aid(app_t *a, uint8_t force) {
     a->process_apdu = sc_hsm_process_apdu;
     a->unload = sc_hsm_unload;
     init_sc_hsm();
-    return PICOKEY_OK;
+    return PICOKEYS_OK;
+}
+
+int set_atr(void) {
+    ccid_atr = atr_sc_hsm;
+    return 0;
 }
 
 INITIALIZER( sc_hsm_ctor ) {
     printf("INITIALIZER\n");
-    ccid_atr = atr_sc_hsm;
     register_app(sc_hsm_select_aid, sc_hsm_aid);
 }
 
 static void scan_files(void) {
-    file_pin1 = search_file(EF_PIN1);
+    file_pin1 = file_search(EF_PIN1);
     if (file_pin1) {
         if (!file_pin1->data) {
             printf("PIN1 is empty. Initializing with default password\n");
@@ -81,7 +86,7 @@ static void scan_files(void) {
     else {
         printf("FATAL ERROR: PIN1 not found in memory!\n");
     }
-    file_sopin = search_file(EF_SOPIN);
+    file_sopin = file_search(EF_SOPIN);
     if (file_sopin) {
         if (!file_sopin->data) {
             printf("SOPIN is empty. Initializing with default password\n");
@@ -92,7 +97,7 @@ static void scan_files(void) {
     else {
         printf("FATAL ERROR: SOPIN not found in memory!\n");
     }
-    file_retries_pin1 = search_file(EF_PIN1_RETRIES);
+    file_retries_pin1 = file_search(EF_PIN1_RETRIES);
     if (file_retries_pin1) {
         if (!file_retries_pin1->data) {
             printf("Retries PIN1 is empty. Initializing with default retriesr\n");
@@ -103,7 +108,7 @@ static void scan_files(void) {
     else {
         printf("FATAL ERROR: Retries PIN1 not found in memory!\n");
     }
-    file_retries_sopin = search_file(EF_SOPIN_RETRIES);
+    file_retries_sopin = file_search(EF_SOPIN_RETRIES);
     if (file_retries_sopin) {
         if (!file_retries_sopin->data) {
             printf("Retries SOPIN is empty. Initializing with default retries\n");
@@ -116,7 +121,7 @@ static void scan_files(void) {
     }
     file_t *tf = NULL;
 
-    tf = search_file(EF_PIN1_MAX_RETRIES);
+    tf = file_search(EF_PIN1_MAX_RETRIES);
     if (tf) {
         if (!tf->data) {
             printf("Max retries PIN1 is empty. Initializing with default max retriesr\n");
@@ -127,7 +132,7 @@ static void scan_files(void) {
     else {
         printf("FATAL ERROR: Max Retries PIN1 not found in memory!\n");
     }
-    tf = search_file(EF_SOPIN_MAX_RETRIES);
+    tf = file_search(EF_SOPIN_MAX_RETRIES);
     if (tf) {
         if (!tf->data) {
             printf("Max Retries SOPIN is empty. Initializing with default max retries\n");
@@ -138,11 +143,11 @@ static void scan_files(void) {
     else {
         printf("FATAL ERROR: Retries SOPIN not found in memory!\n");
     }
-    low_flash_available();
+    flash_commit();
 }
 
 void scan_all(void) {
-    scan_flash();
+    file_scan_flash();
     scan_files();
 }
 
@@ -153,10 +158,10 @@ uint8_t puk_status[MAX_PUK];
 
 int add_cert_puk_store(const uint8_t *data, uint16_t data_len, bool copy) {
     if (data == NULL || data_len == 0) {
-        return PICOKEY_ERR_NULL_PARAM;
+        return PICOKEYS_ERR_NULL_PARAM;
     }
     if (puk_store_entries == MAX_PUK_STORE_ENTRIES) {
-        return PICOKEY_ERR_MEMORY_FATAL;
+        return PICOKEYS_ERR_MEMORY_FATAL;
     }
 
     puk_store[puk_store_entries].copied = copy;
@@ -180,17 +185,17 @@ int add_cert_puk_store(const uint8_t *data, uint16_t data_len, bool copy) {
                                                    &puk_store[puk_store_entries].puk_len);
 
     puk_store_entries++;
-    return PICOKEY_OK;
+    return PICOKEYS_OK;
 }
 
 int puk_store_select_chr(const uint8_t *chr) {
     for (int i = 0; i < puk_store_entries; i++) {
         if (memcmp(puk_store[i].chr, chr, puk_store[i].chr_len) == 0) {
             current_puk = &puk_store[i];
-            return PICOKEY_OK;
+            return PICOKEYS_OK;
         }
     }
-    return PICOKEY_ERR_FILE_NOT_FOUND;
+    return PICOKEYS_ERR_FILE_NOT_FOUND;
 }
 
 void reset_puk_store(void) {
@@ -203,7 +208,7 @@ void reset_puk_store(void) {
     }
     memset(puk_store, 0, sizeof(puk_store));
     puk_store_entries = 0;
-    file_t *fterm = search_file(EF_TERMCA);
+    file_t *fterm = file_search(EF_TERMCA);
     if (fterm) {
         uint8_t *p = NULL, *fterm_data = file_get_data(fterm), *pq = fterm_data;
         uint16_t fterm_data_len = file_get_size(fterm);
@@ -215,7 +220,7 @@ void reset_puk_store(void) {
         }
     }
     for (int i = 0; i < 0xfe; i++) {
-        file_t *ef = search_file((CA_CERTIFICATE_PREFIX << 8) | (uint8_t)i);
+        file_t *ef = file_search((CA_CERTIFICATE_PREFIX << 8) | (uint8_t)i);
         if (ef && file_get_size(ef) > 0) {
             add_cert_puk_store(file_get_data(ef), file_get_size(ef), false);
         }
@@ -235,13 +240,13 @@ void init_sc_hsm(void) {
 int sc_hsm_unload(void) {
     has_session_pin = has_session_sopin = false;
     isUserAuthenticated = false;
-    return PICOKEY_OK;
+    return PICOKEYS_OK;
 }
 
 uint16_t get_device_options(void) {
-    file_t *ef = search_file(EF_DEVOPS);
+    file_t *ef = file_search(EF_DEVOPS);
     if (file_has_data(ef)) {
-        return get_uint16_t_be(file_get_data(ef));
+        return get_uint16_be(file_get_data(ef));
     }
     return 0x0;
 }
@@ -308,49 +313,49 @@ int parse_ef_dir(const file_t *f, int mode) {
 
 int pin_reset_retries(const file_t *pin, bool force) {
     if (!pin) {
-        return PICOKEY_ERR_NULL_PARAM;
+        return PICOKEYS_ERR_NULL_PARAM;
     }
-    const file_t *max = search_file(pin->fid + 1);
-    const file_t *act = search_file(pin->fid + 2);
+    const file_t *max = file_search(pin->fid + 1);
+    const file_t *act = file_search(pin->fid + 2);
     if (!max || !act) {
-        return PICOKEY_ERR_FILE_NOT_FOUND;
+        return PICOKEYS_ERR_FILE_NOT_FOUND;
     }
     uint8_t retries = file_read_uint8(act);
     if (retries == 0 && force == false) { // blocked
-        return PICOKEY_ERR_BLOCKED;
+        return PICOKEYS_ERR_BLOCKED;
     }
     retries = file_read_uint8(max);
     int r = file_put_data((file_t *) act, &retries, sizeof(retries));
-    low_flash_available();
+    flash_commit();
     return r;
 }
 
 int pin_wrong_retry(const file_t *pin) {
     if (!pin) {
-        return PICOKEY_ERR_NULL_PARAM;
+        return PICOKEYS_ERR_NULL_PARAM;
     }
-    const file_t *act = search_file(pin->fid + 2);
+    const file_t *act = file_search(pin->fid + 2);
     if (!act) {
-        return PICOKEY_ERR_FILE_NOT_FOUND;
+        return PICOKEYS_ERR_FILE_NOT_FOUND;
     }
     uint8_t retries = file_read_uint8(act);
     if (retries > 0) {
         retries -= 1;
         int r = file_put_data((file_t *) act, &retries, sizeof(retries));
-        if (r != PICOKEY_OK) {
+        if (r != PICOKEYS_OK) {
             return r;
         }
-        low_flash_available();
+        flash_commit();
         if (retries == 0) {
-            return PICOKEY_ERR_BLOCKED;
+            return PICOKEYS_ERR_BLOCKED;
         }
         return retries;
     }
-    return PICOKEY_ERR_BLOCKED;
+    return PICOKEYS_ERR_BLOCKED;
 }
 
 bool pka_enabled(void) {
-    file_t *ef_puk = search_file(EF_PUKAUT);
+    file_t *ef_puk = file_search(EF_PUKAUT);
     return file_has_data(ef_puk) && file_read_uint8(ef_puk) > 0;
 }
 
@@ -375,20 +380,20 @@ uint16_t check_pin(const file_t *pin, const uint8_t *data, uint16_t len) {
     }
     if (memcmp(file_get_data(pin) + off, dhash, sizeof(dhash)) != 0) {
         int retries;
-        if ((retries = pin_wrong_retry(pin)) < PICOKEY_OK) {
+        if ((retries = pin_wrong_retry(pin)) < PICOKEYS_OK) {
             return SW_PIN_BLOCKED();
         }
         return set_res_sw(0x63, 0xc0 | (uint8_t)retries);
     }
     int r = pin_reset_retries(pin, false);
-    if (r == PICOKEY_ERR_BLOCKED) {
+    if (r == PICOKEYS_ERR_BLOCKED) {
         return SW_PIN_BLOCKED();
     }
-    if (r != PICOKEY_OK) {
+    if (r != PICOKEYS_OK) {
         return SW_MEMORY_FAILURE();
     }
     if (off == 1) { // Upgrade PIN format
-        if (r != PICOKEY_OK) {
+        if (r != PICOKEYS_OK) {
             return SW_MEMORY_FAILURE();
         }
         if (pin == file_pin1) {
@@ -401,7 +406,7 @@ uint16_t check_pin(const file_t *pin, const uint8_t *data, uint16_t len) {
         }
         uint8_t mkek[MKEK_SIZE_OLD]; // Old MKEK size, as it is encrypted with old PIN format
         r = load_mkek(mkek); //loads the MKEK with old format
-        if (r != PICOKEY_OK) {
+        if (r != PICOKEYS_OK) {
             return SW_MEMORY_FAILURE();
         }
         if (pin == file_pin1) {
@@ -412,7 +417,7 @@ uint16_t check_pin(const file_t *pin, const uint8_t *data, uint16_t len) {
         }
         r = store_mkek(mkek); //stores the MKEK with new format
         mbedtls_platform_zeroize(mkek, sizeof(mkek));
-        if (r != PICOKEY_OK) {
+        if (r != PICOKEYS_OK) {
             return SW_MEMORY_FAILURE();
         }
 
@@ -421,10 +426,10 @@ uint16_t check_pin(const file_t *pin, const uint8_t *data, uint16_t len) {
         pin_data[1] = 1; // new format indicator
         pin_derive_verifier(data, len, pin_data + 2);
         r = file_put_data((file_t *) pin, pin_data, sizeof(pin_data));
-        if (r != PICOKEY_OK) {
+        if (r != PICOKEYS_OK) {
             return SW_MEMORY_FAILURE();
         }
-        low_flash_available();
+        flash_commit();
     }
     if (pka_enabled() == false) {
         isUserAuthenticated = true;
@@ -468,7 +473,7 @@ uint32_t get_key_counter(file_t *fkey) {
     uint16_t tag_len = 0;
     const uint8_t *meta_tag = get_meta_tag(fkey, 0x90, &tag_len);
     if (meta_tag) {
-        return get_uint32_t_be(meta_tag);
+        return get_uint32_be(meta_tag);
     }
     return 0xffffffff;
 }
@@ -504,15 +509,15 @@ uint32_t decrement_key_counter(file_t *fkey) {
         asn1_ctx_init(meta_data, meta_size, &ctxi);
         while (walk_tlv(&ctxi, &p, &tag, &tag_len, &tag_data)) {
             if (tag == 0x90) { // ofset tag
-                uint32_t val = get_uint32_t_be(tag_data);
+                uint32_t val = get_uint32_be(tag_data);
                 val--;
-                put_uint32_t_be(val, tag_data);
+                put_uint32_be(val, tag_data);
                 int r = meta_add(fkey->fid, cmeta, (uint16_t)meta_size);
                 free(cmeta);
                 if (r != 0) {
                     return 0xffffffff;
                 }
-                low_flash_available();
+                flash_commit();
                 return val;
             }
         }
@@ -526,52 +531,52 @@ int store_keys(void *key_ctx, int type, uint8_t key_id) {
     int r = 0;
     uint16_t key_size = 0;
     uint8_t kdata[4096 / 8]; // worst case
-    if (type & PICO_KEYS_KEY_RSA) {
+    if (type & PICOKEYS_KEY_RSA) {
         mbedtls_rsa_context *rsa = (mbedtls_rsa_context *) key_ctx;
         key_size = (uint16_t)mbedtls_mpi_size(&rsa->P) + (uint16_t)mbedtls_mpi_size(&rsa->Q);
         mbedtls_mpi_write_binary(&rsa->P, kdata, key_size / 2);
         mbedtls_mpi_write_binary(&rsa->Q, kdata + key_size / 2, key_size / 2);
     }
-    else if (type & PICO_KEYS_KEY_EC) {
+    else if (type & PICOKEYS_KEY_EC) {
         mbedtls_ecdsa_context *ecdsa = (mbedtls_ecdsa_context *) key_ctx;
         size_t olen = 0;
         kdata[0] = ecdsa->grp.id & 0xff;
         mbedtls_ecp_write_key_ext(ecdsa, &olen, kdata + 1, sizeof(kdata) - 1);
         key_size = olen + 1;
     }
-    else if (type & PICO_KEYS_KEY_AES) {
-        if (type == PICO_KEYS_KEY_AES_128) {
+    else if (type & PICOKEYS_KEY_AES) {
+        if (type == PICOKEYS_KEY_AES_128) {
             key_size = 16;
         }
-        else if (type == PICO_KEYS_KEY_AES_192) {
+        else if (type == PICOKEYS_KEY_AES_192) {
             key_size = 24;
         }
-        else if (type == PICO_KEYS_KEY_AES_256) {
+        else if (type == PICOKEYS_KEY_AES_256) {
             key_size = 32;
         }
-        else if (type == PICO_KEYS_KEY_AES_512) {
+        else if (type == PICOKEYS_KEY_AES_512) {
             key_size = 64;
         }
         memcpy(kdata, key_ctx, key_size);
     }
     else {
-        return PICOKEY_WRONG_DATA;
+        return PICOKEYS_WRONG_DATA;
     }
     file_t *fpk = file_new((KEY_PREFIX << 8) | key_id);
     if (!fpk) {
-        return PICOKEY_ERR_MEMORY_FATAL;
+        return PICOKEYS_ERR_MEMORY_FATAL;
     }
     r = mkek_encrypt(kdata, key_size);
-    if (r != PICOKEY_OK) {
+    if (r != PICOKEYS_OK) {
         return r;
     }
     r = file_put_data(fpk, kdata, (uint16_t)key_size);
-    if (r != PICOKEY_OK) {
+    if (r != PICOKEYS_OK) {
         return r;
     }
     char key_id_str[4] = {0};
     sprintf(key_id_str, "%u", key_id);
-    if (type & PICO_KEYS_KEY_EC) {
+    if (type & PICOKEYS_KEY_EC) {
         key_size--;
     }
     uint16_t prkd_len = asn1_build_prkd_generic(NULL, 0, (uint8_t *)key_id_str, (uint16_t)strlen(key_id_str), key_size * 8, type, kdata, sizeof(kdata));
@@ -582,8 +587,8 @@ int store_keys(void *key_ctx, int type, uint8_t key_id) {
             return SW_EXEC_ERROR();
         }
     }
-    low_flash_available();
-    return PICOKEY_OK;
+    flash_commit();
+    return PICOKEYS_OK;
 }
 
 int find_and_store_meta_key(uint8_t key_id) {
@@ -617,89 +622,81 @@ int find_and_store_meta_key(uint8_t key_id) {
         int r = meta_add((KEY_PREFIX << 8) | key_id, meta, (uint16_t)meta_size);
         free(meta);
         if (r != 0) {
-            return PICOKEY_EXEC_ERROR;
+            return PICOKEYS_EXEC_ERROR;
         }
     }
-    return PICOKEY_OK;
+    return PICOKEYS_OK;
 }
 
 int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
     if (wait_button_pressed() == true) { // timeout
-        return PICOKEY_VERIFICATION_FAILED;
+        return PICOKEYS_VERIFICATION_FAILED;
     }
 
     uint16_t key_size = file_get_size(fkey);
     uint8_t kdata[4096 / 8];
     memcpy(kdata, file_get_data(fkey), key_size);
     if (mkek_decrypt(kdata, key_size) != 0) {
-        return PICOKEY_EXEC_ERROR;
+        return PICOKEYS_EXEC_ERROR;
     }
     if (mbedtls_mpi_read_binary(&ctx->P, kdata, key_size / 2) != 0) {
         mbedtls_platform_zeroize(kdata, sizeof(kdata));
         mbedtls_rsa_free(ctx);
-        return PICOKEY_WRONG_DATA;
+        return PICOKEYS_WRONG_DATA;
     }
     if (mbedtls_mpi_read_binary(&ctx->Q, kdata + key_size / 2, key_size / 2) != 0) {
         mbedtls_platform_zeroize(kdata, sizeof(kdata));
         mbedtls_rsa_free(ctx);
-        return PICOKEY_WRONG_DATA;
+        return PICOKEYS_WRONG_DATA;
     }
     if (mbedtls_mpi_lset(&ctx->E, 0x10001) != 0) {
         mbedtls_platform_zeroize(kdata, sizeof(kdata));
         mbedtls_rsa_free(ctx);
-        return PICOKEY_EXEC_ERROR;
+        return PICOKEYS_EXEC_ERROR;
     }
     if (mbedtls_rsa_import(ctx, NULL, &ctx->P, &ctx->Q, NULL, &ctx->E) != 0) {
         mbedtls_platform_zeroize(kdata, sizeof(kdata));
         mbedtls_rsa_free(ctx);
-        return PICOKEY_WRONG_DATA;
+        return PICOKEYS_WRONG_DATA;
     }
     if (mbedtls_rsa_complete(ctx) != 0) {
         mbedtls_platform_zeroize(kdata, sizeof(kdata));
         mbedtls_rsa_free(ctx);
-        return PICOKEY_WRONG_DATA;
+        return PICOKEYS_WRONG_DATA;
     }
     if (mbedtls_rsa_check_privkey(ctx) != 0) {
         mbedtls_platform_zeroize(kdata, sizeof(kdata));
         mbedtls_rsa_free(ctx);
-        return PICOKEY_WRONG_DATA;
+        return PICOKEYS_WRONG_DATA;
     }
-    return PICOKEY_OK;
+    return PICOKEYS_OK;
 }
 
 int load_private_key_ec(mbedtls_ecp_keypair *ctx, file_t *fkey) {
     if (wait_button_pressed() == true) { // timeout
-        return PICOKEY_VERIFICATION_FAILED;
+        return PICOKEYS_VERIFICATION_FAILED;
     }
 
     uint16_t key_size = file_get_size(fkey);
     uint8_t kdata[67]; // Worst case, 521 bit + 1byte
     memcpy(kdata, file_get_data(fkey), key_size);
     if (mkek_decrypt(kdata, key_size) != 0) {
-        return PICOKEY_EXEC_ERROR;
+        return PICOKEYS_EXEC_ERROR;
     }
     mbedtls_ecp_group_id gid = kdata[0];
     int r = mbedtls_ecp_read_key(gid, ctx, kdata + 1, key_size - 1);
     if (r != 0) {
         mbedtls_platform_zeroize(kdata, sizeof(kdata));
         mbedtls_ecp_keypair_free(ctx);
-        return PICOKEY_EXEC_ERROR;
+        return PICOKEYS_EXEC_ERROR;
     }
     mbedtls_platform_zeroize(kdata, sizeof(kdata));
-#ifdef MBEDTLS_EDDSA_C
-    if (gid == MBEDTLS_ECP_DP_ED25519 || gid == MBEDTLS_ECP_DP_ED448) {
-        r = mbedtls_ecp_point_edwards(&ctx->grp, &ctx->Q, &ctx->d, random_gen, NULL);
-    }
-    else
-#endif
-    {
-        r = mbedtls_ecp_mul(&ctx->grp, &ctx->Q, &ctx->d, &ctx->grp.G, random_gen, NULL);
-    }
+    r = mbedtls_ecp_keypair_calc_public(ctx, random_fill_iterator, NULL);
     if (r != 0) {
         mbedtls_ecp_keypair_free(ctx);
-        return PICOKEY_EXEC_ERROR;
+        return PICOKEYS_EXEC_ERROR;
     }
-    return PICOKEY_OK;
+    return PICOKEYS_OK;
 }
 int load_private_key_ecdh(mbedtls_ecp_keypair *ctx, file_t *fkey) {
     return load_private_key_ec(ctx, fkey);
@@ -767,7 +764,7 @@ static const cmd_t cmds[] = {
 int sc_hsm_process_apdu(void) {
     uint32_t ne = apdu.ne;
     int r = sm_unwrap();
-    if (r != PICOKEY_OK) {
+    if (r != PICOKEYS_OK) {
         return SW_DATA_INVALID();
     }
     for (const cmd_t *cmd = cmds; cmd->ins != 0x00; cmd++) {

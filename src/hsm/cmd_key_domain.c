@@ -44,7 +44,7 @@ int cmd_key_domain(void) {
     if (p2 >= MAX_KEY_DOMAINS) {
         return SW_WRONG_P1P2();
     }
-    file_t *tf_kd = search_file(EF_KEY_DOMAIN);
+    file_t *tf_kd = file_search(EF_KEY_DOMAIN);
     if (!tf_kd) {
         return SW_EXEC_ERROR();
     }
@@ -72,8 +72,8 @@ int cmd_key_domain(void) {
             import_dkek_share(p2, apdu.data);
             if (++current_dkeks >= dkeks) {
                 int r = save_dkek_key(p2, NULL);
-                if (r != PICOKEY_OK) {
-                    if (r == PICOKEY_NO_LOGIN) {
+                if (r != PICOKEYS_OK) {
+                    if (r == PICOKEYS_NO_LOGIN) {
                         pending_save_dkek = p2;
                     }
                     else {
@@ -86,13 +86,13 @@ int cmd_key_domain(void) {
             uint8_t t[MAX_KEY_DOMAINS * 2];
             memcpy(t, kdata, tf_kd_size);
             t[2 * p2 + 1] = current_dkeks;
-            if (file_put_data(tf_kd, t, tf_kd_size) != PICOKEY_OK) {
+            if (file_put_data(tf_kd, t, tf_kd_size) != PICOKEYS_OK) {
                 return SW_EXEC_ERROR();
             }
-            low_flash_available();
+            flash_commit();
         }
         else {
-            file_t *tf = search_file(EF_XKEK + p2);
+            file_t *tf = file_search(EF_XKEK + p2);
             if (current_dkeks == 0xff && !file_has_data(tf)) { //XKEK have always 0xff
                 return SW_REFERENCE_NOT_FOUND();
             }
@@ -104,7 +104,7 @@ int cmd_key_domain(void) {
         }
         if (p1 == 0x3) { //if key domain is not empty, command is denied
             for (uint16_t i = 1; i < 256; i++) {
-                file_t *fkey = search_file(KEY_PREFIX << 8 | (uint8_t)i);
+                file_t *fkey = file_search(KEY_PREFIX << 8 | (uint8_t)i);
                 if (get_key_domain(fkey) == p2) {
                     return SW_FILE_EXISTS();
                 }
@@ -129,21 +129,21 @@ int cmd_key_domain(void) {
         else if (p1 == 0x4) {
             t[2 * p2 + 1] = current_dkeks = 0;
         }
-        if (file_put_data(tf_kd, t, tf_kd_size) != PICOKEY_OK) {
+        if (file_put_data(tf_kd, t, tf_kd_size) != PICOKEYS_OK) {
             return SW_EXEC_ERROR();
         }
         file_t *tf = NULL;
-        if ((tf = search_file(EF_DKEK + p2))) {
-            if (delete_file(tf) != PICOKEY_OK) {
+        if ((tf = file_search(EF_DKEK + p2))) {
+            if (file_delete(tf) != PICOKEYS_OK) {
                 return SW_EXEC_ERROR();
             }
         }
-        if (p1 == 0x3 && (tf = search_file(EF_XKEK + p2))) {
-            if (delete_file(tf) != PICOKEY_OK) {
+        if (p1 == 0x3 && (tf = file_search(EF_XKEK + p2))) {
+            if (file_delete(tf) != PICOKEYS_OK) {
                 return SW_EXEC_ERROR();
             }
         }
-        low_flash_available();
+        flash_commit();
         if (p1 == 0x3) {
             return SW_REFERENCE_NOT_FOUND();
         }
@@ -151,7 +151,7 @@ int cmd_key_domain(void) {
     else if (p1 == 0x2) {   //XKEK Key Domain creation
         if (apdu.nc > 0) {
             uint16_t pub_len = 0;
-            file_t *fterm = search_file(EF_TERMCA);
+            file_t *fterm = file_search(EF_TERMCA);
             if (!fterm) {
                 return SW_EXEC_ERROR();
             }
@@ -190,7 +190,7 @@ int cmd_key_domain(void) {
                 t86 = cvc_get_field(pub, pub_len, &t86_len, 0x86);
                 if (t86) {
                     file_put_data(tf, t86 + 1, (uint16_t)t86_len - 1);
-                    low_flash_available();
+                    flash_commit();
                 }
             }
         }
@@ -203,7 +203,7 @@ int cmd_key_domain(void) {
     res_APDU[1] = dkeks > current_dkeks ? dkeks - current_dkeks : 0;
     dkek_kcv(p2, res_APDU + 2);
     res_APDU_size = 2 + 8;
-    file_t *tf = search_file(EF_XKEK + p2);
+    file_t *tf = file_search(EF_XKEK + p2);
     if (file_has_data(tf)) {
         memcpy(res_APDU + 10, file_get_data(tf), file_get_size(tf));
         res_APDU_size += file_get_size(tf);

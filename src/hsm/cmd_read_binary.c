@@ -26,28 +26,28 @@ int cmd_read_binary(void) {
 
     if ((ins & 0x1) == 0) {
         if ((p1 & 0x80) != 0) {
-            if (!(ef = search_file(p1 & 0x1f))) {
+            if (!(ef = file_search(p1 & 0x1f))) {
                 return SW_FILE_NOT_FOUND();
             }
             offset = p2;
         }
         else {
-            offset = make_uint16_t_be(p1, p2) & 0x7fff;
+            offset = make_uint16_be(p1, p2) & 0x7fff;
             ef = currentEF;
         }
     }
     else {
         if (p1 == 0 && (p2 & 0xE0) == 0 && (p2 & 0x1f) != 0 && (p2 & 0x1f) != 0x1f) {
-            if (!(ef = search_file(p2 & 0x1f))) {
+            if (!(ef = file_search(p2 & 0x1f))) {
                 return SW_FILE_NOT_FOUND();
             }
         }
         else {
-            uint16_t file_id = make_uint16_t_be(p1, p2); // & 0x7fff;
+            uint16_t file_id = make_uint16_be(p1, p2); // & 0x7fff;
             if (file_id == 0x0) {
                 ef = currentEF;
             }
-            else if (!(ef = search_file(file_id))) {
+            else if (!(ef = file_search(file_id))) {
                 return SW_FILE_NOT_FOUND();
             }
 
@@ -74,7 +74,7 @@ int cmd_read_binary(void) {
         memset(ef->acl, 0x90, sizeof(ef->acl)); //force PIN for protected data objects
     }
 
-    if ((ef->fid >> 8) == KEY_PREFIX || !authenticate_action(ef, ACL_OP_READ_SEARCH)) {
+    if ((ef->fid >> 8) == KEY_PREFIX || !file_authenticate_action(ef, ACL_OP_READ_SEARCH)) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
     if (ef->data) {
