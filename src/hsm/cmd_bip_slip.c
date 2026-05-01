@@ -53,7 +53,7 @@ static int node_derive_bip_child(const mbedtls_ecp_keypair *parent, const uint8_
         memcpy(data + 1, iR, 32);
     } while (mbedtls_mpi_cmp_mpi(&il, &parent->grp.N) != -1 || mbedtls_mpi_cmp_int(&kchild, 0) == 0);
     mbedtls_mpi_copy(&child->d, &kchild);
-    mbedtls_ecp_mul(&child->grp, &child->Q, &child->d, &child->grp.G, random_fill_iterator, NULL);
+    mbedtls_ecp_keypair_calc_public(child, random_fill_iterator, NULL);
     memcpy(cchild, iR, 32);
     mbedtls_mpi_free(&il);
     mbedtls_mpi_free(&kchild);
@@ -115,7 +115,7 @@ static int load_master_bip(uint16_t mid, mbedtls_ecp_keypair *ctx, uint8_t chain
 
         mbedtls_mpi_read_binary(&ctx->d, mkey + 1, 32);
         memcpy(chain, mkey + 33, 32);
-        mbedtls_ecp_mul(&ctx->grp, &ctx->Q, &ctx->d, &ctx->grp.G, random_fill_iterator, NULL);
+        mbedtls_ecp_keypair_calc_public(ctx, random_fill_iterator, NULL);
     }
     else if (mkey[0] == 0x3) {
         mbedtls_mpi_read_binary(&ctx->d, mkey + 33, 32);
