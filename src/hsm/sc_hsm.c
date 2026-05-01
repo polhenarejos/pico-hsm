@@ -15,6 +15,7 @@
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <stdio.h>
 #include "picokeys.h"
 #include "serial.h"
 #include "sc_hsm.h"
