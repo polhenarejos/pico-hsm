@@ -21,14 +21,20 @@ on:
     - cron: '23 5 * * 4'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
     - name: Checkout repository and submodules
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         submodules: recursive
+        persist-credentials: false
     - name: Build in container
       run: ./tests/build-in-docker.sh
     - name: Export image
@@ -45,14 +51,17 @@ jobs:
   test:
     runs-on: ubuntu-latest
     needs: build
+    permissions:
+      contents: read
     strategy:
       matrix:
         suite: ["pkcs11", "pytest", "sc-hsm-pkcs11"]
     steps:
     - name: Checkout repository and submodules
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         submodules: recursive
+        persist-credentials: false
     - name: Retrieve saved image
       uses: actions/download-artifact@v4
       with:
