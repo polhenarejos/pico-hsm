@@ -61,6 +61,8 @@ extern uint16_t asn1_build_cert_description(const uint8_t *label,
                                           uint8_t *buf,
                                           uint16_t buf_len);
 extern const uint8_t *cvc_get_field(const uint8_t *data, uint16_t len, uint16_t *olen, uint16_t tag);
+extern const uint8_t *cvc_get_body(const uint8_t *data, uint16_t len, uint16_t *olen);
+extern const uint8_t *cvc_get_sig(const uint8_t *data, uint16_t len, uint16_t *olen);
 extern const uint8_t *cvc_get_car(const uint8_t *data, uint16_t len, uint16_t *olen);
 extern const uint8_t *cvc_get_chr(const uint8_t *data, uint16_t len, uint16_t *olen);
 extern const uint8_t *cvc_get_pub(const uint8_t *data, uint16_t len, uint16_t *olen);

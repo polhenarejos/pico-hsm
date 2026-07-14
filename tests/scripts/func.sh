@@ -9,26 +9,26 @@ gen_and_check() {
     glabel=""
     case $1 in
     *"192"*)
-        glabel="EC_POINT 192 bits"
+        glabel="EC_POINT[[:space:]]+192[[:space:]]+bits"
         ;;
     *"256"*)
-        glabel="EC_POINT 256 bits"
+        glabel="EC_POINT[[:space:]]+256[[:space:]]+bits"
         ;;
     *"384"*)
-        glabel="EC_POINT 384 bits"
+        glabel="EC_POINT[[:space:]]+384[[:space:]]+bits"
         ;;
     *"512"*)
-        glabel="EC_POINT 512 bits"
+        glabel="EC_POINT[[:space:]]+512[[:space:]]+bits"
         ;;
     *"521"*)
-        glabel="EC_POINT 52"
+        glabel="EC_POINT[[:space:]]+521[[:space:]]+bits"
         ;;
     *"rsa"*)
         IFS=: read -r v1 bits <<< "$1"
-        glabel="RSA ${bits} bits"
+        glabel="RSA[[:space:]]+${bits}[[:space:]]+bits"
         ;;
     esac
-    grep -q "${glabel}" <<< $e && echo -n "." || exit $?
+    grep -Eq "${glabel}" <<< "$e" && echo -n "." || exit $?
 }
 gen_and_delete() {
     gen_and_check $1
@@ -39,7 +39,7 @@ gen_and_delete() {
 reset() {
     #python3 tools/pico-hsm-tool.py --pin 648219 initialize --so-pin 57621880 --silent --no-dev-cert > /dev/null 2>&1
     rm -f memory.flash
-    tar -xf tests/memory.tar.gz
+    tar -xf "${PICO_HSM_MEMORY_ARCHIVE:?startup.sh must decrypt the CI memory archive}" memory.flash
     test $? -eq 0 || exit $?
 }
 

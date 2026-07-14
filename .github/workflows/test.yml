@@ -72,4 +72,6 @@ jobs:
         cd artifacts
         docker load -q -i docker-image.tar
     - name: Test ${{ matrix.suite }}
+      env:
+        PICO_HSM_MEMORY_PASSPHRASE: ${{ secrets.PICO_HSM_MEMORY_PASSPHRASE }}
       run: ./tests/run-test-in-docker.sh ${{ matrix.suite }}

@@ -91,6 +91,12 @@ run_in_docker()
         shift 2
     done
 
+    # Pass the secret by name so its value is not placed in the Docker command
+    # line assembled by this helper.
+    if [ -n "${PICO_HSM_MEMORY_PASSPHRASE:-}" ]; then
+        ENV_ARGS="${ENV_ARGS} -e PICO_HSM_MEMORY_PASSPHRASE"
+    fi
+
     WORKDIR="${PWD}"
     if [ "$1" == '-w' ]; then
         WORKDIR="$2"

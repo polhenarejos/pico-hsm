@@ -77,13 +77,15 @@ static uint16_t asn1_cvc_public_key_ecdsa(mbedtls_ecp_keypair *ecdsa, uint8_t *b
     const uint8_t oid_ri[]    = { 0x04, 0x00, 0x7F, 0x00, 0x07, 0x02, 0x02, 0x05, 0x02, 0x03 };
     const uint8_t *oid = oid_ecdsa;
     size_t p_size = mbedtls_mpi_size(&ecdsa->grp.P), a_size = mbedtls_mpi_size(&ecdsa->grp.A);
-    size_t b_size = mbedtls_mpi_size(&ecdsa->grp.B), g_size = 0;
+    size_t g_size = 0;
     size_t o_size = mbedtls_mpi_size(&ecdsa->grp.N), y_size = 0;
     mbedtls_ecp_point_write_binary(&ecdsa->grp, &ecdsa->grp.G, MBEDTLS_ECP_PF_UNCOMPRESSED, &g_size, G_buf, sizeof(G_buf));
     mbedtls_ecp_point_write_binary(&ecdsa->grp, &ecdsa->Q, MBEDTLS_ECP_PF_UNCOMPRESSED, &y_size, Y_buf, sizeof(Y_buf));
     uint16_t c_size = 1;
-    uint16_t ptot_size = tlv_len_tag(0x81, (uint16_t)p_size), atot_size = tlv_len_tag(0x82, a_size ? (uint16_t)a_size : (pointA[ecdsa->grp.id] && ecdsa->grp.id < 6 ? (uint16_t)p_size : 1));
-    uint16_t btot_size = tlv_len_tag(0x83, (uint16_t)b_size), gtot_size = tlv_len_tag(0x84, (uint16_t)g_size);
+    uint16_t ptot_size = tlv_len_tag(0x81, (uint16_t)p_size);
+    uint16_t atot_size = tlv_len_tag(0x82, (uint16_t)p_size);
+    uint16_t btot_size = tlv_len_tag(0x83, (uint16_t)p_size);
+    uint16_t gtot_size = tlv_len_tag(0x84, (uint16_t)g_size);
     uint16_t otot_size = tlv_len_tag(0x85, (uint16_t)o_size), ytot_size = tlv_len_tag(0x86, (uint16_t)y_size);
     uint16_t ctot_size = tlv_len_tag(0x87, (uint16_t)c_size);
     uint16_t oid_len = tlv_len_tag(0x6, sizeof(oid_ecdsa));
@@ -134,22 +136,23 @@ static uint16_t asn1_cvc_public_key_ecdsa(mbedtls_ecp_keypair *ecdsa, uint8_t *b
         *p++ = 0x81; p += tlv_format_len((uint16_t)p_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.P, p, p_size);
         p += p_size;
         //A
+        *p++ = 0x82;
+        p += tlv_format_len((uint16_t)p_size, p);
         if (a_size) {
-            *p++ = 0x82; p += tlv_format_len((uint16_t)a_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.A, p, a_size); p += a_size;
+            mbedtls_mpi_write_binary(&ecdsa->grp.A, p, p_size);
         }
         else {   //mbedtls does not set point A for some curves
-            if (pointA[ecdsa->grp.id] && ecdsa->grp.id < 6) {
-                *p++ = 0x82; p += tlv_format_len((uint16_t)p_size, p); memcpy(p, pointA[ecdsa->grp.id], p_size);
-                p += p_size;
+            if ((size_t)ecdsa->grp.id < sizeof(pointA) / sizeof(pointA[0]) && pointA[ecdsa->grp.id]) {
+                memcpy(p, pointA[ecdsa->grp.id], p_size);
             }
             else {
-                *p++ = 0x82; p += tlv_format_len(1, p);
-                *p++ = 0x0;
+                memset(p, 0, p_size);
             }
         }
+        p += p_size;
         //B
-        *p++ = 0x83; p += tlv_format_len((uint16_t)b_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.B, p, b_size);
-        p += b_size;
+        *p++ = 0x83; p += tlv_format_len((uint16_t)p_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.B, p, p_size);
+        p += p_size;
         //G
         *p++ = 0x84; p += tlv_format_len((uint16_t)g_size, p); memcpy(p, G_buf, g_size); p += g_size;
         //order
@@ -520,69 +523,6 @@ uint16_t asn1_build_prkd_rsa(const uint8_t *label, uint16_t label_len, const uin
 
 uint16_t asn1_build_prkd_aes(const uint8_t *label, uint16_t label_len, const uint8_t *keyid, uint16_t keyid_len, uint16_t keysize, uint8_t *buf, uint16_t buf_len) {
     return asn1_build_prkd_generic(label, label_len, keyid, keyid_len, keysize, PICOKEYS_KEY_AES, buf, buf_len);
-}
-
-const uint8_t *cvc_get_field(const uint8_t *data, uint16_t len, uint16_t *olen, uint16_t tag) {
-    tlv_ctx_t ctxi, ctxo = { 0 };
-    tlv_ctx_init((uint8_t *)data, len, &ctxi);
-    if (tlv_len(&ctxi) == 0) {
-        return NULL;
-    }
-    if (tlv_find_tag(&ctxi, tag, &ctxo) == false) {
-        return NULL;
-    }
-    *olen = ctxo.len;
-    return ctxo.data;
-}
-
-static const uint8_t *cvc_get_body(const uint8_t *data, uint16_t len, uint16_t *olen) {
-    const uint8_t *bkdata = data;
-    if ((data = cvc_get_field(data, len, olen, 0x67)) == NULL) { /* Check for CSR */
-        data = bkdata;
-    }
-    if ((data = cvc_get_field(data, len, olen, 0x7F21)) != NULL) {
-        return cvc_get_field(data, len, olen, 0x7F4E);
-    }
-    return NULL;
-}
-
-static const uint8_t *cvc_get_sig(const uint8_t *data, uint16_t len, uint16_t *olen) {
-    const uint8_t *bkdata = data;
-    if ((data = cvc_get_field(data, len, olen, 0x67)) == NULL) { /* Check for CSR */
-        data = bkdata;
-    }
-    if ((data = cvc_get_field(data, len, olen, 0x7F21)) != NULL) {
-        return cvc_get_field(data, len, olen, 0x5F37);
-    }
-    return NULL;
-}
-
-const uint8_t *cvc_get_car(const uint8_t *data, uint16_t len, uint16_t *olen) {
-    if ((data = cvc_get_body(data, len, olen)) != NULL) {
-        return cvc_get_field(data, len, olen, 0x42);
-    }
-    return NULL;
-}
-
-const uint8_t *cvc_get_chr(const uint8_t *data, uint16_t len, uint16_t *olen) {
-    if ((data = cvc_get_body(data, len, olen)) != NULL) {
-        return cvc_get_field(data, len, olen, 0x5F20);
-    }
-    return NULL;
-}
-
-const uint8_t *cvc_get_pub(const uint8_t *data, uint16_t len, uint16_t *olen) {
-    if ((data = cvc_get_body(data, len, olen)) != NULL) {
-        return cvc_get_field(data, len, olen, 0x7F49);
-    }
-    return NULL;
-}
-
-const uint8_t *cvc_get_ext(const uint8_t *data, uint16_t len, uint16_t *olen) {
-    if ((data = cvc_get_body(data, len, olen)) != NULL) {
-        return cvc_get_field(data, len, olen, 0x65);
-    }
-    return NULL;
 }
 
 extern PUK puk_store[MAX_PUK_STORE_ENTRIES];
