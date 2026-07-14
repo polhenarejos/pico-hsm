@@ -40,7 +40,7 @@ jobs:
     - name: Export image
       run: |
         mkdir -p artifacts
-        docker save pico-hsm-test:bullseye -o artifacts/docker-image.tar
+        docker save pico-hsm-test:bookworm -o artifacts/docker-image.tar
     - name: Temporarily save image
       uses: actions/upload-artifact@v4
       with:
