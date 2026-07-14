@@ -32,6 +32,17 @@ if ! tar -xf "${PICO_HSM_MEMORY_ARCHIVE}" -C /tmp .pico-hsm-emulation; then
     echo "The decrypted CI archive has no Linux emulation identity; run ./tests/prepare-memory-in-docker.sh"
     fail
 fi
+DEVICE_ID_FILE="${STATE_BUNDLE}/device-id"
+if [[ ! -s "${DEVICE_ID_FILE}" ]]; then
+    echo "The decrypted CI archive has no emulation device ID; regenerate it."
+    fail
+fi
+IFS= read -r PICO_HSM_CI_DEVICE_ID < "${DEVICE_ID_FILE}"
+if [[ ! "${PICO_HSM_CI_DEVICE_ID}" =~ ^[[:xdigit:]]{64}$ ]]; then
+    echo "The decrypted CI archive has an invalid emulation device ID."
+    fail
+fi
+export PICO_HSM_CI_DEVICE_ID
 
 swtpm socket \
   --tpm2 \
