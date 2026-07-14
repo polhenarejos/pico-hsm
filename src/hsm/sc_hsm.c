@@ -25,7 +25,7 @@
 #include "kek.h"
 #include "eac.h"
 #include "cvc.h"
-#include "asn1.h"
+#include "tlv.h"
 #include "usb.h"
 #include "random.h"
 #include "version.h"
@@ -213,9 +213,9 @@ void reset_puk_store(void) {
     if (fterm) {
         uint8_t *p = NULL, *fterm_data = file_get_data(fterm), *pq = fterm_data;
         uint16_t fterm_data_len = file_get_size(fterm);
-        asn1_ctx_t ctxi;
-        asn1_ctx_init(fterm_data, fterm_data_len, &ctxi);
-        while (walk_tlv(&ctxi, &p, NULL, NULL, NULL)) {
+        tlv_ctx_t ctxi;
+        tlv_ctx_init(fterm_data, fterm_data_len, &ctxi);
+        while (tlv_walk(&ctxi, &p, NULL, NULL, NULL)) {
             add_cert_puk_store(pq, (uint16_t)(p - pq), false);
             pq = p;
         }
@@ -459,9 +459,9 @@ const uint8_t *get_meta_tag(file_t *ef, uint16_t meta_tag, uint16_t *tag_len) {
     if (meta_size > 0 && meta_data != NULL) {
         uint16_t tag = 0x0;
         uint8_t *tag_data = NULL, *p = NULL;
-        asn1_ctx_t ctxi;
-        asn1_ctx_init(meta_data, meta_size, &ctxi);
-        while (walk_tlv(&ctxi, &p, &tag, tag_len, &tag_data)) {
+        tlv_ctx_t ctxi;
+        tlv_ctx_init(meta_data, meta_size, &ctxi);
+        while (tlv_walk(&ctxi, &p, &tag, tag_len, &tag_data)) {
             if (tag == meta_tag) {
                 return tag_data;
             }
@@ -506,9 +506,9 @@ uint32_t decrement_key_counter(file_t *fkey) {
         uint8_t *cmeta = (uint8_t *) calloc(1, meta_size);
         /* We cannot modify meta_data, as it comes from flash memory. It must be cpied to an aux buffer */
         memcpy(cmeta, meta_data, meta_size);
-        asn1_ctx_t ctxi;
-        asn1_ctx_init(meta_data, meta_size, &ctxi);
-        while (walk_tlv(&ctxi, &p, &tag, &tag_len, &tag_data)) {
+        tlv_ctx_t ctxi;
+        tlv_ctx_init(meta_data, meta_size, &ctxi);
+        while (tlv_walk(&ctxi, &p, &tag, &tag_len, &tag_data)) {
             if (tag == 0x90) { // ofset tag
                 uint32_t val = get_uint32_be(tag_data);
                 val--;
@@ -595,14 +595,14 @@ int store_keys(void *key_ctx, int type, uint8_t key_id) {
 int find_and_store_meta_key(uint8_t key_id) {
     uint16_t meta_size = 0;
     uint8_t t90[4] = { 0xFF, 0xFF, 0xFF, 0xFE };
-    asn1_ctx_t ctxi, ctxo[4] = { 0 };
-    asn1_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
+    tlv_ctx_t ctxi, ctxo[4] = { 0 };
+    tlv_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
     for (uint16_t t = 0; t < 4; t++) {
-        if (asn1_find_tag(&ctxi, 0x90 + t, &ctxo[t]) && asn1_len(&ctxo[t]) > 0) {
-            meta_size += asn1_len_tag(0x90 + t, ctxo[t].len);
+        if (tlv_find_tag(&ctxi, 0x90 + t, &ctxo[t]) && tlv_len(&ctxo[t]) > 0) {
+            meta_size += tlv_len_tag(0x90 + t, ctxo[t].len);
         }
     }
-    if (asn1_len(&ctxo[0]) == 0) {
+    if (tlv_len(&ctxo[0]) == 0) {
         uint16_t opts = get_device_options();
         if (opts & HSM_OPT_KEY_COUNTER_ALL) {
             ctxo[0].len = 4;
@@ -613,9 +613,9 @@ int find_and_store_meta_key(uint8_t key_id) {
     if (meta_size) {
         uint8_t *meta = (uint8_t *) calloc(1, meta_size), *m = meta;
         for (uint8_t t = 0; t < 4; t++) {
-            if (asn1_len(&ctxo[t]) > 0) {
+            if (tlv_len(&ctxo[t]) > 0) {
                 *m++ = 0x90 + t;
-                m += format_tlv_len(ctxo[t].len, m);
+                m += tlv_format_len(ctxo[t].len, m);
                 memcpy(m, ctxo[t].data, ctxo[t].len);
                 m += ctxo[t].len;
             }

@@ -19,7 +19,7 @@
 #include "files.h"
 #include "random.h"
 #include "kek.h"
-#include "asn1.h"
+#include "tlv.h"
 
 const uint8_t *k1_seed = (const uint8_t *) "Bitcoin seed";
 const uint8_t *p1_seed = (const uint8_t *) "Nist256p1 seed";
@@ -133,9 +133,9 @@ static int node_derive_path(const uint8_t *path, uint16_t path_len, mbedtls_ecp_
     memset(last_node, 0, 4);
     memset(fingerprint, 0, 4);
 
-    asn1_ctx_t ctxi;
-    asn1_ctx_init((uint8_t *)path, path_len, &ctxi);
-    for (; walk_tlv(&ctxi, &p, &tag, &tag_len, &tag_data); node++) {
+    tlv_ctx_t ctxi;
+    tlv_ctx_init((uint8_t *)path, path_len, &ctxi);
+    for (; tlv_walk(&ctxi, &p, &tag, &tag_len, &tag_data); node++) {
         if (tag == 0x02) {
             if ((node == 0 && tag_len != 1) || (node != 0 && tag_len != 4)) {
                 return PICOKEYS_WRONG_DATA;

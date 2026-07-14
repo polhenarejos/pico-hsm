@@ -20,7 +20,7 @@
 #include "mbedtls/rsa.h"
 #include "mbedtls/ecdsa.h"
 #include <string.h>
-#include "asn1.h"
+#include "tlv.h"
 #include "crypto_utils.h"
 #include "random.h"
 #include "oid.h"
@@ -33,9 +33,9 @@
 static uint16_t asn1_cvc_public_key_rsa(mbedtls_rsa_context *rsa, uint8_t *buf, uint16_t buf_len) {
     const uint8_t oid_rsa[] = { 0x04, 0x00, 0x7F, 0x00, 0x07, 0x02, 0x02, 0x02, 0x01, 0x02 };
     uint16_t n_size = (uint16_t)mbedtls_mpi_size(&rsa->N), e_size = (uint16_t)mbedtls_mpi_size(&rsa->E);
-    uint16_t ntot_size = asn1_len_tag(0x81, n_size), etot_size = asn1_len_tag(0x82, e_size);
-    uint16_t oid_len = asn1_len_tag(0x6, sizeof(oid_rsa));
-    uint16_t tot_len = asn1_len_tag(0x7f49, oid_len + ntot_size + etot_size);
+    uint16_t ntot_size = tlv_len_tag(0x81, n_size), etot_size = tlv_len_tag(0x82, e_size);
+    uint16_t oid_len = tlv_len_tag(0x6, sizeof(oid_rsa));
+    uint16_t tot_len = tlv_len_tag(0x7f49, oid_len + ntot_size + etot_size);
     if (buf == NULL || buf_len == 0) {
         return tot_len;
     }
@@ -44,15 +44,15 @@ static uint16_t asn1_cvc_public_key_rsa(mbedtls_rsa_context *rsa, uint8_t *buf, 
     }
     uint8_t *p = buf;
     memcpy(p, "\x7F\x49", 2); p += 2;
-    p += format_tlv_len(oid_len + ntot_size + etot_size, p);
+    p += tlv_format_len(oid_len + ntot_size + etot_size, p);
     //oid
-    *p++ = 0x6; p += format_tlv_len(sizeof(oid_rsa), p); memcpy(p, oid_rsa, sizeof(oid_rsa));
+    *p++ = 0x6; p += tlv_format_len(sizeof(oid_rsa), p); memcpy(p, oid_rsa, sizeof(oid_rsa));
     p += sizeof(oid_rsa);
     //n
-    *p++ = 0x81; p += format_tlv_len(n_size, p); mbedtls_mpi_write_binary(&rsa->N, p, n_size);
+    *p++ = 0x81; p += tlv_format_len(n_size, p); mbedtls_mpi_write_binary(&rsa->N, p, n_size);
     p += n_size;
     //n
-    *p++ = 0x82; p += format_tlv_len(e_size, p); mbedtls_mpi_write_binary(&rsa->E, p, e_size);
+    *p++ = 0x82; p += tlv_format_len(e_size, p); mbedtls_mpi_write_binary(&rsa->E, p, e_size);
     p += e_size;
     return tot_len;
 }
@@ -82,11 +82,11 @@ static uint16_t asn1_cvc_public_key_ecdsa(mbedtls_ecp_keypair *ecdsa, uint8_t *b
     mbedtls_ecp_point_write_binary(&ecdsa->grp, &ecdsa->grp.G, MBEDTLS_ECP_PF_UNCOMPRESSED, &g_size, G_buf, sizeof(G_buf));
     mbedtls_ecp_point_write_binary(&ecdsa->grp, &ecdsa->Q, MBEDTLS_ECP_PF_UNCOMPRESSED, &y_size, Y_buf, sizeof(Y_buf));
     uint16_t c_size = 1;
-    uint16_t ptot_size = asn1_len_tag(0x81, (uint16_t)p_size), atot_size = asn1_len_tag(0x82, a_size ? (uint16_t)a_size : (pointA[ecdsa->grp.id] && ecdsa->grp.id < 6 ? (uint16_t)p_size : 1));
-    uint16_t btot_size = asn1_len_tag(0x83, (uint16_t)b_size), gtot_size = asn1_len_tag(0x84, (uint16_t)g_size);
-    uint16_t otot_size = asn1_len_tag(0x85, (uint16_t)o_size), ytot_size = asn1_len_tag(0x86, (uint16_t)y_size);
-    uint16_t ctot_size = asn1_len_tag(0x87, (uint16_t)c_size);
-    uint16_t oid_len = asn1_len_tag(0x6, sizeof(oid_ecdsa));
+    uint16_t ptot_size = tlv_len_tag(0x81, (uint16_t)p_size), atot_size = tlv_len_tag(0x82, a_size ? (uint16_t)a_size : (pointA[ecdsa->grp.id] && ecdsa->grp.id < 6 ? (uint16_t)p_size : 1));
+    uint16_t btot_size = tlv_len_tag(0x83, (uint16_t)b_size), gtot_size = tlv_len_tag(0x84, (uint16_t)g_size);
+    uint16_t otot_size = tlv_len_tag(0x85, (uint16_t)o_size), ytot_size = tlv_len_tag(0x86, (uint16_t)y_size);
+    uint16_t ctot_size = tlv_len_tag(0x87, (uint16_t)c_size);
+    uint16_t oid_len = tlv_len_tag(0x6, sizeof(oid_ecdsa));
     uint16_t tot_len = 0, tot_data_len = 0;
     if (mbedtls_ecp_get_type(&ecdsa->grp) == MBEDTLS_ECP_TYPE_MONTGOMERY
 #ifdef MBEDTLS_EDDSA_C
@@ -100,7 +100,7 @@ static uint16_t asn1_cvc_public_key_ecdsa(mbedtls_ecp_keypair *ecdsa, uint8_t *b
         tot_data_len = oid_len + ptot_size + atot_size + btot_size + gtot_size + otot_size + ytot_size +
                                   ctot_size;
     }
-    tot_len = asn1_len_tag(0x7f49, tot_data_len);
+    tot_len = tlv_len_tag(0x7f49, tot_data_len);
     if (buf == NULL || buf_len == 0) {
         return tot_len;
     }
@@ -109,9 +109,9 @@ static uint16_t asn1_cvc_public_key_ecdsa(mbedtls_ecp_keypair *ecdsa, uint8_t *b
     }
     uint8_t *p = buf;
     memcpy(p, "\x7F\x49", 2); p += 2;
-    p += format_tlv_len(tot_data_len, p);
+    p += tlv_format_len(tot_data_len, p);
     //oid
-    *p++ = 0x6; p += format_tlv_len(sizeof(oid_ecdsa), p); memcpy(p, oid, sizeof(oid_ecdsa));
+    *p++ = 0x6; p += tlv_format_len(sizeof(oid_ecdsa), p); memcpy(p, oid, sizeof(oid_ecdsa));
     p += sizeof(oid_ecdsa);
     if (mbedtls_ecp_get_type(&ecdsa->grp) == MBEDTLS_ECP_TYPE_MONTGOMERY
 #ifdef MBEDTLS_EDDSA_C
@@ -119,46 +119,46 @@ static uint16_t asn1_cvc_public_key_ecdsa(mbedtls_ecp_keypair *ecdsa, uint8_t *b
 #endif
     ) {
         //p
-        *p++ = 0x81; p += format_tlv_len((uint16_t)p_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.P, p, p_size);
+        *p++ = 0x81; p += tlv_format_len((uint16_t)p_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.P, p, p_size);
         p += p_size;
         //order
-        *p++ = 0x82; p += format_tlv_len((uint16_t)o_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.N, p, o_size);
+        *p++ = 0x82; p += tlv_format_len((uint16_t)o_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.N, p, o_size);
         p += o_size;
          //G
-        *p++ = 0x83; p += format_tlv_len((uint16_t)g_size, p); memcpy(p, G_buf, g_size); p += g_size;
+        *p++ = 0x83; p += tlv_format_len((uint16_t)g_size, p); memcpy(p, G_buf, g_size); p += g_size;
         //Y
-        *p++ = 0x84; p += format_tlv_len((uint16_t)y_size, p); memcpy(p, Y_buf, y_size); p += y_size;
+        *p++ = 0x84; p += tlv_format_len((uint16_t)y_size, p); memcpy(p, Y_buf, y_size); p += y_size;
     }
     else {
         //p
-        *p++ = 0x81; p += format_tlv_len((uint16_t)p_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.P, p, p_size);
+        *p++ = 0x81; p += tlv_format_len((uint16_t)p_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.P, p, p_size);
         p += p_size;
         //A
         if (a_size) {
-            *p++ = 0x82; p += format_tlv_len((uint16_t)a_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.A, p, a_size); p += a_size;
+            *p++ = 0x82; p += tlv_format_len((uint16_t)a_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.A, p, a_size); p += a_size;
         }
         else {   //mbedtls does not set point A for some curves
             if (pointA[ecdsa->grp.id] && ecdsa->grp.id < 6) {
-                *p++ = 0x82; p += format_tlv_len((uint16_t)p_size, p); memcpy(p, pointA[ecdsa->grp.id], p_size);
+                *p++ = 0x82; p += tlv_format_len((uint16_t)p_size, p); memcpy(p, pointA[ecdsa->grp.id], p_size);
                 p += p_size;
             }
             else {
-                *p++ = 0x82; p += format_tlv_len(1, p);
+                *p++ = 0x82; p += tlv_format_len(1, p);
                 *p++ = 0x0;
             }
         }
         //B
-        *p++ = 0x83; p += format_tlv_len((uint16_t)b_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.B, p, b_size);
+        *p++ = 0x83; p += tlv_format_len((uint16_t)b_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.B, p, b_size);
         p += b_size;
         //G
-        *p++ = 0x84; p += format_tlv_len((uint16_t)g_size, p); memcpy(p, G_buf, g_size); p += g_size;
+        *p++ = 0x84; p += tlv_format_len((uint16_t)g_size, p); memcpy(p, G_buf, g_size); p += g_size;
         //order
-        *p++ = 0x85; p += format_tlv_len((uint16_t)o_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.N, p, o_size);
+        *p++ = 0x85; p += tlv_format_len((uint16_t)o_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.N, p, o_size);
         p += o_size;
         //Y
-        *p++ = 0x86; p += format_tlv_len((uint16_t)y_size, p); memcpy(p, Y_buf, y_size); p += y_size;
+        *p++ = 0x86; p += tlv_format_len((uint16_t)y_size, p); memcpy(p, Y_buf, y_size); p += y_size;
         //cofactor
-        *p++ = 0x87; p += format_tlv_len(c_size, p);
+        *p++ = 0x87; p += tlv_format_len(c_size, p);
         *p++ = 1;
     }
     return tot_len;
@@ -174,18 +174,18 @@ static uint16_t asn1_cvc_cert_body(void *rsa_ecdsa, uint8_t key_type, uint8_t *b
     }
     uint16_t cpi_size = 4, ext_size = 0, role_size = 0, valid_size = 0;
     if (ext && ext_len > 0) {
-        ext_size = asn1_len_tag(0x65, ext_len);
+        ext_size = tlv_len_tag(0x65, ext_len);
     }
     const uint8_t *role = (const uint8_t *)"\x06\x09\x04\x00\x7F\x00\x07\x03\x01\x02\x02\x53\x01\x00";
     uint16_t rolelen = 14;
     if (full) {
-        role_size = asn1_len_tag(0x7f4c, rolelen);
-        valid_size = asn1_len_tag(0x5f24, 6) + asn1_len_tag(0x5f25, 6);
+        role_size = tlv_len_tag(0x7f4c, rolelen);
+        valid_size = tlv_len_tag(0x5f24, 6) + tlv_len_tag(0x5f25, 6);
     }
 
-    asn1_ctx_t ctxi, car = {0}, chr = {0};
-    asn1_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
-    if (asn1_find_tag(&ctxi, 0x42, &car) == false || asn1_len(&car) == 0) {
+    tlv_ctx_t ctxi, car = {0}, chr = {0};
+    tlv_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
+    if (tlv_find_tag(&ctxi, 0x42, &car) == false || tlv_len(&car) == 0) {
         car.data = (uint8_t *) dev_name;
         car.len = dev_name_len;
         if (dev_name == NULL) {
@@ -193,7 +193,7 @@ static uint16_t asn1_cvc_cert_body(void *rsa_ecdsa, uint8_t key_type, uint8_t *b
             car.len = (uint16_t)strlen((const char *)car.data);
         }
     }
-    if (asn1_find_tag(&ctxi, 0x5f20, &chr) == false || asn1_len(&chr) == 0) {
+    if (tlv_find_tag(&ctxi, 0x5f20, &chr) == false || tlv_len(&chr) == 0) {
         chr.data = (uint8_t *) dev_name;
         chr.len = dev_name_len;
         if (chr.data == NULL) {
@@ -201,9 +201,9 @@ static uint16_t asn1_cvc_cert_body(void *rsa_ecdsa, uint8_t key_type, uint8_t *b
             chr.len = car.len;
         }
     }
-    uint16_t car_size = asn1_len_tag(0x42, car.len), chr_size = asn1_len_tag(0x5f20, chr.len);
+    uint16_t car_size = tlv_len_tag(0x42, car.len), chr_size = tlv_len_tag(0x5f20, chr.len);
 
-    uint16_t tot_len = asn1_len_tag(0x7f4e, cpi_size + car_size + pubkey_size + chr_size + ext_size + role_size + valid_size);
+    uint16_t tot_len = tlv_len_tag(0x7f4e, cpi_size + car_size + pubkey_size + chr_size + ext_size + role_size + valid_size);
 
     if (buf_len == 0 || buf == NULL) {
         return tot_len;
@@ -213,11 +213,11 @@ static uint16_t asn1_cvc_cert_body(void *rsa_ecdsa, uint8_t key_type, uint8_t *b
     }
     uint8_t *p = buf;
     memcpy(p, "\x7F\x4E", 2); p += 2;
-    p += format_tlv_len(cpi_size + car_size + pubkey_size + chr_size + role_size + valid_size + ext_size, p);
+    p += tlv_format_len(cpi_size + car_size + pubkey_size + chr_size + role_size + valid_size + ext_size, p);
     //cpi
     *p++ = 0x5f; *p++ = 0x29; *p++ = 1; *p++ = 0;
     //car
-    *p++ = 0x42; p += format_tlv_len(car.len, p); memcpy(p, car.data, car.len); p += car.len;
+    *p++ = 0x42; p += tlv_format_len(car.len, p); memcpy(p, car.data, car.len); p += car.len;
     //pubkey
     if (key_type & PICOKEYS_KEY_RSA) {
         p += asn1_cvc_public_key_rsa(rsa_ecdsa, p, pubkey_size);
@@ -226,29 +226,29 @@ static uint16_t asn1_cvc_cert_body(void *rsa_ecdsa, uint8_t key_type, uint8_t *b
         p += asn1_cvc_public_key_ecdsa(rsa_ecdsa, p, pubkey_size);
     }
     //chr
-    *p++ = 0x5f; *p++ = 0x20; p += format_tlv_len(chr.len, p); memcpy(p, chr.data, chr.len); p += chr.len;
+    *p++ = 0x5f; *p++ = 0x20; p += tlv_format_len(chr.len, p); memcpy(p, chr.data, chr.len); p += chr.len;
     if (full) {
         *p++ = 0x7f;
         *p++ = 0x4c;
-        p += format_tlv_len(rolelen, p);
+        p += tlv_format_len(rolelen, p);
         memcpy(p, role, rolelen);
         p += rolelen;
 
         *p++ = 0x5f;
         *p++ = 0x25;
-        p += format_tlv_len(6, p);
+        p += tlv_format_len(6, p);
         memcpy(p, "\x02\x03\x00\x03\x02\x01", 6);
         p += 6;
 
         *p++ = 0x5f;
         *p++ = 0x24;
-        p += format_tlv_len(6, p);
+        p += tlv_format_len(6, p);
         memcpy(p, "\x07\x00\x01\x02\x03\x01", 6);
         p += 6;
     }
     if (ext && ext_len > 0) {
         *p++ = 0x65;
-        p += format_tlv_len(ext_len, p);
+        p += tlv_format_len(ext_len, p);
         memcpy(p, ext, ext_len);
         p += ext_len;
     }
@@ -263,8 +263,8 @@ uint16_t asn1_cvc_cert(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, uint16_t
     else if (key_type & PICOKEYS_KEY_EC) {
         key_size = 2 * (int)((mbedtls_ecp_curve_info_from_grp_id(((mbedtls_ecdsa_context *) rsa_ecdsa)->grp.id)->bit_size + 7) / 8);
     }
-    uint16_t body_size = asn1_cvc_cert_body(rsa_ecdsa, key_type, NULL, 0, ext, ext_len, full), sig_size = asn1_len_tag(0x5f37, key_size);
-    uint16_t tot_len = asn1_len_tag(0x7f21, body_size + sig_size);
+    uint16_t body_size = asn1_cvc_cert_body(rsa_ecdsa, key_type, NULL, 0, ext, ext_len, full), sig_size = tlv_len_tag(0x5f37, key_size);
+    uint16_t tot_len = tlv_len_tag(0x7f21, body_size + sig_size);
     if (buf_len == 0 || buf == NULL) {
         return tot_len;
     }
@@ -273,13 +273,13 @@ uint16_t asn1_cvc_cert(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, uint16_t
     }
     uint8_t *p = buf, *body = NULL;
     memcpy(p, "\x7F\x21", 2); p += 2;
-    p += format_tlv_len(body_size + sig_size, p);
+    p += tlv_format_len(body_size + sig_size, p);
     body = p;
     p += asn1_cvc_cert_body(rsa_ecdsa, key_type, p, body_size, ext, ext_len, full);
     uint8_t hsh[32];
     hash256(body, body_size, hsh);
     memcpy(p, "\x5F\x37", 2); p += 2;
-    p += format_tlv_len(key_size, p);
+    p += tlv_format_len(key_size, p);
     if (key_type & PICOKEYS_KEY_RSA) {
         if (mbedtls_rsa_rsassa_pkcs1_v15_sign(rsa_ecdsa, random_fill_iterator, NULL, MBEDTLS_MD_SHA256, 32, hsh, p) != 0) {
             memset(p, 0, key_size);
@@ -319,7 +319,7 @@ uint16_t asn1_cvc_aut(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, uint16_t 
     uint16_t cvcert_size = asn1_cvc_cert(rsa_ecdsa, key_type, NULL, 0, ext, ext_len, false);
     uint16_t outcar_len = dev_name_len;
     const uint8_t *outcar = dev_name;
-    uint16_t outcar_size = asn1_len_tag(0x42, outcar_len);
+    uint16_t outcar_size = tlv_len_tag(0x42, outcar_len);
     file_t *fkey = file_search(EF_KEY_DEV);
     if (!fkey) {
         return 0;
@@ -332,7 +332,7 @@ uint16_t asn1_cvc_aut(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, uint16_t 
     }
     int ret = 0;
     uint16_t key_size = 2 * (uint16_t)mbedtls_mpi_size(&ectx.d);
-    uint16_t outsig_size = asn1_len_tag(0x5f37, key_size), tot_len = asn1_len_tag(0x67, cvcert_size + outcar_size + outsig_size);
+    uint16_t outsig_size = tlv_len_tag(0x5f37, key_size), tot_len = tlv_len_tag(0x67, cvcert_size + outcar_size + outsig_size);
     if (buf_len == 0 || buf == NULL) {
         return tot_len;
     }
@@ -341,14 +341,14 @@ uint16_t asn1_cvc_aut(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, uint16_t 
     }
     uint8_t *p = buf;
     *p++ = 0x67;
-    p += format_tlv_len(cvcert_size + outcar_size + outsig_size, p);
+    p += tlv_format_len(cvcert_size + outcar_size + outsig_size, p);
     uint8_t *body = p;
     //cvcert
     p += asn1_cvc_cert(rsa_ecdsa, key_type, p, cvcert_size, ext, ext_len, false);
     //outcar
-    *p++ = 0x42; p += format_tlv_len(outcar_len, p); memcpy(p, outcar, outcar_len); p += outcar_len;
+    *p++ = 0x42; p += tlv_format_len(outcar_len, p); memcpy(p, outcar, outcar_len); p += outcar_len;
     memcpy(p, "\x5f\x37", 2); p += 2;
-    p += format_tlv_len(key_size, p);
+    p += tlv_format_len(key_size, p);
     mbedtls_mpi r, s;
     mbedtls_mpi_init(&r);
     mbedtls_mpi_init(&s);
@@ -378,10 +378,10 @@ uint16_t asn1_cvc_aut(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, uint16_t 
 
 uint16_t asn1_build_cert_description(const uint8_t *label, uint16_t label_len, const uint8_t *puk, uint16_t puk_len, uint16_t fid, uint8_t *buf, uint16_t buf_len) {
     uint16_t opt_len = 2;
-    uint16_t seq1_size = asn1_len_tag(0x30, asn1_len_tag(0xC, label_len) + asn1_len_tag(0x3, opt_len));
-    uint16_t seq2_size = asn1_len_tag(0x30, asn1_len_tag(0x4, 20)); /* SHA1 is 20 bytes length */
-    uint16_t seq3_size = asn1_len_tag(0xA1, asn1_len_tag(0x30, asn1_len_tag(0x30, asn1_len_tag(0x4, sizeof(uint16_t)))));
-    uint16_t tot_len = asn1_len_tag(0x30, seq1_size + seq2_size + seq3_size);
+    uint16_t seq1_size = tlv_len_tag(0x30, tlv_len_tag(0xC, label_len) + tlv_len_tag(0x3, opt_len));
+    uint16_t seq2_size = tlv_len_tag(0x30, tlv_len_tag(0x4, 20)); /* SHA1 is 20 bytes length */
+    uint16_t seq3_size = tlv_len_tag(0xA1, tlv_len_tag(0x30, tlv_len_tag(0x30, tlv_len_tag(0x4, sizeof(uint16_t)))));
+    uint16_t tot_len = tlv_len_tag(0x30, seq1_size + seq2_size + seq3_size);
     if (buf_len == 0 || buf == NULL) {
         return tot_len;
     }
@@ -390,34 +390,34 @@ uint16_t asn1_build_cert_description(const uint8_t *label, uint16_t label_len, c
     }
     uint8_t *p = buf;
     *p++ = 0x30;
-    p += format_tlv_len(seq1_size + seq2_size + seq3_size, p);
+    p += tlv_format_len(seq1_size + seq2_size + seq3_size, p);
     //Seq 1
     *p++ = 0x30;
-    p += format_tlv_len(asn1_len_tag(0xC, label_len) + asn1_len_tag(0x3, opt_len), p);
+    p += tlv_format_len(tlv_len_tag(0xC, label_len) + tlv_len_tag(0x3, opt_len), p);
     *p++ = 0xC;
-    p += format_tlv_len(label_len, p);
+    p += tlv_format_len(label_len, p);
     memcpy(p, label, label_len); p += label_len;
     *p++ = 0x3;
-    p += format_tlv_len(opt_len, p);
+    p += tlv_format_len(opt_len, p);
     memcpy(p, "\x06\x40", 2); p += 2;
 
     //Seq 2
     *p++ = 0x30;
-    p += format_tlv_len(asn1_len_tag(0x4, 20), p);
+    p += tlv_format_len(tlv_len_tag(0x4, 20), p);
     *p++ = 0x4;
-    p += format_tlv_len(20, p);
+    p += tlv_format_len(20, p);
     mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA1), puk, puk_len, p);  p += 20;
 
     //Seq 3
     *p++ = 0xA1;
-    p += format_tlv_len(asn1_len_tag(0x30, asn1_len_tag(0x30, asn1_len_tag(0x4, sizeof(uint16_t)))),
+    p += tlv_format_len(tlv_len_tag(0x30, tlv_len_tag(0x30, tlv_len_tag(0x4, sizeof(uint16_t)))),
                         p);
     *p++ = 0x30;
-    p += format_tlv_len(asn1_len_tag(0x30, asn1_len_tag(0x4, sizeof(uint16_t))), p);
+    p += tlv_format_len(tlv_len_tag(0x30, tlv_len_tag(0x4, sizeof(uint16_t))), p);
     *p++ = 0x30;
-    p += format_tlv_len(asn1_len_tag(0x4, sizeof(uint16_t)), p);
+    p += tlv_format_len(tlv_len_tag(0x4, sizeof(uint16_t)), p);
     *p++ = 0x4;
-    p += format_tlv_len(sizeof(uint16_t), p);
+    p += tlv_format_len(sizeof(uint16_t), p);
     put_uint16_be(fid, p); p += sizeof(uint16_t);
     return (uint16_t)(p - buf);
 }
@@ -441,18 +441,17 @@ uint16_t asn1_build_prkd_generic(const uint8_t *label, uint16_t label_len, const
         seq_len = 3;
         first_tag = 0xA8;
     }
-    uint16_t seq1_size = asn1_len_tag(0x30, asn1_len_tag(0xC, label_len));
-    uint16_t seq2_size =
-        asn1_len_tag(0x30, asn1_len_tag(0x4, keyid_len) + asn1_len_tag(0x3, seq_len));
+    uint16_t seq1_size = tlv_len_tag(0x30, tlv_len_tag(0xC, label_len));
+    uint16_t seq2_size = tlv_len_tag(0x30, tlv_len_tag(0x4, keyid_len) + tlv_len_tag(0x3, seq_len));
     uint16_t seq3_size = 0, seq4_size = 0;
     if (key_type & PICOKEYS_KEY_EC || key_type & PICOKEYS_KEY_RSA) {
-        seq4_size = asn1_len_tag(0xA1, asn1_len_tag(0x30, asn1_len_tag(0x30, asn1_len_tag(0x4, 0)) + asn1_len_tag(0x2, 2)));
+        seq4_size = tlv_len_tag(0xA1, tlv_len_tag(0x30, tlv_len_tag(0x30, tlv_len_tag(0x4, 0)) + tlv_len_tag(0x2, 2)));
     }
     else if (key_type & PICOKEYS_KEY_AES) {
-        seq3_size = asn1_len_tag(0xA0, asn1_len_tag(0x30, asn1_len_tag(0x2, 2)));
-        seq4_size = asn1_len_tag(0xA1, asn1_len_tag(0x30, asn1_len_tag(0x30, asn1_len_tag(0x4, 0))));
+        seq3_size = tlv_len_tag(0xA0, tlv_len_tag(0x30, tlv_len_tag(0x2, 2)));
+        seq4_size = tlv_len_tag(0xA1, tlv_len_tag(0x30, tlv_len_tag(0x30, tlv_len_tag(0x4, 0))));
     }
-    uint16_t tot_len = asn1_len_tag(first_tag, seq1_size + seq2_size + seq4_size);
+    uint16_t tot_len = tlv_len_tag(first_tag, seq1_size + seq2_size + seq4_size);
     if (buf_len == 0 || buf == NULL) {
         return tot_len;
     }
@@ -461,51 +460,51 @@ uint16_t asn1_build_prkd_generic(const uint8_t *label, uint16_t label_len, const
     }
     uint8_t *p = buf;
     *p++ = first_tag;
-    p += format_tlv_len(seq1_size + seq2_size + seq3_size + seq4_size, p);
+    p += tlv_format_len(seq1_size + seq2_size + seq3_size + seq4_size, p);
     //Seq 1
     *p++ = 0x30;
-    p += format_tlv_len(asn1_len_tag(0xC, label_len), p);
+    p += tlv_format_len(tlv_len_tag(0xC, label_len), p);
     *p++ = 0xC;
-    p += format_tlv_len(label_len, p);
+    p += tlv_format_len(label_len, p);
     memcpy(p, label, label_len); p += label_len;
 
     //Seq 2
     *p++ = 0x30;
-    p += format_tlv_len(asn1_len_tag(0x4, keyid_len) + asn1_len_tag(0x3, seq_len), p);
+    p += tlv_format_len(tlv_len_tag(0x4, keyid_len) + tlv_len_tag(0x3, seq_len), p);
     *p++ = 0x4;
-    p += format_tlv_len(keyid_len, p);
+    p += tlv_format_len(keyid_len, p);
     memcpy(p, keyid, keyid_len); p += keyid_len;
     *p++ = 0x3;
-    p += format_tlv_len(seq_len, p);
+    p += tlv_format_len(seq_len, p);
     memcpy(p, seq, seq_len); p += seq_len;
 
     //Seq 3
     if (key_type & PICOKEYS_KEY_AES) {
         *p++ = 0xA0;
-        p += format_tlv_len(asn1_len_tag(0x30, asn1_len_tag(0x2, 2)), p);
+        p += tlv_format_len(tlv_len_tag(0x30, tlv_len_tag(0x2, 2)), p);
         *p++ = 0x30;
-        p += format_tlv_len(asn1_len_tag(0x2, 2), p);
+        p += tlv_format_len(tlv_len_tag(0x2, 2), p);
         *p++ = 0x2;
-        p += format_tlv_len(2, p);
+        p += tlv_format_len(2, p);
         p += put_uint16_be(keysize, p);
     }
 
     //Seq 4
     *p++ = 0xA1;
-    uint16_t inseq4_len = asn1_len_tag(0x30, asn1_len_tag(0x4, 0));
+    uint16_t inseq4_len = tlv_len_tag(0x30, tlv_len_tag(0x4, 0));
     if (key_type & PICOKEYS_KEY_EC || key_type & PICOKEYS_KEY_RSA) {
-        inseq4_len += asn1_len_tag(0x2, 2);
+        inseq4_len += tlv_len_tag(0x2, 2);
     }
-    p += format_tlv_len(asn1_len_tag(0x30, inseq4_len), p);
+    p += tlv_format_len(tlv_len_tag(0x30, inseq4_len), p);
     *p++ = 0x30;
-    p += format_tlv_len(inseq4_len, p);
+    p += tlv_format_len(inseq4_len, p);
     *p++ = 0x30;
-    p += format_tlv_len(asn1_len_tag(0x4, 0), p);
+    p += tlv_format_len(tlv_len_tag(0x4, 0), p);
     *p++ = 0x4;
-    p += format_tlv_len(0, p);
+    p += tlv_format_len(0, p);
     if (key_type & PICOKEYS_KEY_EC || key_type & PICOKEYS_KEY_RSA) {
         *p++ = 0x2;
-        p += format_tlv_len(2, p);
+        p += tlv_format_len(2, p);
         p += put_uint16_be(keysize, p);
     }
     return (uint16_t)(p - buf);
@@ -524,12 +523,12 @@ uint16_t asn1_build_prkd_aes(const uint8_t *label, uint16_t label_len, const uin
 }
 
 const uint8_t *cvc_get_field(const uint8_t *data, uint16_t len, uint16_t *olen, uint16_t tag) {
-    asn1_ctx_t ctxi, ctxo = { 0 };
-    asn1_ctx_init((uint8_t *)data, len, &ctxi);
-    if (asn1_len(&ctxi) == 0) {
+    tlv_ctx_t ctxi, ctxo = { 0 };
+    tlv_ctx_init((uint8_t *)data, len, &ctxi);
+    if (tlv_len(&ctxi) == 0) {
         return NULL;
     }
-    if (asn1_find_tag(&ctxi, tag, &ctxo) == false) {
+    if (tlv_find_tag(&ctxi, tag, &ctxo) == false) {
         return NULL;
     }
     *olen = ctxo.len;
@@ -839,7 +838,7 @@ int cvc_verify(const uint8_t *cert, uint16_t cert_len, const uint8_t *ca, uint16
     }
     const mbedtls_md_info_t *md_info = mbedtls_md_info_from_type(md);
     uint8_t hash[64], hash_len = mbedtls_md_get_size(md_info);
-    uint8_t tlv_body = 2 + format_tlv_len(cv_body_len, NULL);
+    uint8_t tlv_body = 2 + tlv_format_len(cv_body_len, NULL);
     int r = mbedtls_md(md_info, cv_body - tlv_body, cv_body_len + tlv_body, hash);
     if (r != 0) {
         return PICOKEYS_EXEC_ERROR;

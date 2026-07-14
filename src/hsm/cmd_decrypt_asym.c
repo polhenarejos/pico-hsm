@@ -20,7 +20,7 @@
 #include "crypto_utils.h"
 #include "kek.h"
 #include "files.h"
-#include "asn1.h"
+#include "tlv.h"
 #include "cvc.h"
 #include "random.h"
 #include "oid.h"
@@ -149,22 +149,24 @@ int cmd_decrypt_asym(void) {
             if ((ext = cvc_get_ext(apdu.data, (uint16_t)apdu.nc, &ext_len)) == NULL) {
                 return SW_WRONG_DATA();
             }
-            uint8_t *p = NULL;
-            uint16_t tag = 0;
-            asn1_ctx_t ctxi, ctxo = { 0 }, kdom_uid = { 0 };
-            asn1_ctx_init((uint8_t *)ext, ext_len, &ctxi);
-            while (walk_tlv(&ctxi, &p, &tag, &ctxo.len, &ctxo.data)) {
+            uint8_t *p = NULL, *ctxo_data = NULL;
+            uint16_t tag = 0, ctxo_len = 0;
+            tlv_ctx_t ctxi, ctxo = { 0 }, kdom_uid = { 0 };
+            tlv_ctx_init((uint8_t *)ext, ext_len, &ctxi);
+            while (tlv_walk(&ctxi, &p, &tag, &ctxo_len, &ctxo_data)) {
+                ctxo.len = ctxo_len;
+                ctxo.data = ctxo_data;
                 if (tag == 0x73) {
-                    asn1_ctx_t oid = {0};
-                    if (asn1_find_tag(&ctxo, 0x6, &oid) == true && oid.len == strlen(OID_ID_KEY_DOMAIN_UID) && memcmp(oid.data, OID_ID_KEY_DOMAIN_UID, strlen(OID_ID_KEY_DOMAIN_UID)) == 0) {
-                        if (asn1_find_tag(&ctxo, 0x80, &kdom_uid) == false) {
+                    tlv_ctx_t oid = {0};
+                    if (tlv_find_tag(&ctxo, 0x6, &oid) == true && oid.len == strlen(OID_ID_KEY_DOMAIN_UID) && memcmp(oid.data, OID_ID_KEY_DOMAIN_UID, strlen(OID_ID_KEY_DOMAIN_UID)) == 0) {
+                        if (tlv_find_tag(&ctxo, 0x80, &kdom_uid) == false) {
                             return SW_WRONG_DATA();
                         }
                         break;
                     }
                 }
             }
-            if (asn1_len(&kdom_uid) == 0) {
+            if (tlv_len(&kdom_uid) == 0) {
                 return SW_WRONG_DATA();
             }
             for (uint8_t n = 0; n < MAX_KEY_DOMAINS; n++) {

@@ -17,7 +17,6 @@
 
 #include "crypto_utils.h"
 #include "sc_hsm.h"
-#include "asn1.h"
 #include "kek.h"
 #include "files.h"
 

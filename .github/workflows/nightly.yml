@@ -28,7 +28,7 @@ jobs:
             exit 1
           }
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ matrix.refs }}
           submodules: 'recursive'

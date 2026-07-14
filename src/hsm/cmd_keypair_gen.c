@@ -18,7 +18,7 @@
 #include "crypto_utils.h"
 #include "sc_hsm.h"
 #include "files.h"
-#include "asn1.h"
+#include "tlv.h"
 #include "cvc.h"
 #include "oid.h"
 #include "random.h"
@@ -33,19 +33,19 @@ int cmd_keypair_gen(void) {
 
     //sc_asn1_print_tags(apdu.data, apdu.nc);
     //DEBUG_DATA(apdu.data,apdu.nc);
-    asn1_ctx_t ctxi, ctxo = { 0 };
-    asn1_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
-    if (asn1_find_tag(&ctxi, 0x7f49, &ctxo) && asn1_len(&ctxo) > 0) {
-        asn1_ctx_t oid = { 0 };
-        if (asn1_find_tag(&ctxo, 0x6, &oid) && asn1_len(&oid) > 0) {
+    tlv_ctx_t ctxi, ctxo = { 0 };
+    tlv_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
+    if (tlv_find_tag(&ctxi, 0x7f49, &ctxo) && tlv_len(&ctxo) > 0) {
+        tlv_ctx_t oid = { 0 };
+        if (tlv_find_tag(&ctxo, 0x6, &oid) && tlv_len(&oid) > 0) {
             if (memcmp(oid.data, OID_ID_TA_RSA_V1_5_SHA_256, oid.len) == 0) { //RSA
-                asn1_ctx_t ex = { 0 }, ks = { 0 };
+                tlv_ctx_t ex = { 0 }, ks = { 0 };
                 uint32_t exponent = 65537, key_size = 2048;
-                if (asn1_find_tag(&ctxo, 0x82, &ex) && asn1_len(&ex) > 0) {
-                    exponent = asn1_get_uint(&ex);
+                if (tlv_find_tag(&ctxo, 0x82, &ex) && tlv_len(&ex) > 0) {
+                    exponent = tlv_get_uint(&ex);
                 }
-                if (asn1_find_tag(&ctxo, 0x2, &ks) && asn1_len(&ks) > 0) {
-                    key_size = asn1_get_uint(&ks);
+                if (tlv_find_tag(&ctxo, 0x2, &ks) && tlv_len(&ks) > 0) {
+                    key_size = tlv_get_uint(&ks);
                 }
                 mbedtls_rsa_context rsa;
                 mbedtls_rsa_init(&rsa);
@@ -65,8 +65,8 @@ int cmd_keypair_gen(void) {
                 mbedtls_rsa_free(&rsa);
             }
             else if (memcmp(oid.data, OID_ID_TA_ECDSA_SHA_256, MIN(oid.len, 10)) == 0) {   //ECC
-                asn1_ctx_t prime = { 0 };
-                if (asn1_find_tag(&ctxo, 0x81, &prime) != true) {
+                tlv_ctx_t prime = { 0 };
+                if (tlv_find_tag(&ctxo, 0x81, &prime) != true) {
                     return SW_WRONG_DATA();
                 }
                 mbedtls_ecp_group_id ec_id = ec_get_curve_from_prime(prime.data, prime.len);
@@ -74,8 +74,8 @@ int cmd_keypair_gen(void) {
                     return SW_FUNC_NOT_SUPPORTED();
                 }
                 if (ec_id == MBEDTLS_ECP_DP_CURVE25519 || ec_id == MBEDTLS_ECP_DP_CURVE448) {
-                    asn1_ctx_t g = { 0 };
-                    if (asn1_find_tag(&ctxo, 0x83, &g) != true) {
+                    tlv_ctx_t g = { 0 };
+                    if (tlv_find_tag(&ctxo, 0x83, &g) != true) {
                         return SW_WRONG_DATA();
                     }
 #ifdef MBEDTLS_EDDSA_C
@@ -94,12 +94,12 @@ int cmd_keypair_gen(void) {
                     mbedtls_ecdsa_free(&ecdsa);
                     return SW_EXEC_ERROR();
                 }
-                asn1_ctx_t a91 = { 0 }, ext = { 0 };
-                if (asn1_find_tag(&ctxi, 0x91, &a91) && asn1_len(&a91) > 0) {
+                tlv_ctx_t a91 = { 0 }, ext = { 0 };
+                if (tlv_find_tag(&ctxi, 0x91, &a91) && tlv_len(&a91) > 0) {
                     for (size_t n = 0; n < a91.len; n++) {
                         if (a91.data[n] == ALGO_EC_DH_XKEK) {
-                            asn1_ctx_t a92 = {0};
-                            if (!asn1_find_tag(&ctxi, 0x92, &a92) || asn1_len(&a92) == 0) {
+                            tlv_ctx_t a92 = {0};
+                            if (!tlv_find_tag(&ctxi, 0x92, &a92) || tlv_len(&a92) == 0) {
                                 return SW_WRONG_DATA();
                             }
                             if (a92.data[0] > MAX_KEY_DOMAINS) {

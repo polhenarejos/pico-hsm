@@ -31,7 +31,7 @@ jobs:
       contents: read
     steps:
     - name: Checkout repository and submodules
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         submodules: recursive
         persist-credentials: false
@@ -58,7 +58,7 @@ jobs:
         suite: ["pkcs11", "pytest", "sc-hsm-pkcs11"]
     steps:
     - name: Checkout repository and submodules
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         submodules: recursive
         persist-credentials: false

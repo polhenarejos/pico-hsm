@@ -25,7 +25,7 @@
 #include "mbedtls/md.h"
 #include "crypto_utils.h"
 #include "kek.h"
-#include "asn1.h"
+#include "tlv.h"
 #include "oid.h"
 #include "mbedtls/pkcs5.h"
 #include "mbedtls/error.h"
@@ -40,17 +40,14 @@ extern uint8_t hd_keytype;
 /* This is copied from pkcs5.c Mbedtls */
 /** Unfortunately it is declared as static, so I cannot call it. **/
 
-static int pkcs5_parse_pbkdf2_params(const mbedtls_asn1_buf *params,
-                                     mbedtls_asn1_buf *salt, int *iterations,
-                                     uint16_t *keylen, mbedtls_md_type_t *md_type) {
+static int pkcs5_parse_pbkdf2_params(const mbedtls_asn1_buf *params, mbedtls_asn1_buf *salt, int *iterations, uint16_t *keylen, mbedtls_md_type_t *md_type) {
     int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
     mbedtls_asn1_buf prf_alg_oid;
     unsigned char *p = params->p;
     const unsigned char *end = params->p + params->len;
 
     if (params->tag != (MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE)) {
-        return MBEDTLS_ERROR_ADD(MBEDTLS_ERR_PKCS5_INVALID_FORMAT,
-                                 MBEDTLS_ERR_ASN1_UNEXPECTED_TAG);
+        return MBEDTLS_ERROR_ADD(MBEDTLS_ERR_PKCS5_INVALID_FORMAT, MBEDTLS_ERR_ASN1_UNEXPECTED_TAG);
     }
     /*
      *  PBKDF2-params ::= SEQUENCE {
@@ -61,8 +58,7 @@ static int pkcs5_parse_pbkdf2_params(const mbedtls_asn1_buf *params,
      *  }
      *
      */
-    if ((ret = mbedtls_asn1_get_tag(&p, end, &salt->len,
-                                    MBEDTLS_ASN1_OCTET_STRING)) != 0) {
+    if ((ret = mbedtls_asn1_get_tag(&p, end, &salt->len, MBEDTLS_ASN1_OCTET_STRING)) != 0) {
         return MBEDTLS_ERROR_ADD(MBEDTLS_ERR_PKCS5_INVALID_FORMAT, ret);
     }
 
@@ -84,8 +80,7 @@ static int pkcs5_parse_pbkdf2_params(const mbedtls_asn1_buf *params,
         }
     }
     else if (keylen_i < 0 || keylen_i > UINT16_MAX) {
-        return MBEDTLS_ERROR_ADD(MBEDTLS_ERR_PKCS5_INVALID_FORMAT,
-                                 MBEDTLS_ERR_ASN1_INVALID_LENGTH);
+        return MBEDTLS_ERROR_ADD(MBEDTLS_ERR_PKCS5_INVALID_FORMAT, MBEDTLS_ERR_ASN1_INVALID_LENGTH);
     }
     else {
         *keylen = (uint16_t) keylen_i;
@@ -104,21 +99,14 @@ static int pkcs5_parse_pbkdf2_params(const mbedtls_asn1_buf *params,
     }
 
     if (p != end) {
-        return MBEDTLS_ERROR_ADD(MBEDTLS_ERR_PKCS5_INVALID_FORMAT,
-                                 MBEDTLS_ERR_ASN1_LENGTH_MISMATCH);
+        return MBEDTLS_ERROR_ADD(MBEDTLS_ERR_PKCS5_INVALID_FORMAT, MBEDTLS_ERR_ASN1_LENGTH_MISMATCH);
     }
 
     return 0;
 }
 
 /* Taken from https://github.com/Mbed-TLS/mbedtls/issues/2335 */
-static int mbedtls_ansi_x963_kdf(mbedtls_md_type_t md_type,
-                                 uint16_t input_len,
-                                 uint8_t *input,
-                                 uint16_t shared_info_len,
-                                 uint8_t *shared_info,
-                                 uint16_t output_len,
-                                 uint8_t *output) {
+static int mbedtls_ansi_x963_kdf(mbedtls_md_type_t md_type, uint16_t input_len, uint8_t *input, uint16_t shared_info_len, uint8_t *shared_info, uint16_t output_len, uint8_t *output) {
     mbedtls_md_context_t md_ctx;
     const mbedtls_md_info_t *md_info = NULL;
     int hashlen = 0, exit_code = MBEDTLS_ERR_MD_BAD_INPUT_DATA;
@@ -255,15 +243,15 @@ int cmd_cipher_sym(void) {
         res_APDU_size = (uint16_t)apdu.nc;
     }
     else if (algo == ALGO_EXT_CIPHER_ENCRYPT || algo == ALGO_EXT_CIPHER_DECRYPT) {
-        asn1_ctx_t ctxi, oid = {0}, enc = {0}, iv = {0}, aad = {0};
-        asn1_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
-        if (!asn1_find_tag(&ctxi, 0x6, &oid) || asn1_len(&oid) == 0) {
+        tlv_ctx_t ctxi, oid = {0}, enc = {0}, iv = {0}, aad = {0};
+        tlv_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
+        if (!tlv_find_tag(&ctxi, 0x6, &oid) || tlv_len(&oid) == 0) {
             mbedtls_platform_zeroize(kdata, sizeof(kdata));
             return SW_WRONG_DATA();
         }
-        asn1_find_tag(&ctxi, 0x81, &enc);
-        asn1_find_tag(&ctxi, 0x82, &iv);
-        asn1_find_tag(&ctxi, 0x83, &aad);
+        tlv_find_tag(&ctxi, 0x81, &enc);
+        tlv_find_tag(&ctxi, 0x82, &iv);
+        tlv_find_tag(&ctxi, 0x83, &aad);
         uint8_t tmp_iv[16];
         memset(tmp_iv, 0, sizeof(tmp_iv));
         if (memcmp(oid.data, OID_CHACHA20_POLY1305, oid.len) == 0) {
@@ -276,10 +264,10 @@ int cmd_cipher_sym(void) {
             mbedtls_chachapoly_init(&ctx);
             mbedtls_chachapoly_setkey(&ctx, kdata);
             if (algo == ALGO_EXT_CIPHER_ENCRYPT) {
-                r = mbedtls_chachapoly_encrypt_and_tag(&ctx, enc.len, asn1_len(&iv) > 0 ? iv.data : tmp_iv, aad.data, aad.len, enc.data, res_APDU, res_APDU + enc.len);
+                r = mbedtls_chachapoly_encrypt_and_tag(&ctx, enc.len, tlv_len(&iv) > 0 ? iv.data : tmp_iv, aad.data, aad.len, enc.data, res_APDU, res_APDU + enc.len);
             }
             else if (algo == ALGO_EXT_CIPHER_DECRYPT) {
-                r = mbedtls_chachapoly_auth_decrypt(&ctx,enc.len - 16, asn1_len(&iv) > 0 ? iv.data : tmp_iv, aad.data, aad.len, enc.data + enc.len - 16, enc.data, res_APDU);
+                r = mbedtls_chachapoly_auth_decrypt(&ctx,enc.len - 16, tlv_len(&iv) > 0 ? iv.data : tmp_iv, aad.data, aad.len, enc.data + enc.len - 16, enc.data, res_APDU);
             }
             mbedtls_platform_zeroize(kdata, sizeof(kdata));
             mbedtls_chachapoly_free(&ctx);
@@ -323,10 +311,9 @@ int cmd_cipher_sym(void) {
             }
             res_APDU_size = mbedtls_md_get_size(md_info);
         }
-        else if (memcmp(oid.data, OID_HKDF_SHA256,
-                        oid.len) == 0 ||
-                 memcmp(oid.data, OID_HKDF_SHA384,
-                        oid.len) == 0 || memcmp(oid.data, OID_HKDF_SHA512, oid.len) == 0) {
+        else if (memcmp(oid.data, OID_HKDF_SHA256, oid.len) == 0
+                || memcmp(oid.data, OID_HKDF_SHA384, oid.len) == 0
+                || memcmp(oid.data, OID_HKDF_SHA512, oid.len) == 0) {
             const mbedtls_md_info_t *md_info = NULL;
             if (memcmp(oid.data, OID_HKDF_SHA256, oid.len) == 0) {
                 md_info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
@@ -347,9 +334,7 @@ int cmd_cipher_sym(void) {
         else if (memcmp(oid.data, OID_PKCS5_PBKDF2, oid.len) == 0) {
             int iterations = 0;
             uint16_t keylen = 0;
-            mbedtls_asn1_buf salt,
-                             params =
-            { .p = enc.data, .len = enc.len, .tag = (MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE) };
+            mbedtls_asn1_buf salt, params = { .p = enc.data, .len = enc.len, .tag = (MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE) };
             mbedtls_md_type_t md_type = MBEDTLS_MD_SHA1;
 
             int r = pkcs5_parse_pbkdf2_params(&params, &salt, &iterations, &keylen, &md_type);
@@ -367,8 +352,7 @@ int cmd_cipher_sym(void) {
         }
         else if (memcmp(oid.data, OID_PKCS5_PBES2, oid.len) == 0) {
             size_t olen = 0;
-            mbedtls_asn1_buf params =
-                {.p = aad.data, .len = aad.len, .tag = (MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE)};
+            mbedtls_asn1_buf params = {.p = aad.data, .len = aad.len, .tag = (MBEDTLS_ASN1_CONSTRUCTED | MBEDTLS_ASN1_SEQUENCE)};
             int r = mbedtls_pkcs5_pbes2_ext(&params, algo == ALGO_EXT_CIPHER_ENCRYPT ? MBEDTLS_PKCS5_ENCRYPT : MBEDTLS_PKCS5_DECRYPT, kdata, key_size, enc.data, enc.len, res_APDU, MAX_APDU_DATA, &olen);
             mbedtls_platform_zeroize(kdata, sizeof(kdata));
             if (r != 0) {
@@ -415,7 +399,7 @@ int cmd_cipher_sym(void) {
             mbedtls_aes_context ctx;
             int r = 0;
             mbedtls_aes_init(&ctx);
-            if (asn1_len(&iv) == 0) {
+            if (tlv_len(&iv) == 0) {
                 iv.data = tmp_iv;
                 iv.len = sizeof(tmp_iv);
             }
@@ -550,7 +534,7 @@ int cmd_cipher_sym(void) {
                 (algo == ALGO_EXT_CIPHER_ENCRYPT ? MBEDTLS_AES_ENCRYPT : MBEDTLS_AES_DECRYPT);
             int r = 0;
             memset(tmp_iv, 0, sizeof(tmp_iv));
-            if (asn1_len(&iv) == 0) {
+            if (tlv_len(&iv) == 0) {
                 iv.data = tmp_iv;
                 iv.len = sizeof(tmp_iv);
             }

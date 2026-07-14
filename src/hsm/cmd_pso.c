@@ -17,7 +17,7 @@
 
 #include "sc_hsm.h"
 #include "oid.h"
-#include "asn1.h"
+#include "tlv.h"
 #include "cvc.h"
 
 extern PUK *current_puk;
@@ -32,10 +32,10 @@ int cmd_pso(void) {
             return SW_REFERENCE_NOT_FOUND();
         }
         if (apdu.data[0] != 0x7F || apdu.data[1] != 0x21) {
-            uint8_t tlv_len = 2 + format_tlv_len((uint16_t)apdu.nc, NULL);
+            uint8_t tlv_len = 2 + tlv_format_len((uint16_t)apdu.nc, NULL);
             memmove(apdu.data + tlv_len, apdu.data, apdu.nc);
             memcpy(apdu.data, "\x7F\x21", 2);
-            format_tlv_len((uint16_t)apdu.nc, apdu.data + 2);
+            tlv_format_len((uint16_t)apdu.nc, apdu.data + 2);
             apdu.nc += tlv_len;
         }
         int r = cvc_verify(apdu.data, (uint16_t)apdu.nc, current_puk->cvcert, current_puk->cvcert_len);

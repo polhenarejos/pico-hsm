@@ -17,7 +17,7 @@
 #include "sc_hsm.h"
 #include "crypto_utils.h"
 #include "sc_hsm.h"
-#include "asn1.h"
+#include "tlv.h"
 #include "mbedtls/oid.h"
 #include "random.h"
 #ifdef MBEDTLS_EDDSA_C
@@ -152,7 +152,7 @@ int cmd_signature(void) {
             }
             return SW_EXEC_ERROR();
         }
-        asn1_ctx_t hash = {.len = (uint16_t)apdu.nc, .data = apdu.data};
+        tlv_ctx_t hash = {.len = (uint16_t)apdu.nc, .data = apdu.data};
         if (p2 == ALGO_RSA_PKCS1) { //DigestInfo attached
             uint16_t nc = (uint16_t)apdu.nc;
             if (pkcs1_strip_digest_info_prefix(&md, apdu.data, (uint16_t)apdu.nc, apdu.data,
@@ -163,16 +163,16 @@ int cmd_signature(void) {
         }
         else {
             //sc_asn1_print_tags(apdu.data, apdu.nc);
-            asn1_ctx_t ctxi, ctxo = { 0 }, oid = { 0 };
-            asn1_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
-            if (asn1_find_tag(&ctxi, 0x30, &ctxo) && asn1_len(&ctxo) > 0) {
-                asn1_ctx_t a30 = { 0 };
-                if (asn1_find_tag(&ctxo, 0x30, &a30) && asn1_len(&a30) > 0) {
-                    asn1_find_tag(&a30, 0x6, &oid);
+            tlv_ctx_t ctxi, ctxo = { 0 }, oid = { 0 };
+            tlv_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
+            if (tlv_find_tag(&ctxi, 0x30, &ctxo) && tlv_len(&ctxo) > 0) {
+                tlv_ctx_t a30 = { 0 };
+                if (tlv_find_tag(&ctxo, 0x30, &a30) && tlv_len(&a30) > 0) {
+                    tlv_find_tag(&a30, 0x6, &oid);
                 }
-                asn1_find_tag(&ctxo, 0x4, &hash);
+                tlv_find_tag(&ctxo, 0x4, &hash);
             }
-            if (asn1_len(&oid)) {
+            if (tlv_len(&oid)) {
                 if (memcmp(oid.data, MBEDTLS_OID_DIGEST_ALG_SHA1, oid.len) == 0) {
                     md = MBEDTLS_MD_SHA1;
                 }
@@ -190,7 +190,7 @@ int cmd_signature(void) {
                 }
             }
             if (p2 >= ALGO_RSA_PSS && p2 <= ALGO_RSA_PSS_SHA512) {
-                if (p2 == ALGO_RSA_PSS && asn1_len(&oid) == 0) {
+                if (p2 == ALGO_RSA_PSS && tlv_len(&oid) == 0) {
                     if (apdu.nc == 20) { //default is sha1
                         md = MBEDTLS_MD_SHA1;
                     }

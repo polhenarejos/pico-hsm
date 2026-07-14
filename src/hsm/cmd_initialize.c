@@ -21,7 +21,7 @@
 #include "random.h"
 #include "kek.h"
 #include "version.h"
-#include "asn1.h"
+#include "tlv.h"
 #include "cvc.h"
 #include "otp.h"
 
@@ -51,9 +51,9 @@ int cmd_initialize(void) {
         uint16_t tag = 0x0;
         uint8_t *tag_data = NULL, *p = NULL, *kds = NULL, *dkeks = NULL;
         uint16_t tag_len = 0;
-        asn1_ctx_t ctxi;
-        asn1_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
-        while (walk_tlv(&ctxi, &p, &tag, &tag_len, &tag_data)) {
+        tlv_ctx_t ctxi;
+        tlv_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
+        while (tlv_walk(&ctxi, &p, &tag, &tag_len, &tag_data)) {
             if (tag == 0x80) { //options
                 file_t *tf = file_search(EF_DEVOPS);
                 file_put_data(tf, tag_data, tag_len);

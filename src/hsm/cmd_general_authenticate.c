@@ -17,7 +17,7 @@
 
 #include "sc_hsm.h"
 #include "mbedtls/ecdh.h"
-#include "asn1.h"
+#include "tlv.h"
 #include "random.h"
 #include "oid.h"
 #include "eac.h"
@@ -33,9 +33,9 @@ int cmd_general_authenticate(void) {
             uint16_t tag = 0x0;
             uint8_t *tag_data = NULL, *p = NULL;
             uint16_t tag_len = 0;
-            asn1_ctx_t ctxi;
-            asn1_ctx_init(apdu.data + 2, (uint16_t)(apdu.nc - 2), &ctxi);
-            while (walk_tlv(&ctxi, &p, &tag, &tag_len, &tag_data)) {
+            tlv_ctx_t ctxi;
+            tlv_ctx_init(apdu.data + 2, (uint16_t)(apdu.nc - 2), &ctxi);
+            while (tlv_walk(&ctxi, &p, &tag, &tag_len, &tag_data)) {
                 if (tag == 0x80) {
                     pubkey = tag_data - 1; //mbedtls ecdh starts reading one pos before
                     pubkey_len = tag_len + 1;
