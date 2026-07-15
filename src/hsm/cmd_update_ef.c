@@ -31,6 +31,9 @@ int cmd_update_ef(void) {
     if (fid == 0x0) {
         ef = currentEF;
     }
+    else {
+        ef = file_search(fid);
+    }
     /*
        // This should not happen
        else if (p1 != EE_CERTIFICATE_PREFIX && p1 != PRKD_PREFIX && p1 != CA_CERTIFICATE_PREFIX &&
@@ -70,7 +73,7 @@ int cmd_update_ef(void) {
         if (fid == 0x0 && !ef) {
             return SW_FILE_NOT_FOUND();
         }
-        else if (fid != 0x0 && !(ef = file_search(fid))) {                           //if does not exist, create it
+        else if (fid != 0x0 && !ef) {                           //if does not exist, create it
             //return SW_FILE_NOT_FOUND();
             ef = file_new(fid);
         }
