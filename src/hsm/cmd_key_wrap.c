@@ -87,9 +87,8 @@ int cmd_key_wrap(void) {
             return SW_SECURE_MESSAGE_EXEC_ERROR();
         }
 
-        uint16_t key_size = file_get_size(ef), aes_type = PICOKEYS_KEY_AES;
-        memcpy(kdata_aes, file_get_data(ef), key_size);
-        if (mkek_decrypt(kdata_aes, key_size) != 0) {
+        uint16_t key_size = sizeof(kdata_aes), aes_type = PICOKEYS_KEY_AES;
+        if (mkek_load_file(ef, kdata_aes, &key_size) != PICOKEYS_OK) {
             return SW_EXEC_ERROR();
         }
         if (key_size == 64) {

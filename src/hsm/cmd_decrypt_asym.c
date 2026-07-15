@@ -55,7 +55,7 @@ int cmd_decrypt_asym(void) {
             }
             return SW_EXEC_ERROR();
         }
-        uint16_t key_size = file_get_size(ef);
+        uint16_t key_size = (uint16_t)mbedtls_rsa_get_len(&ctx);
         if (apdu.nc < key_size) { //needs padding
             memset(apdu.data + apdu.nc, 0, key_size - apdu.nc);
         }
@@ -83,11 +83,13 @@ int cmd_decrypt_asym(void) {
         if (wait_button_pressed() == true) { //timeout
             return SW_SECURE_MESSAGE_EXEC_ERROR();
         }
-        uint16_t key_size = file_get_size(ef);
+        uint16_t key_size = 67;
         uint8_t *kdata = (uint8_t *) calloc(1, key_size);
-        memcpy(kdata, file_get_data(ef), key_size);
-        if (mkek_decrypt(kdata, key_size) != 0) {
-            mbedtls_platform_zeroize(kdata, key_size);
+        if (!kdata) {
+            return SW_EXEC_ERROR();
+        }
+        if (mkek_load_file(ef, kdata, &key_size) != PICOKEYS_OK) {
+            mbedtls_platform_zeroize(kdata, 67);
             free(kdata);
             return SW_EXEC_ERROR();
         }

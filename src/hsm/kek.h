@@ -19,6 +19,7 @@
 #define _DKEK_H_
 
 #include "crypto_utils.h"
+#include "files.h"
 #if defined(ENABLE_EMULATION) || defined(ESP_PLATFORM)
 #include <stdbool.h>
 #endif
@@ -34,6 +35,8 @@ extern int import_dkek_share(uint8_t, const uint8_t *share);
 extern int dkek_kcv(uint8_t, uint8_t *kcv);
 extern int mkek_encrypt(uint8_t *data, uint16_t len);
 extern int mkek_decrypt(uint8_t *data, uint16_t len);
+extern int mkek_store_file(file_t *file, const uint8_t *data, uint16_t len);
+extern int mkek_load_file(file_t *file, uint8_t *data, uint16_t *len);
 extern int dkek_encode_key(uint8_t, void *key_ctx, int key_type, uint8_t *out, uint16_t *out_len, const uint8_t *, uint16_t);
 extern int dkek_type_key(const uint8_t *in);
 extern int dkek_decode_key(uint8_t, void *key_ctx, const uint8_t *in, uint16_t in_len, int *key_size_out, uint8_t **, uint16_t *);
@@ -53,6 +56,9 @@ extern int dkek_decode_key(uint8_t, void *key_ctx, const uint8_t *in, uint16_t i
 
 #define MKEK_SIZE        (MKEK_IV_SIZE + MKEK_KEY_SIZE)
 #define MKEK_FILE_SIZE   (1 + (12 + MKEK_SIZE + 16))
+#define MKEK_OBJECT_FORMAT_VERSION 0x01
+#define MKEK_OBJECT_MAGIC_SIZE 4
+#define MKEK_OBJECT_HEADER_SIZE (1 + MKEK_OBJECT_MAGIC_SIZE)
 
 extern uint8_t mkek_mask[MKEK_KEY_SIZE];
 extern bool has_mkek_mask;

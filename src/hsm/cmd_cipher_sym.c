@@ -189,14 +189,13 @@ int cmd_cipher_sym(void) {
     uint16_t key_size = 0;
     uint8_t kdata[64] = {0}; //maximum AES key size
     if (!using_hd) {
-        key_size = file_get_size(ef);
-        if (key_size != 16 && key_size != 24 && key_size != 32 && key_size != 64) {
-            return SW_WRONG_DATA();
-        }
-        memcpy(kdata, file_get_data(ef), key_size);
-        if (mkek_decrypt(kdata, key_size) != 0) {
+        key_size = sizeof(kdata);
+        if (mkek_load_file(ef, kdata, &key_size) != PICOKEYS_OK) {
             mbedtls_platform_zeroize(kdata, sizeof(kdata));
             return SW_EXEC_ERROR();
+        }
+        if (key_size != 16 && key_size != 24 && key_size != 32 && key_size != 64) {
+            return SW_WRONG_DATA();
         }
     }
     if (algo == ALGO_AES_CBC_ENCRYPT || algo == ALGO_AES_CBC_DECRYPT) {

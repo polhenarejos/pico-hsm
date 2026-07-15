@@ -96,11 +96,21 @@ static int load_master_bip(uint16_t mid, mbedtls_ecp_keypair *ctx, uint8_t chain
     if (!file_has_data(ef)) {
         return PICOKEYS_ERR_FILE_NOT_FOUND;
     }
-    memcpy(mkey, file_get_data(ef), sizeof(mkey));
-    int r = mkek_decrypt(mkey + 1,
-                         sizeof(mkey) - 1);
-    if (r != PICOKEYS_OK) {
-        return PICOKEYS_EXEC_ERROR;
+    if (file_get_size(ef) == sizeof(mkey)) {
+        memcpy(mkey, file_get_data(ef), sizeof(mkey));
+        if (mkek_decrypt(mkey + 1, sizeof(mkey) - 1) != PICOKEYS_OK) {
+            return PICOKEYS_EXEC_ERROR;
+        }
+        if (mkek_store_file(ef, mkey, sizeof(mkey)) != PICOKEYS_OK) {
+            return PICOKEYS_EXEC_ERROR;
+        }
+        flash_commit();
+    }
+    else {
+        uint16_t mkey_len = sizeof(mkey);
+        if (mkek_load_file(ef, mkey, &mkey_len) != PICOKEYS_OK || mkey_len != sizeof(mkey)) {
+            return PICOKEYS_EXEC_ERROR;
+        }
     }
     if (mkey[0] == 0x1 || mkey[0] == 0x2) {
         if (mkey[0] == 0x1) {
@@ -220,11 +230,7 @@ int cmd_bip_slip(void) {
         }
         mkey[0] = p1;
         file_t *ef = file_new(EF_MASTER_SEED | p2);
-        int r = mkek_encrypt(mkey + 1, sizeof(mkey) - 1);
-        if (r != PICOKEYS_OK) {
-            return SW_EXEC_ERROR();
-        }
-        r = file_put_data(ef, mkey, sizeof(mkey));
+        int r = mkek_store_file(ef, mkey, sizeof(mkey));
         if (r != PICOKEYS_OK) {
             return SW_EXEC_ERROR();
         }

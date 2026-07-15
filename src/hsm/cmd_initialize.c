@@ -183,7 +183,14 @@ int cmd_initialize(void) {
             return SW_EXEC_ERROR();
         }
         int ret = 0;
-        if (ret_mkek != PICOKEYS_OK || !file_has_data(fdkey)) {
+        bool recreate_dev_key = ret_mkek != PICOKEYS_OK || !file_has_data(fdkey);
+        if (!recreate_dev_key) {
+            mbedtls_ecp_keypair existing_key;
+            mbedtls_ecp_keypair_init(&existing_key);
+            recreate_dev_key = load_private_key_ec(&existing_key, fdkey) != PICOKEYS_OK;
+            mbedtls_ecp_keypair_free(&existing_key);
+        }
+        if (recreate_dev_key) {
             mbedtls_ecdsa_context ecdsa;
             mbedtls_ecdsa_init(&ecdsa);
             mbedtls_ecp_group_id ec_id = MBEDTLS_ECP_DP_SECP256R1;

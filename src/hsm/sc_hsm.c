@@ -592,11 +592,7 @@ int store_keys(void *key_ctx, int type, uint8_t key_id) {
     if (!fpk) {
         return PICOKEYS_ERR_MEMORY_FATAL;
     }
-    r = mkek_encrypt(kdata, key_size);
-    if (r != PICOKEYS_OK) {
-        return r;
-    }
-    r = file_put_data(fpk, kdata, (uint16_t)key_size);
+    r = mkek_store_file(fpk, kdata, key_size);
     if (r != PICOKEYS_OK) {
         return r;
     }
@@ -660,14 +656,10 @@ int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
     }
 
     uint8_t kdata[4096 / 8];
-    uint16_t key_size = file_get_size(fkey);
-    if (key_size == 0 || key_size > sizeof(kdata) || (key_size & 1)) {
+    uint16_t key_size = sizeof(kdata);
+    if (mkek_load_file(fkey, kdata, &key_size) != PICOKEYS_OK ||
+        key_size == 0 || key_size > sizeof(kdata) || (key_size & 1)) {
         return PICOKEYS_WRONG_DATA;
-    }
-    memcpy(kdata, file_get_data(fkey), key_size);
-    if (mkek_decrypt(kdata, key_size) != 0) {
-        mbedtls_platform_zeroize(kdata, sizeof(kdata));
-        return PICOKEYS_EXEC_ERROR;
     }
     if (mbedtls_mpi_read_binary(&ctx->P, kdata, key_size / 2) != 0) {
         mbedtls_platform_zeroize(kdata, sizeof(kdata));
@@ -709,14 +701,10 @@ int load_private_key_ec(mbedtls_ecp_keypair *ctx, file_t *fkey) {
     }
 
     uint8_t kdata[67]; // Worst case, 521 bit + 1byte
-    uint16_t key_size = file_get_size(fkey);
-    if (key_size < 2 || key_size > sizeof(kdata)) {
+    uint16_t key_size = sizeof(kdata);
+    if (mkek_load_file(fkey, kdata, &key_size) != PICOKEYS_OK ||
+        key_size < 2 || key_size > sizeof(kdata)) {
         return PICOKEYS_WRONG_DATA;
-    }
-    memcpy(kdata, file_get_data(fkey), key_size);
-    if (mkek_decrypt(kdata, key_size) != 0) {
-        mbedtls_platform_zeroize(kdata, sizeof(kdata));
-        return PICOKEYS_EXEC_ERROR;
     }
     mbedtls_ecp_group_id gid = kdata[0];
     int r = mbedtls_ecp_read_key(gid, ctx, kdata + 1, key_size - 1);

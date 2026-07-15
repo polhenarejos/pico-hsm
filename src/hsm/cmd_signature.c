@@ -152,6 +152,7 @@ int cmd_signature(void) {
             }
             return SW_EXEC_ERROR();
         }
+        key_size = (uint16_t)mbedtls_rsa_get_len(&ctx);
         tlv_ctx_t hash = {.len = (uint16_t)apdu.nc, .data = apdu.data};
         if (p2 == ALGO_RSA_PKCS1) { //DigestInfo attached
             uint16_t nc = (uint16_t)apdu.nc;
