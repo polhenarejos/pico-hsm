@@ -659,10 +659,14 @@ int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
         return PICOKEYS_VERIFICATION_FAILED;
     }
 
-    uint16_t key_size = file_get_size(fkey);
     uint8_t kdata[4096 / 8];
+    uint16_t key_size = file_get_size(fkey);
+    if (key_size == 0 || key_size > sizeof(kdata) || (key_size & 1)) {
+        return PICOKEYS_WRONG_DATA;
+    }
     memcpy(kdata, file_get_data(fkey), key_size);
     if (mkek_decrypt(kdata, key_size) != 0) {
+        mbedtls_platform_zeroize(kdata, sizeof(kdata));
         return PICOKEYS_EXEC_ERROR;
     }
     if (mbedtls_mpi_read_binary(&ctx->P, kdata, key_size / 2) != 0) {
@@ -695,6 +699,7 @@ int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
         mbedtls_rsa_free(ctx);
         return PICOKEYS_WRONG_DATA;
     }
+    mbedtls_platform_zeroize(kdata, sizeof(kdata));
     return PICOKEYS_OK;
 }
 
@@ -703,10 +708,14 @@ int load_private_key_ec(mbedtls_ecp_keypair *ctx, file_t *fkey) {
         return PICOKEYS_VERIFICATION_FAILED;
     }
 
-    uint16_t key_size = file_get_size(fkey);
     uint8_t kdata[67]; // Worst case, 521 bit + 1byte
+    uint16_t key_size = file_get_size(fkey);
+    if (key_size < 2 || key_size > sizeof(kdata)) {
+        return PICOKEYS_WRONG_DATA;
+    }
     memcpy(kdata, file_get_data(fkey), key_size);
     if (mkek_decrypt(kdata, key_size) != 0) {
+        mbedtls_platform_zeroize(kdata, sizeof(kdata));
         return PICOKEYS_EXEC_ERROR;
     }
     mbedtls_ecp_group_id gid = kdata[0];
