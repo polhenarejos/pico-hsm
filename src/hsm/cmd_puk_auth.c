@@ -18,36 +18,6 @@
 #include "sc_hsm.h"
 #include "files.h"
 #include "cvc.h"
-#include "tlv.h"
-
-extern PUK *current_puk;
-
-static int verify_puk_enrollment(const uint8_t *data, uint16_t data_len) {
-    if (!current_puk || data_len == 0) {
-        return PICOKEYS_ERR_FILE_NOT_FOUND;
-    }
-
-    const uint8_t *cert = data;
-    uint16_t cert_len = data_len;
-    uint8_t *wrapped = NULL;
-    if (data_len < 2 || data[0] != 0x7f || data[1] != 0x21) {
-        uint8_t len_len = tlv_format_len(data_len, NULL);
-        cert_len = (uint16_t)(2 + len_len + data_len);
-        wrapped = (uint8_t *) calloc(1, cert_len);
-        if (!wrapped) {
-            return PICOKEYS_ERR_MEMORY_FATAL;
-        }
-        wrapped[0] = 0x7f;
-        wrapped[1] = 0x21;
-        tlv_format_len(data_len, wrapped + 2);
-        memcpy(wrapped + 2 + len_len, data, data_len);
-        cert = wrapped;
-    }
-
-    int r = cvc_verify(cert, cert_len, current_puk->cvcert, current_puk->cvcert_len);
-    free(wrapped);
-    return r;
-}
 
 int cmd_puk_auth(void) {
     uint8_t p1 = P1(apdu), p2 = P2(apdu);
@@ -61,8 +31,8 @@ int cmd_puk_auth(void) {
     uint8_t *puk_data = file_get_data(ef_puk);
     if (apdu.nc > 0) {
         if (p1 == 0x0 || p1 == 0x1) {
-            if (verify_puk_enrollment(apdu.data, (uint16_t)apdu.nc) != PICOKEYS_OK) {
-                return SW_CONDITIONS_NOT_SATISFIED();
+            if (!has_session_pin && !has_session_sopin) {
+                return SW_SECURITY_STATUS_NOT_SATISFIED();
             }
             file_t *ef = NULL;
             if (p1 == 0x0) { /* Add */
@@ -89,8 +59,8 @@ int cmd_puk_auth(void) {
                 free(tmp);
             }
             else if (p1 == 0x1) {   /* Replace */
-                if (!isUserAuthenticated || !(get_device_options() & HSM_OPT_REPLACE_PKA)) {
-                    return SW_SECURITY_STATUS_NOT_SATISFIED();
+                if (!(get_device_options() & HSM_OPT_REPLACE_PKA)) {
+                    return SW_CONDITIONS_NOT_SATISFIED();
                 }
                 if (p2 >= puk_data[0]) {
                     return SW_INCORRECT_P1P2();
