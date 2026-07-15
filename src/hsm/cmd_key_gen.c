@@ -19,6 +19,22 @@
 #include "sc_hsm.h"
 #include "random.h"
 
+static void rollback_generated_key(uint8_t key_id) {
+    file_t *fkey = file_search((KEY_PREFIX << 8) | key_id);
+    file_t *fprkd = file_search((PRKD_PREFIX << 8) | key_id);
+    bool changed = false;
+
+    if (fkey && file_delete_no_commit(fkey) == PICOKEYS_OK) {
+        changed = true;
+    }
+    if (fprkd && file_delete_no_commit(fprkd) == PICOKEYS_OK) {
+        changed = true;
+    }
+    if (changed) {
+        flash_commit();
+    }
+}
+
 int cmd_key_gen(void) {
     uint8_t key_id = P1(apdu);
     uint8_t p2 = P2(apdu);
@@ -57,9 +73,11 @@ int cmd_key_gen(void) {
     }
     r = store_keys(aes_key, aes_type, key_id);
     if (r != PICOKEYS_OK) {
+        rollback_generated_key(key_id);
         return SW_MEMORY_FAILURE();
     }
     if (find_and_store_meta_key(key_id) != PICOKEYS_OK) {
+        rollback_generated_key(key_id);
         return SW_EXEC_ERROR();
     }
     flash_commit();
