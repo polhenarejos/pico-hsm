@@ -26,357 +26,155 @@
 #include "oid.h"
 #include "mbedtls/md.h"
 #include "files.h"
-#ifdef MBEDTLS_EDDSA_C
-#include "mbedtls/eddsa.h"
-#endif
 
-static uint16_t asn1_cvc_public_key_rsa(mbedtls_rsa_context *rsa, uint8_t *buf, uint16_t buf_len) {
-    const uint8_t oid_rsa[] = { 0x04, 0x00, 0x7F, 0x00, 0x07, 0x02, 0x02, 0x02, 0x01, 0x02 };
-    uint16_t n_size = (uint16_t)mbedtls_mpi_size(&rsa->N), e_size = (uint16_t)mbedtls_mpi_size(&rsa->E);
-    uint16_t ntot_size = tlv_len_tag(0x81, n_size), etot_size = tlv_len_tag(0x82, e_size);
-    uint16_t oid_len = tlv_len_tag(0x6, sizeof(oid_rsa));
-    uint16_t tot_len = tlv_len_tag(0x7f49, oid_len + ntot_size + etot_size);
-    if (buf == NULL || buf_len == 0) {
-        return tot_len;
+static const uint8_t cvc_valid_from[] = { 0x02, 0x03, 0x00, 0x03, 0x02, 0x01 };
+static const uint8_t cvc_valid_to[] = { 0x07, 0x00, 0x01, 0x02, 0x03, 0x01 };
+
+static int cvc_configure_cert(cvc_write_cert *ctx, const mbedtls_pk_context *subject, bool full, const uint8_t *ext, uint16_t ext_len) {
+    const uint8_t *car = NULL, *chr = NULL, *oid = NULL;
+    uint16_t car_len = 0, chr_len = 0, oid_len = 0;
+    bool allow_zero_signature_on_unsupported = false;
+
+    if (!ctx || !subject) {
+        return -1;
     }
-    if (buf_len < tot_len) {
-        return 0;
+    car = cvc_get_field(apdu.data, (uint16_t)apdu.nc, &car_len, 0x42);
+    if (!car || !car_len) {
+        car = dev_name ? dev_name : (const uint8_t *)"ESPICOHSMTR00001";
+        car_len = dev_name ? dev_name_len : (uint16_t)strlen((const char *)car);
     }
-    uint8_t *p = buf;
-    memcpy(p, "\x7F\x49", 2); p += 2;
-    p += tlv_format_len(oid_len + ntot_size + etot_size, p);
-    //oid
-    *p++ = 0x6; p += tlv_format_len(sizeof(oid_rsa), p); memcpy(p, oid_rsa, sizeof(oid_rsa));
-    p += sizeof(oid_rsa);
-    //n
-    *p++ = 0x81; p += tlv_format_len(n_size, p); mbedtls_mpi_write_binary(&rsa->N, p, n_size);
-    p += n_size;
-    //n
-    *p++ = 0x82; p += tlv_format_len(e_size, p); mbedtls_mpi_write_binary(&rsa->E, p, e_size);
-    p += e_size;
-    return tot_len;
+    chr = cvc_get_field(apdu.data, (uint16_t)apdu.nc, &chr_len, 0x5F20);
+    if (!chr || !chr_len) {
+        chr = dev_name ? dev_name : car;
+        chr_len = dev_name ? dev_name_len : car_len;
+    }
+    if (!car_len || !chr_len) {
+        return -1;
+    }
+
+    if (cvc_default_algorithm_oid(subject, &oid, &oid_len) != LIBCVC_OK) {
+        return -1;
+    }
+    if (mbedtls_pk_get_type((mbedtls_pk_context *)subject) != MBEDTLS_PK_RSA) {
+        mbedtls_ecp_keypair *ec = mbedtls_pk_ec(*subject);
+        mbedtls_ecp_curve_type curve_type;
+        if (!ec) {
+            return -1;
+        }
+        curve_type = mbedtls_ecp_get_type(&ec->grp);
+        allow_zero_signature_on_unsupported = curve_type == MBEDTLS_ECP_TYPE_MONTGOMERY;
+    }
+
+    cvc_write_cert_init(ctx);
+    if (cvc_write_set_subject_key(ctx, subject) != LIBCVC_OK || cvc_write_set_issuer_key(ctx, subject) != LIBCVC_OK || cvc_write_set_algorithm_oid(ctx, oid, oid_len) != LIBCVC_OK || cvc_write_set_md(ctx, MBEDTLS_MD_SHA256) != LIBCVC_OK || cvc_write_set_include_ec_domain_parameters(ctx, true) != LIBCVC_OK || cvc_write_set_allow_zero_signature_on_unsupported(ctx, allow_zero_signature_on_unsupported) != LIBCVC_OK || cvc_write_set_car(ctx, car, car_len) != LIBCVC_OK || cvc_write_set_chr(ctx, chr, chr_len) != LIBCVC_OK || cvc_write_set_extensions(ctx, ext, ext_len) != LIBCVC_OK || cvc_write_set_include_role_and_validity(ctx, full) != LIBCVC_OK) {
+        return -1;
+    }
+    if (full && cvc_write_set_validity(ctx, cvc_valid_from, sizeof(cvc_valid_from), cvc_valid_to, sizeof(cvc_valid_to)) != LIBCVC_OK) {
+        return -1;
+    }
+    return 0;
 }
 
-const uint8_t *pointA[] = {
-    NULL,
-    (uint8_t *)
-    "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFE\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFC",
-    (uint8_t *)
-    "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFE\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFE",
-    (uint8_t *)
-    "\xFF\xFF\xFF\xFF\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFC",
-    (uint8_t *)
-    "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFE\xFF\xFF\xFF\xFF\x00\x00\x00\x00\x00\x00\x00\x00\xFF\xFF\xFF\xFC",
-    (uint8_t *)
-    "\x01\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFC",
-};
+static uint16_t cvc_cert_size(const cvc_write_cert *ctx) {
+    uint8_t pub_tmpl[768], body[1024], sig[MBEDTLS_PK_SIGNATURE_MAX_SIZE];
+    uint16_t pub_tmpl_len, body_len;
+    size_t sig_len;
 
-static uint16_t asn1_cvc_public_key_ecdsa(mbedtls_ecp_keypair *ecdsa, uint8_t *buf, uint16_t buf_len) {
-    uint8_t Y_buf[MBEDTLS_ECP_MAX_PT_LEN], G_buf[MBEDTLS_ECP_MAX_PT_LEN];
-    const uint8_t oid_ecdsa[] = { 0x04, 0x00, 0x7F, 0x00, 0x07, 0x02, 0x02, 0x02, 0x02, 0x03 };
-    const uint8_t oid_ri[]    = { 0x04, 0x00, 0x7F, 0x00, 0x07, 0x02, 0x02, 0x05, 0x02, 0x03 };
-    const uint8_t *oid = oid_ecdsa;
-    size_t p_size = mbedtls_mpi_size(&ecdsa->grp.P), a_size = mbedtls_mpi_size(&ecdsa->grp.A);
-    size_t g_size = 0;
-    size_t o_size = mbedtls_mpi_size(&ecdsa->grp.N), y_size = 0;
-    mbedtls_ecp_point_write_binary(&ecdsa->grp, &ecdsa->grp.G, MBEDTLS_ECP_PF_UNCOMPRESSED, &g_size, G_buf, sizeof(G_buf));
-    mbedtls_ecp_point_write_binary(&ecdsa->grp, &ecdsa->Q, MBEDTLS_ECP_PF_UNCOMPRESSED, &y_size, Y_buf, sizeof(Y_buf));
-    uint16_t c_size = 1;
-    uint16_t ptot_size = tlv_len_tag(0x81, (uint16_t)p_size);
-    uint16_t atot_size = tlv_len_tag(0x82, (uint16_t)p_size);
-    uint16_t btot_size = tlv_len_tag(0x83, (uint16_t)p_size);
-    uint16_t gtot_size = tlv_len_tag(0x84, (uint16_t)g_size);
-    uint16_t otot_size = tlv_len_tag(0x85, (uint16_t)o_size), ytot_size = tlv_len_tag(0x86, (uint16_t)y_size);
-    uint16_t ctot_size = tlv_len_tag(0x87, (uint16_t)c_size);
-    uint16_t oid_len = tlv_len_tag(0x6, sizeof(oid_ecdsa));
-    uint16_t tot_len = 0, tot_data_len = 0;
-    if (mbedtls_ecp_get_type(&ecdsa->grp) == MBEDTLS_ECP_TYPE_MONTGOMERY
-#ifdef MBEDTLS_EDDSA_C
-     || mbedtls_ecp_get_type(&ecdsa->grp) == MBEDTLS_ECP_TYPE_EDWARDS
-#endif
-    ) {
-        tot_data_len = oid_len + ptot_size + otot_size + gtot_size + ytot_size;
-        oid = oid_ri;
-    }
-    else {
-        tot_data_len = oid_len + ptot_size + atot_size + btot_size + gtot_size + otot_size + ytot_size +
-                                  ctot_size;
-    }
-    tot_len = tlv_len_tag(0x7f49, tot_data_len);
-    if (buf == NULL || buf_len == 0) {
-        return tot_len;
-    }
-    if (buf_len < tot_len) {
+    if (!ctx || !ctx->subject_pk || !ctx->alg_oid || !ctx->alg_oid_len) {
         return 0;
     }
-    uint8_t *p = buf;
-    memcpy(p, "\x7F\x49", 2); p += 2;
-    p += tlv_format_len(tot_data_len, p);
-    //oid
-    *p++ = 0x6; p += tlv_format_len(sizeof(oid_ecdsa), p); memcpy(p, oid, sizeof(oid_ecdsa));
-    p += sizeof(oid_ecdsa);
-    if (mbedtls_ecp_get_type(&ecdsa->grp) == MBEDTLS_ECP_TYPE_MONTGOMERY
-#ifdef MBEDTLS_EDDSA_C
-    || mbedtls_ecp_get_type(&ecdsa->grp) == MBEDTLS_ECP_TYPE_EDWARDS
-#endif
-    ) {
-        //p
-        *p++ = 0x81; p += tlv_format_len((uint16_t)p_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.P, p, p_size);
-        p += p_size;
-        //order
-        *p++ = 0x82; p += tlv_format_len((uint16_t)o_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.N, p, o_size);
-        p += o_size;
-         //G
-        *p++ = 0x83; p += tlv_format_len((uint16_t)g_size, p); memcpy(p, G_buf, g_size); p += g_size;
-        //Y
-        *p++ = 0x84; p += tlv_format_len((uint16_t)y_size, p); memcpy(p, Y_buf, y_size); p += y_size;
+    pub_tmpl_len = cvc_build_pubkey_template_ex(ctx->subject_pk, ctx->alg_oid, ctx->alg_oid_len, ctx->include_ec_domain_parameters, pub_tmpl, sizeof(pub_tmpl));
+    if (!pub_tmpl_len) {
+        return 0;
     }
-    else {
-        //p
-        *p++ = 0x81; p += tlv_format_len((uint16_t)p_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.P, p, p_size);
-        p += p_size;
-        //A
-        *p++ = 0x82;
-        p += tlv_format_len((uint16_t)p_size, p);
-        if (a_size) {
-            mbedtls_mpi_write_binary(&ecdsa->grp.A, p, p_size);
-        }
-        else {   //mbedtls does not set point A for some curves
-            if ((size_t)ecdsa->grp.id < sizeof(pointA) / sizeof(pointA[0]) && pointA[ecdsa->grp.id]) {
-                memcpy(p, pointA[ecdsa->grp.id], p_size);
-            }
-            else {
-                memset(p, 0, p_size);
+    body_len = cvc_build_cert_body(&ctx->meta, pub_tmpl, pub_tmpl_len, body, sizeof(body));
+    if (!body_len) {
+        return 0;
+    }
+    sig_len = mbedtls_pk_get_len(ctx->issuer_pk);
+    if (mbedtls_pk_get_type((mbedtls_pk_context *)ctx->issuer_pk) != MBEDTLS_PK_RSA) {
+#if defined(MBEDTLS_EDDSA_C)
+        mbedtls_ecp_keypair *ec = mbedtls_pk_ec(*(mbedtls_pk_context *)ctx->issuer_pk);
+        if (ec && mbedtls_ecp_get_type(&ec->MBEDTLS_PRIVATE(grp)) == MBEDTLS_ECP_TYPE_EDWARDS) {
+            const mbedtls_ecp_curve_info *curve = mbedtls_ecp_curve_info_from_grp_id(ec->MBEDTLS_PRIVATE(grp).id);
+            if (curve) {
+                sig_len = (curve->bit_size + 7u) / 8u;
             }
         }
-        p += p_size;
-        //B
-        *p++ = 0x83; p += tlv_format_len((uint16_t)p_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.B, p, p_size);
-        p += p_size;
-        //G
-        *p++ = 0x84; p += tlv_format_len((uint16_t)g_size, p); memcpy(p, G_buf, g_size); p += g_size;
-        //order
-        *p++ = 0x85; p += tlv_format_len((uint16_t)o_size, p); mbedtls_mpi_write_binary(&ecdsa->grp.N, p, o_size);
-        p += o_size;
-        //Y
-        *p++ = 0x86; p += tlv_format_len((uint16_t)y_size, p); memcpy(p, Y_buf, y_size); p += y_size;
-        //cofactor
-        *p++ = 0x87; p += tlv_format_len(c_size, p);
-        *p++ = 1;
-    }
-    return tot_len;
-}
-
-static uint16_t asn1_cvc_cert_body(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, uint16_t buf_len, const uint8_t *ext, uint16_t ext_len, bool full) {
-    uint16_t pubkey_size = 0;
-    if (key_type & PICOKEYS_KEY_RSA) {
-        pubkey_size = asn1_cvc_public_key_rsa(rsa_ecdsa, NULL, 0);
-    }
-    else if (key_type & PICOKEYS_KEY_EC) {
-        pubkey_size = asn1_cvc_public_key_ecdsa(rsa_ecdsa, NULL, 0);
-    }
-    uint16_t cpi_size = 4, ext_size = 0, role_size = 0, valid_size = 0;
-    if (ext && ext_len > 0) {
-        ext_size = tlv_len_tag(0x65, ext_len);
-    }
-    const uint8_t *role = (const uint8_t *)"\x06\x09\x04\x00\x7F\x00\x07\x03\x01\x02\x02\x53\x01\x00";
-    uint16_t rolelen = 14;
-    if (full) {
-        role_size = tlv_len_tag(0x7f4c, rolelen);
-        valid_size = tlv_len_tag(0x5f24, 6) + tlv_len_tag(0x5f25, 6);
-    }
-
-    tlv_ctx_t ctxi, car = {0}, chr = {0};
-    tlv_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
-    if (tlv_find_tag(&ctxi, 0x42, &car) == false || tlv_len(&car) == 0) {
-        car.data = (uint8_t *) dev_name;
-        car.len = dev_name_len;
-        if (dev_name == NULL) {
-            car.data = (uint8_t *)"ESPICOHSMTR00001";
-            car.len = (uint16_t)strlen((const char *)car.data);
-        }
-    }
-    if (tlv_find_tag(&ctxi, 0x5f20, &chr) == false || tlv_len(&chr) == 0) {
-        chr.data = (uint8_t *) dev_name;
-        chr.len = dev_name_len;
-        if (chr.data == NULL) {
-            chr.data = car.data;
-            chr.len = car.len;
-        }
-    }
-    uint16_t car_size = tlv_len_tag(0x42, car.len), chr_size = tlv_len_tag(0x5f20, chr.len);
-
-    uint16_t tot_len = tlv_len_tag(0x7f4e, cpi_size + car_size + pubkey_size + chr_size + ext_size + role_size + valid_size);
-
-    if (buf_len == 0 || buf == NULL) {
-        return tot_len;
-    }
-    if (buf_len < tot_len) {
-        return 0;
-    }
-    uint8_t *p = buf;
-    memcpy(p, "\x7F\x4E", 2); p += 2;
-    p += tlv_format_len(cpi_size + car_size + pubkey_size + chr_size + role_size + valid_size + ext_size, p);
-    //cpi
-    *p++ = 0x5f; *p++ = 0x29; *p++ = 1; *p++ = 0;
-    //car
-    *p++ = 0x42; p += tlv_format_len(car.len, p); memcpy(p, car.data, car.len); p += car.len;
-    //pubkey
-    if (key_type & PICOKEYS_KEY_RSA) {
-        p += asn1_cvc_public_key_rsa(rsa_ecdsa, p, pubkey_size);
-    }
-    else if (key_type & PICOKEYS_KEY_EC) {
-        p += asn1_cvc_public_key_ecdsa(rsa_ecdsa, p, pubkey_size);
-    }
-    //chr
-    *p++ = 0x5f; *p++ = 0x20; p += tlv_format_len(chr.len, p); memcpy(p, chr.data, chr.len); p += chr.len;
-    if (full) {
-        *p++ = 0x7f;
-        *p++ = 0x4c;
-        p += tlv_format_len(rolelen, p);
-        memcpy(p, role, rolelen);
-        p += rolelen;
-
-        *p++ = 0x5f;
-        *p++ = 0x25;
-        p += tlv_format_len(6, p);
-        memcpy(p, "\x02\x03\x00\x03\x02\x01", 6);
-        p += 6;
-
-        *p++ = 0x5f;
-        *p++ = 0x24;
-        p += tlv_format_len(6, p);
-        memcpy(p, "\x07\x00\x01\x02\x03\x01", 6);
-        p += 6;
-    }
-    if (ext && ext_len > 0) {
-        *p++ = 0x65;
-        p += tlv_format_len(ext_len, p);
-        memcpy(p, ext, ext_len);
-        p += ext_len;
-    }
-    return tot_len;
-}
-
-uint16_t asn1_cvc_cert(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, uint16_t buf_len, const uint8_t *ext, uint16_t ext_len, bool full) {
-    uint16_t key_size = 0;
-    if (key_type & PICOKEYS_KEY_RSA) {
-        key_size = (uint16_t)mbedtls_mpi_size(&((mbedtls_rsa_context *) rsa_ecdsa)->N);
-    }
-    else if (key_type & PICOKEYS_KEY_EC) {
-        key_size = 2 * (int)((mbedtls_ecp_curve_info_from_grp_id(((mbedtls_ecdsa_context *) rsa_ecdsa)->grp.id)->bit_size + 7) / 8);
-    }
-    uint16_t body_size = asn1_cvc_cert_body(rsa_ecdsa, key_type, NULL, 0, ext, ext_len, full), sig_size = tlv_len_tag(0x5f37, key_size);
-    uint16_t tot_len = tlv_len_tag(0x7f21, body_size + sig_size);
-    if (buf_len == 0 || buf == NULL) {
-        return tot_len;
-    }
-    if (buf_len < tot_len) {
-        return 0;
-    }
-    uint8_t *p = buf, *body = NULL;
-    memcpy(p, "\x7F\x21", 2); p += 2;
-    p += tlv_format_len(body_size + sig_size, p);
-    body = p;
-    p += asn1_cvc_cert_body(rsa_ecdsa, key_type, p, body_size, ext, ext_len, full);
-    uint8_t hsh[32];
-    hash256(body, body_size, hsh);
-    memcpy(p, "\x5F\x37", 2); p += 2;
-    p += tlv_format_len(key_size, p);
-    if (key_type & PICOKEYS_KEY_RSA) {
-        if (mbedtls_rsa_rsassa_pkcs1_v15_sign(rsa_ecdsa, random_fill_iterator, NULL, MBEDTLS_MD_SHA256, 32, hsh, p) != 0) {
-            memset(p, 0, key_size);
-        }
-        p += key_size;
-    }
-    else if (key_type & PICOKEYS_KEY_EC) {
-        mbedtls_mpi r, s;
-        int ret = 0;
-        mbedtls_ecp_keypair *ecdsa = (mbedtls_ecp_keypair *) rsa_ecdsa;
-        mbedtls_mpi_init(&r);
-        mbedtls_mpi_init(&s);
-#ifdef MBEDTLS_EDDSA_C
-        if (ecdsa->grp.id == MBEDTLS_ECP_DP_ED25519 || ecdsa->grp.id == MBEDTLS_ECP_DP_ED448) {
-            ret = mbedtls_eddsa_sign(&ecdsa->grp, &r, &s, &ecdsa->d, body, body_size, MBEDTLS_EDDSA_PURE, NULL, 0, random_fill_iterator, NULL);
-        }
-        else
 #endif
-        {
-            ret = mbedtls_ecdsa_sign(&ecdsa->grp, &r, &s, &ecdsa->d, hsh, sizeof(hsh), random_fill_iterator, NULL);
-        }
-        if (ret == 0) {
-            mbedtls_mpi_write_binary(&r, p, key_size / 2); p += key_size / 2;
-            mbedtls_mpi_write_binary(&s, p, key_size / 2); p += key_size / 2;
-        }
-        else {
-            memset(p, 0, key_size);
-            p += key_size;
-        }
-        mbedtls_mpi_free(&r);
-        mbedtls_mpi_free(&s);
+        sig_len *= 2;
     }
-    return (uint16_t)(p - buf);
+    if (!sig_len || sig_len > sizeof(sig)) {
+        return 0;
+    }
+    return cvc_build_cert(body, body_len, sig, (uint16_t)sig_len, NULL, 0);
 }
 
-uint16_t asn1_cvc_aut(void *rsa_ecdsa, uint8_t key_type, uint8_t *buf, uint16_t buf_len, const uint8_t *ext, uint16_t ext_len) {
-    uint16_t cvcert_size = asn1_cvc_cert(rsa_ecdsa, key_type, NULL, 0, ext, ext_len, false);
-    uint16_t outcar_len = dev_name_len;
-    const uint8_t *outcar = dev_name;
-    uint16_t outcar_size = tlv_len_tag(0x42, outcar_len);
+uint16_t asn1_cvc_cert(const mbedtls_pk_context *subject, uint8_t *buf, uint16_t buf_len, const uint8_t *ext, uint16_t ext_len, bool full) {
+    cvc_write_cert ctx;
+    uint16_t cert_len, out_len = 0;
+
+    if (!subject || cvc_configure_cert(&ctx, subject, full, ext, ext_len) != 0) {
+        return 0;
+    }
+    cert_len = cvc_cert_size(&ctx);
+    if (!cert_len || !buf || !buf_len) {
+        return cert_len;
+    }
+    if (buf_len < cert_len || cvc_write_cert_der(&ctx, buf, buf_len, &out_len, random_fill_iterator, NULL) != 0) {
+        return 0;
+    }
+    return out_len;
+}
+
+uint16_t asn1_cvc_aut(const mbedtls_pk_context *subject, uint8_t *buf, uint16_t buf_len, const uint8_t *ext, uint16_t ext_len) {
     file_t *fkey = file_search(EF_KEY_DEV);
-    if (!fkey) {
+    mbedtls_ecp_keypair device_key;
+    mbedtls_pk_context outer;
+    cvc_write_req ctx;
+    uint16_t cert_len, request_len, out_len = 0;
+    size_t outer_sig_len;
+    uint8_t placeholder = 0;
+
+    if (!subject || !fkey || !dev_name || !dev_name_len) {
         return 0;
     }
-    mbedtls_ecp_keypair ectx;
-    mbedtls_ecp_keypair_init(&ectx);
-    if (load_private_key_ec(&ectx, fkey) != PICOKEYS_OK) {
-        mbedtls_ecp_keypair_free(&ectx);
+    mbedtls_ecp_keypair_init(&device_key);
+    if (load_private_key_ec(&device_key, fkey) != PICOKEYS_OK) {
+        mbedtls_ecp_keypair_free(&device_key);
         return 0;
     }
-    int ret = 0;
-    uint16_t key_size = 2 * (uint16_t)mbedtls_mpi_size(&ectx.d);
-    uint16_t outsig_size = tlv_len_tag(0x5f37, key_size), tot_len = tlv_len_tag(0x67, cvcert_size + outcar_size + outsig_size);
-    if (buf_len == 0 || buf == NULL) {
-        return tot_len;
-    }
-    if (buf_len < tot_len) {
+    if (cvc_pk_wrap_ec(&outer, &device_key) != LIBCVC_OK) {
+        mbedtls_ecp_keypair_free(&device_key);
         return 0;
     }
-    uint8_t *p = buf;
-    *p++ = 0x67;
-    p += tlv_format_len(cvcert_size + outcar_size + outsig_size, p);
-    uint8_t *body = p;
-    //cvcert
-    p += asn1_cvc_cert(rsa_ecdsa, key_type, p, cvcert_size, ext, ext_len, false);
-    //outcar
-    *p++ = 0x42; p += tlv_format_len(outcar_len, p); memcpy(p, outcar, outcar_len); p += outcar_len;
-    memcpy(p, "\x5f\x37", 2); p += 2;
-    p += tlv_format_len(key_size, p);
-    mbedtls_mpi r, s;
-    mbedtls_mpi_init(&r);
-    mbedtls_mpi_init(&s);
-#ifdef MBEDTLS_EDDSA_C
-    if (ectx.grp.id == MBEDTLS_ECP_DP_ED25519 || ectx.grp.id == MBEDTLS_ECP_DP_ED448) {
-        ret = mbedtls_eddsa_sign(&ectx.grp, &r, &s, &ectx.d, body, cvcert_size + outcar_size, MBEDTLS_EDDSA_PURE, NULL, 0, random_fill_iterator, NULL);
-    }
-    else
-#endif
-    {
-        uint8_t hsh[32];
-        hash256(body, cvcert_size + outcar_size, hsh);
-        ret = mbedtls_ecdsa_sign(&ectx.grp, &r, &s, &ectx.d, hsh, sizeof(hsh), random_fill_iterator, NULL);
-    }
-    mbedtls_ecp_keypair_free(&ectx);
-    if (ret != 0) {
-        mbedtls_mpi_free(&r);
-        mbedtls_mpi_free(&s);
+    cvc_write_req_init(&ctx);
+    if (cvc_configure_cert(&ctx.cert, subject, false, ext, ext_len) != 0 || dev_name_len > sizeof(ctx.outer_car_buf)) {
+        mbedtls_ecp_keypair_free(&device_key);
         return 0;
     }
-    mbedtls_mpi_write_binary(&r, p, key_size / 2); p += key_size / 2;
-    mbedtls_mpi_write_binary(&s, p, key_size / 2); p += key_size / 2;
-    mbedtls_mpi_free(&r);
-    mbedtls_mpi_free(&s);
-    return (uint16_t)(p - buf);
+    if (cvc_req_set_outer_signing_key(&ctx, &outer) != LIBCVC_OK || cvc_req_set_outer_car(&ctx, dev_name, dev_name_len) != LIBCVC_OK) {
+        mbedtls_ecp_keypair_free(&device_key);
+        return 0;
+    }
+
+    cert_len = cvc_cert_size(&ctx.cert);
+    outer_sig_len = mbedtls_pk_get_len(&outer) * 2;
+    if (!cert_len || !outer_sig_len || outer_sig_len > MBEDTLS_PK_SIGNATURE_MAX_SIZE) {
+        mbedtls_ecp_keypair_free(&device_key);
+        return 0;
+    }
+    request_len = cvc_build_request(&placeholder, cert_len, ctx.outer_car_buf, ctx.outer_car_len, &placeholder, (uint16_t)outer_sig_len, NULL, 0);
+    if (!request_len || !buf || !buf_len) {
+        mbedtls_ecp_keypair_free(&device_key);
+        return request_len;
+    }
+    if (buf_len < request_len || cvc_write_req_der(&ctx, buf, buf_len, &out_len, random_fill_iterator, NULL) != 0) {
+        mbedtls_ecp_keypair_free(&device_key);
+        return 0;
+    }
+    mbedtls_ecp_keypair_free(&device_key);
+    return out_len;
 }
 
 uint16_t asn1_build_cert_description(const uint8_t *label, uint16_t label_len, const uint8_t *puk, uint16_t puk_len, uint16_t fid, uint8_t *buf, uint16_t buf_len) {
@@ -571,56 +369,25 @@ mbedtls_ecp_group_id cvc_inherite_ec_group(const uint8_t *ca, uint16_t ca_len) {
 }
 
 int puk_verify(const uint8_t *sig, uint16_t sig_len, const uint8_t *hash, uint16_t hash_len, const uint8_t *ca, uint16_t ca_len) {
-    uint16_t puk_len = 0;
-    const uint8_t *puk = cvc_get_pub(ca, ca_len, &puk_len);
-    if (!puk) {
+    cvc_pubkey_t signer;
+    mbedtls_md_type_t md = MBEDTLS_MD_NONE;
+
+    if (cvc_extract_pubkey(ca, ca_len, &signer) != LIBCVC_OK || cvc_algorithm_oid_to_md(signer.alg_oid, signer.alg_oid_len, &md) != LIBCVC_OK) {
         return PICOKEYS_WRONG_DATA;
     }
-    uint16_t oid_len = 0;
-    const uint8_t *oid = cvc_get_field(puk, puk_len, &oid_len, 0x6);
-    if (!oid) {
-        return PICOKEYS_WRONG_DATA;
-    }
-    if (memcmp(oid, OID_ID_TA_RSA, 9) == 0) { //RSA
-        uint16_t t81_len = 0, t82_len = 0;
-        const uint8_t *t81 = cvc_get_field(puk, puk_len, &t81_len, 0x81), *t82 = cvc_get_field(puk, puk_len, &t81_len, 0x82);
-        if (!t81 || !t82) {
-            return PICOKEYS_WRONG_DATA;
-        }
+
+    if (signer.kind == CVC_KEY_KIND_RSA) {
         mbedtls_rsa_context rsa;
         mbedtls_rsa_init(&rsa);
-        mbedtls_md_type_t md = MBEDTLS_MD_NONE;
-        if (memcmp(oid, OID_ID_TA_RSA_V1_5_SHA_1, oid_len) == 0) {
-            md = MBEDTLS_MD_SHA1;
-        }
-        else if (memcmp(oid, OID_ID_TA_RSA_V1_5_SHA_256, oid_len) == 0) {
-            md = MBEDTLS_MD_SHA256;
-        }
-        else if (memcmp(oid, OID_ID_TA_RSA_V1_5_SHA_512, oid_len) == 0) {
-            md = MBEDTLS_MD_SHA512;
-        }
-        else if (memcmp(oid, OID_ID_TA_RSA_PSS_SHA_1, oid_len) == 0) {
-            md = MBEDTLS_MD_SHA1;
+        if (cvc_algorithm_oid_is_rsa_pss(signer.alg_oid, signer.alg_oid_len)) {
             mbedtls_rsa_set_padding(&rsa, MBEDTLS_RSA_PKCS_V21, md);
         }
-        else if (memcmp(oid, OID_ID_TA_RSA_PSS_SHA_256, oid_len) == 0) {
-            md = MBEDTLS_MD_SHA256;
-            mbedtls_rsa_set_padding(&rsa, MBEDTLS_RSA_PKCS_V21, md);
-        }
-        else if (memcmp(oid, OID_ID_TA_RSA_PSS_SHA_512, oid_len) == 0) {
-            md = MBEDTLS_MD_SHA512;
-            mbedtls_rsa_set_padding(&rsa, MBEDTLS_RSA_PKCS_V21, md);
-        }
-        if (md == MBEDTLS_MD_NONE) {
-            mbedtls_rsa_free(&rsa);
-            return PICOKEYS_WRONG_DATA;
-        }
-        int r = mbedtls_mpi_read_binary(&rsa.N, t81, t81_len);
+        int r = mbedtls_mpi_read_binary(&rsa.N, signer.n, signer.n_len);
         if (r != 0) {
             mbedtls_rsa_free(&rsa);
             return PICOKEYS_EXEC_ERROR;
         }
-        r = mbedtls_mpi_read_binary(&rsa.E, t82, t82_len);
+        r = mbedtls_mpi_read_binary(&rsa.E, signer.e, signer.e_len);
         if (r != 0) {
             mbedtls_rsa_free(&rsa);
             return PICOKEYS_EXEC_ERROR;
@@ -641,32 +408,7 @@ int puk_verify(const uint8_t *sig, uint16_t sig_len, const uint8_t *hash, uint16
             return PICOKEYS_WRONG_SIGNATURE;
         }
     }
-    else if (memcmp(oid, OID_ID_TA_ECDSA, 9) == 0) {   //ECC
-        mbedtls_md_type_t md = MBEDTLS_MD_NONE;
-        if (memcmp(oid, OID_ID_TA_ECDSA_SHA_1, oid_len) == 0) {
-            md = MBEDTLS_MD_SHA1;
-        }
-        else if (memcmp(oid, OID_ID_TA_ECDSA_SHA_224, oid_len) == 0) {
-            md = MBEDTLS_MD_SHA224;
-        }
-        else if (memcmp(oid, OID_ID_TA_ECDSA_SHA_256, oid_len) == 0) {
-            md = MBEDTLS_MD_SHA256;
-        }
-        else if (memcmp(oid, OID_ID_TA_ECDSA_SHA_384, oid_len) == 0) {
-            md = MBEDTLS_MD_SHA384;
-        }
-        else if (memcmp(oid, OID_ID_TA_ECDSA_SHA_512, oid_len) == 0) {
-            md = MBEDTLS_MD_SHA512;
-        }
-        if (md == MBEDTLS_MD_NONE) {
-            return PICOKEYS_WRONG_DATA;
-        }
-
-        uint16_t t86_len = 0;
-        const uint8_t *t86 = cvc_get_field(puk, puk_len, &t86_len, 0x86);
-        if (!t86) {
-            return PICOKEYS_WRONG_DATA;
-        }
+    else if (signer.kind == CVC_KEY_KIND_EC) {
         mbedtls_ecp_group_id ec_id = cvc_inherite_ec_group(ca, ca_len);
         if (ec_id == MBEDTLS_ECP_DP_NONE) {
             return PICOKEYS_WRONG_DATA;
@@ -678,7 +420,7 @@ int puk_verify(const uint8_t *sig, uint16_t sig_len, const uint8_t *hash, uint16
             mbedtls_ecdsa_free(&ecdsa);
             return PICOKEYS_WRONG_DATA;
         }
-        ret = mbedtls_ecp_point_read_binary(&ecdsa.grp, &ecdsa.Q, t86, t86_len);
+        ret = mbedtls_ecp_point_read_binary(&ecdsa.grp, &ecdsa.Q, signer.q, signer.q_len);
         if (ret != 0) {
             mbedtls_ecdsa_free(&ecdsa);
             return PICOKEYS_EXEC_ERROR;
@@ -717,75 +459,53 @@ int puk_verify(const uint8_t *sig, uint16_t sig_len, const uint8_t *hash, uint16
 }
 
 int cvc_verify(const uint8_t *cert, uint16_t cert_len, const uint8_t *ca, uint16_t ca_len) {
-    uint16_t puk_len = 0;
-    const uint8_t *puk = cvc_get_pub(ca, ca_len, &puk_len);
-    if (!puk) {
-        return PICOKEYS_WRONG_DATA;
-    }
-    uint16_t oid_len = 0, cv_body_len = 0, sig_len = 0;
-    const uint8_t *oid = cvc_get_field(puk, puk_len, &oid_len, 0x6);
-    const uint8_t *cv_body = cvc_get_body(cert, cert_len, &cv_body_len);
-    const uint8_t *sig = cvc_get_sig(cert, cert_len, &sig_len);
-    if (!sig) {
-        return PICOKEYS_WRONG_DATA;
-    }
-    if (!cv_body) {
-        return PICOKEYS_WRONG_DATA;
-    }
-    if (!oid) {
-        return PICOKEYS_WRONG_DATA;
-    }
+    cvc_pubkey_t signer;
     mbedtls_md_type_t md = MBEDTLS_MD_NONE;
-    if (memcmp(oid, OID_ID_TA_RSA, 9) == 0) { //RSA
-        if (memcmp(oid, OID_ID_TA_RSA_V1_5_SHA_1, oid_len) == 0) {
-            md = MBEDTLS_MD_SHA1;
-        }
-        else if (memcmp(oid, OID_ID_TA_RSA_V1_5_SHA_256, oid_len) == 0) {
-            md = MBEDTLS_MD_SHA256;
-        }
-        else if (memcmp(oid, OID_ID_TA_RSA_V1_5_SHA_512, oid_len) == 0) {
-            md = MBEDTLS_MD_SHA512;
-        }
-        else if (memcmp(oid, OID_ID_TA_RSA_PSS_SHA_1, oid_len) == 0) {
-            md = MBEDTLS_MD_SHA1;
-        }
-        else if (memcmp(oid, OID_ID_TA_RSA_PSS_SHA_256, oid_len) == 0) {
-            md = MBEDTLS_MD_SHA256;
-        }
-        else if (memcmp(oid, OID_ID_TA_RSA_PSS_SHA_512, oid_len) == 0) {
-            md = MBEDTLS_MD_SHA512;
-        }
-    }
-    else if (memcmp(oid, OID_ID_TA_ECDSA, 9) == 0) {   //ECC
-        if (memcmp(oid, OID_ID_TA_ECDSA_SHA_1, oid_len) == 0) {
-            md = MBEDTLS_MD_SHA1;
-        }
-        else if (memcmp(oid, OID_ID_TA_ECDSA_SHA_224, oid_len) == 0) {
-            md = MBEDTLS_MD_SHA224;
-        }
-        else if (memcmp(oid, OID_ID_TA_ECDSA_SHA_256, oid_len) == 0) {
-            md = MBEDTLS_MD_SHA256;
-        }
-        else if (memcmp(oid, OID_ID_TA_ECDSA_SHA_384, oid_len) == 0) {
-            md = MBEDTLS_MD_SHA384;
-        }
-        else if (memcmp(oid, OID_ID_TA_ECDSA_SHA_512, oid_len) == 0) {
-            md = MBEDTLS_MD_SHA512;
-        }
-    }
-    if (md == MBEDTLS_MD_NONE) {
+
+    if (cvc_extract_pubkey(ca, ca_len, &signer) != LIBCVC_OK || signer.alg_oid == NULL || signer.alg_oid_len == 0) {
         return PICOKEYS_WRONG_DATA;
     }
-    const mbedtls_md_info_t *md_info = mbedtls_md_info_from_type(md);
-    uint8_t hash[64], hash_len = mbedtls_md_get_size(md_info);
-    uint8_t tlv_body = 2 + tlv_format_len(cv_body_len, NULL);
-    int r = mbedtls_md(md_info, cv_body - tlv_body, cv_body_len + tlv_body, hash);
-    if (r != 0) {
-        return PICOKEYS_EXEC_ERROR;
+
+    if (cvc_algorithm_oid_to_md(signer.alg_oid, signer.alg_oid_len, &md) != LIBCVC_OK) {
+        return PICOKEYS_WRONG_DATA;
     }
-    r = puk_verify(sig, sig_len, hash, hash_len, ca, ca_len);
-    if (r != 0) {
-        return PICOKEYS_WRONG_SIGNATURE;
+
+    if (signer.kind == CVC_KEY_KIND_RSA) {
+        mbedtls_rsa_context rsa;
+        mbedtls_pk_context signer_pk;
+        int rc;
+
+        mbedtls_rsa_init(&rsa);
+        if (mbedtls_mpi_read_binary(&rsa.N, signer.n, signer.n_len) != 0 || mbedtls_mpi_read_binary(&rsa.E, signer.e, signer.e_len) != 0 || mbedtls_rsa_complete(&rsa) != 0 || mbedtls_rsa_check_pubkey(&rsa) != 0 || cvc_pk_wrap_rsa(&signer_pk, &rsa) != LIBCVC_OK) {
+            mbedtls_rsa_free(&rsa);
+            return PICOKEYS_WRONG_DATA;
+        }
+        if (cvc_algorithm_oid_is_rsa_pss(signer.alg_oid, signer.alg_oid_len)) {
+            mbedtls_rsa_set_padding(&rsa, MBEDTLS_RSA_PKCS_V21, md);
+        }
+        rc = cvc_verify_cert_signature(cert, cert_len, &signer_pk, md);
+        mbedtls_rsa_free(&rsa);
+        return rc == LIBCVC_OK ? PICOKEYS_OK : PICOKEYS_WRONG_SIGNATURE;
     }
-    return PICOKEYS_OK;
+
+    if (signer.kind == CVC_KEY_KIND_EC) {
+        mbedtls_ecdsa_context ecdsa;
+        mbedtls_pk_context signer_pk;
+        mbedtls_ecp_group_id ec_id = cvc_inherite_ec_group(ca, ca_len);
+        int rc;
+
+        if (ec_id == MBEDTLS_ECP_DP_NONE) {
+            return PICOKEYS_WRONG_DATA;
+        }
+        mbedtls_ecdsa_init(&ecdsa);
+        if (mbedtls_ecp_group_load(&ecdsa.grp, ec_id) != 0 || mbedtls_ecp_point_read_binary(&ecdsa.grp, &ecdsa.Q, signer.q, signer.q_len) != 0 || mbedtls_ecp_check_pubkey(&ecdsa.grp, &ecdsa.Q) != 0 || cvc_pk_wrap_ec(&signer_pk, &ecdsa) != LIBCVC_OK) {
+            mbedtls_ecdsa_free(&ecdsa);
+            return PICOKEYS_WRONG_DATA;
+        }
+        rc = cvc_verify_cert_signature(cert, cert_len, &signer_pk, md);
+        mbedtls_ecdsa_free(&ecdsa);
+        return rc == LIBCVC_OK ? PICOKEYS_OK : PICOKEYS_WRONG_SIGNATURE;
+    }
+
+    return PICOKEYS_WRONG_DATA;
 }

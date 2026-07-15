@@ -54,7 +54,8 @@ int cmd_keypair_gen(void) {
                     mbedtls_rsa_free(&rsa);
                     return SW_EXEC_ERROR();
                 }
-                if ((res_APDU_size = (uint16_t)asn1_cvc_aut(&rsa, PICOKEYS_KEY_RSA, res_APDU, MAX_APDU_DATA, NULL, 0)) == 0) {
+                mbedtls_pk_context subject_pk;
+                if (cvc_pk_wrap_rsa(&subject_pk, &rsa) != LIBCVC_OK || (res_APDU_size = (uint16_t)asn1_cvc_aut(&subject_pk, res_APDU, MAX_APDU_DATA, NULL, 0)) == 0) {
                     return SW_EXEC_ERROR();
                 }
                 ret = store_keys(&rsa, PICOKEYS_KEY_RSA, key_id);
@@ -124,7 +125,8 @@ int cmd_keypair_gen(void) {
                         }
                     }
                 }
-                if ((res_APDU_size = (uint16_t)asn1_cvc_aut(&ecdsa, PICOKEYS_KEY_EC, res_APDU, MAX_APDU_DATA, ext.data, ext.len)) == 0) {
+                mbedtls_pk_context subject_pk;
+                if (cvc_pk_wrap_ec(&subject_pk, &ecdsa) != LIBCVC_OK || (res_APDU_size = (uint16_t)asn1_cvc_aut(&subject_pk, res_APDU, MAX_APDU_DATA, ext.data, ext.len)) == 0) {
                     if (ext.data) {
                         free(ext.data);
                     }

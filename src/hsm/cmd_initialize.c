@@ -213,7 +213,8 @@ int cmd_initialize(void) {
                 return SW_EXEC_ERROR();
             }
             uint16_t ee_len = 0, term_len = 0;
-            if ((ee_len = asn1_cvc_aut(&ecdsa, PICOKEYS_KEY_EC, res_APDU, MAX_APDU_DATA, NULL, 0)) == 0) {
+            mbedtls_pk_context subject_pk;
+            if (cvc_pk_wrap_ec(&subject_pk, &ecdsa) != LIBCVC_OK || (ee_len = asn1_cvc_aut(&subject_pk, res_APDU, MAX_APDU_DATA, NULL, 0)) == 0) {
                 mbedtls_ecdsa_free(&ecdsa);
                 return SW_EXEC_ERROR();
             }
@@ -225,7 +226,7 @@ int cmd_initialize(void) {
                 return SW_EXEC_ERROR();
             }
 
-            if ((term_len = asn1_cvc_cert(&ecdsa, PICOKEYS_KEY_EC, res_APDU + ee_len, MAX_APDU_DATA - ee_len, NULL, 0, true)) == 0) {
+            if ((term_len = asn1_cvc_cert(&subject_pk, res_APDU + ee_len, MAX_APDU_DATA - ee_len, NULL, 0, true)) == 0) {
                 mbedtls_ecdsa_free(&ecdsa);
                 return SW_EXEC_ERROR();
             }

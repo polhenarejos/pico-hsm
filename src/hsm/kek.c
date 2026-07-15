@@ -656,19 +656,21 @@ int dkek_decode_key(uint8_t id, void *key_ctx, const uint8_t *in, uint16_t in_le
         len = get_uint16_be(kb + ofs); ofs += len + 2;
 
         //G
-        len = get_uint16_be(kb + ofs);
-#ifdef MBEDTLS_EDDSA_C
-        if (ec_id == MBEDTLS_ECP_DP_CURVE25519 && kb[ofs + 2] != 0x09) {
-            ec_id = MBEDTLS_ECP_DP_ED25519;
-        }
-        else if (ec_id == MBEDTLS_ECP_DP_CURVE448 && (len != 56 || kb[ofs + 2] != 0x05)) {
-            ec_id = MBEDTLS_ECP_DP_ED448;
-        }
-#endif
-        ofs += len + 2;
+        uint16_t g_len = get_uint16_be(kb + ofs);
+        ofs += g_len + 2;
 
         //d
-        len = get_uint16_be(kb + ofs); ofs += 2;
+        len = get_uint16_be(kb + ofs);
+#ifdef MBEDTLS_EDDSA_C
+        const uint8_t *g = kb + ofs - g_len;
+        if (ec_id == MBEDTLS_ECP_DP_CURVE25519 || ec_id == MBEDTLS_ECP_DP_ED25519) {
+            ec_id = (g_len == 32 && g[0] == 0x09) ? MBEDTLS_ECP_DP_CURVE25519 : MBEDTLS_ECP_DP_ED25519;
+        }
+        else if (ec_id == MBEDTLS_ECP_DP_CURVE448 || ec_id == MBEDTLS_ECP_DP_ED448) {
+            ec_id = (g_len == 56 && g[0] == 0x05 && len == 56) ? MBEDTLS_ECP_DP_CURVE448 : MBEDTLS_ECP_DP_ED448;
+        }
+#endif
+        ofs += 2;
         r = mbedtls_ecp_read_key(ec_id, ecdsa, kb + ofs, len);
         if (r != 0) {
             mbedtls_ecdsa_free(ecdsa);

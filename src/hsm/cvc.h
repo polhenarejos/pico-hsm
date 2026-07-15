@@ -25,6 +25,7 @@
 #include <stdbool.h>
 #endif
 #include "mbedtls/ecp.h"
+#include "../../pico-keys-sdk/third-party/libcvc/include/cvc.h"
 
 typedef struct PUK {
     const uint8_t *puk;
@@ -40,19 +41,8 @@ typedef struct PUK {
 
 #define MAX_PUK_STORE_ENTRIES 4
 
-extern uint16_t asn1_cvc_cert(void *rsa_ecdsa,
-                            uint8_t key_type,
-                            uint8_t *buf,
-                            uint16_t buf_len,
-                            const uint8_t *ext,
-                            uint16_t ext_len,
-                            bool full);
-extern uint16_t asn1_cvc_aut(void *rsa_ecdsa,
-                           uint8_t key_type,
-                           uint8_t *buf,
-                           uint16_t buf_len,
-                           const uint8_t *ext,
-                           uint16_t ext_len);
+extern uint16_t asn1_cvc_cert(const mbedtls_pk_context *subject, uint8_t *buf, uint16_t buf_len, const uint8_t *ext, uint16_t ext_len, bool full);
+extern uint16_t asn1_cvc_aut(const mbedtls_pk_context *subject, uint8_t *buf, uint16_t buf_len, const uint8_t *ext, uint16_t ext_len);
 extern uint16_t asn1_build_cert_description(const uint8_t *label,
                                           uint16_t label_len,
                                           const uint8_t *puk,
@@ -60,13 +50,6 @@ extern uint16_t asn1_build_cert_description(const uint8_t *label,
                                           uint16_t fid,
                                           uint8_t *buf,
                                           uint16_t buf_len);
-extern const uint8_t *cvc_get_field(const uint8_t *data, uint16_t len, uint16_t *olen, uint16_t tag);
-extern const uint8_t *cvc_get_body(const uint8_t *data, uint16_t len, uint16_t *olen);
-extern const uint8_t *cvc_get_sig(const uint8_t *data, uint16_t len, uint16_t *olen);
-extern const uint8_t *cvc_get_car(const uint8_t *data, uint16_t len, uint16_t *olen);
-extern const uint8_t *cvc_get_chr(const uint8_t *data, uint16_t len, uint16_t *olen);
-extern const uint8_t *cvc_get_pub(const uint8_t *data, uint16_t len, uint16_t *olen);
-extern const uint8_t *cvc_get_ext(const uint8_t *data, uint16_t len, uint16_t *olen);
 extern int cvc_verify(const uint8_t *cert, uint16_t cert_len, const uint8_t *ca, uint16_t ca_len);
 extern mbedtls_ecp_group_id cvc_inherite_ec_group(const uint8_t *ca, uint16_t ca_len);
 extern int puk_verify(const uint8_t *sig,
