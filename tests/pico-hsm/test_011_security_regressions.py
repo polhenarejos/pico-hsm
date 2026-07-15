@@ -113,6 +113,12 @@ def test_06_update_ef_rejects_out_of_bounds_offset(device):
     assert e.value.sw1 == 0x67 and e.value.sw2 == 0x00
 
 
+def test_general_authenticate_rejects_truncated_envelope(device):
+    with pytest.raises(APDUResponse) as e:
+        raw_send(device, command=0x86, data=[0x7C])
+    assert e.value.sw == SWCodes.SW_WRONG_LENGTH
+
+
 def test_07_secure_messaging_requires_valid_mac(device):
     device.initialize()
     device.logout()
