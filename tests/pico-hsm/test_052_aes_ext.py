@@ -20,7 +20,8 @@
 import pytest
 import os
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes, aead
-from picohsm import EncryptionMode, AES
+from picohsm import Algorithm, EncryptionMode, AES, OID
+from picokey import APDUResponse, SWCodes
 from picohsm.const import DEFAULT_DKEK_SHARES
 from const import DEFAULT_DKEK
 from binascii import hexlify
@@ -182,20 +183,14 @@ def test_aes_cfb_iv(device, size):
 )
 def test_aes_gcm_no_iv(device, size):
     pkey, keyid = generate_key(device, size)
-    ctA = device.aes(keyid, EncryptionMode.ENCRYPT, AES.GCM, MESSAGE, aad=AAD)
-
-    iv = b'\x00' * 16
-    encryptor = Cipher(algorithms.AES(pkey), modes.GCM(iv)).encryptor()
-    encryptor.authenticate_additional_data(AAD)
-    ctB = encryptor.update(MESSAGE) + encryptor.finalize()
-    assert(ctA == ctB + encryptor.tag)
-
-    dtA = device.aes(keyid, EncryptionMode.DECRYPT, AES.GCM, ctA, aad=AAD)
-    decryptor = Cipher(algorithms.AES(pkey), modes.GCM(iv, encryptor.tag)).decryptor()
-    decryptor.authenticate_additional_data(AAD)
-    dtB = decryptor.update(ctB) + decryptor.finalize()
-    assert(dtA == dtB)
-    assert(dtA == MESSAGE)
+    oid = getattr(OID, f'AES{size}_GCM')
+    data = [0x06, len(oid)] + list(oid)
+    data += [0x81, len(MESSAGE)] + list(MESSAGE)
+    data += [0x83, len(AAD)] + list(AAD)
+    with pytest.raises(APDUResponse) as e:
+        device.send(cla=0x80, command=0x78, p1=keyid,
+                    p2=Algorithm.ALGO_EXT_CIPHER_ENCRYPT, data=data)
+    assert e.value.sw == SWCodes.SW_WRONG_DATA
     device.delete_key(keyid)
 
 @pytest.mark.parametrize(
@@ -302,20 +297,34 @@ def test_aes_ctr_iv(device, size):
 @pytest.mark.parametrize(
     "size", [128, 192, 256]
 )
-def test_aes_ccm_no_iv(device, size):
+def test_aes_ccm_cipher(device, size):
     pkey, keyid = generate_key(device, size)
-    ctA = device.aes(keyid, EncryptionMode.ENCRYPT, AES.CCM, MESSAGE, aad=AAD)
+    iv = os.urandom(12)
+    ctA = device.aes(keyid, EncryptionMode.ENCRYPT, AES.CCM, MESSAGE, iv=iv, aad=AAD)
 
-    iv = b'\x00' * 12
     encryptor = aead.AESCCM(pkey)
     ctB = encryptor.encrypt(iv, MESSAGE, AAD)
-    assert(ctA == ctB)
+    assert ctA == ctB
 
-    dtA = device.aes(keyid, EncryptionMode.DECRYPT, AES.CCM, ctA, aad=AAD)
-    decryptor = encryptor
-    dtB = decryptor.decrypt(iv, ctB, AAD)
-    assert(dtA == dtB)
-    assert(dtA == MESSAGE)
+    dtA = device.aes(keyid, EncryptionMode.DECRYPT, AES.CCM, ctA, iv=iv, aad=AAD)
+    dtB = encryptor.decrypt(iv, ctB, AAD)
+    assert dtA == dtB
+    assert dtA == MESSAGE
+    device.delete_key(keyid)
+
+@pytest.mark.parametrize(
+    "size", [128, 192, 256]
+)
+def test_aes_ccm_no_iv_rejected(device, size):
+    pkey, keyid = generate_key(device, size)
+    oid = getattr(OID, f'AES{size}_CCM')
+    data = [0x06, len(oid)] + list(oid)
+    data += [0x81, len(MESSAGE)] + list(MESSAGE)
+    data += [0x83, len(AAD)] + list(AAD)
+    with pytest.raises(APDUResponse) as e:
+        device.send(cla=0x80, command=0x78, p1=keyid,
+                    p2=Algorithm.ALGO_EXT_CIPHER_ENCRYPT, data=data)
+    assert e.value.sw == SWCodes.SW_WRONG_DATA
     device.delete_key(keyid)
 
 @pytest.mark.parametrize(

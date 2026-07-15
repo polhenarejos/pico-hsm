@@ -21,7 +21,7 @@ import pytest
 import os
 from cryptography.hazmat.primitives.ciphers import aead
 import cryptography.exceptions
-from picohsm import DOPrefixes, EncryptionMode
+from picohsm import Algorithm, DOPrefixes, EncryptionMode, OID
 from picokey import APDUResponse, SWCodes
 from picohsm.const import DEFAULT_DKEK_SHARES
 from const import DEFAULT_DKEK
@@ -43,21 +43,31 @@ def generate_key(device):
 
 
 def test_cipher_chachapoly_cipher(device):
-    iv = b'\x00'*12
     pkey, keyid = generate_key(device)
-
-    ctd = device.chachapoly(keyid, EncryptionMode.ENCRYPT, data=MESSAGE, aad=AAD)
+    iv = os.urandom(12)
+    ctd = device.chachapoly(keyid, EncryptionMode.ENCRYPT, data=MESSAGE, iv=iv, aad=AAD)
 
     chacha = aead.ChaCha20Poly1305(pkey)
     ctg = chacha.encrypt(iv, MESSAGE, AAD)
-    assert(ctd == ctg)
+    assert ctd == ctg
 
-    pld = device.chachapoly(keyid, EncryptionMode.DECRYPT, data=ctd, aad=AAD)
+    pld = device.chachapoly(keyid, EncryptionMode.DECRYPT, data=ctd, iv=iv, aad=AAD)
 
     plg = chacha.decrypt(iv, ctg, AAD)
+    assert pld == plg
+    assert pld == MESSAGE
     device.delete_file(DOPrefixes.KEY_PREFIX, keyid)
-    assert(pld == plg)
-    assert(pld == MESSAGE)
+
+def test_cipher_chachapoly_no_iv_rejected(device):
+    pkey, keyid = generate_key(device)
+    data = [0x06, len(OID.CHACHAPOLY)] + list(OID.CHACHAPOLY)
+    data += [0x81, len(MESSAGE)] + list(MESSAGE)
+    data += [0x83, len(AAD)] + list(AAD)
+    with pytest.raises(APDUResponse) as e:
+        device.send(cla=0x80, command=0x78, p1=keyid,
+                    p2=Algorithm.ALGO_EXT_CIPHER_ENCRYPT, data=data)
+    assert e.value.sw == SWCodes.SW_WRONG_DATA
+    device.delete_file(DOPrefixes.KEY_PREFIX, keyid)
 
 def test_cipher_chachapoly_random_iv(device):
     pkey, keyid = generate_key(device)
