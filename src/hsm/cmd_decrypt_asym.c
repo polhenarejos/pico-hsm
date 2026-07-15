@@ -178,6 +178,7 @@ int cmd_decrypt_asym(void) {
                             return SW_EXEC_ERROR();
                         }
                         mbedtls_platform_zeroize(res_APDU, 32);
+                        decrement_key_counter(ef);
                         return SW_OK();
                     }
                 }

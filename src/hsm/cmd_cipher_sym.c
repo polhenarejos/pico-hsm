@@ -167,6 +167,9 @@ int cmd_cipher_sym(void) {
         if (!ef) {
             return SW_FILE_NOT_FOUND();
         }
+        if (get_key_counter(ef) == 0) {
+            return SW_FILE_FULL();
+        }
         if (key_has_purpose(ef, algo) == false) {
             return SW_CONDITIONS_NOT_SATISFIED();
         }
@@ -604,6 +607,9 @@ int cmd_cipher_sym(void) {
     else {
         mbedtls_platform_zeroize(kdata, sizeof(kdata));
         return SW_WRONG_P1P2();
+    }
+    if (ef) {
+        decrement_key_counter(ef);
     }
     return SW_OK();
 }
