@@ -26,7 +26,13 @@
 
 int cmd_general_authenticate(void) {
     if (P1(apdu) == 0x0 && P2(apdu) == 0x0) {
+        if (apdu.nc < 2) {
+            return SW_WRONG_LENGTH();
+        }
         if (apdu.data[0] == 0x7C) {
+            if (apdu.data[1] != apdu.nc - 2) {
+                return SW_WRONG_DATA();
+            }
             int r = 0;
             uint16_t pubkey_len = 0;
             const uint8_t *pubkey = NULL;
@@ -40,6 +46,9 @@ int cmd_general_authenticate(void) {
                     pubkey = tag_data - 1; //mbedtls ecdh starts reading one pos before
                     pubkey_len = tag_len + 1;
                 }
+            }
+            if (!pubkey) {
+                return SW_WRONG_DATA();
             }
             file_t *fkey = file_search(EF_KEY_DEV);
             if (!fkey) {
