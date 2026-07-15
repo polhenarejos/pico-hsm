@@ -175,6 +175,9 @@ static int node_derive_path(const uint8_t *path, uint16_t path_len, mbedtls_ecp_
 int cmd_bip_slip(void) {
     uint8_t p1 = P1(apdu), p2 = P2(apdu);
     if (p1 == 0x1 || p1 == 0x2 || p1 == 0x3) { // Master generation (K1 and P1)
+        if (!isUserAuthenticated) {
+            return SW_SECURITY_STATUS_NOT_SATISFIED();
+        }
         if (p2 >= 10) {
             return SW_INCORRECT_P1P2();
         }
