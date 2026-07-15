@@ -27,6 +27,7 @@
 #include "cvc.h"
 #include "tlv.h"
 #include "usb.h"
+#include "button.h"
 #include "random.h"
 #include "version.h"
 
@@ -273,11 +274,18 @@ bool wait_button_pressed(void) {
     uint32_t val = EV_PRESS_BUTTON;
 #ifndef ENABLE_EMULATION
     uint16_t opts = get_device_options();
-    if (opts & HSM_OPT_BOOTSEL_BUTTON) {
+    bool require_button = opts & HSM_OPT_BOOTSEL_BUTTON;
+    if (require_button) {
+        bool previous_force_button_wait = force_button_wait;
+#ifdef FORCE_BUTTON_WAIT
+        force_button_wait = true;
+#endif
         queue_try_add(&card_to_usb_q, &val);
         do{
             queue_remove_blocking(&usb_to_card_q, &val);
-        } while (val != EV_BUTTON_PRESSED && val != EV_BUTTON_TIMEOUT);
+        } while (val != EV_BUTTON_PRESSED && val != EV_BUTTON_TIMEOUT && val != EV_BUTTON_CANCELLED);
+        force_button_wait = previous_force_button_wait;
+        return val != EV_BUTTON_PRESSED;
     }
 #endif
     return val == EV_BUTTON_TIMEOUT;
