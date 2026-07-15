@@ -512,7 +512,7 @@ uint32_t decrement_key_counter(file_t *fkey) {
             if (tag == 0x90) { // ofset tag
                 uint32_t val = get_uint32_be(tag_data);
                 val--;
-                put_uint32_be(val, tag_data);
+                put_uint32_be(val, cmeta + (tag_data - meta_data));
                 int r = meta_add(fkey->fid, cmeta, (uint16_t)meta_size);
                 free(cmeta);
                 if (r != 0) {
@@ -771,7 +771,9 @@ int sc_hsm_process_apdu(void) {
     for (const cmd_t *cmd = cmds; cmd->ins != 0x00; cmd++) {
         if (cmd->ins == INS(apdu)) {
             int res = cmd->cmd_handler();
-            sm_wrap();
+            if (sm_wrap() != PICOKEYS_OK) {
+                return SW_WRONG_LENGTH();
+            }
             if ((CLA(apdu) >> 2) & 0x3) {
                 apdu.ne = ne;
             }
