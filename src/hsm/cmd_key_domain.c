@@ -37,8 +37,8 @@ int cmd_key_domain(void) {
     //if (dkeks == 0)
     //    return SW_COMMAND_NOT_ALLOWED();
     uint8_t p1 = P1(apdu), p2 = P2(apdu);
-    if ((has_session_pin == false || isUserAuthenticated == false) && apdu.nc > 0 &&
-        !(p1 == 0x0 && p2 == 0x0)) {
+    bool mutates_domain = apdu.nc > 0 || p1 == 0x1 || p1 == 0x3 || p1 == 0x4;
+    if (mutates_domain && (has_session_pin == false || isUserAuthenticated == false)) {
         return SW_CONDITIONS_NOT_SATISFIED();
     }
     if (p2 >= MAX_KEY_DOMAINS) {
@@ -103,7 +103,7 @@ int cmd_key_domain(void) {
             return SW_WRONG_LENGTH();
         }
         if (p1 == 0x3) { //if key domain is not empty, command is denied
-            for (uint16_t i = 1; i < 256; i++) {
+            for (uint16_t i = 0; i < 256; i++) {
                 file_t *fkey = file_search(KEY_PREFIX << 8 | (uint8_t)i);
                 if (get_key_domain(fkey) == p2) {
                     return SW_FILE_EXISTS();
