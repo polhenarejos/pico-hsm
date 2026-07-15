@@ -42,12 +42,19 @@ def test_initialize(device):
     resp = device.import_dkek(DEFAULT_DKEK)
 
 
+def hd_generate_master_raw(device, curve, id, seed):
+    p1 = {'secp256k1': 0x01, 'secp256r1': 0x02, 'symmetric': 0x03}[curve]
+    return device._PicoHSM__card.send(
+        command=0x4A, cla=0x80, p1=p1, p2=id, data=seed, codes=[]
+    )
+
+
 def test_generate_master_requires_user_authentication(device):
     device.initialize(dkek_shares=DEFAULT_DKEK_SHARES)
     device.logout()
 
     with pytest.raises(APDUResponse) as e:
-        device.hd_generate_master_node(curve='secp256k1', id=0, seed=b'\x00' * 16)
+        hd_generate_master_raw(device, curve='secp256k1', id=0, seed=b'\x00' * 16)
     assert e.value.sw == SWCodes.SW_SECURITY_STATUS_NOT_SATISFIED
 
 seeds = [
