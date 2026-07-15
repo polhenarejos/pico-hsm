@@ -45,6 +45,9 @@ int cmd_derive_asym(void) {
     if (!(fkey = file_search((KEY_PREFIX << 8) | key_id)) || !file_has_data(fkey)) {
         return SW_FILE_NOT_FOUND();
     }
+    if (get_key_counter(fkey) == 0) {
+        return SW_FILE_FULL();
+    }
     if (key_has_purpose(fkey, ALGO_EC_DERIVE) == false) {
         return SW_CONDITIONS_NOT_SATISFIED();
     }
@@ -97,5 +100,6 @@ int cmd_derive_asym(void) {
     else {
         return SW_WRONG_DATA();
     }
+    decrement_key_counter(fkey);
     return SW_OK();
 }
