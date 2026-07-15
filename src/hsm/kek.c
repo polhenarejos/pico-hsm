@@ -110,6 +110,9 @@ int load_mkek(uint8_t *mkek) {
 mse_t mse = { .init = false };
 
 int mse_decrypt_ct(uint8_t *data, size_t len) {
+    if (!data || len < 16) {
+        return PICOKEYS_WRONG_DATA;
+    }
     mbedtls_chachapoly_context chatx;
     mbedtls_chachapoly_init(&chatx);
     mbedtls_chachapoly_setkey(&chatx, mse.key_enc + 12);
