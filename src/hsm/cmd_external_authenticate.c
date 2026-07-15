@@ -22,7 +22,7 @@
 
 extern file_t *ef_puk_aut;
 extern uint8_t challenge[256];
-extern uint8_t challenge_len;
+extern uint16_t challenge_len;
 
 int cmd_external_authenticate(void) {
     if (P1(apdu) != 0x0 || P2(apdu) != 0x0) {
@@ -33,6 +33,9 @@ int cmd_external_authenticate(void) {
     }
     if (apdu.nc == 0) {
         return SW_WRONG_LENGTH();
+    }
+    if (!pka_challenge_pending()) {
+        return SW_CONDITIONS_NOT_SATISFIED();
     }
     file_t *ef_puk = file_search(EF_PUKAUT);
     if (!file_has_data(ef_puk)) {
@@ -56,6 +59,7 @@ int cmd_external_authenticate(void) {
     }
     if (auts >= puk_data[2]) {
         isUserAuthenticated = true;
+        clear_pka_challenge();
     }
     return SW_OK();
 }

@@ -56,6 +56,9 @@ static void init_sc_hsm(void);
 static int sc_hsm_unload(void);
 
 extern const uint8_t *ccid_atr;
+extern mbedtls_ecp_keypair hd_context;
+extern uint8_t hd_keytype;
+extern file_t *ef_puk_aut;
 
 static int sc_hsm_select_aid(app_t *a, uint8_t force) {
     (void) force;
@@ -234,6 +237,13 @@ void init_sc_hsm(void) {
     scan_all();
     has_session_pin = has_session_sopin = false;
     isUserAuthenticated = false;
+    mbedtls_ecp_keypair_free(&hd_context);
+    hd_keytype = 0;
+    mbedtls_platform_zeroize(mkek_mask, sizeof(mkek_mask));
+    has_mkek_mask = false;
+    clear_pka_challenge();
+    current_puk = NULL;
+    ef_puk_aut = NULL;
     cmd_select();
     reset_puk_store();
 }
@@ -241,6 +251,13 @@ void init_sc_hsm(void) {
 int sc_hsm_unload(void) {
     has_session_pin = has_session_sopin = false;
     isUserAuthenticated = false;
+    mbedtls_ecp_keypair_free(&hd_context);
+    hd_keytype = 0;
+    mbedtls_platform_zeroize(mkek_mask, sizeof(mkek_mask));
+    has_mkek_mask = false;
+    clear_pka_challenge();
+    current_puk = NULL;
+    ef_puk_aut = NULL;
     return PICOKEYS_OK;
 }
 

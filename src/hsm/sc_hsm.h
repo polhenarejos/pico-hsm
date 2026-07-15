@@ -135,6 +135,8 @@ extern int cmd_read_binary(void);
 extern int cmd_verify(void);
 extern int cmd_reset_retry(void);
 extern int cmd_challenge(void);
+extern bool pka_challenge_pending(void);
+extern void clear_pka_challenge(void);
 extern int cmd_external_authenticate(void);
 extern int cmd_mse(void);
 extern int cmd_initialize(void);
