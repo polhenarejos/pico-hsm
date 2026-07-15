@@ -21,6 +21,7 @@ import pytest
 from binascii import unhexlify, hexlify
 from cvc.certificates import CVC
 from picohsm.utils import int_to_bytes
+from picohsm.const import DEFAULT_PIN
 from picokey import APDUResponse, SWCodes
 from const import TERM_CERT, DICA_CERT
 from cryptography.hazmat.primitives.asymmetric import ec, utils
@@ -41,6 +42,7 @@ def test_register_puk(device):
     status = device.get_puk_status()
     assert(status == bytes([1,1,1,0]))
 
+    device.login(DEFAULT_PIN)
     status = device.register_puk(AUT_PUK, TERM_CERT, DICA_CERT)
     assert(status == bytes([1,0,1,0]))
     assert(device.check_puk_key(term_chr) == 0)
@@ -96,6 +98,7 @@ def test_enumerate_puk_1(device):
     assert(len(puks) == 1)
     assert(puks[0]['status'] == -1)
 
+    device.login(DEFAULT_PIN)
     device.register_puk(AUT_PUK, TERM_CERT, DICA_CERT)
     puks = device.enumerate_puk()
     assert(len(puks) == 1)
@@ -108,6 +111,7 @@ def test_enumerate_puk_2(device):
     assert(puks[0]['status'] == -1)
     assert(puks[1]['status'] == -1)
 
+    device.login(DEFAULT_PIN)
     device.register_puk(AUT_PUK, TERM_CERT, DICA_CERT)
     puks = device.enumerate_puk()
     assert(len(puks) == 2)
@@ -119,6 +123,7 @@ def test_register_more_puks(device):
     status = device.get_puk_status()
     assert(status == bytes([2,2,1,0]))
 
+    device.login(DEFAULT_PIN)
     status = device.register_puk(AUT_PUK, TERM_CERT, DICA_CERT)
     assert(status == bytes([2,1,1,0]))
 
@@ -134,6 +139,7 @@ def test_check_puk_key(device):
     status = device.check_puk_key(term_chr)
     assert(status == -1)
 
+    device.login(DEFAULT_PIN)
     status = device.register_puk(AUT_PUK, TERM_CERT, DICA_CERT)
     status = device.check_puk_key(term_chr)
     assert(status == 0)
