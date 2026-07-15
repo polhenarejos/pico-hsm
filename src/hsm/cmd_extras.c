@@ -112,6 +112,9 @@ int cmd_extras(void) {
             if (mse.init == false) {
                 return SW_COMMAND_NOT_ALLOWED();
             }
+            if (apdu.nc != MKEK_KEY_SIZE + 16) {
+                return SW_WRONG_LENGTH();
+            }
             uint16_t opts = get_device_options();
             int ret = mse_decrypt_ct(apdu.data, apdu.nc);
             if (ret != 0) {
