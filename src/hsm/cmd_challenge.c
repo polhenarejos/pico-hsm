@@ -33,7 +33,7 @@ void clear_pka_challenge(void) {
 }
 
 int cmd_challenge(void) {
-    if (apdu.ne == 0 || apdu.ne > sizeof(challenge)) {
+    if (apdu.ne == 0) {
         return SW_WRONG_LENGTH();
     }
     uint8_t *rb = (uint8_t *) random_bytes_get(apdu.ne);
@@ -43,9 +43,11 @@ int cmd_challenge(void) {
     memcpy(res_APDU, rb, apdu.ne);
     clear_pka_challenge();
     memset(puk_status, 0, sizeof(puk_status));
-    challenge_len = (uint16_t)apdu.ne;
-    memcpy(challenge, rb, challenge_len);
-    challenge_pending = true;
+    if (apdu.ne <= sizeof(challenge)) {
+        challenge_len = (uint16_t)apdu.ne;
+        memcpy(challenge, rb, challenge_len);
+        challenge_pending = true;
+    }
     res_APDU_size = (uint16_t)apdu.ne;
     return SW_OK();
 }
