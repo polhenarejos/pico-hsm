@@ -328,7 +328,7 @@ extern int puk_store_entries;
 
 static int puk_store_index(const uint8_t *chr, uint16_t chr_len) {
     for (int i = 0; i < puk_store_entries; i++) {
-        if (memcmp(puk_store[i].chr, chr, chr_len) == 0) {
+        if (puk_store[i].chr && puk_store[i].chr_len == chr_len && memcmp(puk_store[i].chr, chr, chr_len) == 0) {
             return i;
         }
     }
@@ -342,7 +342,7 @@ mbedtls_ecp_group_id cvc_inherite_ec_group(const uint8_t *ca, uint16_t ca_len) {
     do {
         chr = cvc_get_chr(ca, ca_len, &chr_len);
         car = cvc_get_car(ca, ca_len, &car_len);
-        eq = memcmp(car, chr, MAX(car_len, chr_len));
+        eq = car_len == chr_len ? memcmp(car, chr, chr_len) : -1;
         if (car && eq != 0) {
             int idx = puk_store_index(car, car_len);
             if (idx != -1) {
