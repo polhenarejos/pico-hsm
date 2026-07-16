@@ -37,7 +37,8 @@ int cmd_key_domain(void) {
     //if (dkeks == 0)
     //    return SW_COMMAND_NOT_ALLOWED();
     uint8_t p1 = P1(apdu), p2 = P2(apdu);
-    bool mutates_domain = apdu.nc > 0 || p1 == 0x1 || p1 == 0x3 || p1 == 0x4;
+
+    bool mutates_domain = p1 == 0x1 || p1 == 0x3 || p1 == 0x4;
     if (mutates_domain && (has_session_pin == false || isUserAuthenticated == false)) {
         return SW_CONDITIONS_NOT_SATISFIED();
     }
