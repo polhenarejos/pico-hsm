@@ -97,7 +97,7 @@ int cmd_read_binary(void) {
             if (apdu.ne > 0) {
                 response_len = MIN(response_len, apdu.ne);
             }
-            response_len = MIN(response_len, MAX_APDU_DATA);
+            response_len = MIN(response_len, (uint32_t)MAX_APDU_DATA);
             if (file_read_at(ef, offset, res_APDU, response_len) != PICOKEYS_OK) {
                 return SW_EXEC_ERROR();
             }
