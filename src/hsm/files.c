@@ -21,7 +21,7 @@ extern const uint8_t sc_hsm_aid[];
 extern int parse_token_info(const file_t *f, int mode);
 extern int parse_ef_dir(const file_t *f, int mode);
 
-file_t file_entries[] = {
+file_entry_t file_entries[] = {
     /*  0 */ { .fid = 0x3f00, // MF
                .parent = 0xff,
                .name = NULL,
@@ -248,10 +248,10 @@ file_t file_entries[] = {
                .acl = { 0 } }
 };
 
-const file_t *MF = &file_entries[0];
-const file_t *file_last = &file_entries[sizeof(file_entries) / sizeof(file_t) - 1];
-const file_t *file_openpgp = &file_entries[sizeof(file_entries) / sizeof(file_t) - 3];
-const file_t *file_sc_hsm = &file_entries[sizeof(file_entries) / sizeof(file_t) - 2];
+const file_t *MF = &file_entries[0].file;
+const file_entry_t *file_last = &file_entries[sizeof(file_entries) / sizeof(file_entry_t) - 1];
+const file_t *file_openpgp = &file_entries[sizeof(file_entries) / sizeof(file_entry_t) - 3].file;
+const file_t *file_sc_hsm = &file_entries[sizeof(file_entries) / sizeof(file_entry_t) - 2].file;
 file_t *file_pin1 = NULL;
 file_t *file_retries_pin1 = NULL;
 file_t *file_sopin = NULL;

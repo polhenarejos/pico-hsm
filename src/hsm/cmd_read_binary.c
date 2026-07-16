@@ -78,7 +78,7 @@ int cmd_read_binary(void) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
     if (ef->data) {
-        if ((ef->type & FILE_DATA_FUNC) == FILE_DATA_FUNC) {
+        if ((file_get_type(ef) & FILE_DATA_FUNC) == FILE_DATA_FUNC) {
             union {
                 uint8_t *data;
                 file_data_handler_t handler;
