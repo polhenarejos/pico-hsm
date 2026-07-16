@@ -18,8 +18,14 @@
 #include "sc_hsm.h"
 #include "files.h"
 
-extern uint16_t dynamic_files;
-extern file_t dynamic_file[];
+static bool append_file_with_prefix(file_t *file, void *ctx) {
+    uint8_t prefix = *(const uint8_t *)ctx;
+    if ((file->fid >> 8) == prefix) {
+        res_APDU[res_APDU_size++] = prefix;
+        res_APDU[res_APDU_size++] = file->fid & 0xff;
+    }
+    return true;
+}
 
 int cmd_list_keys(void) {
     /* First we send DEV private key */
@@ -30,36 +36,9 @@ int cmd_list_keys(void) {
     if (file_search(EF_KEY_DEV)) {
         res_APDU_size += put_uint16_be(EF_KEY_DEV, res_APDU + res_APDU_size);
     }
-    //first CC
-    for (int i = 0; i < dynamic_files; i++) {
-        file_t *f = &dynamic_file[i];
-        if ((f->fid & 0xff00) == (KEY_PREFIX << 8)) {
-            res_APDU[res_APDU_size++] = KEY_PREFIX;
-            res_APDU[res_APDU_size++] = f->fid & 0xff;
-        }
-    }
-    for (int i = 0; i < dynamic_files; i++) {
-        file_t *f = &dynamic_file[i];
-        if ((f->fid & 0xff00) == (PRKD_PREFIX << 8)) {
-            res_APDU[res_APDU_size++] = PRKD_PREFIX;
-            res_APDU[res_APDU_size++] = f->fid & 0xff;
-        }
-    }
-    //second CD
-    for (int i = 0; i < dynamic_files; i++) {
-        file_t *f = &dynamic_file[i];
-        if ((f->fid & 0xff00) == (CD_PREFIX << 8)) {
-            res_APDU[res_APDU_size++] = CD_PREFIX;
-            res_APDU[res_APDU_size++] = f->fid & 0xff;
-        }
-    }
-
-    for (int i = 0; i < dynamic_files; i++) {
-        file_t *f = &dynamic_file[i];
-        if ((f->fid & 0xff00) == (DCOD_PREFIX << 8)) {
-            res_APDU[res_APDU_size++] = DCOD_PREFIX;
-            res_APDU[res_APDU_size++] = f->fid & 0xff;
-        }
+    const uint8_t prefixes[] = { KEY_PREFIX, PRKD_PREFIX, CD_PREFIX, DCOD_PREFIX };
+    for (size_t i = 0; i < sizeof(prefixes); i++) {
+        file_for_each_dynamic(append_file_with_prefix, (void *)&prefixes[i]);
     }
 #if !defined(ENABLE_EMULATION) && !defined(ESP_PLATFORM)
     if ((apdu.rlen + 2 + 10) % 64 == 0) { // FIX for strange behaviour with PSCS and multiple of 64
