@@ -100,17 +100,27 @@ def test_04_session_pin_instruction_removed(device):
     assert e.value.sw1 == 0x6D and e.value.sw2 == 0x00
 
 
-def test_06_update_ef_rejects_out_of_bounds_offset(device):
+def test_06_update_ef_rejects_offset_wider_than_32_bits(device):
     fid = (DOPrefixes.DATA_PREFIX << 8) | 0x10
     device.initialize()
     device.login(DEFAULT_PIN)
     device.put_contents(p1=fid, data=b"0123456789abcdef")
 
-    # offset=4030, len=8 => 4038 (>4032) must be rejected.
-    data = [0x54, 0x02, 0x0F, 0xBE, 0x53, 0x08] + [0xAA] * 8
+    data = [0x54, 0x05, 0x00, 0x00, 0x00, 0x00, 0x10, 0x53, 0x01, 0xAA]
     with pytest.raises(APDUResponse) as e:
         raw_send(device, command=0xD7, p1=(fid >> 8) & 0xFF, p2=fid & 0xFF, data=data)
-    assert e.value.sw1 == 0x67 and e.value.sw2 == 0x00
+    assert e.value.sw == SWCodes.SW_WRONG_DATA
+
+
+def test_07_read_binary_odd_rejects_missing_offset(device):
+    fid = (DOPrefixes.DATA_PREFIX << 8) | 0x11
+    device.initialize()
+    device.login(DEFAULT_PIN)
+    device.put_contents(p1=fid, data=b"read-offset-regression")
+
+    with pytest.raises(APDUResponse) as e:
+        raw_send(device, command=0xB1, p1=(fid >> 8) & 0xFF, p2=fid & 0xFF, ne=1)
+    assert e.value.sw == SWCodes.SW_WRONG_DATA
 
 
 def test_general_authenticate_rejects_truncated_envelope(device):

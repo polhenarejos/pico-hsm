@@ -22,9 +22,10 @@ int cmd_update_ef(void) {
     uint8_t p1 = P1(apdu), p2 = P2(apdu);
     uint16_t fid = (p1 << 8) | p2;
     uint8_t *data = NULL;
-    uint16_t offset = 0;
-    uint16_t data_len = 0;
+    uint32_t offset = 0;
+    uint32_t data_len = 0;
     file_t *ef = NULL;
+
     if (!isUserAuthenticated) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
@@ -53,13 +54,16 @@ int cmd_update_ef(void) {
     tlv_ctx_t ctxi;
     tlv_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
     while (tlv_walk(&ctxi, &p, &tag, &tag_len, &tag_data)) {
-        if (tag == 0x54) { //ofset tag
-            for (size_t i = 1; i <= tag_len; i++) {
-                offset |= (*tag_data++ << (8 * (tag_len - i)));
+        if (tag == 0x54) { // Offset data object.
+            if (tag_len > sizeof(offset)) {
+                return SW_WRONG_DATA();
+            }
+            for (size_t i = 0; i < tag_len; i++) {
+                offset = (offset << 8) | *tag_data++;
             }
         }
-        else if (tag == 0x53) {   //data
-            data_len = (uint16_t)tag_len;
+        else if (tag == 0x53) { // Data object.
+            data_len = tag_len;
             data = tag_data;
         }
     }
@@ -87,15 +91,10 @@ int cmd_update_ef(void) {
             if (!file_has_data(ef)) {
                 return SW_DATA_INVALID();
             }
-            if (offset + data_len > 4032) {
+            if (offset > UINT32_MAX - data_len) {
                 return SW_WRONG_LENGTH();
             }
-
-            uint8_t *data_merge = (uint8_t *) calloc(1, MAX(offset + data_len, file_get_size(ef)));
-            memcpy(data_merge, file_get_data(ef), file_get_size(ef));
-            memcpy(data_merge + offset, data, data_len);
-            int r = file_put_data(ef, data_merge, offset + data_len);
-            free(data_merge);
+            int r = file_put_data_offset(ef, data, data_len, offset);
             if (r != PICOKEYS_OK) {
                 return SW_MEMORY_FAILURE();
             }

@@ -20,7 +20,7 @@
 typedef int (*file_data_handler_t)(const file_t *f, int mode);
 
 int cmd_read_binary(void) {
-    uint16_t offset = 0;
+    uint32_t offset = 0;
     uint8_t ins = INS(apdu), p1 = P1(apdu), p2 = P2(apdu);
     file_t *ef = NULL;
 
@@ -51,13 +51,12 @@ int cmd_read_binary(void) {
                 return SW_FILE_NOT_FOUND();
             }
 
-            if (apdu.data[0] != 0x54) {
+            if (apdu.nc < 2 || apdu.data[0] != 0x54 || apdu.data[1] > sizeof(offset) || apdu.nc < (uint32_t)apdu.data[1] + 2) {
                 return SW_WRONG_DATA();
             }
-
             offset = 0;
-            for (int d = 0; d < apdu.data[1]; d++) {
-                offset |= apdu.data[2 + d] << (apdu.data[1] - 1 - d) * 8;
+            for (size_t d = 0; d < apdu.data[1]; d++) {
+                offset = (offset << 8) | apdu.data[2 + d];
             }
         }
     }
@@ -66,15 +65,7 @@ int cmd_read_binary(void) {
         return SW_FILE_NOT_FOUND();
     }
 
-    if (offset > 0x7fff) {
-        return SW_WRONG_P1P2();
-    }
-
-    if ((ef->fid >> 8) == PROT_DATA_PREFIX) {
-        memset(ef->acl, 0x90, sizeof(ef->acl)); //force PIN for protected data objects
-    }
-
-    if ((ef->fid >> 8) == KEY_PREFIX || !file_authenticate_action(ef, ACL_OP_READ_SEARCH)) {
+    if ((ef->fid >> 8) == KEY_PREFIX || ((ef->fid >> 8) == PROT_DATA_PREFIX && !isUserAuthenticated) || !file_authenticate_action(ef, ACL_OP_READ_SEARCH)) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
     if (ef->data) {
@@ -98,17 +89,19 @@ int cmd_read_binary(void) {
             }
         }
         else {
-            uint16_t data_len = file_get_size(ef);
+            uint32_t data_len = file_get_size(ef);
             if (offset > data_len) {
                 return SW_WARNING_EOF();
             }
-
-            //uint16_t maxle = data_len - offset;
-            //if (apdu.ne > maxle) {
-            //    apdu.ne = maxle;
-            //}
-            memcpy(res_APDU, file_get_data(ef) + offset, data_len - offset);
-            res_APDU_size = data_len - offset;
+            uint32_t response_len = data_len - offset;
+            if (apdu.ne > 0) {
+                response_len = MIN(response_len, apdu.ne);
+            }
+            response_len = MIN(response_len, MAX_APDU_DATA);
+            if (file_read_at(ef, offset, res_APDU, response_len) != PICOKEYS_OK) {
+                return SW_EXEC_ERROR();
+            }
+            res_APDU_size = (uint16_t)response_len;
         }
     }
 
