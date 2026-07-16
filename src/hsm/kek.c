@@ -70,24 +70,29 @@ int load_mkek(uint8_t *mkek) {
     }
 
     uint16_t fid_size = file_get_size(ef);
-    bool legacy_mkek = fid_size == MKEK_SIZE_OLD;
+    bool is_legacy_mkek = fid_size == MKEK_SIZE_OLD;
     if (fid_size == MKEK_SIZE_OLD) {
-        memcpy(mkek, file_get_data(ef), MKEK_SIZE_OLD);
+        uint8_t legacy_mkek[MKEK_SIZE_OLD];
+        memcpy(legacy_mkek, file_get_data(ef), sizeof(legacy_mkek));
         if (has_mkek_mask) {
-            mkek_masked(mkek, mkek_mask);
+            mkek_masked(legacy_mkek, mkek_mask);
         }
-        int ret = aes_decrypt_cfb_256(pin, MKEK_IV(mkek), MKEK_KEY(mkek), MKEK_KEY_SIZE + MKEK_KEY_CS_SIZE);
+        int ret = aes_decrypt_cfb_256(pin, MKEK_IV(legacy_mkek), MKEK_KEY(legacy_mkek), MKEK_KEY_SIZE + MKEK_KEY_CS_SIZE);
         if (ret != 0) {
+            mbedtls_platform_zeroize(legacy_mkek, sizeof(legacy_mkek));
             return PICOKEYS_EXEC_ERROR;
         }
         uint32_t mkek_checksum = 0;
-        memcpy(&mkek_checksum, MKEK_CHECKSUM(mkek), sizeof(mkek_checksum));
-        if (crc32c(MKEK_KEY(mkek), MKEK_KEY_SIZE) != mkek_checksum) {
+        memcpy(&mkek_checksum, MKEK_CHECKSUM(legacy_mkek), sizeof(mkek_checksum));
+        if (crc32c(MKEK_KEY(legacy_mkek), MKEK_KEY_SIZE) != mkek_checksum) {
+            mbedtls_platform_zeroize(legacy_mkek, sizeof(legacy_mkek));
             return PICOKEYS_WRONG_DKEK;
         }
         if (otp_key_1) {
-            mkek_masked(mkek, otp_key_1);
+            mkek_masked(legacy_mkek, otp_key_1);
         }
+        memcpy(mkek, legacy_mkek, MKEK_SIZE);
+        mbedtls_platform_zeroize(legacy_mkek, sizeof(legacy_mkek));
     }
     else if (fid_size == MKEK_FILE_SIZE) {
         uint8_t format = *file_get_data(ef);
@@ -107,7 +112,7 @@ int load_mkek(uint8_t *mkek) {
     else {
         return PICOKEYS_ERR_FILE_NOT_FOUND;
     }
-    if (legacy_mkek) {
+    if (is_legacy_mkek) {
         int ret = store_mkek(mkek);
         if (ret != PICOKEYS_OK) {
             return ret;
