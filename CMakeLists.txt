@@ -81,6 +81,7 @@ set(SOURCES ${SOURCES}
     ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cvc.c
     ${CMAKE_CURRENT_LIST_DIR}/src/hsm/files.c
     ${CMAKE_CURRENT_LIST_DIR}/src/hsm/kek.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/hsm/key_container.c
     ${CMAKE_CURRENT_LIST_DIR}/src/hsm/object_authorization.c
     ${CMAKE_CURRENT_LIST_DIR}/src/hsm/object_provider.c
 )
@@ -170,6 +171,22 @@ if(NOT ESP_PLATFORM)
         endif()
         target_link_libraries(hsm_object_authorization_test PRIVATE mbedtls)
         add_test(NAME hsm_object_authorization_test COMMAND hsm_object_authorization_test)
+
+        add_executable(hsm_key_container_test
+            ${CMAKE_CURRENT_LIST_DIR}/pico-keys-sdk/src/fs/object_container.c
+            ${CMAKE_CURRENT_LIST_DIR}/pico-keys-sdk/src/fs/object_policy.c
+            ${CMAKE_CURRENT_LIST_DIR}/pico-keys-sdk/src/fs/object_store_txn.c
+            ${CMAKE_CURRENT_LIST_DIR}/src/hsm/key_container.c
+            ${CMAKE_CURRENT_LIST_DIR}/tests/hsm_key_container_test.c
+        )
+        target_include_directories(hsm_key_container_test PRIVATE ${INCLUDES})
+        if(MSVC)
+            target_compile_options(hsm_key_container_test PRIVATE /W4 /WX)
+        else()
+            target_compile_options(hsm_key_container_test PRIVATE -Wall -Wextra -Werror)
+        endif()
+        target_link_libraries(hsm_key_container_test PRIVATE mbedtls)
+        add_test(NAME hsm_key_container_test COMMAND hsm_key_container_test)
     else()
         pico_add_extra_outputs(${CMAKE_PROJECT_NAME})
     endif()

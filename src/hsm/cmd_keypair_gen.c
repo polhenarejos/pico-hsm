@@ -20,6 +20,7 @@
 #include "files.h"
 #include "tlv.h"
 #include "cvc.h"
+#include "key_container.h"
 #include "oid.h"
 #include "random.h"
 #include "kek.h"
@@ -151,8 +152,14 @@ int cmd_keypair_gen(void) {
     if (find_and_store_meta_key(key_id) != PICOKEYS_OK) {
         return SW_EXEC_ERROR();
     }
-    file_t *fpk = file_new((EE_CERTIFICATE_PREFIX << 8) | key_id);
-    ret = file_put_data(fpk, res_APDU, res_APDU_size);
+    file_t *marker = file_search((HSM_OBJECT_PREFIX << 8) | key_id);
+    if (hsm_key_container_is_marker(marker)) {
+        ret = hsm_key_container_store_object(key_id, HSM_KEY_OBJECT_CERTIFICATE, res_APDU, res_APDU_size);
+    }
+    else {
+        file_t *fpk = file_new((EE_CERTIFICATE_PREFIX << 8) | key_id);
+        ret = file_put_data(fpk, res_APDU, res_APDU_size);
+    }
     if (ret != 0) {
         return SW_EXEC_ERROR();
     }

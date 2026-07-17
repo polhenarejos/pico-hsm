@@ -17,10 +17,13 @@
 
 #include "sc_hsm.h"
 #include "files.h"
+#include "key_container.h"
 #include "version.h"
 
 extern const file_t *file_openpgp;
 extern const file_t *file_sc_hsm;
+
+static file_t logical_object_file;
 
 void select_file(file_t *pe) {
     if (!pe) {
@@ -46,6 +49,8 @@ int cmd_select(void) {
     file_t *pe = NULL;
     uint16_t fid = 0x0;
     bool logical_key = false;
+    bool logical_object = false;
+    uint32_t logical_object_size = 0;
 
     // Only "first or only occurence" supported
     //if ((p2 & 0xF3) != 0x00) {
@@ -54,6 +59,9 @@ int cmd_select(void) {
 
     if (apdu.nc == 2) {
         fid = get_uint16_be(apdu.data);
+    }
+    if ((fid >> 8) == HSM_OBJECT_PREFIX || hsm_key_container_physical_fid(fid)) {
+        return SW_FILE_NOT_FOUND();
     }
 
     //if ((fid & 0xff00) == (KEY_PREFIX << 8))
@@ -69,7 +77,19 @@ int cmd_select(void) {
         pfx == DATA_PREFIX ||
         pfx == PROT_DATA_PREFIX) {*/
     if (fid != 0x0) {
-        pe = (fid >> 8) == KEY_PREFIX ? hsm_key_search(fid & 0xff) : file_search(fid);
+        uint16_t object_type = 0;
+        file_t *marker = file_search((HSM_OBJECT_PREFIX << 8) | (fid & 0xff));
+        if (hsm_key_container_fid_object(fid, &object_type) && hsm_key_container_is_marker(marker)) {
+            if (hsm_key_container_object_size((uint8_t)fid, object_type, false, &logical_object_size) != PICOKEYS_OK) {
+                return SW_FILE_NOT_FOUND();
+            }
+            logical_object_file = (file_t) { .data = NULL, .fid = fid };
+            pe = &logical_object_file;
+            logical_object = true;
+        }
+        else {
+            pe = (fid >> 8) == KEY_PREFIX ? hsm_key_search(fid & 0xff) : file_search(fid);
+        }
         if (!pe) {
             return SW_FILE_NOT_FOUND();
         }
@@ -130,9 +150,13 @@ int cmd_select(void) {
             file_t logical_file = *pe;
             logical_file.fid = fid;
             file_process_fci(&logical_file, 0);
+            hsm_key_append_fci_metadata((uint8_t)fid);
         }
         else {
             file_process_fci(pe, 0);
+            if (logical_object) {
+                put_uint16_be(logical_object_size > UINT16_MAX ? UINT16_MAX : (uint16_t)logical_object_size, res_APDU + 4);
+            }
         }
         if (pe == file_sc_hsm) {
             res_APDU[res_APDU_size++] = 0x85;

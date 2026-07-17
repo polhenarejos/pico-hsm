@@ -23,6 +23,7 @@
 #include "version.h"
 #include "crypto_utils.h"
 #include "kek.h"
+#include "key_container.h"
 #include "eac.h"
 #include "cvc.h"
 #include "tlv.h"
@@ -479,12 +480,42 @@ uint16_t check_pin(const file_t *pin, const uint8_t *data, uint16_t len) {
     return SW_OK();
 }
 
+static uint8_t *hsm_key_metadata_cache;
+static uint32_t hsm_key_metadata_cache_size;
+
+static uint16_t hsm_key_metadata_find(file_t *ef, uint8_t **meta_data) {
+    uint16_t logical_fid = hsm_key_logical_fid(ef);
+    file_t *marker = file_search((HSM_OBJECT_PREFIX << 8) | (logical_fid & 0xff));
+    if ((logical_fid >> 8) != KEY_PREFIX || !hsm_key_container_is_marker(marker)) {
+        return meta_find(logical_fid, meta_data);
+    }
+
+    uint32_t meta_size = 0;
+    if (hsm_key_container_object_size((uint8_t)logical_fid, HSM_KEY_OBJECT_METADATA, true, &meta_size) != PICOKEYS_OK || meta_size == 0 || meta_size > UINT16_MAX) {
+        return 0;
+    }
+    if (meta_size > hsm_key_metadata_cache_size) {
+        uint8_t *cache = (uint8_t *)realloc(hsm_key_metadata_cache, meta_size);
+        if (!cache) {
+            return 0;
+        }
+        hsm_key_metadata_cache = cache;
+        hsm_key_metadata_cache_size = meta_size;
+    }
+    size_t written = 0;
+    if (hsm_key_container_read((uint8_t)logical_fid, HSM_KEY_OBJECT_METADATA, FILE_OBJECT_OPERATION_READ, true, hsm_key_metadata_cache, meta_size, &written) != PICOKEYS_OK || written != meta_size) {
+        return 0;
+    }
+    *meta_data = hsm_key_metadata_cache;
+    return (uint16_t)meta_size;
+}
+
 const uint8_t *get_meta_tag(file_t *ef, uint16_t meta_tag, uint16_t *tag_len) {
     if (ef == NULL) {
         return NULL;
     }
     uint8_t *meta_data = NULL;
-    uint16_t meta_size = meta_find(hsm_key_logical_fid(ef), &meta_data);
+    uint16_t meta_size = hsm_key_metadata_find(ef, &meta_data);
     if (meta_size > 0 && meta_data != NULL) {
         uint16_t tag = 0x0;
         uint8_t *tag_data = NULL, *p = NULL;
@@ -497,6 +528,25 @@ const uint8_t *get_meta_tag(file_t *ef, uint16_t meta_tag, uint16_t *tag_len) {
         }
     }
     return NULL;
+}
+
+void hsm_key_append_fci_metadata(uint8_t key_id) {
+    uint8_t *legacy_meta = NULL;
+    if (meta_find((KEY_PREFIX << 8) | key_id, &legacy_meta) > 0) {
+        return;
+    }
+    file_t *marker = file_search((HSM_OBJECT_PREFIX << 8) | key_id);
+    uint8_t *meta_data = NULL;
+    uint16_t meta_size = hsm_key_metadata_find(marker, &meta_data);
+    if (meta_size == 0 || meta_size > UINT8_MAX || res_APDU_size > MAX_APDU_DATA - meta_size - 3u) {
+        return;
+    }
+    res_APDU[res_APDU_size++] = 0xa5;
+    res_APDU[res_APDU_size++] = 0x81;
+    res_APDU[res_APDU_size++] = (uint8_t)meta_size;
+    memcpy(res_APDU + res_APDU_size, meta_data, meta_size);
+    res_APDU_size += meta_size;
+    res_APDU[1] = (uint8_t)res_APDU_size - 2u;
 }
 
 uint32_t get_key_counter(file_t *fkey) {
@@ -528,7 +578,7 @@ uint32_t decrement_key_counter(file_t *fkey) {
     }
     uint8_t *meta_data = NULL;
     uint16_t logical_fid = hsm_key_logical_fid(fkey);
-    uint16_t meta_size = meta_find(logical_fid, &meta_data);
+    uint16_t meta_size = hsm_key_metadata_find(fkey, &meta_data);
     if (meta_size > 0 && meta_data != NULL) {
         uint16_t tag = 0x0;
         uint8_t *tag_data = NULL, *p = NULL;
@@ -543,7 +593,8 @@ uint32_t decrement_key_counter(file_t *fkey) {
                 uint32_t val = get_uint32_be(tag_data);
                 val--;
                 put_uint32_be(val, cmeta + (tag_data - meta_data));
-                int r = meta_add(logical_fid, cmeta, (uint16_t)meta_size);
+                file_t *marker = file_search((HSM_OBJECT_PREFIX << 8) | (logical_fid & 0xff));
+                int r = hsm_key_container_is_marker(marker) ? hsm_key_container_store_object((uint8_t)logical_fid, HSM_KEY_OBJECT_METADATA, cmeta, meta_size) : meta_add(logical_fid, cmeta, (uint16_t)meta_size);
                 free(cmeta);
                 if (r != 0) {
                     return 0xffffffff;
@@ -609,18 +660,18 @@ uint16_t hsm_key_logical_fid(const file_t *file) {
 int store_keys(void *key_ctx, int type, uint8_t key_id) {
     int r = 0;
     uint16_t key_size = 0;
-    uint8_t kdata[4096 / 8]; // worst case
+    uint8_t key_data[4096 / 8] = { 0 }; // worst case
     if (type & PICOKEYS_KEY_RSA) {
         mbedtls_rsa_context *rsa = (mbedtls_rsa_context *) key_ctx;
         key_size = (uint16_t)mbedtls_mpi_size(&rsa->P) + (uint16_t)mbedtls_mpi_size(&rsa->Q);
-        mbedtls_mpi_write_binary(&rsa->P, kdata, key_size / 2);
-        mbedtls_mpi_write_binary(&rsa->Q, kdata + key_size / 2, key_size / 2);
+        mbedtls_mpi_write_binary(&rsa->P, key_data, key_size / 2);
+        mbedtls_mpi_write_binary(&rsa->Q, key_data + key_size / 2, key_size / 2);
     }
     else if (type & PICOKEYS_KEY_EC) {
         mbedtls_ecdsa_context *ecdsa = (mbedtls_ecdsa_context *) key_ctx;
         size_t olen = 0;
-        kdata[0] = ecdsa->grp.id & 0xff;
-        mbedtls_ecp_write_key_ext(ecdsa, &olen, kdata + 1, sizeof(kdata) - 1);
+        key_data[0] = ecdsa->grp.id & 0xff;
+        mbedtls_ecp_write_key_ext(ecdsa, &olen, key_data + 1, sizeof(key_data) - 1);
         key_size = olen + 1;
     }
     else if (type & PICOKEYS_KEY_AES) {
@@ -636,32 +687,85 @@ int store_keys(void *key_ctx, int type, uint8_t key_id) {
         else if (type == PICOKEYS_KEY_AES_512) {
             key_size = 64;
         }
-        memcpy(kdata, key_ctx, key_size);
+        memcpy(key_data, key_ctx, key_size);
     }
     else {
         return PICOKEYS_WRONG_DATA;
     }
-    file_t *fpk = hsm_key_open_or_create(key_id);
-    if (!fpk) {
-        return PICOKEYS_ERR_MEMORY_FATAL;
-    }
-    r = mkek_store_file(fpk, kdata, key_size);
-    if (r != PICOKEYS_OK) {
-        return r;
-    }
     char key_id_str[4] = {0};
     sprintf(key_id_str, "%u", key_id);
-    if (type & PICOKEYS_KEY_EC) {
-        key_size--;
+    uint16_t private_key_size = key_size;
+    uint16_t public_key_size = (type & PICOKEYS_KEY_EC) ? key_size - 1 : key_size;
+    uint8_t prkd_data[4096 / 8];
+    uint16_t prkd_len = asn1_build_prkd_generic(NULL, 0, (uint8_t *)key_id_str, (uint16_t)strlen(key_id_str), public_key_size * 8, type, prkd_data, sizeof(prkd_data));
+    if (prkd_len == 0) {
+        mbedtls_platform_zeroize(key_data, sizeof(key_data));
+        return PICOKEYS_WRONG_DATA;
     }
-    uint16_t prkd_len = asn1_build_prkd_generic(NULL, 0, (uint8_t *)key_id_str, (uint16_t)strlen(key_id_str), key_size * 8, type, kdata, sizeof(kdata));
-    if (prkd_len > 0) {
-        fpk = file_new((PRKD_PREFIX << 8) | key_id);
-        r = file_put_data(fpk, kdata, prkd_len);
-        if (r != 0) {
-            return SW_EXEC_ERROR();
+    file_t *legacy = file_search((KEY_PREFIX << 8) | key_id);
+    file_t *object = file_search((HSM_OBJECT_PREFIX << 8) | key_id);
+    if (file_has_data(legacy) && file_has_data(object)) {
+        mbedtls_platform_zeroize(key_data, sizeof(key_data));
+        return PICOKEYS_WRONG_DATA;
+    }
+    file_t *existing = hsm_key_search(key_id);
+    bool use_container = key_id != 0 && (hsm_key_container_is_marker(existing) || hsm_key_container_can_resume(key_id) || (!file_has_data(existing) && hsm_key_container_can_create(key_id)));
+    if (use_container) {
+        size_t policy_size = 0;
+        const uint8_t *policy = hsm_object_authorization_key_policy(&policy_size);
+        uint8_t key_domain = existing ? get_key_domain(existing) : 0;
+        if (key_domain == UINT8_MAX) {
+            key_domain = 0;
+        }
+        const hsm_key_container_write_t writes[] = {
+            {
+                .object_type = HSM_KEY_OBJECT_PRIVATE,
+                .data = key_data,
+                .data_size = private_key_size,
+                .policy_id = HSM_OBJECT_KEY_POLICY_ID,
+                .key_domain = key_domain,
+                .protection = FILE_OBJECT_PROTECTION_AEAD_SECRET,
+                .flags = FILE_OBJECT_FLAG_NON_EXPORTABLE
+            },
+            {
+                .object_type = HSM_KEY_OBJECT_PRKD,
+                .data = prkd_data,
+                .data_size = prkd_len,
+                .policy_id = HSM_KEY_INTERNAL_POLICY_ID,
+                .protection = FILE_OBJECT_PROTECTION_AUTHENTICATED_PUBLIC,
+                .flags = FILE_OBJECT_FLAG_GENERIC_READABLE
+            },
+            {
+                .object_type = HSM_KEY_OBJECT_POLICY,
+                .data = policy,
+                .data_size = policy_size,
+                .policy_id = HSM_KEY_INTERNAL_POLICY_ID,
+                .protection = FILE_OBJECT_PROTECTION_AUTHENTICATED_PUBLIC
+            }
+        };
+        r = hsm_key_container_update(key_id, writes, sizeof(writes) / sizeof(writes[0]));
+    }
+    else {
+        file_t *fpk = hsm_key_open_or_create(key_id);
+        if (!fpk) {
+            mbedtls_platform_zeroize(key_data, sizeof(key_data));
+            return PICOKEYS_ERR_MEMORY_FATAL;
+        }
+        r = mkek_store_file(fpk, key_data, private_key_size);
+    }
+    if (r != PICOKEYS_OK) {
+        mbedtls_platform_zeroize(key_data, sizeof(key_data));
+        return r;
+    }
+    if (!use_container) {
+        file_t *fpk = file_new((PRKD_PREFIX << 8) | key_id);
+        r = file_put_data(fpk, prkd_data, prkd_len);
+        if (r != PICOKEYS_OK) {
+            mbedtls_platform_zeroize(key_data, sizeof(key_data));
+            return PICOKEYS_EXEC_ERROR;
         }
     }
+    mbedtls_platform_zeroize(key_data, sizeof(key_data));
     flash_commit();
     return PICOKEYS_OK;
 }
@@ -694,7 +798,8 @@ int find_and_store_meta_key(uint8_t key_id) {
                 m += ctxo[t].len;
             }
         }
-        int r = meta_add((KEY_PREFIX << 8) | key_id, meta, (uint16_t)meta_size);
+        file_t *marker = file_search((HSM_OBJECT_PREFIX << 8) | key_id);
+        int r = hsm_key_container_is_marker(marker) ? hsm_key_container_store_object(key_id, HSM_KEY_OBJECT_METADATA, meta, meta_size) : meta_add((KEY_PREFIX << 8) | key_id, meta, (uint16_t)meta_size);
         free(meta);
         if (r != 0) {
             return PICOKEYS_EXEC_ERROR;
@@ -703,14 +808,14 @@ int find_and_store_meta_key(uint8_t key_id) {
     return PICOKEYS_OK;
 }
 
-int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
+int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey, uint16_t operation, bool internal_firmware) {
     if (wait_button_pressed() == true) { // timeout
         return PICOKEYS_VERIFICATION_FAILED;
     }
 
     uint8_t kdata[4096 / 8];
     uint16_t key_size = sizeof(kdata);
-    if (mkek_load_file(fkey, kdata, &key_size) != PICOKEYS_OK ||
+    if (mkek_load_key_file(fkey, kdata, &key_size, operation, internal_firmware) != PICOKEYS_OK ||
         key_size == 0 || key_size > sizeof(kdata) || (key_size & 1)) {
         return PICOKEYS_WRONG_DATA;
     }
@@ -748,14 +853,14 @@ int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey) {
     return PICOKEYS_OK;
 }
 
-int load_private_key_ec(mbedtls_ecp_keypair *ctx, file_t *fkey) {
+int load_private_key_ec(mbedtls_ecp_keypair *ctx, file_t *fkey, uint16_t operation, bool internal_firmware) {
     if (wait_button_pressed() == true) { // timeout
         return PICOKEYS_VERIFICATION_FAILED;
     }
 
     uint8_t kdata[67]; // Worst case, 521 bit + 1byte
     uint16_t key_size = sizeof(kdata);
-    if (mkek_load_file(fkey, kdata, &key_size) != PICOKEYS_OK ||
+    if (mkek_load_key_file(fkey, kdata, &key_size, operation, internal_firmware) != PICOKEYS_OK ||
         key_size < 2 || key_size > sizeof(kdata)) {
         return PICOKEYS_WRONG_DATA;
     }
@@ -774,8 +879,8 @@ int load_private_key_ec(mbedtls_ecp_keypair *ctx, file_t *fkey) {
     }
     return PICOKEYS_OK;
 }
-int load_private_key_ecdh(mbedtls_ecp_keypair *ctx, file_t *fkey) {
-    return load_private_key_ec(ctx, fkey);
+int load_private_key_ecdh(mbedtls_ecp_keypair *ctx, file_t *fkey, uint16_t operation, bool internal_firmware) {
+    return load_private_key_ec(ctx, fkey, operation, internal_firmware);
 }
 
 #define INS_VERIFY                  0x20

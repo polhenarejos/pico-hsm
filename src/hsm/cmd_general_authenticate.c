@@ -56,7 +56,7 @@ int cmd_general_authenticate(void) {
             }
             mbedtls_ecp_keypair ectx;
             mbedtls_ecp_keypair_init(&ectx);
-            r = load_private_key_ecdh(&ectx, fkey);
+            r = load_private_key_ecdh(&ectx, fkey, FILE_OBJECT_OPERATION_DERIVE, true);
             if (r != PICOKEYS_OK) {
                 mbedtls_ecp_keypair_free(&ectx);
                 return SW_EXEC_ERROR();

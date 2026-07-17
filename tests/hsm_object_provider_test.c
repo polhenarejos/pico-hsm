@@ -17,6 +17,7 @@
 
 #include "picokeys.h"
 #include "kek.h"
+#include "object_crypto_provider.h"
 #include "object_provider.h"
 #include "sc_hsm.h"
 
@@ -38,7 +39,12 @@
 #define TEST_AAD_RECORD_ID_OFFSET 47u
 
 static uint8_t test_mkek[MKEK_SIZE];
+static uint8_t test_kbase[FILE_OBJECT_CRYPTO_ROOT_KEY_SIZE];
 static bool test_mkek_available = true;
+
+void derive_kbase(uint8_t kbase[FILE_OBJECT_CRYPTO_ROOT_KEY_SIZE]) {
+    memcpy(kbase, test_kbase, sizeof(test_kbase));
+}
 
 int load_mkek(uint8_t *mkek) {
     if (!test_mkek_available) {
@@ -54,6 +60,9 @@ void release_mkek(uint8_t *mkek) {
 
 static void test_root_reset(void) {
     memset(test_mkek, 0, sizeof(test_mkek));
+    for (size_t i = 0; i < sizeof(test_kbase); i++) {
+        test_kbase[i] = (uint8_t)(0x80u + i);
+    }
     for (size_t i = 0; i < MKEK_KEY_SIZE; i++) {
         MKEK_KEY(test_mkek)[i] = (uint8_t)(i + 1);
     }
@@ -118,7 +127,8 @@ static void test_manifest_authentication(void) {
     assert(memcmp(first, second, sizeof(first)) == 0);
 
     test_mkek_available = false;
-    assert(auth->start(auth->ctx) == PICOKEYS_NO_LOGIN);
+    assert(auth->start(auth->ctx) == PICOKEYS_OK);
+    auth->abort(auth->ctx);
     test_mkek_available = true;
 }
 
@@ -142,8 +152,11 @@ static void test_authenticated_public_record(void) {
     assert(protector->unseal(protector->ctx, &identity, nonce, aad, stored, sizeof(stored), tag, output) == PICOKEYS_WRONG_SIGNATURE);
     stored[0] ^= 0x01;
     MKEK_KEY(test_mkek)[0] ^= 0x01;
-    assert(protector->unseal(protector->ctx, &identity, nonce, aad, stored, sizeof(stored), tag, output) == PICOKEYS_WRONG_SIGNATURE);
+    assert(protector->unseal(protector->ctx, &identity, nonce, aad, stored, sizeof(stored), tag, output) == PICOKEYS_OK);
     MKEK_KEY(test_mkek)[0] ^= 0x01;
+    test_kbase[0] ^= 0x01;
+    assert(protector->unseal(protector->ctx, &identity, nonce, aad, stored, sizeof(stored), tag, output) == PICOKEYS_WRONG_SIGNATURE);
+    test_kbase[0] ^= 0x01;
 }
 
 static void test_aead_secret_record(void) {
@@ -161,6 +174,10 @@ static void test_aead_secret_record(void) {
     assert(memcmp(stored, plaintext, sizeof(plaintext)) != 0);
     assert(protector->unseal(protector->ctx, &identity, nonce, aad, stored, sizeof(stored), tag, output) == PICOKEYS_OK);
     assert(memcmp(output, plaintext, sizeof(plaintext)) == 0);
+
+    test_mkek_available = false;
+    assert(protector->unseal(protector->ctx, &identity, nonce, aad, stored, sizeof(stored), tag, output) == PICOKEYS_NO_LOGIN);
+    test_mkek_available = true;
 
     tag[0] ^= 0x01;
     assert(protector->unseal(protector->ctx, &identity, nonce, aad, stored, sizeof(stored), tag, output) == PICOKEYS_WRONG_SIGNATURE);

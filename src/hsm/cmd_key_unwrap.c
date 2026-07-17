@@ -19,6 +19,7 @@
 #include "crypto_utils.h"
 #include "kek.h"
 #include "cvc.h"
+#include "key_container.h"
 
 int cmd_key_unwrap(void) {
     uint8_t key_id = P1(apdu);
@@ -130,15 +131,22 @@ int cmd_key_unwrap(void) {
             *m++ = 1;
             *m++ = (uint8_t)kdom;
         }
-        r = meta_add((KEY_PREFIX << 8) | key_id, meta, meta_len);
+        file_t *marker = file_search((HSM_OBJECT_PREFIX << 8) | key_id);
+        r = hsm_key_container_is_marker(marker) ? hsm_key_container_store_object(key_id, HSM_KEY_OBJECT_METADATA, meta, meta_len) : meta_add((KEY_PREFIX << 8) | key_id, meta, meta_len);
         free(meta);
         if (r != PICOKEYS_OK) {
             return r;
         }
     }
     if (res_APDU_size > 0) {
-        file_t *fpk = file_new((EE_CERTIFICATE_PREFIX << 8) | key_id);
-        r = file_put_data(fpk, res_APDU, res_APDU_size);
+        file_t *marker = file_search((HSM_OBJECT_PREFIX << 8) | key_id);
+        if (hsm_key_container_is_marker(marker)) {
+            r = hsm_key_container_store_object(key_id, HSM_KEY_OBJECT_CERTIFICATE, res_APDU, res_APDU_size);
+        }
+        else {
+            file_t *fpk = file_new((EE_CERTIFICATE_PREFIX << 8) | key_id);
+            r = file_put_data(fpk, res_APDU, res_APDU_size);
+        }
         if (r != 0) {
             return SW_EXEC_ERROR();
         }

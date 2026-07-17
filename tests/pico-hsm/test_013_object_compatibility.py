@@ -24,12 +24,16 @@ from picokey import APDUResponse, SWCodes
 
 
 HSM_OBJECT_PREFIX = 0xC7
+HSM_MANIFEST_SLOT_0_PREFIX = 0xD0
+HSM_MANIFEST_SLOT_1_PREFIX = 0xD1
+HSM_ALLOCATOR_FIDS = (0xD2EF, 0xD2F0, 0xD2F1, 0xD2F2, 0xD2F3)
 BLOCK = b"v1-object-test!!"
 SIGN_DATA = b"object compatibility signature"
 
 
 def raw_send(device, command: int, p1: int = 0, p2: int = 0, data=None, ne=None):
-    return device._PicoHSM__card.send(command=command, p1=p1, p2=p2, data=data, ne=ne, codes=[])
+    response, _ = device._PicoHSM__card.send(command=command, p1=p1, p2=p2, data=data, ne=ne, codes=[])
+    return response
 
 
 def read_binary_raw(device, fid: int):
@@ -40,6 +44,13 @@ def update_binary_raw(device, fid: int, data: bytes):
     if len(data) >= 0x80:
         raise ValueError("Test helper supports only short TLV lengths")
     payload = [0x54, 0x02, 0x00, 0x00, 0x53, len(data)] + list(data)
+    return raw_send(device, command=0xD7, p1=(fid >> 8) & 0xFF, p2=fid & 0xFF, data=payload)
+
+
+def update_binary_offset_raw(device, fid: int, offset: int, data: bytes):
+    if len(data) >= 0x80:
+        raise ValueError("Test helper supports only short TLV lengths")
+    payload = [0x54, 0x04] + list(offset.to_bytes(4, "big")) + [0x53, len(data)] + list(data)
     return raw_send(device, command=0xD7, p1=(fid >> 8) & 0xFF, p2=fid & 0xFF, data=payload)
 
 
@@ -215,6 +226,23 @@ def test_06_physical_namespace_and_device_key_are_not_mutable(device):
         delete_file_raw(device, DOPrefixes.KEY_PREFIX << 8)
     assert error.value.sw == SWCodes.SW_SECURITY_STATUS_NOT_SATISFIED
 
+    physical_container_fids = [
+        (HSM_MANIFEST_SLOT_0_PREFIX << 8) | key_id,
+        (HSM_MANIFEST_SLOT_1_PREFIX << 8) | key_id,
+        *HSM_ALLOCATOR_FIDS,
+        0xE001,
+    ]
+    for container_fid in physical_container_fids:
+        with pytest.raises(APDUResponse) as error:
+            read_binary_raw(device, container_fid)
+        assert error.value.sw == SWCodes.SW_SECURITY_STATUS_NOT_SATISFIED
+        with pytest.raises(APDUResponse) as error:
+            update_binary_raw(device, container_fid, b"container-overwrite")
+        assert error.value.sw == SWCodes.SW_SECURITY_STATUS_NOT_SATISFIED
+        with pytest.raises(APDUResponse) as error:
+            delete_file_raw(device, container_fid)
+        assert error.value.sw == SWCodes.SW_FILE_NOT_FOUND
+
     assert_hidden_object(device, key_id)
     assert_aes_round_trip(device, key_id)
     device.delete_file(DOPrefixes.KEY_PREFIX, key_id)
@@ -237,3 +265,58 @@ def test_07_legacy_and_v1_conflict_fails_closed(device):
         assert error.value.sw == SWCodes.SW_FILE_NOT_FOUND
     finally:
         device.initialize()
+
+
+def test_08_unrelated_manifest_fid_collision_keeps_legacy_file_accessible(device):
+    device.initialize()
+    key_id = 0x41
+    collision_fid = (HSM_MANIFEST_SLOT_0_PREFIX << 8) | key_id
+    collision_data = b"existing-deployment-data"
+
+    update_binary_raw(device, collision_fid, collision_data)
+    assert bytes(read_binary_raw(device, collision_fid)) == collision_data
+
+    generate_aes_raw(device, key_id)
+    assert_aes_round_trip(device, key_id)
+    assert bytes(read_binary_raw(device, collision_fid)) == collision_data
+
+    device.delete_file(DOPrefixes.KEY_PREFIX, key_id)
+    delete_file_raw(device, collision_fid)
+
+
+def test_09_v1_sidecars_keep_legacy_interface_without_shadow_writes(device):
+    device.initialize()
+    key_id = device.key_generation(KeyType.ECC, "secp256r1")
+    prkd_fid = (DOPrefixes.PRKD_PREFIX << 8) | key_id
+    certificate_fid = (DOPrefixes.EE_CERTIFICATE_PREFIX << 8) | key_id
+    public_key = device.public_key(keyid=key_id, param="secp256r1")
+
+    prkd = bytes(read_binary_raw(device, prkd_fid))
+    certificate = bytes(read_binary_raw(device, certificate_fid))
+    assert prkd
+    assert certificate
+    assert (DOPrefixes.PRKD_PREFIX, key_id) in device.list_keys()
+    assert bytes([0x83, 0x02, DOPrefixes.PRKD_PREFIX, key_id]) in bytes(select_file_raw(device, prkd_fid))
+    assert bytes([0x83, 0x02, DOPrefixes.EE_CERTIFICATE_PREFIX, key_id]) in bytes(select_file_raw(device, certificate_fid))
+    assert bytes(read_binary_raw(device, 0)) == certificate
+
+    expected = bytearray(certificate[:96])
+    for revision in range(32):
+        expected = bytearray((((index + revision) * 37) ^ (revision << 1)) & 0xFF for index in range(96))
+        update_binary_raw(device, certificate_fid, bytes(expected))
+        patch = bytes((revision ^ index) & 0xFF for index in range(11))
+        update_binary_offset_raw(device, certificate_fid, 17, patch)
+        expected[17:17 + len(patch)] = patch
+        assert bytes(read_binary_raw(device, certificate_fid)) == bytes(expected)
+
+    signature = device.sign(keyid=key_id, scheme=Algorithm.ALGO_EC_SHA256, data=SIGN_DATA)
+    device.verify(public_key, SIGN_DATA, signature, Algorithm.ALGO_EC_SHA256)
+
+    delete_file_raw(device, certificate_fid)
+    with pytest.raises(APDUResponse) as error:
+        read_binary_raw(device, certificate_fid)
+    assert error.value.sw == SWCodes.SW_FILE_NOT_FOUND
+
+    device.delete_file(DOPrefixes.KEY_PREFIX, key_id)
+    assert bytes(read_binary_raw(device, prkd_fid)) == prkd
+    delete_file_raw(device, prkd_fid)

@@ -189,8 +189,18 @@ int cmd_cipher_sym(void) {
     uint16_t key_size = 0;
     uint8_t kdata[64] = {0}; //maximum AES key size
     if (!using_hd) {
+        uint16_t object_operation = FILE_OBJECT_OPERATION_USE;
+        if (algo == ALGO_AES_CBC_DECRYPT || algo == ALGO_EXT_CIPHER_DECRYPT) {
+            object_operation = FILE_OBJECT_OPERATION_DECRYPT;
+        }
+        else if (algo == ALGO_AES_CMAC) {
+            object_operation = FILE_OBJECT_OPERATION_SIGN;
+        }
+        else if (algo == ALGO_AES_DERIVE) {
+            object_operation = FILE_OBJECT_OPERATION_DERIVE;
+        }
         key_size = sizeof(kdata);
-        if (mkek_load_file(ef, kdata, &key_size) != PICOKEYS_OK) {
+        if (mkek_load_key_file(ef, kdata, &key_size, object_operation, false) != PICOKEYS_OK) {
             mbedtls_platform_zeroize(kdata, sizeof(kdata));
             return SW_EXEC_ERROR();
         }

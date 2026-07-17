@@ -47,7 +47,7 @@ int cmd_decrypt_asym(void) {
         if (p2 == ALGO_RSA_DECRYPT_OEP) {
             mbedtls_rsa_set_padding(&ctx, MBEDTLS_RSA_PKCS_V21, MBEDTLS_MD_SHA256);
         }
-        int r = load_private_key_rsa(&ctx, ef);
+        int r = load_private_key_rsa(&ctx, ef, FILE_OBJECT_OPERATION_DECRYPT, false);
         if (r != PICOKEYS_OK) {
             mbedtls_rsa_free(&ctx);
             if (r == PICOKEYS_VERIFICATION_FAILED) {
@@ -88,7 +88,7 @@ int cmd_decrypt_asym(void) {
         if (!kdata) {
             return SW_EXEC_ERROR();
         }
-        if (mkek_load_file(ef, kdata, &key_size) != PICOKEYS_OK) {
+        if (mkek_load_key_file(ef, kdata, &key_size, FILE_OBJECT_OPERATION_DERIVE, false) != PICOKEYS_OK) {
             mbedtls_platform_zeroize(kdata, 67);
             free(kdata);
             return SW_EXEC_ERROR();

@@ -140,7 +140,7 @@ uint16_t asn1_cvc_aut(const mbedtls_pk_context *subject, uint8_t *buf, uint16_t 
         return 0;
     }
     mbedtls_ecp_keypair_init(&device_key);
-    if (load_private_key_ec(&device_key, fkey) != PICOKEYS_OK) {
+    if (load_private_key_ec(&device_key, fkey, FILE_OBJECT_OPERATION_SIGN, true) != PICOKEYS_OK) {
         mbedtls_ecp_keypair_free(&device_key);
         return 0;
     }

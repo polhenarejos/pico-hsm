@@ -28,6 +28,7 @@
 #include "file.h"
 #include "apdu.h"
 #include "picokeys.h"
+#include "object_policy.h"
 #include "usb.h"
 
 #define MAX_APDU_DATA (USB_BUFFER_SIZE - 20)
@@ -124,10 +125,11 @@ extern uint16_t dev_name_len;
 extern uint8_t puk_status[MAX_PUK];
 extern int puk_store_select_chr(const uint8_t *chr);
 extern const uint8_t *get_meta_tag(file_t *ef, uint16_t meta_tag, uint16_t *tag_len);
+extern void hsm_key_append_fci_metadata(uint8_t key_id);
 extern bool key_has_purpose(file_t *ef, uint8_t purpose);
-extern int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey);
-extern int load_private_key_ec(mbedtls_ecp_keypair *ctx, file_t *fkey);
-extern int load_private_key_ecdh(mbedtls_ecp_keypair *ctx, file_t *fkey);
+extern int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey, uint16_t operation, bool internal_firmware);
+extern int load_private_key_ec(mbedtls_ecp_keypair *ctx, file_t *fkey, uint16_t operation, bool internal_firmware);
+extern int load_private_key_ecdh(mbedtls_ecp_keypair *ctx, file_t *fkey, uint16_t operation, bool internal_firmware);
 extern bool wait_button_pressed(void);
 extern int store_keys(void *key_ctx, int type, uint8_t key_id);
 extern int find_and_store_meta_key(uint8_t key_id);

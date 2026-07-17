@@ -16,24 +16,72 @@
  */
 
 #include "sc_hsm.h"
+#include "key_container.h"
 
 typedef int (*file_data_handler_t)(const file_t *f, int mode);
+
+static bool hsm_container_object_target(uint16_t fid, uint16_t *object_type) {
+    file_t *marker = file_search((HSM_OBJECT_PREFIX << 8) | (fid & 0xff));
+    return hsm_key_container_fid_object(fid, object_type) && hsm_key_container_is_marker(marker);
+}
+
+static int hsm_read_container_object(uint16_t fid, uint16_t object_type, uint32_t offset) {
+    uint32_t object_size = 0;
+    int r = hsm_key_container_object_size((uint8_t)fid, object_type, false, &object_size);
+    if (r == PICOKEYS_NO_LOGIN) {
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
+    }
+    if (r != PICOKEYS_OK) {
+        return SW_FILE_NOT_FOUND();
+    }
+    if (offset > object_size) {
+        return SW_WARNING_EOF();
+    }
+
+    uint8_t *object_data = NULL;
+    if (object_size > 0) {
+        object_data = (uint8_t *)calloc(1, object_size);
+        if (!object_data) {
+            return SW_MEMORY_FAILURE();
+        }
+    }
+    size_t written = 0;
+    r = hsm_key_container_read((uint8_t)fid, object_type, FILE_OBJECT_OPERATION_READ, false, object_data, object_size, &written);
+    if (r != PICOKEYS_OK || written != object_size) {
+        free(object_data);
+        return r == PICOKEYS_NO_LOGIN ? SW_SECURITY_STATUS_NOT_SATISFIED() : SW_EXEC_ERROR();
+    }
+    uint32_t response_len = object_size - offset;
+    if (apdu.ne > 0) {
+        response_len = MIN(response_len, apdu.ne);
+    }
+    response_len = MIN(response_len, (uint32_t)MAX_APDU_DATA);
+    if (response_len > 0) {
+        memcpy(res_APDU, object_data + offset, response_len);
+    }
+    res_APDU_size = (uint16_t)response_len;
+    free(object_data);
+    return SW_OK();
+}
 
 int cmd_read_binary(void) {
     uint32_t offset = 0;
     uint8_t ins = INS(apdu), p1 = P1(apdu), p2 = P2(apdu);
     file_t *ef = NULL;
+    uint16_t logical_fid = 0;
 
     if ((ins & 0x1) == 0) {
         if ((p1 & 0x80) != 0) {
             if (!(ef = file_search(p1 & 0x1f))) {
                 return SW_FILE_NOT_FOUND();
             }
+            logical_fid = ef->fid;
             offset = p2;
         }
         else {
             offset = make_uint16_be(p1, p2) & 0x7fff;
             ef = currentEF;
+            logical_fid = ef ? ef->fid : 0;
         }
     }
     else {
@@ -41,14 +89,16 @@ int cmd_read_binary(void) {
             if (!(ef = file_search(p2 & 0x1f))) {
                 return SW_FILE_NOT_FOUND();
             }
+            logical_fid = ef->fid;
         }
         else {
             uint16_t file_id = make_uint16_be(p1, p2); // & 0x7fff;
             if (file_id == 0x0) {
                 ef = currentEF;
+                logical_fid = ef ? ef->fid : 0;
             }
-            else if (!(ef = file_search(file_id))) {
-                return SW_FILE_NOT_FOUND();
+            else {
+                logical_fid = file_id;
             }
 
             if (apdu.nc < 2 || apdu.data[0] != 0x54 || apdu.data[1] > sizeof(offset) || apdu.nc < (uint32_t)apdu.data[1] + 2) {
@@ -58,14 +108,29 @@ int cmd_read_binary(void) {
             for (size_t d = 0; d < apdu.data[1]; d++) {
                 offset = (offset << 8) | apdu.data[2 + d];
             }
+            if (hsm_key_container_physical_fid(logical_fid)) {
+                return SW_SECURITY_STATUS_NOT_SATISFIED();
+            }
+            uint16_t object_type = 0;
+            if (hsm_container_object_target(logical_fid, &object_type)) {
+                return hsm_read_container_object(logical_fid, object_type, offset);
+            }
+            if (!ef && logical_fid != 0 && !(ef = file_search(logical_fid))) {
+                return SW_FILE_NOT_FOUND();
+            }
         }
+    }
+
+    uint16_t object_type = 0;
+    if (hsm_container_object_target(logical_fid, &object_type)) {
+        return hsm_read_container_object(logical_fid, object_type, offset);
     }
 
     if (ef == NULL) {
         return SW_FILE_NOT_FOUND();
     }
 
-    if ((ef->fid >> 8) == KEY_PREFIX || (ef->fid >> 8) == HSM_OBJECT_PREFIX || ((ef->fid >> 8) == PROT_DATA_PREFIX && !isUserAuthenticated) || !file_authenticate_action(ef, ACL_OP_READ_SEARCH)) {
+    if ((ef->fid >> 8) == KEY_PREFIX || (ef->fid >> 8) == HSM_OBJECT_PREFIX || hsm_key_container_physical_fid(ef->fid) || ((ef->fid >> 8) == PROT_DATA_PREFIX && !isUserAuthenticated) || !file_authenticate_action(ef, ACL_OP_READ_SEARCH)) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
     if (ef->data) {

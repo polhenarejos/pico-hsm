@@ -59,7 +59,7 @@ int cmd_derive_asym(void) {
         mbedtls_ecp_keypair_init(&ctx);
 
         int r;
-        r = load_private_key_ec(&ctx, fkey);
+        r = load_private_key_ec(&ctx, fkey, FILE_OBJECT_OPERATION_DERIVE, false);
         if (r != PICOKEYS_OK) {
             mbedtls_ecp_keypair_free(&ctx);
             if (r == PICOKEYS_VERIFICATION_FAILED) {

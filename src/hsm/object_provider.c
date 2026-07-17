@@ -17,6 +17,7 @@
 
 #include "picokeys.h"
 #include "object_provider.h"
+#include "crypto_utils.h"
 #include "kek.h"
 #include "sc_hsm.h"
 
@@ -36,6 +37,12 @@ static int hsm_object_root_load(void *ctx, uint8_t root[FILE_OBJECT_CRYPTO_ROOT_
     return r;
 }
 
+static int hsm_object_public_root_load(void *ctx, uint8_t root[FILE_OBJECT_CRYPTO_ROOT_KEY_SIZE]) {
+    (void)ctx;
+    derive_kbase(root);
+    return PICOKEYS_OK;
+}
+
 static bool hsm_object_identity_valid(void *ctx, const file_object_record_identity_t *identity) {
     (void)ctx;
     return identity->key_domain < MAX_KEY_DOMAINS;
@@ -49,6 +56,7 @@ static int hsm_object_crypto_provider_init(void) {
     const file_object_crypto_provider_config_t config = {
         .namespace_id = HSM_OBJECT_NAMESPACE,
         .load_root = hsm_object_root_load,
+        .load_public_root = hsm_object_public_root_load,
         .identity_valid = hsm_object_identity_valid
     };
     int r = file_object_crypto_provider_init(&hsm_object_crypto_provider, &config);

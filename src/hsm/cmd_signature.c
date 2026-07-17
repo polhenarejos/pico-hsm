@@ -144,7 +144,7 @@ int cmd_signature(void) {
         mbedtls_rsa_context ctx;
         mbedtls_rsa_init(&ctx);
 
-        int r = load_private_key_rsa(&ctx, fkey);
+        int r = load_private_key_rsa(&ctx, fkey, FILE_OBJECT_OPERATION_SIGN, false);
         if (r != PICOKEYS_OK) {
             mbedtls_rsa_free(&ctx);
             if (r == PICOKEYS_VERIFICATION_FAILED) {
@@ -267,7 +267,7 @@ int cmd_signature(void) {
         else if (p2 == ALGO_EC_SHA512) {
             md = MBEDTLS_MD_SHA512;
         }
-        int r = load_private_key_ec(&ctx, fkey);
+        int r = load_private_key_ec(&ctx, fkey, FILE_OBJECT_OPERATION_SIGN, false);
         if (r != PICOKEYS_OK) {
             mbedtls_ecp_keypair_free(&ctx);
             if (r == PICOKEYS_VERIFICATION_FAILED) {

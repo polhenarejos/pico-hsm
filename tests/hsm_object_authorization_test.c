@@ -124,6 +124,9 @@ static void test_key_policy(void) {
     has_session_pin = true;
     assert(hsm_object_authorization_key_operation(FILE_OBJECT_OPERATION_USE, false));
     assert(hsm_object_authorization_key_operation(FILE_OBJECT_OPERATION_SIGN, false));
+    assert(hsm_object_authorization_key_operation(FILE_OBJECT_OPERATION_UPDATE, false));
+    assert(hsm_object_authorization_key_operation(FILE_OBJECT_OPERATION_DELETE, false));
+    assert(hsm_object_authorization_key_operation(FILE_OBJECT_OPERATION_CHANGE_POLICY, false));
     assert(!hsm_object_authorization_key_operation(FILE_OBJECT_OPERATION_READ, false));
 
     has_session_pin = false;

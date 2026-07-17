@@ -189,7 +189,7 @@ int cmd_initialize(void) {
         if (!recreate_dev_key) {
             mbedtls_ecp_keypair existing_key;
             mbedtls_ecp_keypair_init(&existing_key);
-            recreate_dev_key = load_private_key_ec(&existing_key, fdkey) != PICOKEYS_OK;
+            recreate_dev_key = load_private_key_ec(&existing_key, fdkey, FILE_OBJECT_OPERATION_USE, true) != PICOKEYS_OK;
             mbedtls_ecp_keypair_free(&existing_key);
         }
         if (recreate_dev_key) {

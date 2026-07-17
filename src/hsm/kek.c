@@ -22,6 +22,7 @@
 #endif
 #include "kek.h"
 #include "crypto_utils.h"
+#include "key_container.h"
 #include "object_authorization.h"
 #include "object_store.h"
 #include "random.h"
@@ -344,9 +345,6 @@ int mkek_load_file(file_t *file, uint8_t *data, uint16_t *len) {
     }
 
     bool object_file = (file->fid >> 8) == HSM_OBJECT_PREFIX;
-    if (object_file && !hsm_object_authorization_key_operation(FILE_OBJECT_OPERATION_USE, false)) {
-        return PICOKEYS_NO_LOGIN;
-    }
     uint32_t stored_len = file_get_size(file);
     file_object_handle_t object_handle = FILE_OBJECT_INVALID_HANDLE;
     if (object_file) {
@@ -425,6 +423,28 @@ int mkek_load_file(file_t *file, uint8_t *data, uint16_t *len) {
         }
     }
     return r;
+}
+
+int mkek_load_key_file(file_t *file, uint8_t *data, uint16_t *len, uint16_t operation, bool internal_firmware) {
+    if (!file || !data || !len) {
+        return PICOKEYS_WRONG_DATA;
+    }
+    if (hsm_key_container_is_marker(file)) {
+        size_t written = 0;
+        int r = hsm_key_container_read((uint8_t)file->fid, HSM_KEY_OBJECT_PRIVATE, operation, internal_firmware, data, *len, &written);
+        if (r == PICOKEYS_OK) {
+            if (written > UINT16_MAX) {
+                mbedtls_platform_zeroize(data, *len);
+                return PICOKEYS_WRONG_LENGTH;
+            }
+            *len = (uint16_t)written;
+        }
+        return r;
+    }
+    if ((file->fid >> 8) == HSM_OBJECT_PREFIX && !hsm_object_authorization_key_operation(operation, internal_firmware)) {
+        return PICOKEYS_NO_LOGIN;
+    }
+    return mkek_load_file(file, data, len);
 }
 
 int dkek_encode_key(uint8_t id, void *key_ctx, int key_type, uint8_t *out, uint16_t *out_len, const uint8_t *allowed, uint16_t allowed_len) {

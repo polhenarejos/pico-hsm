@@ -18,6 +18,7 @@
 #include "crypto_utils.h"
 #include "sc_hsm.h"
 #include "random.h"
+#include "key_container.h"
 
 static void rollback_generated_key(uint8_t key_id) {
     file_t *fkey = hsm_key_search(key_id);
@@ -27,8 +28,15 @@ static void rollback_generated_key(uint8_t key_id) {
     if (fkey && (fkey->fid >> 8) == HSM_OBJECT_PREFIX && meta_delete_no_commit((KEY_PREFIX << 8) | key_id) == PICOKEYS_OK) {
         changed = true;
     }
-    if (fkey && file_delete_no_commit(fkey) == PICOKEYS_OK) {
-        changed = true;
+    if (fkey) {
+        if (hsm_key_container_is_marker(fkey)) {
+            if (hsm_key_container_delete(key_id) == PICOKEYS_OK) {
+                changed = false;
+            }
+        }
+        else if (file_delete_no_commit(fkey) == PICOKEYS_OK) {
+            changed = true;
+        }
     }
     if (fprkd && file_delete_no_commit(fprkd) == PICOKEYS_OK) {
         changed = true;

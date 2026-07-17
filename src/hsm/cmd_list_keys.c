@@ -17,6 +17,7 @@
 
 #include "sc_hsm.h"
 #include "files.h"
+#include "key_container.h"
 
 typedef struct file_prefix_mapping {
     uint8_t physical;
@@ -31,6 +32,12 @@ static bool append_file_with_prefix(file_t *file, void *ctx) {
         }
         if (prefix->physical == HSM_OBJECT_PREFIX && file_has_data(file_search((KEY_PREFIX << 8) | (file->fid & 0xff)))) {
             return true;
+        }
+        if (prefix->physical == HSM_OBJECT_PREFIX && prefix->logical == PRKD_PREFIX) {
+            uint32_t object_size = 0;
+            if (!hsm_key_container_is_marker(file) || file_has_data(file_search((PRKD_PREFIX << 8) | (file->fid & 0xff))) || hsm_key_container_object_size((uint8_t)file->fid, HSM_KEY_OBJECT_PRKD, false, &object_size) != PICOKEYS_OK) {
+                return true;
+            }
         }
         res_APDU[res_APDU_size++] = prefix->logical;
         res_APDU[res_APDU_size++] = file->fid & 0xff;
@@ -50,6 +57,7 @@ int cmd_list_keys(void) {
     const file_prefix_mapping_t prefixes[] = {
         { .physical = KEY_PREFIX, .logical = KEY_PREFIX },
         { .physical = HSM_OBJECT_PREFIX, .logical = KEY_PREFIX },
+        { .physical = HSM_OBJECT_PREFIX, .logical = PRKD_PREFIX },
         { .physical = PRKD_PREFIX, .logical = PRKD_PREFIX },
         { .physical = CD_PREFIX, .logical = CD_PREFIX },
         { .physical = DCOD_PREFIX, .logical = DCOD_PREFIX }

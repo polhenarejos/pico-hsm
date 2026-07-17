@@ -17,6 +17,8 @@
 
 #include "sc_hsm.h"
 #include "tlv.h"
+#include "key_container.h"
+#include "object_authorization.h"
 
 int cmd_update_ef(void) {
     uint8_t p1 = P1(apdu), p2 = P2(apdu);
@@ -29,7 +31,7 @@ int cmd_update_ef(void) {
     if (!isUserAuthenticated) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
-    if ((fid >> 8) == HSM_OBJECT_PREFIX) {
+    if ((fid >> 8) == HSM_OBJECT_PREFIX || hsm_key_container_physical_fid(fid)) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
     if (fid == 0x0) {
@@ -38,7 +40,13 @@ int cmd_update_ef(void) {
     else {
         ef = file_search(fid);
     }
-    if (ef && (ef->fid >> 8) == HSM_OBJECT_PREFIX) {
+    if (ef && ((ef->fid >> 8) == HSM_OBJECT_PREFIX || hsm_key_container_physical_fid(ef->fid))) {
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
+    }
+    uint16_t target_fid = ef ? ef->fid : fid;
+    uint16_t object_type = 0;
+    bool container_object = hsm_key_container_fid_object(target_fid, &object_type) && hsm_key_container_is_marker(file_search((HSM_OBJECT_PREFIX << 8) | (target_fid & 0xff)));
+    if (container_object && !hsm_object_authorization_key_operation(FILE_OBJECT_OPERATION_UPDATE, false)) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
     /*
@@ -72,6 +80,42 @@ int cmd_update_ef(void) {
             data_len = tag_len;
             data = tag_data;
         }
+    }
+    if (container_object) {
+        uint32_t old_size = 0;
+        int r = hsm_key_container_object_size((uint8_t)target_fid, object_type, true, &old_size);
+        bool object_exists = r == PICOKEYS_OK;
+        if (!object_exists && r != PICOKEYS_ERR_FILE_NOT_FOUND) {
+            return SW_EXEC_ERROR();
+        }
+        if (offset > 0 && (!object_exists || offset > old_size)) {
+            return SW_DATA_INVALID();
+        }
+        if (offset > UINT32_MAX - data_len) {
+            return SW_WRONG_LENGTH();
+        }
+        uint32_t new_size = offset == 0 ? data_len : MAX(old_size, offset + data_len);
+        uint8_t *object_data = NULL;
+        if (new_size > 0) {
+            object_data = (uint8_t *)calloc(1, new_size);
+            if (!object_data) {
+                return SW_MEMORY_FAILURE();
+            }
+        }
+        if (offset > 0 && old_size > 0) {
+            size_t written = 0;
+            r = hsm_key_container_read((uint8_t)target_fid, object_type, FILE_OBJECT_OPERATION_READ, true, object_data, old_size, &written);
+            if (r != PICOKEYS_OK || written != old_size) {
+                free(object_data);
+                return SW_EXEC_ERROR();
+            }
+        }
+        if (data_len > 0) {
+            memcpy(object_data + offset, data, data_len);
+        }
+        r = hsm_key_container_store_object((uint8_t)target_fid, object_type, object_data, new_size);
+        free(object_data);
+        return r == PICOKEYS_OK ? SW_OK() : SW_MEMORY_FAILURE();
     }
     if (data_len == 0 && offset == 0) { //new file
         ef = file_new(fid);

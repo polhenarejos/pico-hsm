@@ -18,6 +18,7 @@
 #include "crypto_utils.h"
 #include "sc_hsm.h"
 #include "kek.h"
+#include "key_container.h"
 #include "files.h"
 
 int cmd_key_wrap(void) {
@@ -46,17 +47,29 @@ int cmd_key_wrap(void) {
     if (key_has_purpose(ef, ALGO_WRAP) == false) {
         return SW_CONDITIONS_NOT_SATISFIED();
     }
+    uint8_t prkd_data[4096 / 8];
+    const uint8_t *dprkd = NULL;
     file_t *prkd = file_search((PRKD_PREFIX << 8) | key_id);
-    if (!prkd) {
-        return SW_FILE_NOT_FOUND();
+    if (hsm_key_container_is_marker(ef)) {
+        uint32_t prkd_size = 0;
+        size_t written = 0;
+        if (hsm_key_container_object_size(key_id, HSM_KEY_OBJECT_PRKD, true, &prkd_size) != PICOKEYS_OK || prkd_size == 0 || prkd_size > sizeof(prkd_data) || hsm_key_container_read(key_id, HSM_KEY_OBJECT_PRKD, FILE_OBJECT_OPERATION_READ, true, prkd_data, sizeof(prkd_data), &written) != PICOKEYS_OK || written != prkd_size) {
+            return SW_FILE_NOT_FOUND();
+        }
+        dprkd = prkd_data;
     }
-    const uint8_t *dprkd = file_get_data(prkd);
+    else {
+        if (!file_has_data(prkd)) {
+            return SW_FILE_NOT_FOUND();
+        }
+        dprkd = file_get_data(prkd);
+    }
     uint16_t wrap_len = MAX_DKEK_ENCODE_KEY_BUFFER, tag_len = 0;
     const uint8_t *meta_tag = get_meta_tag(ef, 0x91, &tag_len);
     if (*dprkd == P15_KEYTYPE_RSA) {
         mbedtls_rsa_context ctx;
         mbedtls_rsa_init(&ctx);
-        r = load_private_key_rsa(&ctx, ef);
+        r = load_private_key_rsa(&ctx, ef, FILE_OBJECT_OPERATION_EXPORT, false);
         if (r != PICOKEYS_OK) {
             mbedtls_rsa_free(&ctx);
             if (r == PICOKEYS_VERIFICATION_FAILED) {
@@ -70,7 +83,7 @@ int cmd_key_wrap(void) {
     else if (*dprkd == P15_KEYTYPE_ECC) {
         mbedtls_ecp_keypair ctx;
         mbedtls_ecp_keypair_init(&ctx);
-        r = load_private_key_ec(&ctx, ef);
+        r = load_private_key_ec(&ctx, ef, FILE_OBJECT_OPERATION_EXPORT, false);
         if (r != PICOKEYS_OK) {
             mbedtls_ecp_keypair_free(&ctx);
             if (r == PICOKEYS_VERIFICATION_FAILED) {
@@ -88,7 +101,7 @@ int cmd_key_wrap(void) {
         }
 
         uint16_t key_size = sizeof(kdata_aes), aes_type = PICOKEYS_KEY_AES;
-        if (mkek_load_file(ef, kdata_aes, &key_size) != PICOKEYS_OK) {
+        if (mkek_load_key_file(ef, kdata_aes, &key_size, FILE_OBJECT_OPERATION_EXPORT, false) != PICOKEYS_OK) {
             return SW_EXEC_ERROR();
         }
         if (key_size == 64) {
