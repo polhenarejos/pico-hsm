@@ -19,6 +19,7 @@
 #include "sc_hsm.h"
 #include "cvc.h"
 #include "files.h"
+#include "object_authorization.h"
 
 extern file_t *ef_puk_aut;
 extern uint8_t challenge[256];
@@ -58,6 +59,9 @@ int cmd_external_authenticate(void) {
         auts += puk_status[i];
     }
     if (auts >= puk_data[2]) {
+        if (!isUserAuthenticated) {
+            hsm_object_authorization_session_invalidate();
+        }
         isUserAuthenticated = true;
         clear_pka_challenge();
     }

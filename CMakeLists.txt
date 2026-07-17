@@ -81,6 +81,7 @@ set(SOURCES ${SOURCES}
     ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cvc.c
     ${CMAKE_CURRENT_LIST_DIR}/src/hsm/files.c
     ${CMAKE_CURRENT_LIST_DIR}/src/hsm/kek.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/hsm/object_authorization.c
     ${CMAKE_CURRENT_LIST_DIR}/src/hsm/object_provider.c
 )
 
@@ -155,6 +156,19 @@ if(NOT ESP_PLATFORM)
         endif()
         target_link_libraries(hsm_object_provider_test PRIVATE mbedtls)
         add_test(NAME hsm_object_provider_test COMMAND hsm_object_provider_test)
+
+        add_executable(hsm_object_authorization_test
+            ${CMAKE_CURRENT_LIST_DIR}/src/hsm/object_authorization.c
+            ${CMAKE_CURRENT_LIST_DIR}/tests/hsm_object_authorization_test.c
+        )
+        target_include_directories(hsm_object_authorization_test PRIVATE ${INCLUDES})
+        if(MSVC)
+            target_compile_options(hsm_object_authorization_test PRIVATE /W4 /WX)
+        else()
+            target_compile_options(hsm_object_authorization_test PRIVATE -Wall -Wextra -Werror)
+        endif()
+        target_link_libraries(hsm_object_authorization_test PRIVATE mbedtls)
+        add_test(NAME hsm_object_authorization_test COMMAND hsm_object_authorization_test)
     else()
         pico_add_extra_outputs(${CMAKE_PROJECT_NAME})
     endif()

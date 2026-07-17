@@ -29,6 +29,7 @@
 #include "usb.h"
 #include "button.h"
 #include "random.h"
+#include "object_authorization.h"
 #include "version.h"
 
 const uint8_t sc_hsm_aid[] = {
@@ -236,6 +237,7 @@ void reset_puk_store(void) {
 
 void init_sc_hsm(void) {
     scan_all();
+    hsm_object_authorization_session_invalidate();
     has_session_pin = has_session_sopin = false;
     isUserAuthenticated = false;
     mbedtls_ecp_keypair_free(&hd_context);
@@ -250,6 +252,7 @@ void init_sc_hsm(void) {
 }
 
 int sc_hsm_unload(void) {
+    hsm_object_authorization_session_invalidate();
     has_session_pin = has_session_sopin = false;
     isUserAuthenticated = false;
     mbedtls_ecp_keypair_free(&hd_context);
@@ -389,6 +392,7 @@ uint16_t check_pin(const file_t *pin, const uint8_t *data, uint16_t len) {
     if (!file_has_data((file_t *) pin)) {
         return SW_REFERENCE_NOT_FOUND();
     }
+    hsm_object_authorization_session_invalidate();
     if (pka_enabled() == false) {
         isUserAuthenticated = false;
     }
@@ -835,13 +839,16 @@ static const cmd_t cmds[] = {
 
 int sc_hsm_process_apdu(void) {
     uint32_t ne = apdu.ne;
+    hsm_object_authorization_command_set_secure_messaging(false);
     int r = sm_unwrap();
     if (r != PICOKEYS_OK) {
         return SW_DATA_INVALID();
     }
+    hsm_object_authorization_command_set_secure_messaging(((CLA(apdu) >> 2) & 0x3) != 0);
     for (const cmd_t *cmd = cmds; cmd->ins != 0x00; cmd++) {
         if (cmd->ins == INS(apdu)) {
             int res = cmd->cmd_handler();
+            hsm_object_authorization_command_set_secure_messaging(false);
             if (sm_wrap() != PICOKEYS_OK) {
                 return SW_WRONG_LENGTH();
             }
@@ -851,5 +858,6 @@ int sc_hsm_process_apdu(void) {
             return res;
         }
     }
+    hsm_object_authorization_command_set_secure_messaging(false);
     return SW_INS_NOT_SUPPORTED();
 }

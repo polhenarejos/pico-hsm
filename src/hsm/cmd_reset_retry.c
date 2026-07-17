@@ -19,6 +19,7 @@
 #include "sc_hsm.h"
 #include "kek.h"
 #include "files.h"
+#include "object_authorization.h"
 
 int cmd_reset_retry(void) {
     if (P2(apdu) != 0x81) {
@@ -64,6 +65,7 @@ int cmd_reset_retry(void) {
         if (r != PICOKEYS_OK) {
             return SW_EXEC_ERROR();
         }
+        hsm_object_authorization_session_invalidate();
         pin_derive_session(apdu.data + (apdu.nc - newpin_len), newpin_len, session_pin);
         has_session_pin = true;
         r = store_mkek(mkek);

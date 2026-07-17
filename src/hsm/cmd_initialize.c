@@ -24,6 +24,7 @@
 #include "tlv.h"
 #include "cvc.h"
 #include "otp.h"
+#include "object_authorization.h"
 
 extern char __StackLimit;
 static int heapLeft(void) {
@@ -47,6 +48,7 @@ int cmd_initialize(void) {
         int ret_mkek = load_mkek(mkek); //Try loading MKEK with previous session
         file_initialize_flash(true);
         scan_all();
+        hsm_object_authorization_session_invalidate();
         has_session_pin = has_session_sopin = has_mkek_mask = false;
         uint16_t tag = 0x0;
         uint8_t *tag_data = NULL, *p = NULL, *kds = NULL, *dkeks = NULL;
