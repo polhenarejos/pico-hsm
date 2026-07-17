@@ -29,11 +29,17 @@ int cmd_update_ef(void) {
     if (!isUserAuthenticated) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
+    if ((fid >> 8) == HSM_OBJECT_PREFIX) {
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
+    }
     if (fid == 0x0) {
         ef = currentEF;
     }
     else {
         ef = file_search(fid);
+    }
+    if (ef && (ef->fid >> 8) == HSM_OBJECT_PREFIX) {
+        return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
     /*
        // This should not happen

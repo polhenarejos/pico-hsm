@@ -178,7 +178,7 @@ int cmd_initialize(void) {
         /* When initialized, it has all credentials */
         isUserAuthenticated = true;
         /* Create terminal private key */
-        file_t *fdkey = file_search(EF_KEY_DEV);
+        file_t *fdkey = hsm_key_search(0);
         if (!fdkey) {
             return SW_EXEC_ERROR();
         }

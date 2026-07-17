@@ -107,7 +107,7 @@ int cmd_signature(void) {
     if (!isUserAuthenticated) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
-    if (!(fkey = file_search((KEY_PREFIX << 8) | key_id)) || !file_has_data(fkey)) {
+    if (!(fkey = hsm_key_search(key_id)) || !file_has_data(fkey)) {
         return SW_FILE_NOT_FOUND();
     }
     if (get_key_counter(fkey) == 0) {
@@ -116,7 +116,7 @@ int cmd_signature(void) {
     if (key_has_purpose(fkey, p2) == false) {
         return SW_CONDITIONS_NOT_SATISFIED();
     }
-    uint16_t key_size = file_get_size(fkey);
+    uint16_t key_size = 0;
     if (p2 == ALGO_RSA_PKCS1_SHA1 || p2 == ALGO_RSA_PSS_SHA1 || p2 == ALGO_EC_SHA1) {
         md = MBEDTLS_MD_SHA1;
     }

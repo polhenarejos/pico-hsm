@@ -173,7 +173,7 @@ int cmd_cipher_sym(void) {
     if (wait_button_pressed() == true) { // timeout
         return SW_SECURE_MESSAGE_EXEC_ERROR();
     }
-    file_t *ef = file_search((KEY_PREFIX << 8) | key_id);
+    file_t *ef = hsm_key_search(key_id);
     bool using_hd = hd_keytype != 0;
     if (!using_hd) {
         if (!ef) {

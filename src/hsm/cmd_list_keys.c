@@ -18,10 +18,21 @@
 #include "sc_hsm.h"
 #include "files.h"
 
+typedef struct file_prefix_mapping {
+    uint8_t physical;
+    uint8_t logical;
+} file_prefix_mapping_t;
+
 static bool append_file_with_prefix(file_t *file, void *ctx) {
-    uint8_t prefix = *(const uint8_t *)ctx;
-    if ((file->fid >> 8) == prefix) {
-        res_APDU[res_APDU_size++] = prefix;
+    const file_prefix_mapping_t *prefix = (const file_prefix_mapping_t *)ctx;
+    if ((file->fid >> 8) == prefix->physical) {
+        if (prefix->physical == HSM_OBJECT_PREFIX && (file->fid & 0xff) == 0) {
+            return true;
+        }
+        if (prefix->physical == HSM_OBJECT_PREFIX && file_has_data(file_search((KEY_PREFIX << 8) | (file->fid & 0xff)))) {
+            return true;
+        }
+        res_APDU[res_APDU_size++] = prefix->logical;
         res_APDU[res_APDU_size++] = file->fid & 0xff;
     }
     return true;
@@ -33,11 +44,17 @@ int cmd_list_keys(void) {
     if (file_search(EF_PRKD_DEV)) {
         res_APDU_size += put_uint16_be(EF_PRKD_DEV, res_APDU + res_APDU_size);
     }
-    if (file_search(EF_KEY_DEV)) {
+    if (file_has_data(hsm_key_search(0))) {
         res_APDU_size += put_uint16_be(EF_KEY_DEV, res_APDU + res_APDU_size);
     }
-    const uint8_t prefixes[] = { KEY_PREFIX, PRKD_PREFIX, CD_PREFIX, DCOD_PREFIX };
-    for (size_t i = 0; i < sizeof(prefixes); i++) {
+    const file_prefix_mapping_t prefixes[] = {
+        { .physical = KEY_PREFIX, .logical = KEY_PREFIX },
+        { .physical = HSM_OBJECT_PREFIX, .logical = KEY_PREFIX },
+        { .physical = PRKD_PREFIX, .logical = PRKD_PREFIX },
+        { .physical = CD_PREFIX, .logical = CD_PREFIX },
+        { .physical = DCOD_PREFIX, .logical = DCOD_PREFIX }
+    };
+    for (size_t i = 0; i < sizeof(prefixes) / sizeof(prefixes[0]); i++) {
         file_for_each_dynamic(append_file_with_prefix, (void *)&prefixes[i]);
     }
 #if !defined(ENABLE_EMULATION) && !defined(ESP_PLATFORM)

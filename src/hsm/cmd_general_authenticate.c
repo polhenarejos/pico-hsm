@@ -50,7 +50,7 @@ int cmd_general_authenticate(void) {
             if (!pubkey) {
                 return SW_WRONG_DATA();
             }
-            file_t *fkey = file_search(EF_KEY_DEV);
+            file_t *fkey = hsm_key_search(0);
             if (!fkey) {
                 return SW_EXEC_ERROR();
             }

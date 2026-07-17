@@ -105,7 +105,7 @@ int cmd_key_domain(void) {
         }
         if (p1 == 0x3) { //if key domain is not empty, command is denied
             for (uint16_t i = 0; i < 256; i++) {
-                file_t *fkey = file_search(KEY_PREFIX << 8 | (uint8_t)i);
+                file_t *fkey = hsm_key_search((uint8_t)i);
                 uint16_t tag_len = 0;
                 const uint8_t *domain = get_meta_tag(fkey, 0x92, &tag_len);
                 if (domain && tag_len == 1 && domain[0] == p2) {

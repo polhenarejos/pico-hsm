@@ -20,10 +20,13 @@
 #include "random.h"
 
 static void rollback_generated_key(uint8_t key_id) {
-    file_t *fkey = file_search((KEY_PREFIX << 8) | key_id);
+    file_t *fkey = hsm_key_search(key_id);
     file_t *fprkd = file_search((PRKD_PREFIX << 8) | key_id);
     bool changed = false;
 
+    if (fkey && (fkey->fid >> 8) == HSM_OBJECT_PREFIX && meta_delete_no_commit((KEY_PREFIX << 8) | key_id) == PICOKEYS_OK) {
+        changed = true;
+    }
     if (fkey && file_delete_no_commit(fkey) == PICOKEYS_OK) {
         changed = true;
     }

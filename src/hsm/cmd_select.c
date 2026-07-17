@@ -45,6 +45,7 @@ int cmd_select(void) {
     uint8_t p2 = P2(apdu);
     file_t *pe = NULL;
     uint16_t fid = 0x0;
+    bool logical_key = false;
 
     // Only "first or only occurence" supported
     //if ((p2 & 0xF3) != 0x00) {
@@ -67,8 +68,12 @@ int cmd_select(void) {
         pfx == DCOD_PREFIX ||
         pfx == DATA_PREFIX ||
         pfx == PROT_DATA_PREFIX) {*/
-    if (fid != 0x0 && !(pe = file_search(fid))) {
-        return SW_FILE_NOT_FOUND();
+    if (fid != 0x0) {
+        pe = (fid >> 8) == KEY_PREFIX ? hsm_key_search(fid & 0xff) : file_search(fid);
+        if (!pe) {
+            return SW_FILE_NOT_FOUND();
+        }
+        logical_key = pe->fid != fid && (fid >> 8) == KEY_PREFIX;
     }
     /*}*/
     if (!pe) {
@@ -117,8 +122,18 @@ int cmd_select(void) {
             }
         }
     }
+    if (pe && (pe->fid >> 8) == HSM_OBJECT_PREFIX && !logical_key) {
+        return SW_FILE_NOT_FOUND();
+    }
     if ((p2 & 0xfc) == 0x00 || (p2 & 0xfc) == 0x04) {
-        file_process_fci(pe, 0);
+        if (logical_key) {
+            file_t logical_file = *pe;
+            logical_file.fid = fid;
+            file_process_fci(&logical_file, 0);
+        }
+        else {
+            file_process_fci(pe, 0);
+        }
         if (pe == file_sc_hsm) {
             res_APDU[res_APDU_size++] = 0x85;
             res_APDU[res_APDU_size++] = 5;

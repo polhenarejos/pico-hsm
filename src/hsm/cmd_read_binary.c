@@ -65,7 +65,7 @@ int cmd_read_binary(void) {
         return SW_FILE_NOT_FOUND();
     }
 
-    if ((ef->fid >> 8) == KEY_PREFIX || ((ef->fid >> 8) == PROT_DATA_PREFIX && !isUserAuthenticated) || !file_authenticate_action(ef, ACL_OP_READ_SEARCH)) {
+    if ((ef->fid >> 8) == KEY_PREFIX || (ef->fid >> 8) == HSM_OBJECT_PREFIX || ((ef->fid >> 8) == PROT_DATA_PREFIX && !isUserAuthenticated) || !file_authenticate_action(ef, ACL_OP_READ_SEARCH)) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
     if (ef->data) {

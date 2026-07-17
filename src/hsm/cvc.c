@@ -128,7 +128,7 @@ uint16_t asn1_cvc_cert(const mbedtls_pk_context *subject, uint8_t *buf, uint16_t
 }
 
 uint16_t asn1_cvc_aut(const mbedtls_pk_context *subject, uint8_t *buf, uint16_t buf_len, const uint8_t *ext, uint16_t ext_len) {
-    file_t *fkey = file_search(EF_KEY_DEV);
+    file_t *fkey = hsm_key_search(0);
     mbedtls_ecp_keypair device_key;
     mbedtls_pk_context outer;
     cvc_write_req ctx;

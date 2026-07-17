@@ -22,6 +22,7 @@
 #endif
 #include "kek.h"
 #include "crypto_utils.h"
+#include "object_store.h"
 #include "random.h"
 #include "mbedtls/md.h"
 #include "mbedtls/cmac.h"
@@ -322,7 +323,13 @@ int mkek_store_file(file_t *file, const uint8_t *data, uint16_t len) {
     }
     release_mkek(mkek);
     if (r == PICOKEYS_OK) {
-        r = file_put_data(file, record, (uint16_t)(MKEK_OBJECT_HEADER_SIZE + 12 + len + 16));
+        uint32_t record_len = MKEK_OBJECT_HEADER_SIZE + 12u + len + 16u;
+        if ((file->fid >> 8) == HSM_OBJECT_PREFIX) {
+            r = file_object_put(file, HSM_OBJECT_NAMESPACE, HSM_OBJECT_KEY_MATERIAL, record, record_len);
+        }
+        else {
+            r = file_put_data(file, record, record_len);
+        }
     }
     mbedtls_platform_zeroize(record, MKEK_OBJECT_HEADER_SIZE + 12 + len + 16);
     free(record);
@@ -333,18 +340,43 @@ int mkek_load_file(file_t *file, uint8_t *data, uint16_t *len) {
     if (!file || !data || !len || !file_has_data(file)) {
         return PICOKEYS_WRONG_DATA;
     }
-    uint16_t record_len = file_get_size(file);
-    const uint8_t *record = file_get_data(file);
+
+    file_object_t object = { 0 };
+    bool object_file = (file->fid >> 8) == HSM_OBJECT_PREFIX;
+    uint32_t stored_len = file_get_size(file);
+    if (object_file) {
+        int r = file_object_open(file, HSM_OBJECT_NAMESPACE, HSM_OBJECT_KEY_MATERIAL, false, &object);
+        if (r != PICOKEYS_OK) {
+            return r;
+        }
+        stored_len = object.payload_size;
+    }
+    if (stored_len == 0 || stored_len > UINT16_MAX) {
+        return PICOKEYS_WRONG_LENGTH;
+    }
+
+    uint16_t record_len = (uint16_t)stored_len;
+    uint8_t *record = (uint8_t *)calloc(1, record_len);
+    if (!record) {
+        return PICOKEYS_ERR_MEMORY_FATAL;
+    }
+    int r = object_file ? file_object_read_at(&object, 0, record, record_len) : file_read_at(file, 0, record, record_len);
+    if (r != PICOKEYS_OK) {
+        free(record);
+        return r;
+    }
     uint16_t plaintext_len = record_len;
     bool aead = record_len > MKEK_OBJECT_HEADER_SIZE + 12 + 16 && record[0] == MKEK_OBJECT_FORMAT_VERSION && memcmp(record + 1, mkek_object_magic, sizeof(mkek_object_magic)) == 0;
     if (aead) {
         plaintext_len = (uint16_t)(record_len - MKEK_OBJECT_HEADER_SIZE - 12 - 16);
     }
     if (*len < plaintext_len) {
+        mbedtls_platform_zeroize(record, record_len);
+        free(record);
         return PICOKEYS_WRONG_LENGTH;
     }
     uint8_t mkek[MKEK_SIZE];
-    int r = load_mkek(mkek);
+    r = load_mkek(mkek);
     if (r == PICOKEYS_OK) {
         if (aead) {
             r = decrypt_with_aad(MKEK_KEY(mkek), record + MKEK_OBJECT_HEADER_SIZE, record_len - MKEK_OBJECT_HEADER_SIZE, PIN_KDF_V2, data);
@@ -355,6 +387,8 @@ int mkek_load_file(file_t *file, uint8_t *data, uint16_t *len) {
         }
     }
     release_mkek(mkek);
+    mbedtls_platform_zeroize(record, record_len);
+    free(record);
     if (r == PICOKEYS_OK) {
         *len = plaintext_len;
         if (!aead) {

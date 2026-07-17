@@ -89,10 +89,14 @@ extern const uint8_t sc_hsm_aid[];
 #define CD_PREFIX               0xC8        /* Hi byte in file identifier for PKCS#15 CD objects */
 #define DCOD_PREFIX             0xC9        /* Hi byte in file identifier for PKCS#15 DCOD objects */
 #define CA_CERTIFICATE_PREFIX   0xCA        /* Hi byte in file identifier for CA certificates */
+#define HSM_OBJECT_PREFIX       0xC7        /* Physical v1 HSM object records */
 #define KEY_PREFIX              0xCC        /* Hi byte in file identifier for key objects */
 #define PROT_DATA_PREFIX        0xCD        /* Hi byte in file identifier for PIN protected data objects */
 #define EE_CERTIFICATE_PREFIX   0xCE        /* Hi byte in file identifier for EE certificates */
 #define DATA_PREFIX             0xCF        /* Hi byte in file identifier for readable data objects */
+
+#define HSM_OBJECT_NAMESPACE    0x0001
+#define HSM_OBJECT_KEY_MATERIAL 0x0001
 
 #define P15_KEYTYPE_RSA     0x30
 #define P15_KEYTYPE_ECC     0xA0
@@ -127,6 +131,9 @@ extern int load_private_key_ecdh(mbedtls_ecp_keypair *ctx, file_t *fkey);
 extern bool wait_button_pressed(void);
 extern int store_keys(void *key_ctx, int type, uint8_t key_id);
 extern int find_and_store_meta_key(uint8_t key_id);
+extern file_t *hsm_key_search(uint8_t key_id);
+extern file_t *hsm_key_open_or_create(uint8_t key_id);
+extern uint16_t hsm_key_logical_fid(const file_t *file);
 extern uint32_t get_key_counter(file_t *fkey);
 extern uint32_t decrement_key_counter(file_t *fkey);
 extern int cmd_select(void);

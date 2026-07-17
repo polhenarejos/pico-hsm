@@ -29,7 +29,7 @@ int cmd_key_wrap(void) {
     if (!isUserAuthenticated) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
-    file_t *ef = file_search((KEY_PREFIX << 8) | key_id);
+    file_t *ef = hsm_key_search(key_id);
     if (!ef) {
         return SW_FILE_NOT_FOUND();
     }

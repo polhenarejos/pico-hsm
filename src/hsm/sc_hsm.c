@@ -480,7 +480,7 @@ const uint8_t *get_meta_tag(file_t *ef, uint16_t meta_tag, uint16_t *tag_len) {
         return NULL;
     }
     uint8_t *meta_data = NULL;
-    uint16_t meta_size = meta_find(ef->fid, &meta_data);
+    uint16_t meta_size = meta_find(hsm_key_logical_fid(ef), &meta_data);
     if (meta_size > 0 && meta_data != NULL) {
         uint16_t tag = 0x0;
         uint8_t *tag_data = NULL, *p = NULL;
@@ -523,7 +523,8 @@ uint32_t decrement_key_counter(file_t *fkey) {
         return 0xffffff;
     }
     uint8_t *meta_data = NULL;
-    uint16_t meta_size = meta_find(fkey->fid, &meta_data);
+    uint16_t logical_fid = hsm_key_logical_fid(fkey);
+    uint16_t meta_size = meta_find(logical_fid, &meta_data);
     if (meta_size > 0 && meta_data != NULL) {
         uint16_t tag = 0x0;
         uint8_t *tag_data = NULL, *p = NULL;
@@ -538,7 +539,7 @@ uint32_t decrement_key_counter(file_t *fkey) {
                 uint32_t val = get_uint32_be(tag_data);
                 val--;
                 put_uint32_be(val, cmeta + (tag_data - meta_data));
-                int r = meta_add(fkey->fid, cmeta, (uint16_t)meta_size);
+                int r = meta_add(logical_fid, cmeta, (uint16_t)meta_size);
                 free(cmeta);
                 if (r != 0) {
                     return 0xffffffff;
@@ -550,6 +551,45 @@ uint32_t decrement_key_counter(file_t *fkey) {
         free(cmeta);
     }
     return 0xffffffff;
+}
+
+// Resolves logical key identifiers across legacy and v1 physical records.
+file_t *hsm_key_search(uint8_t key_id) {
+    file_t *legacy = file_search((KEY_PREFIX << 8) | key_id);
+    file_t *object = file_search((HSM_OBJECT_PREFIX << 8) | key_id);
+    bool legacy_present = file_has_data(legacy);
+    bool object_present = file_has_data(object);
+
+    if (legacy_present && object_present) {
+        return NULL;
+    }
+    if (object_present) {
+        return object;
+    }
+    return legacy;
+}
+
+file_t *hsm_key_open_or_create(uint8_t key_id) {
+    file_t *legacy = file_search((KEY_PREFIX << 8) | key_id);
+    file_t *object = file_search((HSM_OBJECT_PREFIX << 8) | key_id);
+
+    if (file_has_data(legacy) && file_has_data(object)) {
+        return NULL;
+    }
+    if (file_has_data(legacy) || (legacy && key_id != 0)) {
+        return legacy;
+    }
+    if (object) {
+        return object;
+    }
+    return file_new((HSM_OBJECT_PREFIX << 8) | key_id);
+}
+
+uint16_t hsm_key_logical_fid(const file_t *file) {
+    if (file && (file->fid >> 8) == HSM_OBJECT_PREFIX) {
+        return (KEY_PREFIX << 8) | (file->fid & 0xff);
+    }
+    return file ? file->fid : 0;
 }
 
 // Stores the private and public keys in flash
@@ -588,7 +628,7 @@ int store_keys(void *key_ctx, int type, uint8_t key_id) {
     else {
         return PICOKEYS_WRONG_DATA;
     }
-    file_t *fpk = file_new((KEY_PREFIX << 8) | key_id);
+    file_t *fpk = hsm_key_open_or_create(key_id);
     if (!fpk) {
         return PICOKEYS_ERR_MEMORY_FATAL;
     }
