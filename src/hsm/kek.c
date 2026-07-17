@@ -325,7 +325,8 @@ int mkek_store_file(file_t *file, const uint8_t *data, uint16_t len) {
     if (r == PICOKEYS_OK) {
         uint32_t record_len = MKEK_OBJECT_HEADER_SIZE + 12u + len + 16u;
         if ((file->fid >> 8) == HSM_OBJECT_PREFIX) {
-            r = file_object_put(file, HSM_OBJECT_NAMESPACE, HSM_OBJECT_KEY_MATERIAL, record, record_len);
+            const file_object_id_t object_id = { .namespace_id = HSM_OBJECT_NAMESPACE, .object_type = HSM_OBJECT_KEY_MATERIAL, .fid = file->fid };
+            r = file_object_put(&object_id, record, record_len);
         }
         else {
             r = file_put_data(file, record, record_len);
@@ -341,27 +342,48 @@ int mkek_load_file(file_t *file, uint8_t *data, uint16_t *len) {
         return PICOKEYS_WRONG_DATA;
     }
 
-    file_object_t object = { 0 };
     bool object_file = (file->fid >> 8) == HSM_OBJECT_PREFIX;
     uint32_t stored_len = file_get_size(file);
+    file_object_handle_t object_handle = FILE_OBJECT_INVALID_HANDLE;
     if (object_file) {
-        int r = file_object_open(file, HSM_OBJECT_NAMESPACE, HSM_OBJECT_KEY_MATERIAL, false, &object);
+        const file_object_id_t object_id = { .namespace_id = HSM_OBJECT_NAMESPACE, .object_type = HSM_OBJECT_KEY_MATERIAL, .fid = file->fid };
+        file_object_info_t object_info;
+        int r = file_object_open(&object_id, &object_handle);
+        if (r == PICOKEYS_OK) {
+            r = file_object_get_info(object_handle, &object_info);
+        }
         if (r != PICOKEYS_OK) {
+            if (object_handle != FILE_OBJECT_INVALID_HANDLE) {
+                file_object_close(object_handle);
+            }
             return r;
         }
-        stored_len = object.payload_size;
+        stored_len = object_info.payload_size;
     }
     if (stored_len == 0 || stored_len > UINT16_MAX) {
+        if (object_file) {
+            file_object_close(object_handle);
+        }
         return PICOKEYS_WRONG_LENGTH;
     }
 
     uint16_t record_len = (uint16_t)stored_len;
     uint8_t *record = (uint8_t *)calloc(1, record_len);
     if (!record) {
+        if (object_file) {
+            file_object_close(object_handle);
+        }
         return PICOKEYS_ERR_MEMORY_FATAL;
     }
-    int r = object_file ? file_object_read_at(&object, 0, record, record_len) : file_read_at(file, 0, record, record_len);
+    int r = object_file ? file_object_read_at(object_handle, 0, record, record_len) : file_read_at(file, 0, record, record_len);
+    if (object_file) {
+        int close_result = file_object_close(object_handle);
+        if (r == PICOKEYS_OK) {
+            r = close_result;
+        }
+    }
     if (r != PICOKEYS_OK) {
+        mbedtls_platform_zeroize(record, record_len);
         free(record);
         return r;
     }

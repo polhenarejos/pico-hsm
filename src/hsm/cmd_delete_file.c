@@ -17,6 +17,7 @@
 
 #include "sc_hsm.h"
 #include "files.h"
+#include "object_store.h"
 
 int cmd_delete_file(void) {
     file_t *ef = NULL;
@@ -52,7 +53,8 @@ int cmd_delete_file(void) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
     if ((ef->fid >> 8) == HSM_OBJECT_PREFIX) {
-        if (meta_delete_no_commit(logical_fid) != PICOKEYS_OK || file_delete_no_commit(ef) != PICOKEYS_OK) {
+        const file_object_id_t object_id = { .namespace_id = HSM_OBJECT_NAMESPACE, .object_type = HSM_OBJECT_KEY_MATERIAL, .fid = ef->fid };
+        if (meta_delete_no_commit(logical_fid) != PICOKEYS_OK || file_object_delete_no_commit(&object_id) != PICOKEYS_OK) {
             return SW_EXEC_ERROR();
         }
         flash_commit();

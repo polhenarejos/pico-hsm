@@ -71,6 +71,19 @@ def assert_hidden_object(device, key_id: int):
     assert error.value.sw == SWCodes.SW_SECURITY_STATUS_NOT_SATISFIED
 
 
+def test_00_device_key_uses_persistent_legacy_slot(device):
+    device.initialize()
+
+    with pytest.raises(APDUResponse) as error:
+        read_binary_raw(device, HSM_OBJECT_PREFIX << 8)
+    assert error.value.sw == SWCodes.SW_FILE_NOT_FOUND
+
+    device.initialize()
+    with pytest.raises(APDUResponse) as error:
+        read_binary_raw(device, HSM_OBJECT_PREFIX << 8)
+    assert error.value.sw == SWCodes.SW_FILE_NOT_FOUND
+
+
 def test_01_new_key_uses_hidden_v1_object_and_logical_key_id(device):
     device.initialize()
     key_id = device.key_generation(KeyType.AES, 256)

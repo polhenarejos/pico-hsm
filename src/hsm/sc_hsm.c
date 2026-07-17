@@ -572,11 +572,20 @@ file_t *hsm_key_search(uint8_t key_id) {
 file_t *hsm_key_open_or_create(uint8_t key_id) {
     file_t *legacy = file_search((KEY_PREFIX << 8) | key_id);
     file_t *object = file_search((HSM_OBJECT_PREFIX << 8) | key_id);
+    bool legacy_present = file_has_data(legacy);
+    bool object_present = file_has_data(object);
 
-    if (file_has_data(legacy) && file_has_data(object)) {
+    if (legacy_present && object_present) {
         return NULL;
     }
-    if (file_has_data(legacy) || (legacy && key_id != 0)) {
+    if (legacy_present) {
+        return legacy;
+    }
+    if (object_present) {
+        return object;
+    }
+    // EF_KEY_DEV is a static persistent file and must survive HSM initialization.
+    if (legacy) {
         return legacy;
     }
     if (object) {
