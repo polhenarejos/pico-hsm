@@ -81,6 +81,7 @@ set(SOURCES ${SOURCES}
     ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cvc.c
     ${CMAKE_CURRENT_LIST_DIR}/src/hsm/files.c
     ${CMAKE_CURRENT_LIST_DIR}/src/hsm/kek.c
+    ${CMAKE_CURRENT_LIST_DIR}/src/hsm/object_provider.c
 )
 
 SET_VERSION(ver_major ver_minor "${CMAKE_CURRENT_LIST_DIR}/src/hsm/version.h")
@@ -116,6 +117,7 @@ if(NOT ESP_PLATFORM)
     endif()
 
     if(ENABLE_EMULATION)
+        enable_testing()
         if(NOT MSVC)
             target_compile_options(pico_hsm PUBLIC
                 -fdata-sections
@@ -139,6 +141,20 @@ if(NOT ESP_PLATFORM)
         endif(APPLE)
         set(PICO_HSM_EMU_LIBS picokeys_sdk pthread m)
         target_link_libraries(pico_hsm PRIVATE ${PICO_HSM_EMU_LIBS})
+
+        add_executable(hsm_object_provider_test
+            ${CMAKE_CURRENT_LIST_DIR}/pico-keys-sdk/src/fs/object_crypto_provider.c
+            ${CMAKE_CURRENT_LIST_DIR}/src/hsm/object_provider.c
+            ${CMAKE_CURRENT_LIST_DIR}/tests/hsm_object_provider_test.c
+        )
+        target_include_directories(hsm_object_provider_test PRIVATE ${INCLUDES})
+        if(MSVC)
+            target_compile_options(hsm_object_provider_test PRIVATE /W4 /WX)
+        else()
+            target_compile_options(hsm_object_provider_test PRIVATE -Wall -Wextra -Werror)
+        endif()
+        target_link_libraries(hsm_object_provider_test PRIVATE mbedtls)
+        add_test(NAME hsm_object_provider_test COMMAND hsm_object_provider_test)
     else()
         pico_add_extra_outputs(${CMAKE_PROJECT_NAME})
     endif()
