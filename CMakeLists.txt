@@ -158,6 +158,7 @@ if(NOT ESP_PLATFORM)
         add_test(NAME hsm_object_provider_test COMMAND hsm_object_provider_test)
 
         add_executable(hsm_object_authorization_test
+            ${CMAKE_CURRENT_LIST_DIR}/pico-keys-sdk/src/fs/object_policy.c
             ${CMAKE_CURRENT_LIST_DIR}/src/hsm/object_authorization.c
             ${CMAKE_CURRENT_LIST_DIR}/tests/hsm_object_authorization_test.c
         )

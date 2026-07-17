@@ -22,6 +22,7 @@
 #endif
 #include "kek.h"
 #include "crypto_utils.h"
+#include "object_authorization.h"
 #include "object_store.h"
 #include "random.h"
 #include "mbedtls/md.h"
@@ -343,6 +344,9 @@ int mkek_load_file(file_t *file, uint8_t *data, uint16_t *len) {
     }
 
     bool object_file = (file->fid >> 8) == HSM_OBJECT_PREFIX;
+    if (object_file && !hsm_object_authorization_key_operation(FILE_OBJECT_OPERATION_USE, false)) {
+        return PICOKEYS_NO_LOGIN;
+    }
     uint32_t stored_len = file_get_size(file);
     file_object_handle_t object_handle = FILE_OBJECT_INVALID_HANDLE;
     if (object_file) {

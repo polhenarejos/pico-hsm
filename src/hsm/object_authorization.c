@@ -23,6 +23,14 @@
 static uint32_t hsm_object_session_epoch = 1;
 static bool hsm_object_secure_messaging;
 
+// Private-key operations require UV plus a user/admin MKEK session; firmware uses an isolated rule.
+static const uint8_t hsm_object_key_policy[] = {
+    FILE_OBJECT_POLICY_FORMAT_VERSION, 3,
+    0x01, 0x7c, 0x00, 0x00, 0x04, 0x46, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00,
+    0x01, 0x7c, 0x00, 0x00, 0x04, 0x4a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00,
+    0x01, 0x7c, 0x00, 0x00, 0x04, 0x60, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00
+};
+
 void hsm_object_authorization_session_invalidate(void) {
     hsm_object_secure_messaging = false;
     hsm_object_session_epoch++;
@@ -37,6 +45,13 @@ uint32_t hsm_object_authorization_session_epoch(void) {
 
 void hsm_object_authorization_command_set_secure_messaging(bool active) {
     hsm_object_secure_messaging = active;
+}
+
+const uint8_t *hsm_object_authorization_key_policy(size_t *policy_size) {
+    if (policy_size) {
+        *policy_size = sizeof(hsm_object_key_policy);
+    }
+    return hsm_object_key_policy;
 }
 
 int hsm_object_authorization_context_build(bool internal_firmware, file_object_authorization_context_t *context) {
@@ -68,4 +83,12 @@ int hsm_object_authorization_context_build(bool internal_firmware, file_object_a
     context->facts_epoch = hsm_object_session_epoch;
     context->caller_namespace = HSM_OBJECT_NAMESPACE;
     return PICOKEYS_OK;
+}
+
+bool hsm_object_authorization_key_operation(uint16_t operation, bool internal_firmware) {
+    file_object_authorization_context_t context;
+    if (hsm_object_authorization_context_build(internal_firmware, &context) != PICOKEYS_OK) {
+        return false;
+    }
+    return file_object_policy_authorize(hsm_object_key_policy, sizeof(hsm_object_key_policy), operation, &context);
 }

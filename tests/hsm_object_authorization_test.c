@@ -108,12 +108,40 @@ static void test_epoch_invalidation(void) {
     assert(after.facts_epoch == after.session_epoch);
 }
 
+static void test_key_policy(void) {
+    size_t policy_size = 0;
+    const uint8_t *policy = hsm_object_authorization_key_policy(&policy_size);
+
+    assert(policy != NULL);
+    assert(file_object_policy_validate(policy, policy_size) == PICOKEYS_OK);
+
+    test_state_reset();
+    assert(!hsm_object_authorization_key_operation(FILE_OBJECT_OPERATION_USE, false));
+
+    isUserAuthenticated = true;
+    assert(!hsm_object_authorization_key_operation(FILE_OBJECT_OPERATION_USE, false));
+
+    has_session_pin = true;
+    assert(hsm_object_authorization_key_operation(FILE_OBJECT_OPERATION_USE, false));
+    assert(hsm_object_authorization_key_operation(FILE_OBJECT_OPERATION_SIGN, false));
+    assert(!hsm_object_authorization_key_operation(FILE_OBJECT_OPERATION_READ, false));
+
+    has_session_pin = false;
+    has_session_sopin = true;
+    assert(hsm_object_authorization_key_operation(FILE_OBJECT_OPERATION_EXPORT, false));
+
+    test_state_reset();
+    assert(hsm_object_authorization_key_operation(FILE_OBJECT_OPERATION_DERIVE, true));
+    assert(!hsm_object_authorization_key_operation(FILE_OBJECT_OPERATION_READ, true));
+}
+
 int main(void) {
     test_unauthenticated_context();
     test_authenticated_context();
     test_secure_messaging_context();
     test_internal_context();
     test_epoch_invalidation();
+    test_key_policy();
     assert(hsm_object_authorization_context_build(false, NULL) == PICOKEYS_ERR_NULL_PARAM);
     puts("hsm_object_authorization_test: OK");
     return 0;
