@@ -90,6 +90,10 @@ int cmd_pso(void) {
                     uint16_t plen = (uint16_t)mbedtls_mpi_size(&grp.P);
                     uint16_t t86_len = 0;
                     const uint8_t *t86 = cvc_get_field(puk, puk_len, &t86_len, 0x86);
+                    if (t86 == NULL) {
+                        mbedtls_ecp_group_free(&grp);
+                        return SW_WRONG_DATA();
+                    }
                     if (mbedtls_ecp_get_type(&grp) == MBEDTLS_ECP_TYPE_MONTGOMERY) {
                         if (plen != t86_len) {
                             mbedtls_ecp_group_free(&grp);
@@ -129,6 +133,9 @@ int cmd_pso(void) {
                     return SW_EXEC_ERROR();
                 }
                 uint8_t *buf = (uint8_t *) calloc(cd_len, sizeof(uint8_t));
+                if (buf == NULL) {
+                    return SW_MEMORY_FAILURE();
+                }
                 r = (int)asn1_build_cert_description(chr, chr_len, puk_bin, puk_bin_len, fid, buf, cd_len);
                 file_put_data(cd_ef, buf, cd_len);
                 free(buf);

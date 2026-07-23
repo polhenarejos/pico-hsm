@@ -1,0 +1,24 @@
+# Python virtual environments
+.venv/
+venv/
+env/
+
+# Python bytecode / caches
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Build output
+build/
+build_*/
+*.uf2
+*.bin
+*.elf
+
+# Local emulator / test state
+tests/memory.flash
+.pico-hsm-emulation/
+
+# Editor / OS cruft
+.DS_Store
+Thumbs.db

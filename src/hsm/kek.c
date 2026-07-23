@@ -441,6 +441,12 @@ int mkek_load_key_file(file_t *file, uint8_t *data, uint16_t *len, uint16_t oper
         }
         return r;
     }
+    // Authorization asymmetry (by design): container / object-prefix keys are
+    // gated here by the fine-grained object policy (e.g. EXPORT requires the
+    // SO-PIN). Legacy KEY_PREFIX keys have no per-operation policy record and
+    // rely solely on the caller's isUserAuthenticated gate. The storage format
+    // is chosen by firmware (new keys prefer the container), not by the caller,
+    // so this cannot be used to downgrade a key's authorization at runtime.
     if ((file->fid >> 8) == HSM_OBJECT_PREFIX && !hsm_object_authorization_key_operation(operation, internal_firmware)) {
         return PICOKEYS_NO_LOGIN;
     }
@@ -640,7 +646,49 @@ int dkek_type_key(const uint8_t *in) {
     return 0x0;
 }
 
+/* Constant-time comparison of authentication tags/verifiers. Returns 0 on a
+ * full match, non-zero otherwise, without early-out timing leaks. */
+static int ct_memcmp(const void *a, const void *b, size_t len) {
+    const volatile uint8_t *pa = (const volatile uint8_t *) a;
+    const volatile uint8_t *pb = (const volatile uint8_t *) b;
+    uint8_t diff = 0;
+    for (size_t i = 0; i < len; i++) {
+        diff |= (uint8_t) (pa[i] ^ pb[i]);
+    }
+    return diff;
+}
+
+/* Reads a 16-bit length prefix at kb[*ofs], advancing *ofs past the length
+ * field, and validates that both the field and the value it introduces stay
+ * within `limit`. The decrypted key blob is attacker-authored even after the
+ * CMAC check succeeds, so every length must be bounds-checked before use. */
+static bool dkek_kb_read_len(const uint8_t *kb, uint16_t *ofs, uint16_t limit, uint16_t *out_len) {
+    if ((uint32_t) *ofs + 2u > limit) {
+        return false;
+    }
+    uint16_t l = get_uint16_be(kb + *ofs);
+    if ((uint32_t) *ofs + 2u + l > limit) {
+        return false;
+    }
+    *ofs += 2u;
+    *out_len = l;
+    return true;
+}
+
+/* Skips a length-prefixed field entirely, bounds-checked against `limit`. */
+static bool dkek_kb_skip(const uint8_t *kb, uint16_t *ofs, uint16_t limit) {
+    uint16_t l = 0;
+    if (!dkek_kb_read_len(kb, ofs, limit, &l)) {
+        return false;
+    }
+    *ofs += l;
+    return true;
+}
+
 int dkek_decode_key(uint8_t id, void *key_ctx, const uint8_t *in, uint16_t in_len, int *key_size_out, uint8_t **allowed, uint16_t *allowed_len) {
+    if (in == NULL || in_len < 9u + 12u + 16u) { // KCV + type + fixed algo OID + CMAC tag
+        return PICOKEYS_WRONG_DATA;
+    }
     uint8_t kcv[8];
     int r = 0;
     memset(kcv, 0, sizeof(kcv));
@@ -663,7 +711,7 @@ int dkek_decode_key(uint8_t id, void *key_ctx, const uint8_t *in, uint16_t in_le
         return r;
     }
 
-    if (memcmp(kcv, in, 8) != 0) {
+    if (ct_memcmp(kcv, in, 8) != 0) {
         return PICOKEYS_WRONG_DKEK;
     }
 
@@ -672,7 +720,7 @@ int dkek_decode_key(uint8_t id, void *key_ctx, const uint8_t *in, uint16_t in_le
     if (r != 0) {
         return PICOKEYS_WRONG_SIGNATURE;
     }
-    if (memcmp(signature, in + in_len - 16, 16) != 0) {
+    if (ct_memcmp(signature, in + in_len - 16, 16) != 0) {
         return PICOKEYS_WRONG_SIGNATURE;
     }
 
@@ -695,37 +743,44 @@ int dkek_decode_key(uint8_t id, void *key_ctx, const uint8_t *in, uint16_t in_le
         return PICOKEYS_WRONG_DATA;
     }
 
+    // The 4 length-prefixed header fields (OID, allowed algorithms, access
+    // conditions, key OID) plus the encrypted key body must all lie within the
+    // CMAC-authenticated region (in_len minus the 16-byte tag). These lengths
+    // are attacker-authored (the CMAC only proves a DKEK holder produced them),
+    // so validate every advance to avoid over-reads and offset wraparound.
+    uint16_t body = (uint16_t) (in_len - 16);
     uint16_t ofs = 9;
+    uint16_t len = 0, g_len = 0;
+    for (int field = 0; field < 4; field++) {
+        if ((uint32_t) ofs + 2u > body) {
+            return PICOKEYS_WRONG_DATA;
+        }
+        uint16_t flen = get_uint16_be(in + ofs);
+        if (field == 1) { // Allowed algorithms
+            *allowed = (uint8_t *) (in + ofs + 2);
+            *allowed_len = flen;
+        }
+        if ((uint32_t) ofs + 2u + flen > body) {
+            return PICOKEYS_WRONG_DATA;
+        }
+        ofs += (uint16_t) (2u + flen);
+    }
 
-    //OID
-    uint16_t len = get_uint16_be(in + ofs);
-    ofs += len + 2;
-
-    //Allowed algorithms
-    len = get_uint16_be(in + ofs);
-    *allowed = (uint8_t *) (in + ofs + 2);
-    *allowed_len = len;
-    ofs += len + 2;
-
-    //Access conditions
-    len = get_uint16_be(in + ofs);
-    ofs += len + 2;
-
-    //Key OID
-    len = get_uint16_be(in + ofs);
-    ofs += len + 2;
-
-    if ((in_len - 16 - ofs) % 16 != 0) {
+    uint16_t enc_len = (uint16_t) (body - ofs);
+    uint8_t kb[8 + 2 * 4 + 2 * 4096 / 8 + 3 + 13]; //worst case: RSA-4096  (plus, 13 bytes padding)
+    if (enc_len == 0 || enc_len % 16 != 0 || enc_len > sizeof(kb)) {
         return PICOKEYS_WRONG_PADDING;
     }
-    uint8_t kb[8 + 2 * 4 + 2 * 4096 / 8 + 3 + 13]; //worst case: RSA-4096  (plus, 13 bytes padding)
     memset(kb, 0, sizeof(kb));
-    memcpy(kb, in + ofs, in_len - 16 - ofs);
-    r = aes_decrypt(kenc, NULL, 256, PICOKEYS_AES_MODE_CBC, kb, in_len - 16 - ofs);
+    memcpy(kb, in + ofs, enc_len);
+    r = aes_decrypt(kenc, NULL, 256, PICOKEYS_AES_MODE_CBC, kb, enc_len);
     if (r != PICOKEYS_OK) {
         return r;
     }
 
+    if (enc_len < 10) { // key size lives at kb[8..9]
+        return PICOKEYS_WRONG_DATA;
+    }
     int key_size = get_uint16_be(kb + 8);
     if (key_size_out) {
         *key_size_out = key_size;
@@ -735,14 +790,20 @@ int dkek_decode_key(uint8_t id, void *key_ctx, const uint8_t *in, uint16_t in_le
         mbedtls_rsa_context *rsa = (mbedtls_rsa_context *) key_ctx;
         mbedtls_rsa_init(rsa);
         if (key_type == 5) {
-            len = get_uint16_be(kb + ofs); ofs += 2;
+            if (!dkek_kb_read_len(kb, &ofs, enc_len, &len)) {
+                mbedtls_rsa_free(rsa);
+                return PICOKEYS_WRONG_DATA;
+            }
             r = mbedtls_mpi_read_binary(&rsa->D, kb + ofs, len); ofs += len;
             if (r != 0) {
                 mbedtls_rsa_free(rsa);
                 return PICOKEYS_WRONG_DATA;
             }
 
-            len = get_uint16_be(kb + ofs); ofs += 2;
+            if (!dkek_kb_read_len(kb, &ofs, enc_len, &len)) {
+                mbedtls_rsa_free(rsa);
+                return PICOKEYS_WRONG_DATA;
+            }
             r = mbedtls_mpi_read_binary(&rsa->N, kb + ofs, len); ofs += len;
             if (r != 0) {
                 mbedtls_rsa_free(rsa);
@@ -751,12 +812,21 @@ int dkek_decode_key(uint8_t id, void *key_ctx, const uint8_t *in, uint16_t in_le
         }
         else if (key_type == 6) {
             //DP-1
-            len = get_uint16_be(kb + ofs); ofs += len + 2;
+            if (!dkek_kb_skip(kb, &ofs, enc_len)) {
+                mbedtls_rsa_free(rsa);
+                return PICOKEYS_WRONG_DATA;
+            }
 
             //DQ-1
-            len = get_uint16_be(kb + ofs); ofs += len + 2;
+            if (!dkek_kb_skip(kb, &ofs, enc_len)) {
+                mbedtls_rsa_free(rsa);
+                return PICOKEYS_WRONG_DATA;
+            }
 
-            len = get_uint16_be(kb + ofs); ofs += 2;
+            if (!dkek_kb_read_len(kb, &ofs, enc_len, &len)) {
+                mbedtls_rsa_free(rsa);
+                return PICOKEYS_WRONG_DATA;
+            }
             r = mbedtls_mpi_read_binary(&rsa->P, kb + ofs, len); ofs += len;
             if (r != 0) {
                 mbedtls_rsa_free(rsa);
@@ -764,19 +834,31 @@ int dkek_decode_key(uint8_t id, void *key_ctx, const uint8_t *in, uint16_t in_le
             }
 
             //PQ
-            len = get_uint16_be(kb + ofs); ofs += len + 2;
+            if (!dkek_kb_skip(kb, &ofs, enc_len)) {
+                mbedtls_rsa_free(rsa);
+                return PICOKEYS_WRONG_DATA;
+            }
 
-            len = get_uint16_be(kb + ofs); ofs += 2;
+            if (!dkek_kb_read_len(kb, &ofs, enc_len, &len)) {
+                mbedtls_rsa_free(rsa);
+                return PICOKEYS_WRONG_DATA;
+            }
             r = mbedtls_mpi_read_binary(&rsa->Q, kb + ofs, len); ofs += len;
             if (r != 0) {
                 mbedtls_rsa_free(rsa);
                 return PICOKEYS_WRONG_DATA;
             }
             //N
-            len = get_uint16_be(kb + ofs); ofs += len + 2;
+            if (!dkek_kb_skip(kb, &ofs, enc_len)) {
+                mbedtls_rsa_free(rsa);
+                return PICOKEYS_WRONG_DATA;
+            }
         }
 
-        len = get_uint16_be(kb + ofs); ofs += 2;
+        if (!dkek_kb_read_len(kb, &ofs, enc_len, &len)) {
+            mbedtls_rsa_free(rsa);
+            return PICOKEYS_WRONG_DATA;
+        }
         r = mbedtls_mpi_read_binary(&rsa->E, kb + ofs, len); ofs += len;
         if (r != 0) {
             mbedtls_rsa_free(rsa);
@@ -814,13 +896,22 @@ int dkek_decode_key(uint8_t id, void *key_ctx, const uint8_t *in, uint16_t in_le
         mbedtls_ecdsa_init(ecdsa);
 
         //A
-        len = get_uint16_be(kb + ofs); ofs += len + 2;
+        if (!dkek_kb_skip(kb, &ofs, enc_len)) {
+            mbedtls_ecdsa_free(ecdsa);
+            return PICOKEYS_WRONG_DATA;
+        }
 
         //B
-        len = get_uint16_be(kb + ofs); ofs += len + 2;
+        if (!dkek_kb_skip(kb, &ofs, enc_len)) {
+            mbedtls_ecdsa_free(ecdsa);
+            return PICOKEYS_WRONG_DATA;
+        }
 
         //P
-        len = get_uint16_be(kb + ofs); ofs += 2;
+        if (!dkek_kb_read_len(kb, &ofs, enc_len, &len)) {
+            mbedtls_ecdsa_free(ecdsa);
+            return PICOKEYS_WRONG_DATA;
+        }
         mbedtls_ecp_group_id ec_id = ec_get_curve_from_prime(kb + ofs, len);
         if (ec_id == MBEDTLS_ECP_DP_NONE) {
             mbedtls_ecdsa_free(ecdsa);
@@ -829,16 +920,26 @@ int dkek_decode_key(uint8_t id, void *key_ctx, const uint8_t *in, uint16_t in_le
         ofs += len;
 
         //N
-        len = get_uint16_be(kb + ofs); ofs += len + 2;
+        if (!dkek_kb_skip(kb, &ofs, enc_len)) {
+            mbedtls_ecdsa_free(ecdsa);
+            return PICOKEYS_WRONG_DATA;
+        }
 
         //G
-        uint16_t g_len = get_uint16_be(kb + ofs);
-        ofs += g_len + 2;
+        if (!dkek_kb_read_len(kb, &ofs, enc_len, &g_len)) {
+            mbedtls_ecdsa_free(ecdsa);
+            return PICOKEYS_WRONG_DATA;
+        }
+        const uint8_t *g = kb + ofs; // G value (bounds already validated)
+        (void) g;
+        ofs += g_len;
 
         //d
-        len = get_uint16_be(kb + ofs);
+        if (!dkek_kb_read_len(kb, &ofs, enc_len, &len)) {
+            mbedtls_ecdsa_free(ecdsa);
+            return PICOKEYS_WRONG_DATA;
+        }
 #ifdef MBEDTLS_EDDSA_C
-        const uint8_t *g = kb + ofs - g_len;
         if (ec_id == MBEDTLS_ECP_DP_CURVE25519 || ec_id == MBEDTLS_ECP_DP_ED25519) {
             ec_id = (g_len == 32 && g[0] == 0x09) ? MBEDTLS_ECP_DP_CURVE25519 : MBEDTLS_ECP_DP_ED25519;
         }
@@ -846,7 +947,6 @@ int dkek_decode_key(uint8_t id, void *key_ctx, const uint8_t *in, uint16_t in_le
             ec_id = (g_len == 56 && g[0] == 0x05 && len == 56) ? MBEDTLS_ECP_DP_CURVE448 : MBEDTLS_ECP_DP_ED448;
         }
 #endif
-        ofs += 2;
         r = mbedtls_ecp_read_key(ec_id, ecdsa, kb + ofs, len);
         if (r != 0) {
             mbedtls_ecdsa_free(ecdsa);
@@ -855,7 +955,10 @@ int dkek_decode_key(uint8_t id, void *key_ctx, const uint8_t *in, uint16_t in_le
         ofs += len;
 
         //Q
-        len = get_uint16_be(kb + ofs); ofs += 2;
+        if (!dkek_kb_read_len(kb, &ofs, enc_len, &len)) {
+            mbedtls_ecdsa_free(ecdsa);
+            return PICOKEYS_WRONG_DATA;
+        }
         r = mbedtls_ecp_point_read_binary(&ecdsa->grp, &ecdsa->Q, kb + ofs, len);
         if (r != 0) {
             r = mbedtls_ecp_keypair_calc_public(ecdsa, random_fill_iterator, NULL);
@@ -871,6 +974,11 @@ int dkek_decode_key(uint8_t id, void *key_ctx, const uint8_t *in, uint16_t in_le
         }
     }
     else if (key_type == 15) {
+        // key_ctx is a fixed 64-byte AES buffer in the caller; key_size and the
+        // offset are attacker-authored, so both must be bounded before copy.
+        if (key_size < 0 || key_size > 64 || (uint32_t) ofs + (uint32_t) key_size > enc_len) {
+            return PICOKEYS_WRONG_DATA;
+        }
         memcpy(key_ctx, kb + ofs, key_size);
     }
     return PICOKEYS_OK;

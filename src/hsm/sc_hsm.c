@@ -174,6 +174,9 @@ int add_cert_puk_store(const uint8_t *data, uint16_t data_len, bool copy) {
     puk_store[puk_store_entries].copied = copy;
     if (copy == true) {
         uint8_t *tmp = (uint8_t *) calloc(data_len, sizeof(uint8_t));
+        if (tmp == NULL) {
+            return PICOKEYS_ERR_MEMORY_FATAL;
+        }
         memcpy(tmp, data, data_len);
         puk_store[puk_store_entries].cvcert = tmp;
     }
@@ -389,6 +392,18 @@ bool pka_enabled(void) {
     return file_has_data(ef_puk) && file_read_uint8(ef_puk) > 0;
 }
 
+/* Constant-time comparison, returns 0 on a full match. Used for PIN-verifier
+ * checks so the number of matching leading bytes is not exposed via timing. */
+static int ct_memcmp(const void *a, const void *b, size_t len) {
+    const volatile uint8_t *pa = (const volatile uint8_t *) a;
+    const volatile uint8_t *pb = (const volatile uint8_t *) b;
+    uint8_t diff = 0;
+    for (size_t i = 0; i < len; i++) {
+        diff |= (uint8_t) (pa[i] ^ pb[i]);
+    }
+    return diff;
+}
+
 uint16_t check_pin(const file_t *pin, const uint8_t *data, uint16_t len) {
     if (!file_has_data((file_t *) pin)) {
         return SW_REFERENCE_NOT_FOUND();
@@ -409,7 +424,7 @@ uint16_t check_pin(const file_t *pin, const uint8_t *data, uint16_t len) {
     else {
         return SW_WRONG_DATA();
     }
-    if (memcmp(file_get_data(pin) + off, dhash, sizeof(dhash)) != 0) {
+    if (ct_memcmp(file_get_data(pin) + off, dhash, sizeof(dhash)) != 0) {
         int retries;
         if ((retries = pin_wrong_retry(pin)) < PICOKEYS_OK) {
             return SW_PIN_BLOCKED();

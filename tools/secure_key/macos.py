@@ -18,6 +18,13 @@ except:
     sys.exit(-1)
 
 
+# SECURITY NOTE: this backend currently stores the device-unlock private key as
+# an *extractable software key* in the login keychain, NOT hardware-bound in the
+# Secure Enclave. use_secure_enclave defaults to False because enabling it
+# segfaults the (non-code-signed) Python interpreter, and is_extractable=True is
+# required so get_secure_key() can return the raw scalar to pico-hsm-tool.
+# TODO: ship a code-signed interpreter and set use_secure_enclave=True /
+# is_extractable=False so the key becomes non-exportable and hardware-protected.
 def get_backend(use_secure_enclave=False):
     backend = OSXKeychainKeysBackend(
         key_type=OSXKeychainKeyType.EC, # Key type, e.g. RSA, RC, DSA, ...
