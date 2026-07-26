@@ -174,6 +174,7 @@ if(NOT ESP_PLATFORM)
 
         add_executable(hsm_key_container_test
             ${CMAKE_CURRENT_LIST_DIR}/pico-keys-sdk/src/fs/object_container.c
+            ${CMAKE_CURRENT_LIST_DIR}/pico-keys-sdk/src/fs/object_container_store.c
             ${CMAKE_CURRENT_LIST_DIR}/pico-keys-sdk/src/fs/object_policy.c
             ${CMAKE_CURRENT_LIST_DIR}/pico-keys-sdk/src/fs/object_store_txn.c
             ${CMAKE_CURRENT_LIST_DIR}/src/hsm/key_container.c
