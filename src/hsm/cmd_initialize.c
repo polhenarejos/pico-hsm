@@ -223,12 +223,14 @@ int cmd_initialize(void) {
                 mbedtls_ecdsa_free(&ecdsa);
                 return SW_EXEC_ERROR();
             }
-            uint16_t ee_len = 0, term_len = 0;
+            uint16_t ee_len = 0;
             mbedtls_pk_context subject_pk;
-            if (cvc_pk_wrap_ec(&subject_pk, &ecdsa) != LIBCVC_OK || (ee_len = asn1_cvc_aut(&subject_pk, BYTE_BUFFER(res_APDU, MAX_APDU_DATA), CONST_BYTE_ARRAY(NULL, 0))) == 0) {
+            byte_buffer_t certificates = BYTE_BUFFER(res_APDU, MAX_APDU_DATA);
+            if (cvc_pk_wrap_ec(&subject_pk, &ecdsa) != LIBCVC_OK || asn1_cvc_aut(&subject_pk, &certificates, CONST_BYTE_ARRAY(NULL, 0)) == 0) {
                 mbedtls_ecdsa_free(&ecdsa);
                 return SW_EXEC_ERROR();
             }
+            ee_len = (uint16_t)certificates.len;
 
             file_t *fpk = file_search(EF_EE_DEV);
             ret = file_put_data(fpk, CONST_BYTE_ARRAY(res_APDU, ee_len));
@@ -237,22 +239,23 @@ int cmd_initialize(void) {
                 return SW_EXEC_ERROR();
             }
 
-            if ((term_len = asn1_cvc_cert(&subject_pk, BYTE_BUFFER(res_APDU + ee_len, MAX_APDU_DATA - ee_len), CONST_BYTE_ARRAY(NULL, 0), true)) == 0) {
+            if (asn1_cvc_cert(&subject_pk, &certificates, CONST_BYTE_ARRAY(NULL, 0), true) == 0) {
                 mbedtls_ecdsa_free(&ecdsa);
                 return SW_EXEC_ERROR();
             }
             mbedtls_ecdsa_free(&ecdsa);
             fpk = file_search(EF_TERMCA);
-            ret = file_put_data(fpk, CONST_BYTE_ARRAY(res_APDU, ee_len + term_len));
+            ret = file_put_data(fpk, CONST_BYTE_ARRAY(res_APDU, certificates.len));
             if (ret != PICOKEYS_OK) {
                 return SW_EXEC_ERROR();
             }
 
             const uint8_t *keyid = (const uint8_t *) "\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0",
                           *label = (const uint8_t *) "ESPICOHSMTR";
-            uint16_t prkd_len = asn1_build_prkd_ecc(CONST_BYTE_ARRAY(label, (uint16_t)strlen((const char *)label)), CONST_BYTE_ARRAY(keyid, 20), 256, BYTE_BUFFER(res_APDU, MAX_APDU_DATA));
+            byte_buffer_t prkd = BYTE_BUFFER(res_APDU, MAX_APDU_DATA);
+            asn1_build_prkd_ecc(CONST_BYTE_ARRAY(label, (uint16_t)strlen((const char *)label)), CONST_BYTE_ARRAY(keyid, 20), 256, &prkd);
             fpk = file_search(EF_PRKD_DEV);
-            ret = file_put_data(fpk, CONST_BYTE_ARRAY(res_APDU, prkd_len));
+            ret = file_put_data(fpk, CONST_BYTE_ARRAY(res_APDU, prkd.len));
         }
         if (ret != PICOKEYS_OK) {
             return SW_EXEC_ERROR();

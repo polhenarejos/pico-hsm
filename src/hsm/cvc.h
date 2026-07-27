@@ -41,14 +41,14 @@ typedef struct PUK {
 
 #define MAX_PUK_STORE_ENTRIES 4
 
-extern uint16_t asn1_cvc_cert(const mbedtls_pk_context *subject, byte_buffer_t output, const_byte_array_t extension, bool full);
-extern uint16_t asn1_cvc_aut(const mbedtls_pk_context *subject, byte_buffer_t output, const_byte_array_t extension);
-extern uint16_t asn1_build_cert_description(const_byte_array_t label, const_byte_array_t puk, uint16_t fid, byte_buffer_t output);
+extern uint16_t asn1_cvc_cert(const mbedtls_pk_context *subject, byte_buffer_t *output, const_byte_array_t extension, bool full);
+extern uint16_t asn1_cvc_aut(const mbedtls_pk_context *subject, byte_buffer_t *output, const_byte_array_t extension);
+extern uint16_t asn1_build_cert_description(const_byte_array_t label, const_byte_array_t puk, uint16_t fid, byte_buffer_t *output);
 extern int cvc_verify(const_byte_array_t cert, const_byte_array_t ca);
 extern mbedtls_ecp_group_id cvc_inherite_ec_group(const_byte_array_t ca);
 extern int puk_verify(const_byte_array_t sig, const_byte_array_t hash, const_byte_array_t ca);
-extern uint16_t asn1_build_prkd_ecc(const_byte_array_t label, const_byte_array_t keyid, uint16_t keysize, byte_buffer_t output);
-extern uint16_t asn1_build_prkd_rsa(const_byte_array_t label, const_byte_array_t keyid, uint16_t keysize, byte_buffer_t output);
-extern uint16_t asn1_build_prkd_aes(const_byte_array_t label, const_byte_array_t keyid, uint16_t keysize, byte_buffer_t output);
-extern uint16_t asn1_build_prkd_generic(const_byte_array_t label, const_byte_array_t keyid, uint16_t keysize, int key_type, byte_buffer_t output);
+extern uint16_t asn1_build_prkd_ecc(const_byte_array_t label, const_byte_array_t keyid, uint16_t keysize, byte_buffer_t *output);
+extern uint16_t asn1_build_prkd_rsa(const_byte_array_t label, const_byte_array_t keyid, uint16_t keysize, byte_buffer_t *output);
+extern uint16_t asn1_build_prkd_aes(const_byte_array_t label, const_byte_array_t keyid, uint16_t keysize, byte_buffer_t *output);
+extern uint16_t asn1_build_prkd_generic(const_byte_array_t label, const_byte_array_t keyid, uint16_t keysize, int key_type, byte_buffer_t *output);
 #endif

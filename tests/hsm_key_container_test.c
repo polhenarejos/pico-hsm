@@ -283,20 +283,24 @@ static int test_record_tag(const uint8_t nonce[FILE_OBJECT_RECORD_NONCE_SIZE], c
     return r;
 }
 
-static int test_record_seal(void *ctx, const file_object_record_identity_t *identity, const uint8_t nonce[FILE_OBJECT_RECORD_NONCE_SIZE], const uint8_t aad[FILE_OBJECT_RECORD_AAD_SIZE], const_byte_array_t plaintext, byte_buffer_t stored, uint8_t tag[FILE_OBJECT_AUTH_TAG_SIZE]) {
+static int test_record_seal(void *ctx, const file_object_record_identity_t *identity, const uint8_t nonce[FILE_OBJECT_RECORD_NONCE_SIZE], const uint8_t aad[FILE_OBJECT_RECORD_AAD_SIZE], const_byte_array_t plaintext, byte_buffer_t *stored, uint8_t tag[FILE_OBJECT_AUTH_TAG_SIZE]) {
     const test_protector_context_t *protector = (const test_protector_context_t *)ctx;
-    if (stored.capacity < plaintext.len) {
+    if (!stored || stored->len > stored->capacity || stored->capacity - stored->len < plaintext.len) {
         return PICOKEYS_WRONG_LENGTH;
     }
     for (size_t i = 0; i < plaintext.len; i++) {
-        stored.data[i] = identity->protection == FILE_OBJECT_PROTECTION_AEAD_SECRET ? plaintext.data[i] ^ protector->key ^ nonce[i % FILE_OBJECT_RECORD_NONCE_SIZE] : plaintext.data[i];
+        stored->data[stored->len + i] = identity->protection == FILE_OBJECT_PROTECTION_AEAD_SECRET ? plaintext.data[i] ^ protector->key ^ nonce[i % FILE_OBJECT_RECORD_NONCE_SIZE] : plaintext.data[i];
     }
-    return test_record_tag(nonce, aad, CONST_BYTE_ARRAY(stored.data, plaintext.len), tag);
+    int r = test_record_tag(nonce, aad, CONST_BYTE_ARRAY(stored->data + stored->len, plaintext.len), tag);
+    if (r == PICOKEYS_OK) {
+        stored->len += plaintext.len;
+    }
+    return r;
 }
 
-static int test_record_unseal(void *ctx, const file_object_record_identity_t *identity, const uint8_t nonce[FILE_OBJECT_RECORD_NONCE_SIZE], const uint8_t aad[FILE_OBJECT_RECORD_AAD_SIZE], const_byte_array_t stored, const uint8_t tag[FILE_OBJECT_AUTH_TAG_SIZE], byte_buffer_t plaintext) {
+static int test_record_unseal(void *ctx, const file_object_record_identity_t *identity, const uint8_t nonce[FILE_OBJECT_RECORD_NONCE_SIZE], const uint8_t aad[FILE_OBJECT_RECORD_AAD_SIZE], const_byte_array_t stored, const uint8_t tag[FILE_OBJECT_AUTH_TAG_SIZE], byte_buffer_t *plaintext) {
     const test_protector_context_t *protector = (const test_protector_context_t *)ctx;
-    if (plaintext.capacity < stored.len) {
+    if (!plaintext || plaintext->len > plaintext->capacity || plaintext->capacity - plaintext->len < stored.len) {
         return PICOKEYS_WRONG_LENGTH;
     }
     uint8_t calculated[FILE_OBJECT_AUTH_TAG_SIZE];
@@ -306,8 +310,9 @@ static int test_record_unseal(void *ctx, const file_object_record_identity_t *id
     }
     if (r == PICOKEYS_OK) {
         for (size_t i = 0; i < stored.len; i++) {
-            plaintext.data[i] = identity->protection == FILE_OBJECT_PROTECTION_AEAD_SECRET ? stored.data[i] ^ protector->key ^ nonce[i % FILE_OBJECT_RECORD_NONCE_SIZE] : stored.data[i];
+            plaintext->data[plaintext->len + i] = identity->protection == FILE_OBJECT_PROTECTION_AEAD_SECRET ? stored.data[i] ^ protector->key ^ nonce[i % FILE_OBJECT_RECORD_NONCE_SIZE] : stored.data[i];
         }
+        plaintext->len += stored.len;
     }
     memset(calculated, 0, sizeof(calculated));
     return r;
@@ -352,11 +357,11 @@ static hsm_key_container_write_t test_write(uint16_t object_type, const_byte_arr
 
 static void test_read(uint8_t key_id, uint16_t object_type, const_byte_array_t expected) {
     uint8_t output[128] = { 0 };
-    size_t written = 0;
+    byte_buffer_t output_buffer = BYTE_BUFFER(output, sizeof(output));
     bool internal = object_type != HSM_KEY_OBJECT_PRIVATE;
     assert(expected.len <= sizeof(output));
-    assert(hsm_key_container_read(key_id, object_type, FILE_OBJECT_OPERATION_SIGN, internal, BYTE_BUFFER(output, sizeof(output)), &written) == PICOKEYS_OK);
-    assert(written == expected.len);
+    assert(hsm_key_container_read(key_id, object_type, FILE_OBJECT_OPERATION_SIGN, internal, &output_buffer) == PICOKEYS_OK);
+    assert(output_buffer.len == expected.len);
     assert(memcmp(output, expected.data, expected.len) == 0);
 }
 
@@ -381,12 +386,12 @@ static void test_compound_persistence_and_recovery(void) {
     assert(!test_last_internal);
     test_read(key_id, HSM_KEY_OBJECT_PRKD, CONST_BYTE_ARRAY(prkd, sizeof(prkd)));
     uint8_t public_output[sizeof(prkd)] = { 0 };
-    size_t public_written = 0;
+    byte_buffer_t public_buffer = BYTE_BUFFER(public_output, sizeof(public_output));
     uint32_t public_size = 0;
     assert(hsm_key_container_object_size(key_id, HSM_KEY_OBJECT_PRKD, false, &public_size) == PICOKEYS_OK);
     assert(public_size == sizeof(prkd));
-    assert(hsm_key_container_read(key_id, HSM_KEY_OBJECT_PRKD, FILE_OBJECT_OPERATION_READ, false, BYTE_BUFFER(public_output, sizeof(public_output)), &public_written) == PICOKEYS_OK);
-    assert(public_written == sizeof(prkd));
+    assert(hsm_key_container_read(key_id, HSM_KEY_OBJECT_PRKD, FILE_OBJECT_OPERATION_READ, false, &public_buffer) == PICOKEYS_OK);
+    assert(public_buffer.len == sizeof(prkd));
     assert(memcmp(public_output, prkd, sizeof(prkd)) == 0);
 
     test_reboot();
@@ -410,7 +415,8 @@ static void test_compound_persistence_and_recovery(void) {
     test_read(key_id, HSM_KEY_OBJECT_METADATA, CONST_BYTE_ARRAY(metadata, sizeof(metadata)));
     assert(hsm_key_container_object_size(key_id, HSM_KEY_OBJECT_METADATA, false, &public_size) == PICOKEYS_NO_LOGIN);
     assert(hsm_key_container_remove_object(key_id, HSM_KEY_OBJECT_PRKD) == PICOKEYS_OK);
-    assert(hsm_key_container_read(key_id, HSM_KEY_OBJECT_PRKD, FILE_OBJECT_OPERATION_READ, true, BYTE_BUFFER(public_output, sizeof(public_output)), &public_written) == PICOKEYS_ERR_FILE_NOT_FOUND);
+    public_buffer = BYTE_BUFFER(public_output, sizeof(public_output));
+    assert(hsm_key_container_read(key_id, HSM_KEY_OBJECT_PRKD, FILE_OBJECT_OPERATION_READ, true, &public_buffer) == PICOKEYS_ERR_FILE_NOT_FOUND);
     test_read(key_id, HSM_KEY_OBJECT_PRIVATE, CONST_BYTE_ARRAY(private_first, sizeof(private_first)));
 }
 
@@ -439,7 +445,7 @@ static void test_policy_and_delete(void) {
     const uint8_t key_id = 0x4c;
     hsm_key_container_write_t write = test_write(HSM_KEY_OBJECT_PRIVATE, CONST_BYTE_ARRAY(private_data, sizeof(private_data)));
     uint8_t output[8];
-    size_t written = 0;
+    byte_buffer_t output_buffer = BYTE_BUFFER(output, sizeof(output));
 
     test_reset();
     test_authorized = false;
@@ -449,7 +455,7 @@ static void test_policy_and_delete(void) {
     test_authorized = true;
     assert(hsm_key_container_update(key_id, &write, 1) == PICOKEYS_OK);
     test_authorized = false;
-    assert(hsm_key_container_read(key_id, HSM_KEY_OBJECT_PRIVATE, FILE_OBJECT_OPERATION_EXPORT, false, BYTE_BUFFER(output, sizeof(output)), &written) == PICOKEYS_NO_LOGIN);
+    assert(hsm_key_container_read(key_id, HSM_KEY_OBJECT_PRIVATE, FILE_OBJECT_OPERATION_EXPORT, false, &output_buffer) == PICOKEYS_NO_LOGIN);
     assert(test_last_operation == FILE_OBJECT_OPERATION_EXPORT);
     assert(hsm_key_container_delete(key_id) == PICOKEYS_NO_LOGIN);
     assert(test_last_operation == FILE_OBJECT_OPERATION_DELETE);
@@ -457,7 +463,8 @@ static void test_policy_and_delete(void) {
     test_authorized = true;
     assert(hsm_key_container_delete(key_id) == PICOKEYS_OK);
     assert(!file_has_data(file_search((HSM_OBJECT_PREFIX << 8) | key_id)));
-    assert(hsm_key_container_read(key_id, HSM_KEY_OBJECT_PRIVATE, FILE_OBJECT_OPERATION_USE, false, BYTE_BUFFER(output, sizeof(output)), &written) == PICOKEYS_ERR_FILE_NOT_FOUND);
+    output_buffer = BYTE_BUFFER(output, sizeof(output));
+    assert(hsm_key_container_read(key_id, HSM_KEY_OBJECT_PRIVATE, FILE_OBJECT_OPERATION_USE, false, &output_buffer) == PICOKEYS_ERR_FILE_NOT_FOUND);
 }
 
 static void test_sidecar_detach(void) {
@@ -514,44 +521,44 @@ static void test_existing_container_fixture(void) {
     uint8_t record[FILE_OBJECT_RECORD_HEADER_SIZE + sizeof(private_data) + FILE_OBJECT_AUTH_TAG_SIZE];
     uint8_t manifest_data[TEST_MANIFEST_CAPACITY];
     uint8_t marker[] = { 'P', 'K', 'H', '1', 1, key_id, 0, 0 };
-    size_t record_size = 0;
-    size_t manifest_size = 0;
+    byte_buffer_t record_buffer = BYTE_BUFFER(record, sizeof(record));
+    byte_buffer_t manifest_buffer = BYTE_BUFFER(manifest_data, sizeof(manifest_data));
 
     test_reset();
     assert(file_object_policy_hash(CONST_BYTE_ARRAY(test_key_policy, sizeof(test_key_policy)), policy_hash) == PICOKEYS_OK);
-    assert(file_object_record_seal(&manifest, policy_hash, &test_protector, CONST_BYTE_ARRAY(private_data, sizeof(private_data)), BYTE_BUFFER(record, sizeof(record)), &record_size) == PICOKEYS_OK);
-    assert(file_object_manifest_build(&manifest, CONST_BYTE_ARRAY(NULL, 0), &test_auth, BYTE_BUFFER(manifest_data, sizeof(manifest_data)), &manifest_size) == PICOKEYS_OK);
-    assert(file_put_data(file_new(record_fid), CONST_BYTE_ARRAY(record, record_size)) == PICOKEYS_OK);
-    assert(file_put_data(file_new(manifest_fid), CONST_BYTE_ARRAY(manifest_data, manifest_size)) == PICOKEYS_OK);
+    assert(file_object_record_seal(&manifest, policy_hash, &test_protector, CONST_BYTE_ARRAY(private_data, sizeof(private_data)), &record_buffer) == PICOKEYS_OK);
+    assert(file_object_manifest_build(&manifest, CONST_BYTE_ARRAY(NULL, 0), &test_auth, &manifest_buffer) == PICOKEYS_OK);
+    assert(file_put_data(file_new(record_fid), CONST_BYTE_ARRAY(record, record_buffer.len)) == PICOKEYS_OK);
+    assert(file_put_data(file_new(manifest_fid), CONST_BYTE_ARRAY(manifest_data, manifest_buffer.len)) == PICOKEYS_OK);
     assert(file_put_data(file_new((uint16_t)((HSM_OBJECT_PREFIX << 8) | key_id)), CONST_BYTE_ARRAY(marker, sizeof(marker))) == PICOKEYS_OK);
     test_persist();
     test_reboot();
 
     assert(hsm_key_container_can_resume(key_id));
     test_read(key_id, HSM_KEY_OBJECT_PRIVATE, CONST_BYTE_ARRAY(private_data, sizeof(private_data)));
-    assert(file_get_size(file_search(record_fid)) == record_size);
-    assert(memcmp(file_get_data(file_search(record_fid)), record, record_size) == 0);
-    assert(file_get_size(file_search(manifest_fid)) == manifest_size);
-    assert(memcmp(file_get_data(file_search(manifest_fid)), manifest_data, manifest_size) == 0);
+    assert(file_get_size(file_search(record_fid)) == record_buffer.len);
+    assert(memcmp(file_get_data(file_search(record_fid)), record, record_buffer.len) == 0);
+    assert(file_get_size(file_search(manifest_fid)) == manifest_buffer.len);
+    assert(memcmp(file_get_data(file_search(manifest_fid)), manifest_data, manifest_buffer.len) == 0);
 
     hsm_key_container_write_t write = test_write(HSM_KEY_OBJECT_CERTIFICATE, CONST_BYTE_ARRAY(certificate, sizeof(certificate)));
     assert(hsm_key_container_update(key_id, &write, 1) == PICOKEYS_OK);
     test_read(key_id, HSM_KEY_OBJECT_PRIVATE, CONST_BYTE_ARRAY(private_data, sizeof(private_data)));
     test_read(key_id, HSM_KEY_OBJECT_CERTIFICATE, CONST_BYTE_ARRAY(certificate, sizeof(certificate)));
-    assert(file_get_size(file_search(record_fid)) == record_size);
-    assert(memcmp(file_get_data(file_search(record_fid)), record, record_size) == 0);
-    assert(file_get_size(file_search(manifest_fid)) == manifest_size);
-    assert(memcmp(file_get_data(file_search(manifest_fid)), manifest_data, manifest_size) == 0);
+    assert(file_get_size(file_search(record_fid)) == record_buffer.len);
+    assert(memcmp(file_get_data(file_search(record_fid)), record, record_buffer.len) == 0);
+    assert(file_get_size(file_search(manifest_fid)) == manifest_buffer.len);
+    assert(memcmp(file_get_data(file_search(manifest_fid)), manifest_data, manifest_buffer.len) == 0);
 }
 
 static bool test_read_matches(uint8_t key_id, uint16_t object_type, const_byte_array_t first, const_byte_array_t second) {
     uint8_t output[32] = { 0 };
-    size_t written = 0;
-    int r = hsm_key_container_read(key_id, object_type, FILE_OBJECT_OPERATION_SIGN, false, BYTE_BUFFER(output, sizeof(output)), &written);
+    byte_buffer_t output_buffer = BYTE_BUFFER(output, sizeof(output));
+    int r = hsm_key_container_read(key_id, object_type, FILE_OBJECT_OPERATION_SIGN, false, &output_buffer);
     if (r != PICOKEYS_OK) {
         return false;
     }
-    return (written == first.len && memcmp(output, first.data, first.len) == 0) || (written == second.len && memcmp(output, second.data, second.len) == 0);
+    return (output_buffer.len == first.len && memcmp(output, first.data, first.len) == 0) || (output_buffer.len == second.len && memcmp(output, second.data, second.len) == 0);
 }
 
 static void test_power_loss_create_event(size_t failed_event) {

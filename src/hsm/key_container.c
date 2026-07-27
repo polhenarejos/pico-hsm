@@ -372,7 +372,7 @@ int hsm_key_container_object_size(uint8_t key_id, uint16_t object_type, bool int
     return file_object_container_object_size(&hsm_key_container_layout, key_id, object_type, 0, &crypto, NULL, hsm_key_object_access, &access, object_size);
 }
 
-int hsm_key_container_read(uint8_t key_id, uint16_t object_type, uint16_t operation, bool internal_firmware, byte_buffer_t data, size_t *written) {
+int hsm_key_container_read(uint8_t key_id, uint16_t object_type, uint16_t operation, bool internal_firmware, byte_buffer_t *data) {
     file_object_container_crypto_t crypto;
     if (!hsm_key_crypto(&crypto)) {
         return PICOKEYS_EXEC_ERROR;
@@ -381,7 +381,7 @@ int hsm_key_container_read(uint8_t key_id, uint16_t object_type, uint16_t operat
         .operation = operation,
         .internal_firmware = internal_firmware
     };
-    return file_object_container_read(&hsm_key_container_layout, key_id, object_type, 0, &crypto, NULL, hsm_key_object_access, &access, data, written);
+    return file_object_container_read(&hsm_key_container_layout, key_id, object_type, 0, &crypto, NULL, hsm_key_object_access, &access, data);
 }
 
 int hsm_key_container_remove_object(uint8_t key_id, uint16_t object_type) {
@@ -423,9 +423,9 @@ int hsm_key_container_detach_sidecars(uint8_t key_id) {
                 return PICOKEYS_ERR_MEMORY_FATAL;
             }
         }
-        size_t written = 0;
-        r = hsm_key_container_read(key_id, sidecars[i].object_type, FILE_OBJECT_OPERATION_READ, true, BYTE_BUFFER(object_data, object_size), &written);
-        if (r == PICOKEYS_OK && written != object_size) {
+        byte_buffer_t output = BYTE_BUFFER(object_data, object_size);
+        r = hsm_key_container_read(key_id, sidecars[i].object_type, FILE_OBJECT_OPERATION_READ, true, &output);
+        if (r == PICOKEYS_OK && output.len != object_size) {
             r = PICOKEYS_WRONG_LENGTH;
         }
         if (r == PICOKEYS_OK) {

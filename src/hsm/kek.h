@@ -36,9 +36,9 @@ extern int dkek_kcv(uint8_t, uint8_t *kcv);
 extern int mkek_encrypt(byte_array_t data);
 extern int mkek_decrypt(byte_array_t data);
 extern int mkek_store_file(file_t *file, const_byte_array_t data);
-extern int mkek_load_file(file_t *file, byte_buffer_t data, uint16_t *len);
-extern int mkek_load_key_file(file_t *file, byte_buffer_t data, uint16_t *len, uint16_t operation, bool internal_firmware);
-extern int dkek_encode_key(uint8_t, void *key_ctx, int key_type, byte_buffer_t out, const_byte_array_t allowed, uint16_t *out_len);
+extern int mkek_load_file(file_t *file, byte_buffer_t *data);
+extern int mkek_load_key_file(file_t *file, byte_buffer_t *data, uint16_t operation, bool internal_firmware);
+extern int dkek_encode_key(uint8_t, void *key_ctx, int key_type, byte_buffer_t *out, const_byte_array_t allowed);
 extern int dkek_type_key(const_byte_array_t in);
 extern int dkek_decode_key(uint8_t, void *key_ctx, const_byte_array_t in, int *key_size_out, byte_array_t *allowed);
 

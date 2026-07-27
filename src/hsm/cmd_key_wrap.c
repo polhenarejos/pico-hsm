@@ -52,8 +52,8 @@ int cmd_key_wrap(void) {
     file_t *prkd = file_search((PRKD_PREFIX << 8) | key_id);
     if (hsm_key_container_is_marker(ef)) {
         uint32_t prkd_size = 0;
-        size_t written = 0;
-        if (hsm_key_container_object_size(key_id, HSM_KEY_OBJECT_PRKD, true, &prkd_size) != PICOKEYS_OK || prkd_size == 0 || prkd_size > sizeof(prkd_data) || hsm_key_container_read(key_id, HSM_KEY_OBJECT_PRKD, FILE_OBJECT_OPERATION_READ, true, BYTE_BUFFER(prkd_data, sizeof(prkd_data)), &written) != PICOKEYS_OK || written != prkd_size) {
+        byte_buffer_t prkd_buffer = BYTE_BUFFER(prkd_data, sizeof(prkd_data));
+        if (hsm_key_container_object_size(key_id, HSM_KEY_OBJECT_PRKD, true, &prkd_size) != PICOKEYS_OK || prkd_size == 0 || prkd_size > sizeof(prkd_data) || hsm_key_container_read(key_id, HSM_KEY_OBJECT_PRKD, FILE_OBJECT_OPERATION_READ, true, &prkd_buffer) != PICOKEYS_OK || prkd_buffer.len != prkd_size) {
             return SW_FILE_NOT_FOUND();
         }
         dprkd = prkd_data;
@@ -64,7 +64,7 @@ int cmd_key_wrap(void) {
         }
         dprkd = file_get_data(prkd);
     }
-    uint16_t wrap_len = MAX_DKEK_ENCODE_KEY_BUFFER;
+    byte_buffer_t wrapped_key = BYTE_BUFFER(res_APDU, MAX_DKEK_ENCODE_KEY_BUFFER);
     const_byte_array_t meta_tag = get_meta_tag(ef, 0x91);
     if (*dprkd == P15_KEYTYPE_RSA) {
         mbedtls_rsa_context ctx;
@@ -77,7 +77,7 @@ int cmd_key_wrap(void) {
             }
             return SW_EXEC_ERROR();
         }
-        r = dkek_encode_key(kdom, &ctx, PICOKEYS_KEY_RSA, BYTE_BUFFER(res_APDU, wrap_len), meta_tag, &wrap_len);
+        r = dkek_encode_key(kdom, &ctx, PICOKEYS_KEY_RSA, &wrapped_key, meta_tag);
         mbedtls_rsa_free(&ctx);
     }
     else if (*dprkd == P15_KEYTYPE_ECC) {
@@ -91,7 +91,7 @@ int cmd_key_wrap(void) {
             }
             return SW_EXEC_ERROR();
         }
-        r = dkek_encode_key(kdom, &ctx, PICOKEYS_KEY_EC, BYTE_BUFFER(res_APDU, wrap_len), meta_tag, &wrap_len);
+        r = dkek_encode_key(kdom, &ctx, PICOKEYS_KEY_EC, &wrapped_key, meta_tag);
         mbedtls_ecp_keypair_free(&ctx);
     }
     else if (*dprkd == P15_KEYTYPE_AES) {
@@ -100,28 +100,29 @@ int cmd_key_wrap(void) {
             return SW_SECURE_MESSAGE_EXEC_ERROR();
         }
 
-        uint16_t key_size = sizeof(kdata_aes), aes_type = PICOKEYS_KEY_AES;
-        if (mkek_load_key_file(ef, BYTE_BUFFER(kdata_aes, key_size), &key_size, FILE_OBJECT_OPERATION_EXPORT, false) != PICOKEYS_OK) {
+        byte_buffer_t key = BYTE_BUFFER(kdata_aes, sizeof(kdata_aes));
+        uint16_t aes_type = PICOKEYS_KEY_AES;
+        if (mkek_load_key_file(ef, &key, FILE_OBJECT_OPERATION_EXPORT, false) != PICOKEYS_OK) {
             return SW_EXEC_ERROR();
         }
-        if (key_size == 64) {
+        if (key.len == 64) {
             aes_type = PICOKEYS_KEY_AES_512;
         }
-        else if (key_size == 32) {
+        else if (key.len == 32) {
             aes_type = PICOKEYS_KEY_AES_256;
         }
-        else if (key_size == 24) {
+        else if (key.len == 24) {
             aes_type = PICOKEYS_KEY_AES_192;
         }
-        else if (key_size == 16) {
+        else if (key.len == 16) {
             aes_type = PICOKEYS_KEY_AES_128;
         }
-        r = dkek_encode_key(kdom, kdata_aes, aes_type, BYTE_BUFFER(res_APDU, wrap_len), meta_tag, &wrap_len);
+        r = dkek_encode_key(kdom, kdata_aes, aes_type, &wrapped_key, meta_tag);
         mbedtls_platform_zeroize(kdata_aes, sizeof(kdata_aes));
     }
     if (r != PICOKEYS_OK) {
         return SW_EXEC_ERROR();
     }
-    res_APDU_size = wrap_len;
+    res_APDU_size = (uint16_t)wrapped_key.len;
     return SW_OK();
 }

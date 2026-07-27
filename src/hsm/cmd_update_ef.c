@@ -102,9 +102,9 @@ int cmd_update_ef(void) {
             }
         }
         if (offset > 0 && old_size > 0) {
-            size_t written = 0;
-            r = hsm_key_container_read((uint8_t)target_fid, object_type, FILE_OBJECT_OPERATION_READ, true, BYTE_BUFFER(object_data, old_size), &written);
-            if (r != PICOKEYS_OK || written != old_size) {
+            byte_buffer_t object = BYTE_BUFFER(object_data, old_size);
+            r = hsm_key_container_read((uint8_t)target_fid, object_type, FILE_OBJECT_OPERATION_READ, true, &object);
+            if (r != PICOKEYS_OK || object.len != old_size) {
                 free(object_data);
                 return SW_EXEC_ERROR();
             }

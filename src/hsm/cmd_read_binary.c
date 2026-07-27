@@ -45,9 +45,9 @@ static int hsm_read_container_object(uint16_t fid, uint16_t object_type, uint32_
             return SW_MEMORY_FAILURE();
         }
     }
-    size_t written = 0;
-    r = hsm_key_container_read((uint8_t)fid, object_type, FILE_OBJECT_OPERATION_READ, false, BYTE_BUFFER(object_data, object_size), &written);
-    if (r != PICOKEYS_OK || written != object_size) {
+    byte_buffer_t object = BYTE_BUFFER(object_data, object_size);
+    r = hsm_key_container_read((uint8_t)fid, object_type, FILE_OBJECT_OPERATION_READ, false, &object);
+    if (r != PICOKEYS_OK || object.len != object_size) {
         free(object_data);
         return r == PICOKEYS_NO_LOGIN ? SW_SECURITY_STATUS_NOT_SATISFIED() : SW_EXEC_ERROR();
     }

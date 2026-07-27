@@ -83,16 +83,18 @@ int cmd_decrypt_asym(void) {
         if (wait_button_pressed() == true) { //timeout
             return SW_SECURE_MESSAGE_EXEC_ERROR();
         }
-        uint16_t key_size = 67;
-        uint8_t *kdata = (uint8_t *) calloc(1, key_size);
+        uint16_t key_capacity = 67;
+        uint8_t *kdata = (uint8_t *) calloc(1, key_capacity);
         if (!kdata) {
             return SW_EXEC_ERROR();
         }
-        if (mkek_load_key_file(ef, BYTE_BUFFER(kdata, key_size), &key_size, FILE_OBJECT_OPERATION_DERIVE, false) != PICOKEYS_OK) {
+        byte_buffer_t key = BYTE_BUFFER(kdata, key_capacity);
+        if (mkek_load_key_file(ef, &key, FILE_OBJECT_OPERATION_DERIVE, false) != PICOKEYS_OK) {
             mbedtls_platform_zeroize(kdata, 67);
             free(kdata);
             return SW_EXEC_ERROR();
         }
+        uint16_t key_size = (uint16_t)key.len;
         mbedtls_ecdh_init(&ctx);
         mbedtls_ecp_group_id gid = kdata[0];
         int r = 0;

@@ -107,8 +107,8 @@ static int load_master_bip(uint16_t mid, mbedtls_ecp_keypair *ctx, uint8_t chain
         flash_commit();
     }
     else {
-        uint16_t mkey_len = sizeof(mkey);
-        if (mkek_load_file(ef, BYTE_BUFFER(mkey, sizeof(mkey)), &mkey_len) != PICOKEYS_OK || mkey_len != sizeof(mkey)) {
+        byte_buffer_t key = BYTE_BUFFER(mkey, sizeof(mkey));
+        if (mkek_load_file(ef, &key) != PICOKEYS_OK || key.len != sizeof(mkey)) {
             return PICOKEYS_EXEC_ERROR;
         }
     }

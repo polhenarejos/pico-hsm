@@ -58,10 +58,12 @@ int cmd_key_unwrap(void) {
         }
         r = store_keys(&ctx, PICOKEYS_KEY_RSA, key_id);
         mbedtls_pk_context subject_pk;
-        if (cvc_pk_wrap_rsa(&subject_pk, &ctx) != LIBCVC_OK || (res_APDU_size = (uint16_t)asn1_cvc_aut(&subject_pk, BYTE_BUFFER(res_APDU, MAX_APDU_DATA), CONST_BYTE_ARRAY(NULL, 0))) == 0) {
+        byte_buffer_t response = BYTE_BUFFER(res_APDU, MAX_APDU_DATA);
+        if (cvc_pk_wrap_rsa(&subject_pk, &ctx) != LIBCVC_OK || asn1_cvc_aut(&subject_pk, &response, CONST_BYTE_ARRAY(NULL, 0)) == 0) {
             mbedtls_rsa_free(&ctx);
             return SW_EXEC_ERROR();
         }
+        res_APDU_size = (uint16_t)response.len;
         mbedtls_rsa_free(&ctx);
         if (r != PICOKEYS_OK) {
             return SW_EXEC_ERROR();
@@ -79,10 +81,12 @@ int cmd_key_unwrap(void) {
         }
         r = store_keys(&ctx, PICOKEYS_KEY_EC, key_id);
         mbedtls_pk_context subject_pk;
-        if (cvc_pk_wrap_ec(&subject_pk, &ctx) != LIBCVC_OK || (res_APDU_size = (uint16_t)asn1_cvc_aut(&subject_pk, BYTE_BUFFER(res_APDU, MAX_APDU_DATA), CONST_BYTE_ARRAY(NULL, 0))) == 0) {
+        byte_buffer_t response = BYTE_BUFFER(res_APDU, MAX_APDU_DATA);
+        if (cvc_pk_wrap_ec(&subject_pk, &ctx) != LIBCVC_OK || asn1_cvc_aut(&subject_pk, &response, CONST_BYTE_ARRAY(NULL, 0)) == 0) {
             mbedtls_ecp_keypair_free(&ctx);
             return SW_EXEC_ERROR();
         }
+        res_APDU_size = (uint16_t)response.len;
         mbedtls_ecp_keypair_free(&ctx);
         if (r != PICOKEYS_OK) {
             return SW_EXEC_ERROR();

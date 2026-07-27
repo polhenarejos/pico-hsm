@@ -503,8 +503,8 @@ static byte_array_t hsm_key_metadata_find(file_t *ef) {
         hsm_key_metadata_cache = cache;
         hsm_key_metadata_cache_size = meta_size;
     }
-    size_t written = 0;
-    if (hsm_key_container_read((uint8_t)logical_fid, HSM_KEY_OBJECT_METADATA, FILE_OBJECT_OPERATION_READ, true, BYTE_BUFFER(hsm_key_metadata_cache, meta_size), &written) != PICOKEYS_OK || written != meta_size) {
+    byte_buffer_t metadata = BYTE_BUFFER(hsm_key_metadata_cache, meta_size);
+    if (hsm_key_container_read((uint8_t)logical_fid, HSM_KEY_OBJECT_METADATA, FILE_OBJECT_OPERATION_READ, true, &metadata) != PICOKEYS_OK || metadata.len != meta_size) {
         return BYTE_ARRAY(NULL, 0);
     }
     return BYTE_ARRAY(hsm_key_metadata_cache, meta_size);
@@ -690,8 +690,8 @@ int store_keys(void *key_ctx, int type, uint8_t key_id) {
     uint16_t private_key_size = key_size;
     uint16_t public_key_size = (type & PICOKEYS_KEY_EC) ? key_size - 1 : key_size;
     uint8_t prkd_data[4096 / 8];
-    uint16_t prkd_len = asn1_build_prkd_generic(CONST_BYTE_ARRAY(NULL, 0), CONST_BYTE_ARRAY((uint8_t *)key_id_str, (uint16_t)strlen(key_id_str)), public_key_size * 8, type, BYTE_BUFFER(prkd_data, sizeof(prkd_data)));
-    if (prkd_len == 0) {
+    byte_buffer_t prkd = BYTE_BUFFER(prkd_data, sizeof(prkd_data));
+    if (asn1_build_prkd_generic(CONST_BYTE_ARRAY(NULL, 0), CONST_BYTE_ARRAY((uint8_t *)key_id_str, (uint16_t)strlen(key_id_str)), public_key_size * 8, type, &prkd) == 0) {
         mbedtls_platform_zeroize(key_data, sizeof(key_data));
         return PICOKEYS_WRONG_DATA;
     }
@@ -720,7 +720,7 @@ int store_keys(void *key_ctx, int type, uint8_t key_id) {
             },
             {
                 .object_type = HSM_KEY_OBJECT_PRKD,
-                .data = CONST_BYTE_ARRAY(prkd_data, prkd_len),
+                .data = CONST_BYTE_ARRAY(prkd_data, prkd.len),
                 .policy_id = HSM_KEY_INTERNAL_POLICY_ID,
                 .protection = FILE_OBJECT_PROTECTION_AUTHENTICATED_PUBLIC,
                 .flags = FILE_OBJECT_FLAG_GENERIC_READABLE
@@ -748,7 +748,7 @@ int store_keys(void *key_ctx, int type, uint8_t key_id) {
     }
     if (!use_container) {
         file_t *fpk = file_new((PRKD_PREFIX << 8) | key_id);
-        r = file_put_data(fpk, CONST_BYTE_ARRAY(prkd_data, prkd_len));
+        r = file_put_data(fpk, CONST_BYTE_ARRAY(prkd_data, prkd.len));
         if (r != PICOKEYS_OK) {
             mbedtls_platform_zeroize(key_data, sizeof(key_data));
             return PICOKEYS_EXEC_ERROR;
@@ -803,11 +803,11 @@ int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey, uint16_t operat
     }
 
     uint8_t kdata[4096 / 8];
-    uint16_t key_size = sizeof(kdata);
-    if (mkek_load_key_file(fkey, BYTE_BUFFER(kdata, key_size), &key_size, operation, internal_firmware) != PICOKEYS_OK ||
-        key_size == 0 || key_size > sizeof(kdata) || (key_size & 1)) {
+    byte_buffer_t key = BYTE_BUFFER(kdata, sizeof(kdata));
+    if (mkek_load_key_file(fkey, &key, operation, internal_firmware) != PICOKEYS_OK || key.len == 0 || key.len > sizeof(kdata) || (key.len & 1)) {
         return PICOKEYS_WRONG_DATA;
     }
+    uint16_t key_size = (uint16_t)key.len;
     if (mbedtls_mpi_read_binary(&ctx->P, kdata, key_size / 2) != 0) {
         mbedtls_platform_zeroize(kdata, sizeof(kdata));
         mbedtls_rsa_free(ctx);
@@ -848,11 +848,11 @@ int load_private_key_ec(mbedtls_ecp_keypair *ctx, file_t *fkey, uint16_t operati
     }
 
     uint8_t kdata[67]; // Worst case, 521 bit + 1byte
-    uint16_t key_size = sizeof(kdata);
-    if (mkek_load_key_file(fkey, BYTE_BUFFER(kdata, key_size), &key_size, operation, internal_firmware) != PICOKEYS_OK ||
-        key_size < 2 || key_size > sizeof(kdata)) {
+    byte_buffer_t key = BYTE_BUFFER(kdata, sizeof(kdata));
+    if (mkek_load_key_file(fkey, &key, operation, internal_firmware) != PICOKEYS_OK || key.len < 2 || key.len > sizeof(kdata)) {
         return PICOKEYS_WRONG_DATA;
     }
+    uint16_t key_size = (uint16_t)key.len;
     mbedtls_ecp_group_id gid = kdata[0];
     int r = mbedtls_ecp_read_key(gid, ctx, kdata + 1, key_size - 1);
     if (r != 0) {

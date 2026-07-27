@@ -199,11 +199,12 @@ int cmd_cipher_sym(void) {
         else if (algo == ALGO_AES_DERIVE) {
             object_operation = FILE_OBJECT_OPERATION_DERIVE;
         }
-        key_size = sizeof(kdata);
-        if (mkek_load_key_file(ef, BYTE_BUFFER(kdata, key_size), &key_size, object_operation, false) != PICOKEYS_OK) {
+        byte_buffer_t key = BYTE_BUFFER(kdata, sizeof(kdata));
+        if (mkek_load_key_file(ef, &key, object_operation, false) != PICOKEYS_OK) {
             mbedtls_platform_zeroize(kdata, sizeof(kdata));
             return SW_EXEC_ERROR();
         }
+        key_size = (uint16_t)key.len;
         if (key_size != 16 && key_size != 24 && key_size != 32 && key_size != 64) {
             return SW_WRONG_DATA();
         }

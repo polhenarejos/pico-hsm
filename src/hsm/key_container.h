@@ -45,7 +45,7 @@ bool hsm_key_container_fid_object(uint16_t fid, uint16_t *object_type);
 int hsm_key_container_update(uint8_t key_id, const hsm_key_container_write_t *writes, size_t write_count);
 int hsm_key_container_store_object(uint8_t key_id, uint16_t object_type, const_byte_array_t data);
 int hsm_key_container_object_size(uint8_t key_id, uint16_t object_type, bool internal_firmware, uint32_t *object_size);
-int hsm_key_container_read(uint8_t key_id, uint16_t object_type, uint16_t operation, bool internal_firmware, byte_buffer_t data, size_t *written);
+int hsm_key_container_read(uint8_t key_id, uint16_t object_type, uint16_t operation, bool internal_firmware, byte_buffer_t *data);
 int hsm_key_container_remove_object(uint8_t key_id, uint16_t object_type);
 int hsm_key_container_detach_sidecars(uint8_t key_id);
 int hsm_key_container_delete(uint8_t key_id);

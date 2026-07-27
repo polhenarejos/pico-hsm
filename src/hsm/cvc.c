@@ -110,14 +110,14 @@ static uint16_t cvc_cert_size(const cvc_write_cert *ctx) {
     return cvc_build_cert(body, body_len, sig, (uint16_t)sig_len, NULL, 0);
 }
 
-uint16_t asn1_cvc_cert(const mbedtls_pk_context *subject, byte_buffer_t output, const_byte_array_t extension, bool full) {
+uint16_t asn1_cvc_cert(const mbedtls_pk_context *subject, byte_buffer_t *output, const_byte_array_t extension, bool full) {
     cvc_write_cert ctx;
     uint16_t cert_len, out_len = 0;
-    uint8_t *buf = output.data;
-    uint16_t buf_len = (uint16_t)output.capacity;
-    if (output.capacity > UINT16_MAX || extension.len > UINT16_MAX || !subject || cvc_configure_cert(&ctx, subject, full, extension) != 0) {
+    if (!output || output->len > output->capacity || output->capacity - output->len > UINT16_MAX || extension.len > UINT16_MAX || !subject || cvc_configure_cert(&ctx, subject, full, extension) != 0) {
         return 0;
     }
+    uint8_t *buf = output->data ? output->data + output->len : NULL;
+    uint16_t buf_len = (uint16_t)(output->capacity - output->len);
     cert_len = cvc_cert_size(&ctx);
     if (!cert_len || !buf || !buf_len) {
         return cert_len;
@@ -125,10 +125,11 @@ uint16_t asn1_cvc_cert(const mbedtls_pk_context *subject, byte_buffer_t output, 
     if (buf_len < cert_len || cvc_write_cert_der(&ctx, buf, buf_len, &out_len, random_fill_iterator, NULL) != 0) {
         return 0;
     }
+    output->len += out_len;
     return out_len;
 }
 
-uint16_t asn1_cvc_aut(const mbedtls_pk_context *subject, byte_buffer_t output, const_byte_array_t extension) {
+uint16_t asn1_cvc_aut(const mbedtls_pk_context *subject, byte_buffer_t *output, const_byte_array_t extension) {
     file_t *fkey = hsm_key_search(0);
     mbedtls_ecp_keypair device_key;
     mbedtls_pk_context outer;
@@ -136,11 +137,11 @@ uint16_t asn1_cvc_aut(const mbedtls_pk_context *subject, byte_buffer_t output, c
     uint16_t cert_len, request_len, out_len = 0;
     size_t outer_sig_len;
     uint8_t placeholder = 0;
-    uint8_t *buf = output.data;
-    uint16_t buf_len = (uint16_t)output.capacity;
-    if (output.capacity > UINT16_MAX || extension.len > UINT16_MAX || !subject || !fkey || !dev_name || !dev_name_len) {
+    if (!output || output->len > output->capacity || output->capacity - output->len > UINT16_MAX || extension.len > UINT16_MAX || !subject || !fkey || !dev_name || !dev_name_len) {
         return 0;
     }
+    uint8_t *buf = output->data ? output->data + output->len : NULL;
+    uint16_t buf_len = (uint16_t)(output->capacity - output->len);
     mbedtls_ecp_keypair_init(&device_key);
     if (load_private_key_ec(&device_key, fkey, FILE_OBJECT_OPERATION_SIGN, true) != PICOKEYS_OK) {
         mbedtls_ecp_keypair_free(&device_key);
@@ -176,19 +177,20 @@ uint16_t asn1_cvc_aut(const mbedtls_pk_context *subject, byte_buffer_t output, c
         return 0;
     }
     mbedtls_ecp_keypair_free(&device_key);
+    output->len += out_len;
     return out_len;
 }
 
-uint16_t asn1_build_cert_description(const_byte_array_t label, const_byte_array_t puk, uint16_t fid, byte_buffer_t output) {
-    if (label.len > UINT16_MAX || puk.len > UINT16_MAX || output.capacity > UINT16_MAX) {
+uint16_t asn1_build_cert_description(const_byte_array_t label, const_byte_array_t puk, uint16_t fid, byte_buffer_t *output) {
+    if (!output || output->len > output->capacity || label.len > UINT16_MAX || puk.len > UINT16_MAX || output->capacity - output->len > UINT16_MAX) {
         return 0;
     }
     const uint8_t *label_data = label.data;
     uint16_t label_len = (uint16_t)label.len;
     const uint8_t *puk_data = puk.data;
     uint16_t puk_len = (uint16_t)puk.len;
-    uint8_t *buf = output.data;
-    uint16_t buf_len = (uint16_t)output.capacity;
+    uint8_t *buf = output->data ? output->data + output->len : NULL;
+    uint16_t buf_len = (uint16_t)(output->capacity - output->len);
     uint16_t opt_len = 2;
     uint16_t seq1_size = tlv_len_tag(0x30, tlv_len_tag(0xC, label_len) + tlv_len_tag(0x3, opt_len));
     uint16_t seq2_size = tlv_len_tag(0x30, tlv_len_tag(0x4, 20)); /* SHA1 is 20 bytes length */
@@ -231,19 +233,21 @@ uint16_t asn1_build_cert_description(const_byte_array_t label, const_byte_array_
     *p++ = 0x4;
     p += tlv_format_len(sizeof(uint16_t), p);
     put_uint16_be(fid, p); p += sizeof(uint16_t);
-    return (uint16_t)(p - buf);
+    uint16_t written = (uint16_t)(p - buf);
+    output->len += written;
+    return written;
 }
 
-uint16_t asn1_build_prkd_generic(const_byte_array_t label, const_byte_array_t keyid, uint16_t keysize, int key_type, byte_buffer_t output) {
-    if (label.len > UINT16_MAX || keyid.len > UINT16_MAX || output.capacity > UINT16_MAX) {
+uint16_t asn1_build_prkd_generic(const_byte_array_t label, const_byte_array_t keyid, uint16_t keysize, int key_type, byte_buffer_t *output) {
+    if (!output || output->len > output->capacity || label.len > UINT16_MAX || keyid.len > UINT16_MAX || output->capacity - output->len > UINT16_MAX) {
         return 0;
     }
     const uint8_t *label_data = label.data;
     uint16_t label_len = (uint16_t)label.len;
     const uint8_t *keyid_data = keyid.data;
     uint16_t keyid_len = (uint16_t)keyid.len;
-    uint8_t *buf = output.data;
-    uint16_t buf_len = (uint16_t)output.capacity;
+    uint8_t *buf = output->data ? output->data + output->len : NULL;
+    uint16_t buf_len = (uint16_t)(output->capacity - output->len);
     uint16_t seq_len = 0;
     const uint8_t *seq = NULL;
     uint8_t first_tag = 0x0;
@@ -328,18 +332,20 @@ uint16_t asn1_build_prkd_generic(const_byte_array_t label, const_byte_array_t ke
         p += tlv_format_len(2, p);
         p += put_uint16_be(keysize, p);
     }
-    return (uint16_t)(p - buf);
+    uint16_t written = (uint16_t)(p - buf);
+    output->len += written;
+    return written;
 }
 
-uint16_t asn1_build_prkd_ecc(const_byte_array_t label, const_byte_array_t keyid, uint16_t keysize, byte_buffer_t output) {
+uint16_t asn1_build_prkd_ecc(const_byte_array_t label, const_byte_array_t keyid, uint16_t keysize, byte_buffer_t *output) {
     return asn1_build_prkd_generic(label, keyid, keysize, PICOKEYS_KEY_EC, output);
 }
 
-uint16_t asn1_build_prkd_rsa(const_byte_array_t label, const_byte_array_t keyid, uint16_t keysize, byte_buffer_t output) {
+uint16_t asn1_build_prkd_rsa(const_byte_array_t label, const_byte_array_t keyid, uint16_t keysize, byte_buffer_t *output) {
     return asn1_build_prkd_generic(label, keyid, keysize, PICOKEYS_KEY_RSA, output);
 }
 
-uint16_t asn1_build_prkd_aes(const_byte_array_t label, const_byte_array_t keyid, uint16_t keysize, byte_buffer_t output) {
+uint16_t asn1_build_prkd_aes(const_byte_array_t label, const_byte_array_t keyid, uint16_t keysize, byte_buffer_t *output) {
     return asn1_build_prkd_generic(label, keyid, keysize, PICOKEYS_KEY_AES, output);
 }
 

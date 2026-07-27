@@ -124,13 +124,15 @@ int cmd_pso(void) {
                     }
                 }
                 file_t *cd_ef = file_new((CD_PREFIX << 8) | i);
-                uint16_t cd_len = (uint16_t)asn1_build_cert_description(CONST_BYTE_ARRAY(chr, chr_len), CONST_BYTE_ARRAY(puk_bin, puk_bin_len), fid, BYTE_BUFFER(NULL, 0));
+                byte_buffer_t size_query = BYTE_BUFFER(NULL, 0);
+                uint16_t cd_len = (uint16_t)asn1_build_cert_description(CONST_BYTE_ARRAY(chr, chr_len), CONST_BYTE_ARRAY(puk_bin, puk_bin_len), fid, &size_query);
                 if (cd_len == 0) {
                     return SW_EXEC_ERROR();
                 }
                 uint8_t *buf = (uint8_t *) calloc(cd_len, sizeof(uint8_t));
-                r = (int)asn1_build_cert_description(CONST_BYTE_ARRAY(chr, chr_len), CONST_BYTE_ARRAY(puk_bin, puk_bin_len), fid, BYTE_BUFFER(buf, cd_len));
-                file_put_data(cd_ef, CONST_BYTE_ARRAY(buf, cd_len));
+                byte_buffer_t description = BYTE_BUFFER(buf, cd_len);
+                r = (int)asn1_build_cert_description(CONST_BYTE_ARRAY(chr, chr_len), CONST_BYTE_ARRAY(puk_bin, puk_bin_len), fid, &description);
+                file_put_data(cd_ef, CONST_BYTE_ARRAY(buf, description.len));
                 free(buf);
                 if (r == 0) {
                     return SW_EXEC_ERROR();
