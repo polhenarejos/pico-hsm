@@ -60,15 +60,15 @@ static int node_derive_bip_child(const mbedtls_ecp_keypair *parent, const uint8_
     return PICOKEYS_OK;
 }
 
-static int sha256_ripemd160(const uint8_t *buffer, size_t buffer_len, uint8_t *output) {
-    mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), buffer, buffer_len, output);
-    mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_RIPEMD160), output, 32, output);
+static int sha256_ripemd160(const_byte_array_t buffer, byte_array_t output) {
+    mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), buffer.data, buffer.len, output.data);
+    mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_RIPEMD160), output.data, 32, output.data);
     return PICOKEYS_OK;
 }
 
-static int sha256_sha256(const uint8_t *buffer, size_t buffer_len, uint8_t *output) {
-    mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), buffer, buffer_len, output);
-    mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), output, 32, output);
+static int sha256_sha256(const_byte_array_t buffer, byte_array_t output) {
+    mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), buffer.data, buffer.len, output.data);
+    mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA256), output.data, 32, output.data);
     return PICOKEYS_OK;
 }
 
@@ -76,7 +76,7 @@ static int node_fingerprint_bip(mbedtls_ecp_keypair *ctx, uint8_t fingerprint[4]
     size_t olen = 0;
     uint8_t buffer[33];
     mbedtls_ecp_point_write_binary(&ctx->grp, &ctx->Q, MBEDTLS_ECP_PF_COMPRESSED, &olen, buffer, sizeof(buffer));
-    sha256_ripemd160(buffer, sizeof(buffer), buffer);
+    sha256_ripemd160(CONST_BYTE_ARRAY(buffer, sizeof(buffer)), BYTE_ARRAY(buffer, sizeof(buffer)));
     memcpy(fingerprint, buffer, 4);
     return PICOKEYS_OK;
 }
@@ -84,7 +84,7 @@ static int node_fingerprint_bip(mbedtls_ecp_keypair *ctx, uint8_t fingerprint[4]
 static int node_fingerprint_slip(mbedtls_ecp_keypair *ctx, uint8_t fingerprint[4]) {
     uint8_t buffer[32];
     mbedtls_mpi_write_binary(&ctx->d, buffer, sizeof(buffer));
-    sha256_ripemd160(buffer, sizeof(buffer), buffer);
+    sha256_ripemd160(CONST_BYTE_ARRAY(buffer, sizeof(buffer)), BYTE_ARRAY(buffer, sizeof(buffer)));
     memcpy(fingerprint, buffer, 4);
     return PICOKEYS_OK;
 }
@@ -98,17 +98,17 @@ static int load_master_bip(uint16_t mid, mbedtls_ecp_keypair *ctx, uint8_t chain
     }
     if (file_get_size(ef) == sizeof(mkey)) {
         memcpy(mkey, file_get_data(ef), sizeof(mkey));
-        if (mkek_decrypt(mkey + 1, sizeof(mkey) - 1) != PICOKEYS_OK) {
+        if (mkek_decrypt(BYTE_ARRAY(mkey + 1, sizeof(mkey) - 1)) != PICOKEYS_OK) {
             return PICOKEYS_EXEC_ERROR;
         }
-        if (mkek_store_file(ef, mkey, sizeof(mkey)) != PICOKEYS_OK) {
+        if (mkek_store_file(ef, CONST_BYTE_ARRAY(mkey, sizeof(mkey))) != PICOKEYS_OK) {
             return PICOKEYS_EXEC_ERROR;
         }
         flash_commit();
     }
     else {
         uint16_t mkey_len = sizeof(mkey);
-        if (mkek_load_file(ef, mkey, &mkey_len) != PICOKEYS_OK || mkey_len != sizeof(mkey)) {
+        if (mkek_load_file(ef, BYTE_BUFFER(mkey, sizeof(mkey)), &mkey_len) != PICOKEYS_OK || mkey_len != sizeof(mkey)) {
             return PICOKEYS_EXEC_ERROR;
         }
     }
@@ -135,42 +135,42 @@ static int load_master_bip(uint16_t mid, mbedtls_ecp_keypair *ctx, uint8_t chain
     return PICOKEYS_OK;
 }
 
-static int node_derive_path(const uint8_t *path, uint16_t path_len, mbedtls_ecp_keypair *ctx, uint8_t chain[32], uint8_t fingerprint[4], uint8_t *nodes, uint8_t last_node[4], uint8_t key_type[1]) {
-    uint8_t *tag_data = NULL, *p = NULL;
-    uint16_t tag_len = 0, tag = 0x0;
+static int node_derive_path(const_byte_array_t path, mbedtls_ecp_keypair *ctx, uint8_t chain[32], uint8_t fingerprint[4], uint8_t *nodes, uint8_t last_node[4], uint8_t key_type[1]) {
+    uint8_t *p = NULL;
+    tlv_item_t item;
     uint8_t node = 0, N[64] = { 0 };
     int r = 0;
     memset(last_node, 0, 4);
     memset(fingerprint, 0, 4);
 
     tlv_ctx_t ctxi;
-    tlv_ctx_init((uint8_t *)path, path_len, &ctxi);
-    for (; tlv_walk(&ctxi, &p, &tag, &tag_len, &tag_data); node++) {
-        if (tag == 0x02) {
-            if ((node == 0 && tag_len != 1) || (node != 0 && tag_len != 4)) {
+    tlv_ctx_init(BYTE_ARRAY((uint8_t *)path.data, path.len), &ctxi);
+    for (; tlv_walk(&ctxi, &p, &item); node++) {
+        if (item.tag == 0x02) {
+            if ((node == 0 && item.value.len != 1) || (node != 0 && item.value.len != 4)) {
                 return PICOKEYS_WRONG_DATA;
             }
             if (node == 0) {
-                if ((r = load_master_bip(tag_data[0], ctx, chain, key_type)) != PICOKEYS_OK) {
+                if ((r = load_master_bip(item.value.data[0], ctx, chain, key_type)) != PICOKEYS_OK) {
                     return r;
                 }
             }
             else if (node > 0) {
                 node_fingerprint_bip(ctx, fingerprint);
-                if ((r = node_derive_bip_child(ctx, chain, tag_data, ctx, chain)) != PICOKEYS_OK) {
+                if ((r = node_derive_bip_child(ctx, chain, item.value.data, ctx, chain)) != PICOKEYS_OK) {
                     return r;
                 }
-                memcpy(last_node, tag_data, 4);
+                memcpy(last_node, item.value.data, 4);
             }
         }
-        else if (tag == 0x04) {
+        else if (item.tag == 0x04) {
             if (node == 0) {
                 return PICOKEYS_WRONG_DATA;
             }
             else if (node > 0) {
                 node_fingerprint_slip(ctx, fingerprint);
-                *(tag_data - 1) = 0;
-                mbedtls_md_hmac(mbedtls_md_info_from_type(MBEDTLS_MD_SHA512), chain, 32, tag_data - 1, tag_len + 1, N);
+                ((uint8_t *)item.value.data)[-1] = 0;
+                mbedtls_md_hmac(mbedtls_md_info_from_type(MBEDTLS_MD_SHA512), chain, 32, item.value.data - 1, item.value.len + 1, N);
                 memcpy(chain, N, 32);
                 mbedtls_mpi_read_binary(&ctx->d, N + 32, 32);
             }
@@ -210,7 +210,7 @@ int cmd_bip_slip(void) {
         }
         if (apdu.nc == 0) {
             seed_len = 64;
-            random_fill_buffer(seed, seed_len);
+            random_fill_buffer(BYTE_ARRAY(seed, seed_len));
         }
         else {
             seed_len = MIN((uint8_t)apdu.nc, 64);
@@ -230,7 +230,7 @@ int cmd_bip_slip(void) {
         }
         mkey[0] = p1;
         file_t *ef = file_new(EF_MASTER_SEED | p2);
-        int r = mkek_store_file(ef, mkey, sizeof(mkey));
+        int r = mkek_store_file(ef, CONST_BYTE_ARRAY(mkey, sizeof(mkey)));
         if (r != PICOKEYS_OK) {
             return SW_EXEC_ERROR();
         }
@@ -244,7 +244,7 @@ int cmd_bip_slip(void) {
         uint8_t chain[32] = { 0 }, fgpt[4] = { 0 }, last_node[4] = { 0 }, key_type = 0, nodes = 0;
         size_t olen = 0;
         int r =
-            node_derive_path(apdu.data, (uint16_t)apdu.nc, &ctx, chain, fgpt, &nodes, last_node, &key_type);
+            node_derive_path(CONST_BYTE_ARRAY(apdu.data, (uint16_t)apdu.nc), &ctx, chain, fgpt, &nodes, last_node, &key_type);
         if (r != PICOKEYS_OK) {
             mbedtls_ecp_keypair_free(&ctx);
             return SW_EXEC_ERROR();
@@ -266,11 +266,11 @@ int cmd_bip_slip(void) {
             res_APDU_size += (uint16_t)olen;
         }
         else if (key_type == 0x3) {
-            sha256_sha256(chain, 32, chain);
+            sha256_sha256(CONST_BYTE_ARRAY(chain, 32), BYTE_ARRAY(chain, 32));
             memcpy(res_APDU + res_APDU_size, chain, 32);
             res_APDU_size += 32;
             mbedtls_mpi_write_binary(&ctx.d, pubkey, 32);
-            sha256_sha256(pubkey, 32, pubkey);
+            sha256_sha256(CONST_BYTE_ARRAY(pubkey, 32), BYTE_ARRAY(pubkey, 32));
             memcpy(res_APDU + res_APDU_size, pubkey, 32);
             res_APDU_size += 32;
         }
@@ -278,7 +278,7 @@ int cmd_bip_slip(void) {
     }
     else if (p1 == 0x10) {
         uint8_t chain[32] = { 0 }, fgpt[4] = { 0 }, last_node[4] = { 0 }, nodes = 0;
-        int r = node_derive_path(apdu.data, (uint16_t)apdu.nc, &hd_context, chain, fgpt, &nodes, last_node, &hd_keytype);
+        int r = node_derive_path(CONST_BYTE_ARRAY(apdu.data, (uint16_t)apdu.nc), &hd_context, chain, fgpt, &nodes, last_node, &hd_keytype);
         if (r != PICOKEYS_OK) {
             mbedtls_ecp_keypair_free(&hd_context);
             return SW_EXEC_ERROR();

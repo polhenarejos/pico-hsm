@@ -30,12 +30,12 @@
 static const uint8_t cvc_valid_from[] = { 0x02, 0x03, 0x00, 0x03, 0x02, 0x01 };
 static const uint8_t cvc_valid_to[] = { 0x07, 0x00, 0x01, 0x02, 0x03, 0x01 };
 
-static int cvc_configure_cert(cvc_write_cert *ctx, const mbedtls_pk_context *subject, bool full, const uint8_t *ext, uint16_t ext_len) {
+static int cvc_configure_cert(cvc_write_cert *ctx, const mbedtls_pk_context *subject, bool full, const_byte_array_t extension) {
     const uint8_t *car = NULL, *chr = NULL, *oid = NULL;
     uint16_t car_len = 0, chr_len = 0, oid_len = 0;
     bool allow_zero_signature_on_unsupported = false;
 
-    if (!ctx || !subject) {
+    if (!ctx || !subject || extension.len > UINT16_MAX) {
         return -1;
     }
     car = cvc_get_field(apdu.data, (uint16_t)apdu.nc, &car_len, 0x42);
@@ -66,7 +66,7 @@ static int cvc_configure_cert(cvc_write_cert *ctx, const mbedtls_pk_context *sub
     }
 
     cvc_write_cert_init(ctx);
-    if (cvc_write_set_subject_key(ctx, subject) != LIBCVC_OK || cvc_write_set_issuer_key(ctx, subject) != LIBCVC_OK || cvc_write_set_algorithm_oid(ctx, oid, oid_len) != LIBCVC_OK || cvc_write_set_md(ctx, MBEDTLS_MD_SHA256) != LIBCVC_OK || cvc_write_set_include_ec_domain_parameters(ctx, true) != LIBCVC_OK || cvc_write_set_allow_zero_signature_on_unsupported(ctx, allow_zero_signature_on_unsupported) != LIBCVC_OK || cvc_write_set_car(ctx, car, car_len) != LIBCVC_OK || cvc_write_set_chr(ctx, chr, chr_len) != LIBCVC_OK || cvc_write_set_extensions(ctx, ext, ext_len) != LIBCVC_OK || cvc_write_set_include_role_and_validity(ctx, full) != LIBCVC_OK) {
+    if (cvc_write_set_subject_key(ctx, subject) != LIBCVC_OK || cvc_write_set_issuer_key(ctx, subject) != LIBCVC_OK || cvc_write_set_algorithm_oid(ctx, oid, oid_len) != LIBCVC_OK || cvc_write_set_md(ctx, MBEDTLS_MD_SHA256) != LIBCVC_OK || cvc_write_set_include_ec_domain_parameters(ctx, true) != LIBCVC_OK || cvc_write_set_allow_zero_signature_on_unsupported(ctx, allow_zero_signature_on_unsupported) != LIBCVC_OK || cvc_write_set_car(ctx, car, car_len) != LIBCVC_OK || cvc_write_set_chr(ctx, chr, chr_len) != LIBCVC_OK || cvc_write_set_extensions(ctx, extension.data, (uint16_t)extension.len) != LIBCVC_OK || cvc_write_set_include_role_and_validity(ctx, full) != LIBCVC_OK) {
         return -1;
     }
     if (full && cvc_write_set_validity(ctx, cvc_valid_from, sizeof(cvc_valid_from), cvc_valid_to, sizeof(cvc_valid_to)) != LIBCVC_OK) {
@@ -110,11 +110,12 @@ static uint16_t cvc_cert_size(const cvc_write_cert *ctx) {
     return cvc_build_cert(body, body_len, sig, (uint16_t)sig_len, NULL, 0);
 }
 
-uint16_t asn1_cvc_cert(const mbedtls_pk_context *subject, uint8_t *buf, uint16_t buf_len, const uint8_t *ext, uint16_t ext_len, bool full) {
+uint16_t asn1_cvc_cert(const mbedtls_pk_context *subject, byte_buffer_t output, const_byte_array_t extension, bool full) {
     cvc_write_cert ctx;
     uint16_t cert_len, out_len = 0;
-
-    if (!subject || cvc_configure_cert(&ctx, subject, full, ext, ext_len) != 0) {
+    uint8_t *buf = output.data;
+    uint16_t buf_len = (uint16_t)output.capacity;
+    if (output.capacity > UINT16_MAX || extension.len > UINT16_MAX || !subject || cvc_configure_cert(&ctx, subject, full, extension) != 0) {
         return 0;
     }
     cert_len = cvc_cert_size(&ctx);
@@ -127,7 +128,7 @@ uint16_t asn1_cvc_cert(const mbedtls_pk_context *subject, uint8_t *buf, uint16_t
     return out_len;
 }
 
-uint16_t asn1_cvc_aut(const mbedtls_pk_context *subject, uint8_t *buf, uint16_t buf_len, const uint8_t *ext, uint16_t ext_len) {
+uint16_t asn1_cvc_aut(const mbedtls_pk_context *subject, byte_buffer_t output, const_byte_array_t extension) {
     file_t *fkey = hsm_key_search(0);
     mbedtls_ecp_keypair device_key;
     mbedtls_pk_context outer;
@@ -135,8 +136,9 @@ uint16_t asn1_cvc_aut(const mbedtls_pk_context *subject, uint8_t *buf, uint16_t 
     uint16_t cert_len, request_len, out_len = 0;
     size_t outer_sig_len;
     uint8_t placeholder = 0;
-
-    if (!subject || !fkey || !dev_name || !dev_name_len) {
+    uint8_t *buf = output.data;
+    uint16_t buf_len = (uint16_t)output.capacity;
+    if (output.capacity > UINT16_MAX || extension.len > UINT16_MAX || !subject || !fkey || !dev_name || !dev_name_len) {
         return 0;
     }
     mbedtls_ecp_keypair_init(&device_key);
@@ -149,7 +151,7 @@ uint16_t asn1_cvc_aut(const mbedtls_pk_context *subject, uint8_t *buf, uint16_t 
         return 0;
     }
     cvc_write_req_init(&ctx);
-    if (cvc_configure_cert(&ctx.cert, subject, false, ext, ext_len) != 0 || dev_name_len > sizeof(ctx.outer_car_buf)) {
+    if (cvc_configure_cert(&ctx.cert, subject, false, extension) != 0 || dev_name_len > sizeof(ctx.outer_car_buf)) {
         mbedtls_ecp_keypair_free(&device_key);
         return 0;
     }
@@ -177,7 +179,16 @@ uint16_t asn1_cvc_aut(const mbedtls_pk_context *subject, uint8_t *buf, uint16_t 
     return out_len;
 }
 
-uint16_t asn1_build_cert_description(const uint8_t *label, uint16_t label_len, const uint8_t *puk, uint16_t puk_len, uint16_t fid, uint8_t *buf, uint16_t buf_len) {
+uint16_t asn1_build_cert_description(const_byte_array_t label, const_byte_array_t puk, uint16_t fid, byte_buffer_t output) {
+    if (label.len > UINT16_MAX || puk.len > UINT16_MAX || output.capacity > UINT16_MAX) {
+        return 0;
+    }
+    const uint8_t *label_data = label.data;
+    uint16_t label_len = (uint16_t)label.len;
+    const uint8_t *puk_data = puk.data;
+    uint16_t puk_len = (uint16_t)puk.len;
+    uint8_t *buf = output.data;
+    uint16_t buf_len = (uint16_t)output.capacity;
     uint16_t opt_len = 2;
     uint16_t seq1_size = tlv_len_tag(0x30, tlv_len_tag(0xC, label_len) + tlv_len_tag(0x3, opt_len));
     uint16_t seq2_size = tlv_len_tag(0x30, tlv_len_tag(0x4, 20)); /* SHA1 is 20 bytes length */
@@ -197,7 +208,7 @@ uint16_t asn1_build_cert_description(const uint8_t *label, uint16_t label_len, c
     p += tlv_format_len(tlv_len_tag(0xC, label_len) + tlv_len_tag(0x3, opt_len), p);
     *p++ = 0xC;
     p += tlv_format_len(label_len, p);
-    memcpy(p, label, label_len); p += label_len;
+    memcpy(p, label_data, label_len); p += label_len;
     *p++ = 0x3;
     p += tlv_format_len(opt_len, p);
     memcpy(p, "\x06\x40", 2); p += 2;
@@ -207,7 +218,7 @@ uint16_t asn1_build_cert_description(const uint8_t *label, uint16_t label_len, c
     p += tlv_format_len(tlv_len_tag(0x4, 20), p);
     *p++ = 0x4;
     p += tlv_format_len(20, p);
-    mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA1), puk, puk_len, p);  p += 20;
+    mbedtls_md(mbedtls_md_info_from_type(MBEDTLS_MD_SHA1), puk_data, puk_len, p);  p += 20;
 
     //Seq 3
     *p++ = 0xA1;
@@ -223,7 +234,16 @@ uint16_t asn1_build_cert_description(const uint8_t *label, uint16_t label_len, c
     return (uint16_t)(p - buf);
 }
 
-uint16_t asn1_build_prkd_generic(const uint8_t *label, uint16_t label_len, const uint8_t *keyid, uint16_t keyid_len, uint16_t keysize, int key_type, uint8_t *buf, uint16_t buf_len) {
+uint16_t asn1_build_prkd_generic(const_byte_array_t label, const_byte_array_t keyid, uint16_t keysize, int key_type, byte_buffer_t output) {
+    if (label.len > UINT16_MAX || keyid.len > UINT16_MAX || output.capacity > UINT16_MAX) {
+        return 0;
+    }
+    const uint8_t *label_data = label.data;
+    uint16_t label_len = (uint16_t)label.len;
+    const uint8_t *keyid_data = keyid.data;
+    uint16_t keyid_len = (uint16_t)keyid.len;
+    uint8_t *buf = output.data;
+    uint16_t buf_len = (uint16_t)output.capacity;
     uint16_t seq_len = 0;
     const uint8_t *seq = NULL;
     uint8_t first_tag = 0x0;
@@ -267,14 +287,14 @@ uint16_t asn1_build_prkd_generic(const uint8_t *label, uint16_t label_len, const
     p += tlv_format_len(tlv_len_tag(0xC, label_len), p);
     *p++ = 0xC;
     p += tlv_format_len(label_len, p);
-    memcpy(p, label, label_len); p += label_len;
+    memcpy(p, label_data, label_len); p += label_len;
 
     //Seq 2
     *p++ = 0x30;
     p += tlv_format_len(tlv_len_tag(0x4, keyid_len) + tlv_len_tag(0x3, seq_len), p);
     *p++ = 0x4;
     p += tlv_format_len(keyid_len, p);
-    memcpy(p, keyid, keyid_len); p += keyid_len;
+    memcpy(p, keyid_data, keyid_len); p += keyid_len;
     *p++ = 0x3;
     p += tlv_format_len(seq_len, p);
     memcpy(p, seq, seq_len); p += seq_len;
@@ -311,51 +331,53 @@ uint16_t asn1_build_prkd_generic(const uint8_t *label, uint16_t label_len, const
     return (uint16_t)(p - buf);
 }
 
-uint16_t asn1_build_prkd_ecc(const uint8_t *label, uint16_t label_len, const uint8_t *keyid, uint16_t keyid_len, uint16_t keysize, uint8_t *buf, uint16_t buf_len) {
-    return asn1_build_prkd_generic(label, label_len, keyid, keyid_len, keysize, PICOKEYS_KEY_EC, buf, buf_len);
+uint16_t asn1_build_prkd_ecc(const_byte_array_t label, const_byte_array_t keyid, uint16_t keysize, byte_buffer_t output) {
+    return asn1_build_prkd_generic(label, keyid, keysize, PICOKEYS_KEY_EC, output);
 }
 
-uint16_t asn1_build_prkd_rsa(const uint8_t *label, uint16_t label_len, const uint8_t *keyid, uint16_t keyid_len, uint16_t keysize, uint8_t *buf, uint16_t buf_len) {
-    return asn1_build_prkd_generic(label, label_len, keyid, keyid_len, keysize, PICOKEYS_KEY_RSA, buf, buf_len);
+uint16_t asn1_build_prkd_rsa(const_byte_array_t label, const_byte_array_t keyid, uint16_t keysize, byte_buffer_t output) {
+    return asn1_build_prkd_generic(label, keyid, keysize, PICOKEYS_KEY_RSA, output);
 }
 
-uint16_t asn1_build_prkd_aes(const uint8_t *label, uint16_t label_len, const uint8_t *keyid, uint16_t keyid_len, uint16_t keysize, uint8_t *buf, uint16_t buf_len) {
-    return asn1_build_prkd_generic(label, label_len, keyid, keyid_len, keysize, PICOKEYS_KEY_AES, buf, buf_len);
+uint16_t asn1_build_prkd_aes(const_byte_array_t label, const_byte_array_t keyid, uint16_t keysize, byte_buffer_t output) {
+    return asn1_build_prkd_generic(label, keyid, keysize, PICOKEYS_KEY_AES, output);
 }
 
 extern PUK puk_store[MAX_PUK_STORE_ENTRIES];
 extern int puk_store_entries;
 
-static int puk_store_index(const uint8_t *chr, uint16_t chr_len) {
+static int puk_store_index(const_byte_array_t chr) {
     for (int i = 0; i < puk_store_entries; i++) {
-        if (puk_store[i].chr && puk_store[i].chr_len == chr_len && memcmp(puk_store[i].chr, chr, chr_len) == 0) {
+        if (puk_store[i].chr && puk_store[i].chr_len == chr.len && memcmp(puk_store[i].chr, chr.data, chr.len) == 0) {
             return i;
         }
     }
     return -1;
 }
 
-mbedtls_ecp_group_id cvc_inherite_ec_group(const uint8_t *ca, uint16_t ca_len) {
+mbedtls_ecp_group_id cvc_inherite_ec_group(const_byte_array_t ca) {
+    const uint8_t *ca_data = ca.data;
+    size_t ca_len = ca.len;
     uint16_t chr_len = 0, car_len = 0;
     const uint8_t *chr = NULL, *car = NULL;
     int eq = -1;
     do {
-        chr = cvc_get_chr(ca, ca_len, &chr_len);
-        car = cvc_get_car(ca, ca_len, &car_len);
+        chr = cvc_get_chr(ca_data, ca_len, &chr_len);
+        car = cvc_get_car(ca_data, ca_len, &car_len);
         eq = car_len == chr_len ? memcmp(car, chr, chr_len) : -1;
         if (car && eq != 0) {
-            int idx = puk_store_index(car, car_len);
+            int idx = puk_store_index(CONST_BYTE_ARRAY(car, car_len));
             if (idx != -1) {
-                ca = puk_store[idx].cvcert;
+                ca_data = puk_store[idx].cvcert;
                 ca_len = puk_store[idx].cvcert_len;
             }
             else {
-                ca = NULL;
+                ca_data = NULL;
             }
         }
     } while (car && chr && eq != 0);
     uint16_t ca_puk_len = 0;
-    const uint8_t *ca_puk = cvc_get_pub(ca, ca_len, &ca_puk_len);
+    const uint8_t *ca_puk = cvc_get_pub(ca_data, ca_len, &ca_puk_len);
     if (!ca_puk) {
         return MBEDTLS_ECP_DP_NONE;
     }
@@ -365,14 +387,14 @@ mbedtls_ecp_group_id cvc_inherite_ec_group(const uint8_t *ca, uint16_t ca_len) {
         return MBEDTLS_ECP_DP_NONE;
     }
 
-    return ec_get_curve_from_prime(t81, t81_len);
+    return ec_get_curve_from_prime(CONST_BYTE_ARRAY(t81, t81_len));
 }
 
-int puk_verify(const uint8_t *sig, uint16_t sig_len, const uint8_t *hash, uint16_t hash_len, const uint8_t *ca, uint16_t ca_len) {
+int puk_verify(const_byte_array_t sig, const_byte_array_t hash, const_byte_array_t ca) {
     cvc_pubkey_t signer;
     mbedtls_md_type_t md = MBEDTLS_MD_NONE;
 
-    if (cvc_extract_pubkey(ca, ca_len, &signer) != LIBCVC_OK || cvc_algorithm_oid_to_md(signer.alg_oid, signer.alg_oid_len, &md) != LIBCVC_OK) {
+    if (cvc_extract_pubkey(ca.data, ca.len, &signer) != LIBCVC_OK || cvc_algorithm_oid_to_md(signer.alg_oid, signer.alg_oid_len, &md) != LIBCVC_OK) {
         return PICOKEYS_WRONG_DATA;
     }
 
@@ -402,14 +424,14 @@ int puk_verify(const uint8_t *sig, uint16_t sig_len, const uint8_t *hash, uint16
             mbedtls_rsa_free(&rsa);
             return PICOKEYS_EXEC_ERROR;
         }
-        r = mbedtls_rsa_pkcs1_verify(&rsa, md, (unsigned int)hash_len, hash, sig);
+        r = mbedtls_rsa_pkcs1_verify(&rsa, md, (unsigned int)hash.len, hash.data, sig.data);
         mbedtls_rsa_free(&rsa);
         if (r != 0) {
             return PICOKEYS_WRONG_SIGNATURE;
         }
     }
     else if (signer.kind == CVC_KEY_KIND_EC) {
-        mbedtls_ecp_group_id ec_id = cvc_inherite_ec_group(ca, ca_len);
+        mbedtls_ecp_group_id ec_id = cvc_inherite_ec_group(ca);
         if (ec_id == MBEDTLS_ECP_DP_NONE) {
             return PICOKEYS_WRONG_DATA;
         }
@@ -433,21 +455,21 @@ int puk_verify(const uint8_t *sig, uint16_t sig_len, const uint8_t *hash, uint16
         mbedtls_mpi r, s;
         mbedtls_mpi_init(&r);
         mbedtls_mpi_init(&s);
-        ret = mbedtls_mpi_read_binary(&r, sig, sig_len / 2);
+        ret = mbedtls_mpi_read_binary(&r, sig.data, sig.len / 2);
         if (ret != 0) {
             mbedtls_mpi_free(&r);
             mbedtls_mpi_free(&s);
             mbedtls_ecdsa_free(&ecdsa);
             return PICOKEYS_EXEC_ERROR;
         }
-        ret = mbedtls_mpi_read_binary(&s, sig + sig_len / 2, sig_len / 2);
+        ret = mbedtls_mpi_read_binary(&s, sig.data + sig.len / 2, sig.len / 2);
         if (ret != 0) {
             mbedtls_mpi_free(&r);
             mbedtls_mpi_free(&s);
             mbedtls_ecdsa_free(&ecdsa);
             return PICOKEYS_EXEC_ERROR;
         }
-        ret = mbedtls_ecdsa_verify(&ecdsa.grp, hash, hash_len, &ecdsa.Q, &r, &s);
+        ret = mbedtls_ecdsa_verify(&ecdsa.grp, hash.data, hash.len, &ecdsa.Q, &r, &s);
         mbedtls_mpi_free(&r);
         mbedtls_mpi_free(&s);
         mbedtls_ecdsa_free(&ecdsa);
@@ -458,11 +480,11 @@ int puk_verify(const uint8_t *sig, uint16_t sig_len, const uint8_t *hash, uint16
     return PICOKEYS_OK;
 }
 
-int cvc_verify(const uint8_t *cert, uint16_t cert_len, const uint8_t *ca, uint16_t ca_len) {
+int cvc_verify(const_byte_array_t cert, const_byte_array_t ca) {
     cvc_pubkey_t signer;
     mbedtls_md_type_t md = MBEDTLS_MD_NONE;
 
-    if (cvc_extract_pubkey(ca, ca_len, &signer) != LIBCVC_OK || signer.alg_oid == NULL || signer.alg_oid_len == 0) {
+    if (cvc_extract_pubkey(ca.data, ca.len, &signer) != LIBCVC_OK || signer.alg_oid == NULL || signer.alg_oid_len == 0) {
         return PICOKEYS_WRONG_DATA;
     }
 
@@ -483,7 +505,7 @@ int cvc_verify(const uint8_t *cert, uint16_t cert_len, const uint8_t *ca, uint16
         if (cvc_algorithm_oid_is_rsa_pss(signer.alg_oid, signer.alg_oid_len)) {
             mbedtls_rsa_set_padding(&rsa, MBEDTLS_RSA_PKCS_V21, md);
         }
-        rc = cvc_verify_cert_signature(cert, cert_len, &signer_pk, md);
+        rc = cvc_verify_cert_signature(cert.data, cert.len, &signer_pk, md);
         mbedtls_rsa_free(&rsa);
         return rc == LIBCVC_OK ? PICOKEYS_OK : PICOKEYS_WRONG_SIGNATURE;
     }
@@ -491,7 +513,7 @@ int cvc_verify(const uint8_t *cert, uint16_t cert_len, const uint8_t *ca, uint16
     if (signer.kind == CVC_KEY_KIND_EC) {
         mbedtls_ecdsa_context ecdsa;
         mbedtls_pk_context signer_pk;
-        mbedtls_ecp_group_id ec_id = cvc_inherite_ec_group(ca, ca_len);
+        mbedtls_ecp_group_id ec_id = cvc_inherite_ec_group(ca);
         int rc;
 
         if (ec_id == MBEDTLS_ECP_DP_NONE) {
@@ -502,7 +524,7 @@ int cvc_verify(const uint8_t *cert, uint16_t cert_len, const uint8_t *ca, uint16
             mbedtls_ecdsa_free(&ecdsa);
             return PICOKEYS_WRONG_DATA;
         }
-        rc = cvc_verify_cert_signature(cert, cert_len, &signer_pk, md);
+        rc = cvc_verify_cert_signature(cert.data, cert.len, &signer_pk, md);
         mbedtls_ecdsa_free(&ecdsa);
         return rc == LIBCVC_OK ? PICOKEYS_OK : PICOKEYS_WRONG_SIGNATURE;
     }

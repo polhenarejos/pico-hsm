@@ -42,7 +42,7 @@ int cmd_reset_retry(void) {
             if ((uint16_t)apdu.nc <= so_pin_len + 1) {
                 return SW_WRONG_LENGTH();
             }
-            uint16_t r = check_pin(file_sopin, apdu.data, so_pin_len);
+            uint16_t r = check_pin(file_sopin, CONST_BYTE_ARRAY(apdu.data, so_pin_len));
             if (r != 0x9000) {
                 return r;
             }
@@ -66,7 +66,7 @@ int cmd_reset_retry(void) {
             return SW_EXEC_ERROR();
         }
         hsm_object_authorization_session_invalidate();
-        pin_derive_session(apdu.data + (apdu.nc - newpin_len), newpin_len, session_pin);
+        pin_derive_session(CONST_BYTE_ARRAY(apdu.data + (apdu.nc - newpin_len), newpin_len), session_pin);
         has_session_pin = true;
         r = store_mkek(mkek);
         release_mkek(mkek);
@@ -76,8 +76,8 @@ int cmd_reset_retry(void) {
         uint8_t dhash[34];
         dhash[0] = newpin_len;
         dhash[1] = 1; // Format
-        pin_derive_verifier(apdu.data + (apdu.nc - newpin_len), newpin_len, dhash + 2);
-        file_put_data(file_pin1, dhash, sizeof(dhash));
+        pin_derive_verifier(CONST_BYTE_ARRAY(apdu.data + (apdu.nc - newpin_len), newpin_len), dhash + 2);
+        file_put_data(file_pin1, CONST_BYTE_ARRAY(dhash, sizeof(dhash)));
         flash_commit();
         return SW_OK();
     }
@@ -90,7 +90,7 @@ int cmd_reset_retry(void) {
             if (apdu.nc != so_pin_len) {
                 return SW_WRONG_LENGTH();
             }
-            uint16_t r = check_pin(file_sopin, apdu.data, so_pin_len);
+            uint16_t r = check_pin(file_sopin, CONST_BYTE_ARRAY(apdu.data, so_pin_len));
             if (r != 0x9000) {
                 return r;
             }

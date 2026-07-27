@@ -137,7 +137,7 @@ int cmd_signature(void) {
         p2 == ALGO_EC_SHA224 || p2 == ALGO_EC_SHA384 || p2 == ALGO_EC_SHA512 ||
         p2 == ALGO_RSA_PKCS1_SHA224 || p2 == ALGO_RSA_PKCS1_SHA384 || p2 == ALGO_RSA_PKCS1_SHA512 ||
         p2 == ALGO_RSA_PSS_SHA224 || p2 == ALGO_RSA_PSS_SHA384 || p2 == ALGO_RSA_PSS_SHA512) {
-        generic_hash(md, apdu.data, apdu.nc, apdu.data);
+        generic_hash(md, CONST_BYTE_ARRAY(apdu.data, apdu.nc), apdu.data);
         apdu.nc = mbedtls_md_get_size(mbedtls_md_info_from_type(md));
     }
     if (p2 >= ALGO_RSA_RAW && p2 <= ALGO_RSA_PSS_SHA512) {
@@ -165,7 +165,7 @@ int cmd_signature(void) {
         else {
             //sc_asn1_print_tags(apdu.data, apdu.nc);
             tlv_ctx_t ctxi, ctxo = { 0 }, oid = { 0 };
-            tlv_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
+            tlv_ctx_init(BYTE_ARRAY(apdu.data, (uint16_t)apdu.nc), &ctxi);
             if (tlv_find_tag(&ctxi, 0x30, &ctxo) && tlv_len(&ctxo) > 0) {
                 tlv_ctx_t a30 = { 0 };
                 if (tlv_find_tag(&ctxo, 0x30, &a30) && tlv_len(&a30) > 0) {

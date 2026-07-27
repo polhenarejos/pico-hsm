@@ -54,7 +54,7 @@ int cmd_puk_auth(void) {
                 uint8_t *tmp = (uint8_t *) calloc(file_get_size(ef_puk), sizeof(uint8_t));
                 memcpy(tmp, puk_data, file_get_size(ef_puk));
                 tmp[1] = puk_data[1] - 1;
-                file_put_data(ef_puk, tmp, file_get_size(ef_puk));
+                file_put_data(ef_puk, CONST_BYTE_ARRAY(tmp, file_get_size(ef_puk)));
                 puk_data = file_get_data(ef_puk);
                 free(tmp);
             }
@@ -70,7 +70,7 @@ int cmd_puk_auth(void) {
                     return SW_MEMORY_FAILURE();
                 }
             }
-            file_put_data(ef, apdu.data, (uint16_t)apdu.nc);
+            file_put_data(ef, CONST_BYTE_ARRAY(apdu.data, (uint16_t)apdu.nc));
             flash_commit();
         }
         else {

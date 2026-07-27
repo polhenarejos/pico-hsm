@@ -64,7 +64,7 @@ int cmd_extras(void) {
         else {
             uint8_t newopts[] = { apdu.data[0], (opts & 0xff) };
             file_t *tf = file_search(EF_DEVOPS);
-            file_put_data(tf, newopts, sizeof(newopts));
+            file_put_data(tf, CONST_BYTE_ARRAY(newopts, sizeof(newopts)));
             flash_commit();
         }
     }
@@ -116,7 +116,7 @@ int cmd_extras(void) {
                 return SW_WRONG_LENGTH();
             }
             uint16_t opts = get_device_options();
-            int ret = mse_decrypt_ct(apdu.data, apdu.nc);
+            int ret = mse_decrypt_ct(BYTE_ARRAY(apdu.data, apdu.nc));
             if (ret != 0) {
                 return SW_WRONG_DATA();
             }
@@ -133,7 +133,7 @@ int cmd_extras(void) {
                             for (int i = 0; i < MKEK_KEY_SIZE; i++) {
                                 MKEK_KEY(tmp)[i] ^= apdu.data[i];
                             }
-                            file_put_data(tf, tmp, file_get_size(tf));
+                            file_put_data(tf, CONST_BYTE_ARRAY(tmp, file_get_size(tf)));
                             free(tmp);
                         }
                     }
@@ -145,7 +145,7 @@ int cmd_extras(void) {
                     newopts[0] &= ~HSM_OPT_SECURE_LOCK >> 8;
                 }
                 file_t *tf = file_search(EF_DEVOPS);
-                file_put_data(tf, newopts, sizeof(newopts));
+                file_put_data(tf, CONST_BYTE_ARRAY(newopts, sizeof(newopts)));
                 flash_commit();
             }
             else if (P2(apdu) == SECURE_LOCK_MASK && (opts & HSM_OPT_SECURE_LOCK)) {

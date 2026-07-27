@@ -36,15 +36,14 @@ int cmd_general_authenticate(void) {
             int r = 0;
             uint16_t pubkey_len = 0;
             const uint8_t *pubkey = NULL;
-            uint16_t tag = 0x0;
-            uint8_t *tag_data = NULL, *p = NULL;
-            uint16_t tag_len = 0;
+            uint8_t *p = NULL;
+            tlv_item_t item;
             tlv_ctx_t ctxi;
-            tlv_ctx_init(apdu.data + 2, (uint16_t)(apdu.nc - 2), &ctxi);
-            while (tlv_walk(&ctxi, &p, &tag, &tag_len, &tag_data)) {
-                if (tag == 0x80) {
-                    pubkey = tag_data - 1; //mbedtls ecdh starts reading one pos before
-                    pubkey_len = tag_len + 1;
+            tlv_ctx_init(BYTE_ARRAY(apdu.data + 2, (uint16_t)(apdu.nc - 2)), &ctxi);
+            while (tlv_walk(&ctxi, &p, &item)) {
+                if (item.tag == 0x80) {
+                    pubkey = item.value.data - 1; //mbedtls ecdh starts reading one pos before
+                    pubkey_len = item.value.len + 1;
                 }
             }
             if (!pubkey) {
@@ -92,7 +91,7 @@ int cmd_general_authenticate(void) {
                 return SW_EXEC_ERROR();
             }
 
-            sm_derive_all_keys(derived, olen);
+            sm_derive_all_keys(CONST_BYTE_ARRAY(derived, olen));
 
             uint8_t *t = (uint8_t *) calloc(1, pubkey_len + 16);
             memcpy(t, "\x7F\x49\x4F\x06\x0A", 5);
@@ -111,7 +110,7 @@ int cmd_general_authenticate(void) {
             res_APDU[res_APDU_size++] = 0x82;
             res_APDU[res_APDU_size++] = 8;
 
-            r = sm_sign(t, pubkey_len + 16, res_APDU + res_APDU_size);
+            r = sm_sign(CONST_BYTE_ARRAY(t, pubkey_len + 16), res_APDU + res_APDU_size);
 
             free(t);
             if (r != PICOKEYS_OK) {

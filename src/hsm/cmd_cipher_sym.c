@@ -108,7 +108,7 @@ static int pkcs5_parse_pbkdf2_params(const mbedtls_asn1_buf *params, mbedtls_asn
 }
 
 /* Taken from https://github.com/Mbed-TLS/mbedtls/issues/2335 */
-static int mbedtls_ansi_x963_kdf(mbedtls_md_type_t md_type, uint16_t input_len, uint8_t *input, uint16_t shared_info_len, uint8_t *shared_info, uint16_t output_len, uint8_t *output) {
+static int mbedtls_ansi_x963_kdf(mbedtls_md_type_t md_type, const_byte_array_t input, const_byte_array_t shared_info, byte_array_t output) {
     mbedtls_md_context_t md_ctx;
     const mbedtls_md_info_t *md_info = NULL;
     int hashlen = 0, exit_code = MBEDTLS_ERR_MD_BAD_INPUT_DATA;
@@ -126,30 +126,30 @@ static int mbedtls_ansi_x963_kdf(mbedtls_md_type_t md_type, uint16_t input_len, 
         return exit_code;
     }
 
-    if ((uint64_t) input_len + (uint64_t) shared_info_len + 4ULL >= (1ULL << 61) - 1) {
+    if ((uint64_t) input.len + (uint64_t) shared_info.len + 4ULL >= (1ULL << 61) - 1 || output.len > UINT16_MAX) {
         return exit_code;
     }
 
     // keydatalen equals output_len
     hashlen = mbedtls_md_get_size(md_info);
-    if (output_len >= hashlen * ((1ULL << 32) - 1)) {
+    if (output.len >= hashlen * ((1ULL << 32) - 1)) {
         return exit_code;
     }
 
-    for (int i = 0, counter = 1; i < output_len; counter++) {
+    for (size_t i = 0, counter = 1; i < output.len; counter++) {
         mbedtls_md_starts(&md_ctx);
-        mbedtls_md_update(&md_ctx, input, input_len);
+        mbedtls_md_update(&md_ctx, input.data, input.len);
 
         //TODO: be careful with architecture little vs. big
         put_uint32_be(counter, counter_buf);
 
         mbedtls_md_update(&md_ctx, counter_buf, 4);
 
-        if (shared_info_len > 0 && shared_info != NULL) {
-            mbedtls_md_update(&md_ctx, shared_info, shared_info_len);
+        if (shared_info.len > 0 && shared_info.data != NULL) {
+            mbedtls_md_update(&md_ctx, shared_info.data, shared_info.len);
         }
         mbedtls_md_finish(&md_ctx, tmp_output);
-        memcpy(&output[i], tmp_output, (output_len - i < hashlen) ? output_len - i : hashlen);
+        memcpy(output.data + i, tmp_output, (output.len - i < (size_t)hashlen) ? output.len - i : (size_t)hashlen);
         i += hashlen;
     }
     mbedtls_md_free(&md_ctx);
@@ -200,7 +200,7 @@ int cmd_cipher_sym(void) {
             object_operation = FILE_OBJECT_OPERATION_DERIVE;
         }
         key_size = sizeof(kdata);
-        if (mkek_load_key_file(ef, kdata, &key_size, object_operation, false) != PICOKEYS_OK) {
+        if (mkek_load_key_file(ef, BYTE_BUFFER(kdata, key_size), &key_size, object_operation, false) != PICOKEYS_OK) {
             mbedtls_platform_zeroize(kdata, sizeof(kdata));
             return SW_EXEC_ERROR();
         }
@@ -275,7 +275,7 @@ int cmd_cipher_sym(void) {
     }
     else if (algo == ALGO_EXT_CIPHER_ENCRYPT || algo == ALGO_EXT_CIPHER_DECRYPT) {
         tlv_ctx_t ctxi, oid = {0}, enc = {0}, iv = {0}, aad = {0};
-        tlv_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
+        tlv_ctx_init(BYTE_ARRAY(apdu.data, (uint16_t)apdu.nc), &ctxi);
         if (!tlv_find_tag(&ctxi, 0x6, &oid) || tlv_len(&oid) == 0) {
             mbedtls_platform_zeroize(kdata, sizeof(kdata));
             return SW_WRONG_DATA();
@@ -431,7 +431,7 @@ int cmd_cipher_sym(void) {
                 mbedtls_platform_zeroize(kdata, sizeof(kdata));
                 return SW_WRONG_LENGTH();
             }
-            int r = mbedtls_ansi_x963_kdf(md_type, key_size, kdata, aad.len, aad.data, output_len, res_APDU);
+            int r = mbedtls_ansi_x963_kdf(md_type, CONST_BYTE_ARRAY(kdata, key_size), CONST_BYTE_ARRAY(aad.data, aad.len), BYTE_ARRAY(res_APDU, output_len));
             mbedtls_platform_zeroize(kdata, sizeof(kdata));
             if (r != 0) {
                 return SW_WRONG_DATA();
@@ -473,7 +473,7 @@ int cmd_cipher_sym(void) {
                 if (r != 0) {
                     return SW_EXEC_ERROR();
                 }
-                res_APDU_size = MIN(enc.len, 16); // ECB operates with 16-byte blocks
+                res_APDU_size = MIN(enc.len, 16u); // ECB operates with 16-byte blocks
             }
             else if (aes_algo == 0x02 || aes_algo == 0x16 || aes_algo == 0x2A) { /* CBC */
                 if (algo == ALGO_EXT_CIPHER_ENCRYPT) {

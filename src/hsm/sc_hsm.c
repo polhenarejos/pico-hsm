@@ -87,7 +87,7 @@ static void scan_files(void) {
         if (!file_pin1->data) {
             printf("PIN1 is empty. Initializing with default password\n");
             const uint8_t empty[33] = { 0 };
-            file_put_data(file_pin1, empty, sizeof(empty));
+            file_put_data(file_pin1, CONST_BYTE_ARRAY(empty, sizeof(empty)));
         }
     }
     else {
@@ -98,7 +98,7 @@ static void scan_files(void) {
         if (!file_sopin->data) {
             printf("SOPIN is empty. Initializing with default password\n");
             const uint8_t empty[33] = { 0 };
-            file_put_data(file_sopin, empty, sizeof(empty));
+            file_put_data(file_sopin, CONST_BYTE_ARRAY(empty, sizeof(empty)));
         }
     }
     else {
@@ -109,7 +109,7 @@ static void scan_files(void) {
         if (!file_retries_pin1->data) {
             printf("Retries PIN1 is empty. Initializing with default retriesr\n");
             const uint8_t retries = 3;
-            file_put_data(file_retries_pin1, &retries, sizeof(uint8_t));
+            file_put_data(file_retries_pin1, CONST_BYTE_ARRAY(&retries, sizeof(uint8_t)));
         }
     }
     else {
@@ -120,7 +120,7 @@ static void scan_files(void) {
         if (!file_retries_sopin->data) {
             printf("Retries SOPIN is empty. Initializing with default retries\n");
             const uint8_t retries = 15;
-            file_put_data(file_retries_sopin, &retries, sizeof(uint8_t));
+            file_put_data(file_retries_sopin, CONST_BYTE_ARRAY(&retries, sizeof(uint8_t)));
         }
     }
     else {
@@ -133,7 +133,7 @@ static void scan_files(void) {
         if (!tf->data) {
             printf("Max retries PIN1 is empty. Initializing with default max retriesr\n");
             const uint8_t retries = 3;
-            file_put_data(tf, &retries, sizeof(uint8_t));
+            file_put_data(tf, CONST_BYTE_ARRAY(&retries, sizeof(uint8_t)));
         }
     }
     else {
@@ -144,7 +144,7 @@ static void scan_files(void) {
         if (!tf->data) {
             printf("Max Retries SOPIN is empty. Initializing with default max retries\n");
             const uint8_t retries = 15;
-            file_put_data(tf, &retries, sizeof(uint8_t));
+            file_put_data(tf, CONST_BYTE_ARRAY(&retries, sizeof(uint8_t)));
         }
     }
     else {
@@ -163,8 +163,8 @@ int puk_store_entries = 0;
 PUK *current_puk = NULL;
 uint8_t puk_status[MAX_PUK];
 
-int add_cert_puk_store(const uint8_t *data, uint16_t data_len, bool copy) {
-    if (data == NULL || data_len == 0) {
+int add_cert_puk_store(const_byte_array_t data, bool copy) {
+    if (data.data == NULL || data.len == 0 || data.len > UINT16_MAX) {
         return PICOKEYS_ERR_NULL_PARAM;
     }
     if (puk_store_entries == MAX_PUK_STORE_ENTRIES) {
@@ -173,22 +173,22 @@ int add_cert_puk_store(const uint8_t *data, uint16_t data_len, bool copy) {
 
     puk_store[puk_store_entries].copied = copy;
     if (copy == true) {
-        uint8_t *tmp = (uint8_t *) calloc(data_len, sizeof(uint8_t));
-        memcpy(tmp, data, data_len);
+        uint8_t *tmp = (uint8_t *) calloc(data.len, sizeof(uint8_t));
+        memcpy(tmp, data.data, data.len);
         puk_store[puk_store_entries].cvcert = tmp;
     }
     else {
-        puk_store[puk_store_entries].cvcert = data;
+        puk_store[puk_store_entries].cvcert = data.data;
     }
-    puk_store[puk_store_entries].cvcert_len = data_len;
+    puk_store[puk_store_entries].cvcert_len = (uint16_t)data.len;
     puk_store[puk_store_entries].chr = cvc_get_chr(puk_store[puk_store_entries].cvcert,
-                                                   data_len,
+                                                   (uint16_t)data.len,
                                                    &puk_store[puk_store_entries].chr_len);
     puk_store[puk_store_entries].car = cvc_get_car(puk_store[puk_store_entries].cvcert,
-                                                   data_len,
+                                                   (uint16_t)data.len,
                                                    &puk_store[puk_store_entries].car_len);
     puk_store[puk_store_entries].puk = cvc_get_pub(puk_store[puk_store_entries].cvcert,
-                                                   data_len,
+                                                   (uint16_t)data.len,
                                                    &puk_store[puk_store_entries].puk_len);
 
     puk_store_entries++;
@@ -220,16 +220,17 @@ void reset_puk_store(void) {
         uint8_t *p = NULL, *fterm_data = file_get_data(fterm), *pq = fterm_data;
         uint16_t fterm_data_len = file_get_size(fterm);
         tlv_ctx_t ctxi;
-        tlv_ctx_init(fterm_data, fterm_data_len, &ctxi);
-        while (tlv_walk(&ctxi, &p, NULL, NULL, NULL)) {
-            add_cert_puk_store(pq, (uint16_t)(p - pq), false);
+        tlv_item_t item;
+        tlv_ctx_init(BYTE_ARRAY(fterm_data, fterm_data_len), &ctxi);
+        while (tlv_walk(&ctxi, &p, &item)) {
+            add_cert_puk_store(CONST_BYTE_ARRAY(pq, (uint16_t)(p - pq)), false);
             pq = p;
         }
     }
     for (int i = 0; i < 0xfe; i++) {
         file_t *ef = file_search((CA_CERTIFICATE_PREFIX << 8) | (uint8_t)i);
         if (ef && file_get_size(ef) > 0) {
-            add_cert_puk_store(file_get_data(ef), file_get_size(ef), false);
+            add_cert_puk_store(CONST_BYTE_ARRAY(file_get_data(ef), file_get_size(ef)), false);
         }
     }
     dev_name = cvc_get_chr(file_get_data(fterm), file_get_size(fterm), &dev_name_len);
@@ -355,7 +356,7 @@ int pin_reset_retries(const file_t *pin, bool force) {
         return PICOKEYS_ERR_BLOCKED;
     }
     retries = file_read_uint8(max);
-    int r = file_put_data((file_t *) act, &retries, sizeof(retries));
+    int r = file_put_data((file_t *)act, CONST_BYTE_ARRAY(&retries, sizeof(retries)));
     flash_commit();
     return r;
 }
@@ -371,7 +372,7 @@ int pin_wrong_retry(const file_t *pin) {
     uint8_t retries = file_read_uint8(act);
     if (retries > 0) {
         retries -= 1;
-        int r = file_put_data((file_t *) act, &retries, sizeof(retries));
+        int r = file_put_data((file_t *)act, CONST_BYTE_ARRAY(&retries, sizeof(retries)));
         if (r != PICOKEYS_OK) {
             return r;
         }
@@ -389,7 +390,7 @@ bool pka_enabled(void) {
     return file_has_data(ef_puk) && file_read_uint8(ef_puk) > 0;
 }
 
-uint16_t check_pin(const file_t *pin, const uint8_t *data, uint16_t len) {
+uint16_t check_pin(const file_t *pin, const_byte_array_t data) {
     if (!file_has_data((file_t *) pin)) {
         return SW_REFERENCE_NOT_FOUND();
     }
@@ -401,10 +402,10 @@ uint16_t check_pin(const file_t *pin, const uint8_t *data, uint16_t len) {
     uint8_t dhash[32], off = 2;
     if (sizeof(dhash) == file_get_size(pin) - 1) { // Old style
         off = 1;
-        double_hash_pin(data, len, dhash);
+        double_hash_pin(data, dhash);
     }
     else if (sizeof(dhash) == file_get_size(pin) - 2) {
-        pin_derive_verifier(data, len, dhash);
+        pin_derive_verifier(data, dhash);
     }
     else {
         return SW_WRONG_DATA();
@@ -428,11 +429,11 @@ uint16_t check_pin(const file_t *pin, const uint8_t *data, uint16_t len) {
             return SW_MEMORY_FAILURE();
         }
         if (pin == file_pin1) {
-            hash_multi(data, len, session_pin);
+            hash_multi(data, session_pin);
             has_session_pin = true;
         }
         else if (pin == file_sopin) {
-            hash_multi(data, len, session_sopin);
+            hash_multi(data, session_sopin);
             has_session_sopin = true;
         }
         uint8_t mkek[MKEK_SIZE_OLD]; // Old MKEK size, as it is encrypted with old PIN format
@@ -441,10 +442,10 @@ uint16_t check_pin(const file_t *pin, const uint8_t *data, uint16_t len) {
             return SW_MEMORY_FAILURE();
         }
         if (pin == file_pin1) {
-            pin_derive_session(data, len, session_pin);
+            pin_derive_session(data, session_pin);
         }
         else if (pin == file_sopin) {
-            pin_derive_session(data, len, session_sopin);
+            pin_derive_session(data, session_sopin);
         }
         r = store_mkek(mkek); //stores the MKEK with new format
         mbedtls_platform_zeroize(mkek, sizeof(mkek));
@@ -453,10 +454,10 @@ uint16_t check_pin(const file_t *pin, const uint8_t *data, uint16_t len) {
         }
 
         uint8_t pin_data[34];
-        pin_data[0] = len;
+        pin_data[0] = (uint8_t)data.len;
         pin_data[1] = 1; // new format indicator
-        pin_derive_verifier(data, len, pin_data + 2);
-        r = file_put_data((file_t *) pin, pin_data, sizeof(pin_data));
+        pin_derive_verifier(data, pin_data + 2);
+        r = file_put_data((file_t *) pin, CONST_BYTE_ARRAY(pin_data, sizeof(pin_data)));
         if (r != PICOKEYS_OK) {
             return SW_MEMORY_FAILURE();
         }
@@ -466,11 +467,11 @@ uint16_t check_pin(const file_t *pin, const uint8_t *data, uint16_t len) {
         isUserAuthenticated = true;
     }
     if (pin == file_pin1) {
-        pin_derive_session(data, len, session_pin);
+        pin_derive_session(data, session_pin);
         has_session_pin = true;
     }
     else if (pin == file_sopin) {
-        pin_derive_session(data, len, session_sopin);
+        pin_derive_session(data, session_sopin);
         has_session_sopin = true;
     }
     if (pending_save_dkek != 0xff) {
@@ -483,87 +484,81 @@ uint16_t check_pin(const file_t *pin, const uint8_t *data, uint16_t len) {
 static uint8_t *hsm_key_metadata_cache;
 static uint32_t hsm_key_metadata_cache_size;
 
-static uint16_t hsm_key_metadata_find(file_t *ef, uint8_t **meta_data) {
+static byte_array_t hsm_key_metadata_find(file_t *ef) {
     uint16_t logical_fid = hsm_key_logical_fid(ef);
     file_t *marker = file_search((HSM_OBJECT_PREFIX << 8) | (logical_fid & 0xff));
     if ((logical_fid >> 8) != KEY_PREFIX || !hsm_key_container_is_marker(marker)) {
-        return meta_find(logical_fid, meta_data);
+        return meta_find(logical_fid);
     }
 
     uint32_t meta_size = 0;
     if (hsm_key_container_object_size((uint8_t)logical_fid, HSM_KEY_OBJECT_METADATA, true, &meta_size) != PICOKEYS_OK || meta_size == 0 || meta_size > UINT16_MAX) {
-        return 0;
+        return BYTE_ARRAY(NULL, 0);
     }
     if (meta_size > hsm_key_metadata_cache_size) {
         uint8_t *cache = (uint8_t *)realloc(hsm_key_metadata_cache, meta_size);
         if (!cache) {
-            return 0;
+            return BYTE_ARRAY(NULL, 0);
         }
         hsm_key_metadata_cache = cache;
         hsm_key_metadata_cache_size = meta_size;
     }
     size_t written = 0;
-    if (hsm_key_container_read((uint8_t)logical_fid, HSM_KEY_OBJECT_METADATA, FILE_OBJECT_OPERATION_READ, true, hsm_key_metadata_cache, meta_size, &written) != PICOKEYS_OK || written != meta_size) {
-        return 0;
+    if (hsm_key_container_read((uint8_t)logical_fid, HSM_KEY_OBJECT_METADATA, FILE_OBJECT_OPERATION_READ, true, BYTE_BUFFER(hsm_key_metadata_cache, meta_size), &written) != PICOKEYS_OK || written != meta_size) {
+        return BYTE_ARRAY(NULL, 0);
     }
-    *meta_data = hsm_key_metadata_cache;
-    return (uint16_t)meta_size;
+    return BYTE_ARRAY(hsm_key_metadata_cache, meta_size);
 }
 
-const uint8_t *get_meta_tag(file_t *ef, uint16_t meta_tag, uint16_t *tag_len) {
+const_byte_array_t get_meta_tag(file_t *ef, uint16_t meta_tag) {
     if (ef == NULL) {
-        return NULL;
+        return CONST_BYTE_ARRAY(NULL, 0);
     }
-    uint8_t *meta_data = NULL;
-    uint16_t meta_size = hsm_key_metadata_find(ef, &meta_data);
-    if (meta_size > 0 && meta_data != NULL) {
-        uint16_t tag = 0x0;
-        uint8_t *tag_data = NULL, *p = NULL;
+    byte_array_t metadata = hsm_key_metadata_find(ef);
+    if (metadata.len > 0 && metadata.data != NULL) {
+        uint8_t *p = NULL;
+        tlv_item_t item;
         tlv_ctx_t ctxi;
-        tlv_ctx_init(meta_data, meta_size, &ctxi);
-        while (tlv_walk(&ctxi, &p, &tag, tag_len, &tag_data)) {
-            if (tag == meta_tag) {
-                return tag_data;
+        tlv_ctx_init(metadata, &ctxi);
+        while (tlv_walk(&ctxi, &p, &item)) {
+            if (item.tag == meta_tag) {
+                return item.value;
             }
         }
     }
-    return NULL;
+    return CONST_BYTE_ARRAY(NULL, 0);
 }
 
 void hsm_key_append_fci_metadata(uint8_t key_id) {
-    uint8_t *legacy_meta = NULL;
-    if (meta_find((KEY_PREFIX << 8) | key_id, &legacy_meta) > 0) {
+    if (meta_find((KEY_PREFIX << 8) | key_id).len > 0) {
         return;
     }
     file_t *marker = file_search((HSM_OBJECT_PREFIX << 8) | key_id);
-    uint8_t *meta_data = NULL;
-    uint16_t meta_size = hsm_key_metadata_find(marker, &meta_data);
-    if (meta_size == 0 || meta_size > UINT8_MAX || res_APDU_size > MAX_APDU_DATA - meta_size - 3u) {
+    byte_array_t metadata = hsm_key_metadata_find(marker);
+    if (metadata.len == 0 || metadata.len > UINT8_MAX || res_APDU_size > MAX_APDU_DATA - metadata.len - 3u) {
         return;
     }
     res_APDU[res_APDU_size++] = 0xa5;
     res_APDU[res_APDU_size++] = 0x81;
-    res_APDU[res_APDU_size++] = (uint8_t)meta_size;
-    memcpy(res_APDU + res_APDU_size, meta_data, meta_size);
-    res_APDU_size += meta_size;
+    res_APDU[res_APDU_size++] = (uint8_t)metadata.len;
+    memcpy(res_APDU + res_APDU_size, metadata.data, metadata.len);
+    res_APDU_size += metadata.len;
     res_APDU[1] = (uint8_t)res_APDU_size - 2u;
 }
 
 uint32_t get_key_counter(file_t *fkey) {
-    uint16_t tag_len = 0;
-    const uint8_t *meta_tag = get_meta_tag(fkey, 0x90, &tag_len);
-    if (meta_tag) {
-        return get_uint32_be(meta_tag);
+    const_byte_array_t meta_tag = get_meta_tag(fkey, 0x90);
+    if (meta_tag.data) {
+        return get_uint32_be(meta_tag.data);
     }
     return 0xffffffff;
 }
 
 bool key_has_purpose(file_t *ef, uint8_t purpose) {
-    uint16_t tag_len = 0;
-    const uint8_t *meta_tag = get_meta_tag(ef, 0x91, &tag_len);
-    if (meta_tag) {
-        for (unsigned i = 0; i < tag_len; i++) {
-            if (meta_tag[i] == purpose) {
+    const_byte_array_t meta_tag = get_meta_tag(ef, 0x91);
+    if (meta_tag.data) {
+        for (size_t i = 0; i < meta_tag.len; i++) {
+            if (meta_tag.data[i] == purpose) {
                 return true;
             }
         }
@@ -576,25 +571,23 @@ uint32_t decrement_key_counter(file_t *fkey) {
     if (!fkey) {
         return 0xffffff;
     }
-    uint8_t *meta_data = NULL;
     uint16_t logical_fid = hsm_key_logical_fid(fkey);
-    uint16_t meta_size = hsm_key_metadata_find(fkey, &meta_data);
-    if (meta_size > 0 && meta_data != NULL) {
-        uint16_t tag = 0x0;
-        uint8_t *tag_data = NULL, *p = NULL;
-        uint16_t tag_len = 0;
-        uint8_t *cmeta = (uint8_t *) calloc(1, meta_size);
+    byte_array_t metadata = hsm_key_metadata_find(fkey);
+    if (metadata.len > 0 && metadata.data != NULL) {
+        uint8_t *p = NULL;
+        tlv_item_t item;
+        uint8_t *cmeta = (uint8_t *)calloc(1, metadata.len);
         /* We cannot modify meta_data, as it comes from flash memory. It must be cpied to an aux buffer */
-        memcpy(cmeta, meta_data, meta_size);
+        memcpy(cmeta, metadata.data, metadata.len);
         tlv_ctx_t ctxi;
-        tlv_ctx_init(meta_data, meta_size, &ctxi);
-        while (tlv_walk(&ctxi, &p, &tag, &tag_len, &tag_data)) {
-            if (tag == 0x90) { // ofset tag
-                uint32_t val = get_uint32_be(tag_data);
+        tlv_ctx_init(metadata, &ctxi);
+        while (tlv_walk(&ctxi, &p, &item)) {
+            if (item.tag == 0x90) { // ofset tag
+                uint32_t val = get_uint32_be(item.value.data);
                 val--;
-                put_uint32_be(val, cmeta + (tag_data - meta_data));
+                put_uint32_be(val, cmeta + (item.value.data - metadata.data));
                 file_t *marker = file_search((HSM_OBJECT_PREFIX << 8) | (logical_fid & 0xff));
-                int r = hsm_key_container_is_marker(marker) ? hsm_key_container_store_object((uint8_t)logical_fid, HSM_KEY_OBJECT_METADATA, cmeta, meta_size) : meta_add(logical_fid, cmeta, (uint16_t)meta_size);
+                int r = hsm_key_container_is_marker(marker) ? hsm_key_container_store_object((uint8_t)logical_fid, HSM_KEY_OBJECT_METADATA, CONST_BYTE_ARRAY(cmeta, metadata.len)) : meta_add(logical_fid, CONST_BYTE_ARRAY(cmeta, metadata.len));
                 free(cmeta);
                 if (r != 0) {
                     return 0xffffffff;
@@ -697,7 +690,7 @@ int store_keys(void *key_ctx, int type, uint8_t key_id) {
     uint16_t private_key_size = key_size;
     uint16_t public_key_size = (type & PICOKEYS_KEY_EC) ? key_size - 1 : key_size;
     uint8_t prkd_data[4096 / 8];
-    uint16_t prkd_len = asn1_build_prkd_generic(NULL, 0, (uint8_t *)key_id_str, (uint16_t)strlen(key_id_str), public_key_size * 8, type, prkd_data, sizeof(prkd_data));
+    uint16_t prkd_len = asn1_build_prkd_generic(CONST_BYTE_ARRAY(NULL, 0), CONST_BYTE_ARRAY((uint8_t *)key_id_str, (uint16_t)strlen(key_id_str)), public_key_size * 8, type, BYTE_BUFFER(prkd_data, sizeof(prkd_data)));
     if (prkd_len == 0) {
         mbedtls_platform_zeroize(key_data, sizeof(key_data));
         return PICOKEYS_WRONG_DATA;
@@ -711,8 +704,7 @@ int store_keys(void *key_ctx, int type, uint8_t key_id) {
     file_t *existing = hsm_key_search(key_id);
     bool use_container = key_id != 0 && (hsm_key_container_is_marker(existing) || hsm_key_container_can_resume(key_id) || (!file_has_data(existing) && hsm_key_container_can_create(key_id)));
     if (use_container) {
-        size_t policy_size = 0;
-        const uint8_t *policy = hsm_object_authorization_key_policy(&policy_size);
+        const_byte_array_t policy = hsm_object_authorization_key_policy();
         uint8_t key_domain = existing ? get_key_domain(existing) : 0;
         if (key_domain == UINT8_MAX) {
             key_domain = 0;
@@ -720,8 +712,7 @@ int store_keys(void *key_ctx, int type, uint8_t key_id) {
         const hsm_key_container_write_t writes[] = {
             {
                 .object_type = HSM_KEY_OBJECT_PRIVATE,
-                .data = key_data,
-                .data_size = private_key_size,
+                .data = CONST_BYTE_ARRAY(key_data, private_key_size),
                 .policy_id = HSM_OBJECT_KEY_POLICY_ID,
                 .key_domain = key_domain,
                 .protection = FILE_OBJECT_PROTECTION_AEAD_SECRET,
@@ -729,8 +720,7 @@ int store_keys(void *key_ctx, int type, uint8_t key_id) {
             },
             {
                 .object_type = HSM_KEY_OBJECT_PRKD,
-                .data = prkd_data,
-                .data_size = prkd_len,
+                .data = CONST_BYTE_ARRAY(prkd_data, prkd_len),
                 .policy_id = HSM_KEY_INTERNAL_POLICY_ID,
                 .protection = FILE_OBJECT_PROTECTION_AUTHENTICATED_PUBLIC,
                 .flags = FILE_OBJECT_FLAG_GENERIC_READABLE
@@ -738,7 +728,6 @@ int store_keys(void *key_ctx, int type, uint8_t key_id) {
             {
                 .object_type = HSM_KEY_OBJECT_POLICY,
                 .data = policy,
-                .data_size = policy_size,
                 .policy_id = HSM_KEY_INTERNAL_POLICY_ID,
                 .protection = FILE_OBJECT_PROTECTION_AUTHENTICATED_PUBLIC
             }
@@ -751,7 +740,7 @@ int store_keys(void *key_ctx, int type, uint8_t key_id) {
             mbedtls_platform_zeroize(key_data, sizeof(key_data));
             return PICOKEYS_ERR_MEMORY_FATAL;
         }
-        r = mkek_store_file(fpk, key_data, private_key_size);
+        r = mkek_store_file(fpk, CONST_BYTE_ARRAY(key_data, private_key_size));
     }
     if (r != PICOKEYS_OK) {
         mbedtls_platform_zeroize(key_data, sizeof(key_data));
@@ -759,7 +748,7 @@ int store_keys(void *key_ctx, int type, uint8_t key_id) {
     }
     if (!use_container) {
         file_t *fpk = file_new((PRKD_PREFIX << 8) | key_id);
-        r = file_put_data(fpk, prkd_data, prkd_len);
+        r = file_put_data(fpk, CONST_BYTE_ARRAY(prkd_data, prkd_len));
         if (r != PICOKEYS_OK) {
             mbedtls_platform_zeroize(key_data, sizeof(key_data));
             return PICOKEYS_EXEC_ERROR;
@@ -774,7 +763,7 @@ int find_and_store_meta_key(uint8_t key_id) {
     uint16_t meta_size = 0;
     uint8_t t90[4] = { 0xFF, 0xFF, 0xFF, 0xFE };
     tlv_ctx_t ctxi, ctxo[4] = { 0 };
-    tlv_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
+    tlv_ctx_init(BYTE_ARRAY(apdu.data, (uint16_t)apdu.nc), &ctxi);
     for (uint16_t t = 0; t < 4; t++) {
         if (tlv_find_tag(&ctxi, 0x90 + t, &ctxo[t]) && tlv_len(&ctxo[t]) > 0) {
             meta_size += tlv_len_tag(0x90 + t, ctxo[t].len);
@@ -799,7 +788,7 @@ int find_and_store_meta_key(uint8_t key_id) {
             }
         }
         file_t *marker = file_search((HSM_OBJECT_PREFIX << 8) | key_id);
-        int r = hsm_key_container_is_marker(marker) ? hsm_key_container_store_object(key_id, HSM_KEY_OBJECT_METADATA, meta, meta_size) : meta_add((KEY_PREFIX << 8) | key_id, meta, (uint16_t)meta_size);
+        int r = hsm_key_container_is_marker(marker) ? hsm_key_container_store_object(key_id, HSM_KEY_OBJECT_METADATA, CONST_BYTE_ARRAY(meta, meta_size)) : meta_add((KEY_PREFIX << 8) | key_id, CONST_BYTE_ARRAY(meta, (uint16_t)meta_size));
         free(meta);
         if (r != 0) {
             return PICOKEYS_EXEC_ERROR;
@@ -815,7 +804,7 @@ int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey, uint16_t operat
 
     uint8_t kdata[4096 / 8];
     uint16_t key_size = sizeof(kdata);
-    if (mkek_load_key_file(fkey, kdata, &key_size, operation, internal_firmware) != PICOKEYS_OK ||
+    if (mkek_load_key_file(fkey, BYTE_BUFFER(kdata, key_size), &key_size, operation, internal_firmware) != PICOKEYS_OK ||
         key_size == 0 || key_size > sizeof(kdata) || (key_size & 1)) {
         return PICOKEYS_WRONG_DATA;
     }
@@ -860,7 +849,7 @@ int load_private_key_ec(mbedtls_ecp_keypair *ctx, file_t *fkey, uint16_t operati
 
     uint8_t kdata[67]; // Worst case, 521 bit + 1byte
     uint16_t key_size = sizeof(kdata);
-    if (mkek_load_key_file(fkey, kdata, &key_size, operation, internal_firmware) != PICOKEYS_OK ||
+    if (mkek_load_key_file(fkey, BYTE_BUFFER(kdata, key_size), &key_size, operation, internal_firmware) != PICOKEYS_OK ||
         key_size < 2 || key_size > sizeof(kdata)) {
         return PICOKEYS_WRONG_DATA;
     }

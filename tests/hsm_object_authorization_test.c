@@ -109,11 +109,10 @@ static void test_epoch_invalidation(void) {
 }
 
 static void test_key_policy(void) {
-    size_t policy_size = 0;
-    const uint8_t *policy = hsm_object_authorization_key_policy(&policy_size);
+    const_byte_array_t policy = hsm_object_authorization_key_policy();
 
-    assert(policy != NULL);
-    assert(file_object_policy_validate(policy, policy_size) == PICOKEYS_OK);
+    assert(policy.data != NULL);
+    assert(file_object_policy_validate(policy) == PICOKEYS_OK);
 
     test_state_reset();
     assert(!hsm_object_authorization_key_operation(FILE_OBJECT_OPERATION_USE, false));

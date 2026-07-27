@@ -50,24 +50,26 @@ int cmd_initialize(void) {
         scan_all();
         hsm_object_authorization_session_invalidate();
         has_session_pin = has_session_sopin = has_mkek_mask = false;
-        uint16_t tag = 0x0;
-        uint8_t *tag_data = NULL, *p = NULL, *kds = NULL, *dkeks = NULL;
-        uint16_t tag_len = 0;
+        uint8_t *p = NULL, *kds = NULL, *dkeks = NULL;
+        tlv_item_t item;
         tlv_ctx_t ctxi;
-        tlv_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
-        while (tlv_walk(&ctxi, &p, &tag, &tag_len, &tag_data)) {
+        tlv_ctx_init(BYTE_ARRAY(apdu.data, (uint16_t)apdu.nc), &ctxi);
+        while (tlv_walk(&ctxi, &p, &item)) {
+            uint16_t tag = item.tag;
+            uint16_t tag_len = (uint16_t)item.value.len;
+            uint8_t *tag_data = (uint8_t *)item.value.data;
             if (tag == 0x80) { //options
                 file_t *tf = file_search(EF_DEVOPS);
-                file_put_data(tf, tag_data, tag_len);
+                file_put_data(tf, CONST_BYTE_ARRAY(tag_data, tag_len));
             }
             else if (tag == 0x81) {   //user pin
                 if (file_pin1 && file_pin1->data) {
                     uint8_t pin_data[34];
                     pin_data[0] = (uint8_t)tag_len;
                     pin_data[1] = 1; // Format
-                    pin_derive_verifier(tag_data, tag_len, pin_data + 2);
-                    file_put_data(file_pin1, pin_data, sizeof(pin_data));
-                    pin_derive_session(tag_data, tag_len, session_pin);
+                    pin_derive_verifier(CONST_BYTE_ARRAY(tag_data, tag_len), pin_data + 2);
+                    file_put_data(file_pin1, CONST_BYTE_ARRAY(pin_data, sizeof(pin_data)));
+                    pin_derive_session(CONST_BYTE_ARRAY(tag_data, tag_len), session_pin);
                     has_session_pin = true;
                 }
             }
@@ -76,19 +78,19 @@ int cmd_initialize(void) {
                     uint8_t pin_data[34];
                     pin_data[0] = (uint8_t)tag_len;
                     pin_data[1] = 1; // Format
-                    pin_derive_verifier(tag_data, tag_len, pin_data + 2);
-                    file_put_data(file_sopin, pin_data, sizeof(pin_data));
-                    pin_derive_session(tag_data, tag_len, session_sopin);
+                    pin_derive_verifier(CONST_BYTE_ARRAY(tag_data, tag_len), pin_data + 2);
+                    file_put_data(file_sopin, CONST_BYTE_ARRAY(pin_data, sizeof(pin_data)));
+                    pin_derive_session(CONST_BYTE_ARRAY(tag_data, tag_len), session_sopin);
                     has_session_sopin = true;
                 }
             }
             else if (tag == 0x91) {   //retries user pin
                 file_t *tf = file_search(EF_PIN1_MAX_RETRIES);
                 if (tf && tf->data) {
-                    file_put_data(tf, tag_data, tag_len);
+                    file_put_data(tf, CONST_BYTE_ARRAY(tag_data, tag_len));
                 }
                 if (file_retries_pin1 && file_retries_pin1->data) {
-                    file_put_data(file_retries_pin1, tag_data, tag_len);
+                    file_put_data(file_retries_pin1, CONST_BYTE_ARRAY(tag_data, tag_len));
                 }
             }
             else if (tag == 0x92) {
@@ -98,7 +100,7 @@ int cmd_initialize(void) {
                     release_mkek(mkek);
                     return SW_MEMORY_FAILURE();
                 }
-                file_put_data(tf, NULL, 0);
+                file_put_data(tf, CONST_BYTE_ARRAY(NULL, 0));
             }
             else if (tag == 0x93) {
                 file_t *ef_puk = file_search(EF_PUKAUT);
@@ -111,14 +113,14 @@ int cmd_initialize(void) {
                 pk_status[0] = puks;
                 pk_status[1] = puks;
                 pk_status[2] = tag_data[1];
-                file_put_data(ef_puk, pk_status, sizeof(pk_status));
+                file_put_data(ef_puk, CONST_BYTE_ARRAY(pk_status, sizeof(pk_status)));
                 for (uint8_t i = 0; i < puks; i++) {
                     file_t *tf = file_new(EF_PUK + i);
                     if (!tf) {
                         release_mkek(mkek);
                         return SW_MEMORY_FAILURE();
                     }
-                    file_put_data(tf, NULL, 0);
+                    file_put_data(tf, CONST_BYTE_ARRAY(NULL, 0));
                 }
             }
             else if (tag == 0x97) {
@@ -128,7 +130,7 @@ int cmd_initialize(void) {
                     file_t *tf = file_new(EF_DKEK+i);
                     if (!tf)
                         return SW_MEMORY_FAILURE();
-                    file_put_data(tf, NULL, 0);
+                    file_put_data(tf, CONST_BYTE_ARRAY(NULL, 0));
                    }
                  */
             }
@@ -149,7 +151,7 @@ int cmd_initialize(void) {
         if (dkeks) {
             if (*dkeks > 0) {
                 uint16_t d = *dkeks;
-                if (file_put_data(tf_kd, (const uint8_t *) &d, sizeof(d)) != PICOKEYS_OK) {
+                if (file_put_data(tf_kd, CONST_BYTE_ARRAY((const uint8_t *)&d, sizeof(d))) != PICOKEYS_OK) {
                     return SW_EXEC_ERROR();
                 }
             }
@@ -159,21 +161,21 @@ int cmd_initialize(void) {
                     return SW_EXEC_ERROR();
                 }
                 uint16_t d = 0x0101;
-                if (file_put_data(tf_kd, (const uint8_t *) &d, sizeof(d)) != PICOKEYS_OK) {
+                if (file_put_data(tf_kd, CONST_BYTE_ARRAY((const uint8_t *)&d, sizeof(d))) != PICOKEYS_OK) {
                     return SW_EXEC_ERROR();
                 }
             }
         }
         else {
             uint16_t d = 0x0000;
-            if (file_put_data(tf_kd, (const uint8_t *) &d, sizeof(d)) != PICOKEYS_OK) {
+            if (file_put_data(tf_kd, CONST_BYTE_ARRAY((const uint8_t *)&d, sizeof(d))) != PICOKEYS_OK) {
                 return SW_EXEC_ERROR();
             }
         }
         if (kds) {
             uint8_t t[MAX_KEY_DOMAINS * 2], k = MIN(*kds, MAX_KEY_DOMAINS);
             memset(t, 0xff, 2 * k);
-            if (file_put_data(tf_kd, t, 2 * k) != PICOKEYS_OK) {
+            if (file_put_data(tf_kd, CONST_BYTE_ARRAY(t, 2 * k)) != PICOKEYS_OK) {
                 return SW_EXEC_ERROR();
             }
         }
@@ -223,34 +225,34 @@ int cmd_initialize(void) {
             }
             uint16_t ee_len = 0, term_len = 0;
             mbedtls_pk_context subject_pk;
-            if (cvc_pk_wrap_ec(&subject_pk, &ecdsa) != LIBCVC_OK || (ee_len = asn1_cvc_aut(&subject_pk, res_APDU, MAX_APDU_DATA, NULL, 0)) == 0) {
+            if (cvc_pk_wrap_ec(&subject_pk, &ecdsa) != LIBCVC_OK || (ee_len = asn1_cvc_aut(&subject_pk, BYTE_BUFFER(res_APDU, MAX_APDU_DATA), CONST_BYTE_ARRAY(NULL, 0))) == 0) {
                 mbedtls_ecdsa_free(&ecdsa);
                 return SW_EXEC_ERROR();
             }
 
             file_t *fpk = file_search(EF_EE_DEV);
-            ret = file_put_data(fpk, res_APDU, ee_len);
+            ret = file_put_data(fpk, CONST_BYTE_ARRAY(res_APDU, ee_len));
             if (ret != PICOKEYS_OK) {
                 mbedtls_ecdsa_free(&ecdsa);
                 return SW_EXEC_ERROR();
             }
 
-            if ((term_len = asn1_cvc_cert(&subject_pk, res_APDU + ee_len, MAX_APDU_DATA - ee_len, NULL, 0, true)) == 0) {
+            if ((term_len = asn1_cvc_cert(&subject_pk, BYTE_BUFFER(res_APDU + ee_len, MAX_APDU_DATA - ee_len), CONST_BYTE_ARRAY(NULL, 0), true)) == 0) {
                 mbedtls_ecdsa_free(&ecdsa);
                 return SW_EXEC_ERROR();
             }
             mbedtls_ecdsa_free(&ecdsa);
             fpk = file_search(EF_TERMCA);
-            ret = file_put_data(fpk, res_APDU, ee_len + term_len);
+            ret = file_put_data(fpk, CONST_BYTE_ARRAY(res_APDU, ee_len + term_len));
             if (ret != PICOKEYS_OK) {
                 return SW_EXEC_ERROR();
             }
 
             const uint8_t *keyid = (const uint8_t *) "\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0\x0",
                           *label = (const uint8_t *) "ESPICOHSMTR";
-            uint16_t prkd_len = asn1_build_prkd_ecc(label, (uint16_t)strlen((const char *) label), keyid, 20, 256, res_APDU, MAX_APDU_DATA);
+            uint16_t prkd_len = asn1_build_prkd_ecc(CONST_BYTE_ARRAY(label, (uint16_t)strlen((const char *)label)), CONST_BYTE_ARRAY(keyid, 20), 256, BYTE_BUFFER(res_APDU, MAX_APDU_DATA));
             fpk = file_search(EF_PRKD_DEV);
-            ret = file_put_data(fpk, res_APDU, prkd_len);
+            ret = file_put_data(fpk, CONST_BYTE_ARRAY(res_APDU, prkd_len));
         }
         if (ret != PICOKEYS_OK) {
             return SW_EXEC_ERROR();

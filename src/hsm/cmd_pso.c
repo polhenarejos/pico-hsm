@@ -38,7 +38,7 @@ int cmd_pso(void) {
             tlv_format_len((uint16_t)apdu.nc, apdu.data + 2);
             apdu.nc += tlv_len;
         }
-        int r = cvc_verify(apdu.data, (uint16_t)apdu.nc, current_puk->cvcert, current_puk->cvcert_len);
+        int r = cvc_verify(CONST_BYTE_ARRAY(apdu.data, (uint16_t)apdu.nc), CONST_BYTE_ARRAY(current_puk->cvcert, current_puk->cvcert_len));
         if (r != PICOKEYS_OK) {
             if (r == PICOKEYS_WRONG_DATA) {
                 return SW_DATA_INVALID();
@@ -53,8 +53,8 @@ int cmd_pso(void) {
             file_t *ca_ef = file_search(fid);
             if (!ca_ef) {
                 ca_ef = file_new(fid);
-                file_put_data(ca_ef, apdu.data, (uint16_t)apdu.nc);
-                if (add_cert_puk_store(file_get_data(ca_ef), file_get_size(ca_ef), false) != PICOKEYS_OK) {
+                file_put_data(ca_ef, CONST_BYTE_ARRAY(apdu.data, (uint16_t)apdu.nc));
+                if (add_cert_puk_store(CONST_BYTE_ARRAY(file_get_data(ca_ef), file_get_size(ca_ef)), false) != PICOKEYS_OK) {
                     return SW_FILE_FULL();
                 }
 
@@ -80,7 +80,7 @@ int cmd_pso(void) {
                     }
                 }
                 else if (memcmp(oid, OID_ID_TA_ECDSA, 9) == 0) {   //ECC
-                    mbedtls_ecp_group_id ec_id = cvc_inherite_ec_group(apdu.data, (uint16_t)apdu.nc);
+                    mbedtls_ecp_group_id ec_id = cvc_inherite_ec_group(CONST_BYTE_ARRAY(apdu.data, (uint16_t)apdu.nc));
                     mbedtls_ecp_group grp;
                     mbedtls_ecp_group_init(&grp);
                     if (mbedtls_ecp_group_load(&grp, ec_id) != 0) {
@@ -124,13 +124,13 @@ int cmd_pso(void) {
                     }
                 }
                 file_t *cd_ef = file_new((CD_PREFIX << 8) | i);
-                uint16_t cd_len = (uint16_t)asn1_build_cert_description(chr, chr_len, puk_bin, puk_bin_len, fid, NULL, 0);
+                uint16_t cd_len = (uint16_t)asn1_build_cert_description(CONST_BYTE_ARRAY(chr, chr_len), CONST_BYTE_ARRAY(puk_bin, puk_bin_len), fid, BYTE_BUFFER(NULL, 0));
                 if (cd_len == 0) {
                     return SW_EXEC_ERROR();
                 }
                 uint8_t *buf = (uint8_t *) calloc(cd_len, sizeof(uint8_t));
-                r = (int)asn1_build_cert_description(chr, chr_len, puk_bin, puk_bin_len, fid, buf, cd_len);
-                file_put_data(cd_ef, buf, cd_len);
+                r = (int)asn1_build_cert_description(CONST_BYTE_ARRAY(chr, chr_len), CONST_BYTE_ARRAY(puk_bin, puk_bin_len), fid, BYTE_BUFFER(buf, cd_len));
+                file_put_data(cd_ef, CONST_BYTE_ARRAY(buf, cd_len));
                 free(buf);
                 if (r == 0) {
                     return SW_EXEC_ERROR();

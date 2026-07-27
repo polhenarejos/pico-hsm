@@ -23,7 +23,7 @@
 #define HSM_OBJECT_KEY_POLICY_ID 0x0101u
 
 int hsm_object_authorization_context_build(bool internal_firmware, file_object_authorization_context_t *context);
-const uint8_t *hsm_object_authorization_key_policy(size_t *policy_size);
+const_byte_array_t hsm_object_authorization_key_policy(void);
 bool hsm_object_authorization_key_operation(uint16_t operation, bool internal_firmware);
 void hsm_object_authorization_session_invalidate(void);
 uint32_t hsm_object_authorization_session_epoch(void);

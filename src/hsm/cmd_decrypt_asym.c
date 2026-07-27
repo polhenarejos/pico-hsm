@@ -88,7 +88,7 @@ int cmd_decrypt_asym(void) {
         if (!kdata) {
             return SW_EXEC_ERROR();
         }
-        if (mkek_load_key_file(ef, kdata, &key_size, FILE_OBJECT_OPERATION_DERIVE, false) != PICOKEYS_OK) {
+        if (mkek_load_key_file(ef, BYTE_BUFFER(kdata, key_size), &key_size, FILE_OBJECT_OPERATION_DERIVE, false) != PICOKEYS_OK) {
             mbedtls_platform_zeroize(kdata, 67);
             free(kdata);
             return SW_EXEC_ERROR();
@@ -151,14 +151,14 @@ int cmd_decrypt_asym(void) {
             if ((ext = cvc_get_ext(apdu.data, (uint16_t)apdu.nc, &ext_len)) == NULL) {
                 return SW_WRONG_DATA();
             }
-            uint8_t *p = NULL, *ctxo_data = NULL;
-            uint16_t tag = 0, ctxo_len = 0;
+            uint8_t *p = NULL;
+            tlv_item_t item;
             tlv_ctx_t ctxi, ctxo = { 0 }, kdom_uid = { 0 };
-            tlv_ctx_init((uint8_t *)ext, ext_len, &ctxi);
-            while (tlv_walk(&ctxi, &p, &tag, &ctxo_len, &ctxo_data)) {
-                ctxo.len = ctxo_len;
-                ctxo.data = ctxo_data;
-                if (tag == 0x73) {
+            tlv_ctx_init(BYTE_ARRAY((uint8_t *)ext, ext_len), &ctxi);
+            while (tlv_walk(&ctxi, &p, &item)) {
+                ctxo.len = (uint16_t)item.value.len;
+                ctxo.data = (uint8_t *)item.value.data;
+                if (item.tag == 0x73) {
                     tlv_ctx_t oid = {0};
                     if (tlv_find_tag(&ctxo, 0x6, &oid) == true && oid.len == strlen(OID_ID_KEY_DOMAIN_UID) && memcmp(oid.data, OID_ID_KEY_DOMAIN_UID, strlen(OID_ID_KEY_DOMAIN_UID)) == 0) {
                         if (tlv_find_tag(&ctxo, 0x80, &kdom_uid) == false) {

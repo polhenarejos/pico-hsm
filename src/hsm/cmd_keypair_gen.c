@@ -35,7 +35,7 @@ int cmd_keypair_gen(void) {
     //sc_asn1_print_tags(apdu.data, apdu.nc);
     //DEBUG_DATA(apdu.data,apdu.nc);
     tlv_ctx_t ctxi, ctxo = { 0 };
-    tlv_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
+    tlv_ctx_init(BYTE_ARRAY(apdu.data, (uint16_t)apdu.nc), &ctxi);
     if (tlv_find_tag(&ctxi, 0x7f49, &ctxo) && tlv_len(&ctxo) > 0) {
         tlv_ctx_t oid = { 0 };
         if (tlv_find_tag(&ctxo, 0x6, &oid) && tlv_len(&oid) > 0) {
@@ -56,7 +56,7 @@ int cmd_keypair_gen(void) {
                     return SW_EXEC_ERROR();
                 }
                 mbedtls_pk_context subject_pk;
-                if (cvc_pk_wrap_rsa(&subject_pk, &rsa) != LIBCVC_OK || (res_APDU_size = (uint16_t)asn1_cvc_aut(&subject_pk, res_APDU, MAX_APDU_DATA, NULL, 0)) == 0) {
+                if (cvc_pk_wrap_rsa(&subject_pk, &rsa) != LIBCVC_OK || (res_APDU_size = (uint16_t)asn1_cvc_aut(&subject_pk, BYTE_BUFFER(res_APDU, MAX_APDU_DATA), CONST_BYTE_ARRAY(NULL, 0))) == 0) {
                     return SW_EXEC_ERROR();
                 }
                 ret = store_keys(&rsa, PICOKEYS_KEY_RSA, key_id);
@@ -66,12 +66,12 @@ int cmd_keypair_gen(void) {
                 }
                 mbedtls_rsa_free(&rsa);
             }
-            else if (memcmp(oid.data, OID_ID_TA_ECDSA_SHA_256, MIN(oid.len, 10)) == 0) {   //ECC
+            else if (memcmp(oid.data, OID_ID_TA_ECDSA_SHA_256, MIN(oid.len, 10u)) == 0) {   //ECC
                 tlv_ctx_t prime = { 0 };
                 if (tlv_find_tag(&ctxo, 0x81, &prime) != true) {
                     return SW_WRONG_DATA();
                 }
-                mbedtls_ecp_group_id ec_id = ec_get_curve_from_prime(prime.data, prime.len);
+                mbedtls_ecp_group_id ec_id = ec_get_curve_from_prime(CONST_BYTE_ARRAY(prime.data, prime.len));
                 if (ec_id == MBEDTLS_ECP_DP_NONE) {
                     return SW_FUNC_NOT_SUPPORTED();
                 }
@@ -127,7 +127,7 @@ int cmd_keypair_gen(void) {
                     }
                 }
                 mbedtls_pk_context subject_pk;
-                if (cvc_pk_wrap_ec(&subject_pk, &ecdsa) != LIBCVC_OK || (res_APDU_size = (uint16_t)asn1_cvc_aut(&subject_pk, res_APDU, MAX_APDU_DATA, ext.data, ext.len)) == 0) {
+                if (cvc_pk_wrap_ec(&subject_pk, &ecdsa) != LIBCVC_OK || (res_APDU_size = (uint16_t)asn1_cvc_aut(&subject_pk, BYTE_BUFFER(res_APDU, MAX_APDU_DATA), CONST_BYTE_ARRAY(ext.data, ext.len))) == 0) {
                     if (ext.data) {
                         free(ext.data);
                     }
@@ -154,11 +154,11 @@ int cmd_keypair_gen(void) {
     }
     file_t *marker = file_search((HSM_OBJECT_PREFIX << 8) | key_id);
     if (hsm_key_container_is_marker(marker)) {
-        ret = hsm_key_container_store_object(key_id, HSM_KEY_OBJECT_CERTIFICATE, res_APDU, res_APDU_size);
+        ret = hsm_key_container_store_object(key_id, HSM_KEY_OBJECT_CERTIFICATE, CONST_BYTE_ARRAY(res_APDU, res_APDU_size));
     }
     else {
         file_t *fpk = file_new((EE_CERTIFICATE_PREFIX << 8) | key_id);
-        ret = file_put_data(fpk, res_APDU, res_APDU_size);
+        ret = file_put_data(fpk, CONST_BYTE_ARRAY(res_APDU, res_APDU_size));
     }
     if (ret != 0) {
         return SW_EXEC_ERROR();

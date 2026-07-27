@@ -111,7 +111,7 @@ bool hsm_key_container_fid_object(uint16_t fid, uint16_t *object_type) {
     return false;
 }
 
-static int hsm_key_replace_file(uint16_t fid, const uint8_t *data, uint32_t data_size) {
+static int hsm_key_replace_file(uint16_t fid, const_byte_array_t data) {
     file_t *file = file_search(fid);
     if (file && file_delete_no_commit(file) != PICOKEYS_OK) {
         return PICOKEYS_EXEC_ERROR;
@@ -120,7 +120,7 @@ static int hsm_key_replace_file(uint16_t fid, const uint8_t *data, uint32_t data
     if (!file) {
         return PICOKEYS_ERR_NO_MEMORY;
     }
-    return file_put_data(file, data, data_size);
+    return file_put_data(file, data);
 }
 
 static bool hsm_key_allocator_marker_valid(void) {
@@ -135,7 +135,7 @@ static int hsm_key_allocator_claim(void) {
     if (file_search(HSM_KEY_ALLOCATOR_MARKER_FID) || file_search(HSM_KEY_ALLOCATOR_RECORD_0_FID) || file_search(HSM_KEY_ALLOCATOR_RECORD_1_FID) || file_search(HSM_KEY_ALLOCATOR_COMMIT_0_FID) || file_search(HSM_KEY_ALLOCATOR_COMMIT_1_FID)) {
         return PICOKEYS_WRONG_DATA;
     }
-    int r = hsm_key_replace_file(HSM_KEY_ALLOCATOR_MARKER_FID, hsm_key_allocator_marker_magic, sizeof(hsm_key_allocator_marker_magic));
+    int r = hsm_key_replace_file(HSM_KEY_ALLOCATOR_MARKER_FID, CONST_BYTE_ARRAY(hsm_key_allocator_marker_magic, sizeof(hsm_key_allocator_marker_magic)));
     if (r != PICOKEYS_OK) {
         return r;
     }
@@ -144,19 +144,17 @@ static int hsm_key_allocator_claim(void) {
 
 static int hsm_key_policy_hash(void *ctx, uint16_t policy_id, uint8_t hash[FILE_OBJECT_POLICY_HASH_SIZE]) {
     (void)ctx;
-    const uint8_t *policy = NULL;
-    size_t policy_size = 0;
+    const_byte_array_t policy = CONST_BYTE_ARRAY(NULL, 0);
     if (policy_id == HSM_OBJECT_KEY_POLICY_ID) {
-        policy = hsm_object_authorization_key_policy(&policy_size);
+        policy = hsm_object_authorization_key_policy();
     }
     else if (policy_id == HSM_KEY_INTERNAL_POLICY_ID) {
-        policy = hsm_key_internal_policy;
-        policy_size = sizeof(hsm_key_internal_policy);
+        policy = CONST_BYTE_ARRAY(hsm_key_internal_policy, sizeof(hsm_key_internal_policy));
     }
     else {
         return PICOKEYS_WRONG_DATA;
     }
-    return file_object_policy_hash(policy, policy_size, hash);
+    return file_object_policy_hash(policy, hash);
 }
 
 static uint16_t hsm_key_layout_manifest_fid(void *ctx, uint32_t container_id, uint8_t slot) {
@@ -224,7 +222,7 @@ static int hsm_key_layout_record_allocate(void *ctx, uint32_t container_id, uint
 
 static int hsm_key_marker_write(uint8_t key_id) {
     uint8_t marker[HSM_KEY_CONTAINER_MARKER_SIZE] = { 'P', 'K', 'H', '1', 1, key_id, 0, 0 };
-    int r = hsm_key_replace_file((HSM_OBJECT_PREFIX << 8) | key_id, marker, sizeof(marker));
+    int r = hsm_key_replace_file((HSM_OBJECT_PREFIX << 8) | key_id, CONST_BYTE_ARRAY(marker, sizeof(marker)));
     if (r != PICOKEYS_OK) {
         return r;
     }
@@ -315,7 +313,6 @@ int hsm_key_container_update(uint8_t key_id, const hsm_key_container_write_t *wr
         container_writes[i] = (file_object_container_write_t) {
             .object_type = writes[i].object_type,
             .data = writes[i].data,
-            .data_size = writes[i].data_size,
             .policy_id = writes[i].policy_id,
             .key_domain = writes[i].key_domain,
             .protection = writes[i].protection,
@@ -325,7 +322,7 @@ int hsm_key_container_update(uint8_t key_id, const hsm_key_container_write_t *wr
     return file_object_container_update(&hsm_key_container_layout, key_id, container_writes, write_count, &crypto, NULL);
 }
 
-int hsm_key_container_store_object(uint8_t key_id, uint16_t object_type, const uint8_t *data, uint32_t data_size) {
+int hsm_key_container_store_object(uint8_t key_id, uint16_t object_type, const_byte_array_t data) {
     file_t *marker = file_search((HSM_OBJECT_PREFIX << 8) | key_id);
     if (!hsm_key_container_is_marker(marker)) {
         return PICOKEYS_ERR_FILE_NOT_FOUND;
@@ -336,7 +333,6 @@ int hsm_key_container_store_object(uint8_t key_id, uint16_t object_type, const u
     hsm_key_container_write_t write = {
         .object_type = object_type,
         .data = data,
-        .data_size = data_size,
         .policy_id = HSM_KEY_INTERNAL_POLICY_ID,
         .protection = FILE_OBJECT_PROTECTION_AUTHENTICATED_PUBLIC,
         .flags = FILE_OBJECT_FLAG_MUTABLE
@@ -376,7 +372,7 @@ int hsm_key_container_object_size(uint8_t key_id, uint16_t object_type, bool int
     return file_object_container_object_size(&hsm_key_container_layout, key_id, object_type, 0, &crypto, NULL, hsm_key_object_access, &access, object_size);
 }
 
-int hsm_key_container_read(uint8_t key_id, uint16_t object_type, uint16_t operation, bool internal_firmware, uint8_t *data, size_t capacity, size_t *written) {
+int hsm_key_container_read(uint8_t key_id, uint16_t object_type, uint16_t operation, bool internal_firmware, byte_buffer_t data, size_t *written) {
     file_object_container_crypto_t crypto;
     if (!hsm_key_crypto(&crypto)) {
         return PICOKEYS_EXEC_ERROR;
@@ -385,7 +381,7 @@ int hsm_key_container_read(uint8_t key_id, uint16_t object_type, uint16_t operat
         .operation = operation,
         .internal_firmware = internal_firmware
     };
-    return file_object_container_read(&hsm_key_container_layout, key_id, object_type, 0, &crypto, NULL, hsm_key_object_access, &access, data, capacity, written);
+    return file_object_container_read(&hsm_key_container_layout, key_id, object_type, 0, &crypto, NULL, hsm_key_object_access, &access, data, written);
 }
 
 int hsm_key_container_remove_object(uint8_t key_id, uint16_t object_type) {
@@ -428,12 +424,12 @@ int hsm_key_container_detach_sidecars(uint8_t key_id) {
             }
         }
         size_t written = 0;
-        r = hsm_key_container_read(key_id, sidecars[i].object_type, FILE_OBJECT_OPERATION_READ, true, object_data, object_size, &written);
+        r = hsm_key_container_read(key_id, sidecars[i].object_type, FILE_OBJECT_OPERATION_READ, true, BYTE_BUFFER(object_data, object_size), &written);
         if (r == PICOKEYS_OK && written != object_size) {
             r = PICOKEYS_WRONG_LENGTH;
         }
         if (r == PICOKEYS_OK) {
-            r = hsm_key_replace_file((sidecars[i].prefix << 8) | key_id, object_data, object_size);
+            r = hsm_key_replace_file((sidecars[i].prefix << 8) | key_id, CONST_BYTE_ARRAY(object_data, object_size));
         }
         free(object_data);
         if (r != PICOKEYS_OK) {

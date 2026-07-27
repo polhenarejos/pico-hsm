@@ -47,11 +47,8 @@ void hsm_object_authorization_command_set_secure_messaging(bool active) {
     hsm_object_secure_messaging = active;
 }
 
-const uint8_t *hsm_object_authorization_key_policy(size_t *policy_size) {
-    if (policy_size) {
-        *policy_size = sizeof(hsm_object_key_policy);
-    }
-    return hsm_object_key_policy;
+const_byte_array_t hsm_object_authorization_key_policy(void) {
+    return CONST_BYTE_ARRAY(hsm_object_key_policy, sizeof(hsm_object_key_policy));
 }
 
 int hsm_object_authorization_context_build(bool internal_firmware, file_object_authorization_context_t *context) {
@@ -90,5 +87,5 @@ bool hsm_object_authorization_key_operation(uint16_t operation, bool internal_fi
     if (hsm_object_authorization_context_build(internal_firmware, &context) != PICOKEYS_OK) {
         return false;
     }
-    return file_object_policy_authorize(hsm_object_key_policy, sizeof(hsm_object_key_policy), operation, &context);
+    return file_object_policy_authorize(CONST_BYTE_ARRAY(hsm_object_key_policy, sizeof(hsm_object_key_policy)), operation, &context);
 }

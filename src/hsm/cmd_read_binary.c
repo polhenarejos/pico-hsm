@@ -46,7 +46,7 @@ static int hsm_read_container_object(uint16_t fid, uint16_t object_type, uint32_
         }
     }
     size_t written = 0;
-    r = hsm_key_container_read((uint8_t)fid, object_type, FILE_OBJECT_OPERATION_READ, false, object_data, object_size, &written);
+    r = hsm_key_container_read((uint8_t)fid, object_type, FILE_OBJECT_OPERATION_READ, false, BYTE_BUFFER(object_data, object_size), &written);
     if (r != PICOKEYS_OK || written != object_size) {
         free(object_data);
         return r == PICOKEYS_NO_LOGIN ? SW_SECURITY_STATUS_NOT_SATISFIED() : SW_EXEC_ERROR();
@@ -163,7 +163,7 @@ int cmd_read_binary(void) {
                 response_len = MIN(response_len, apdu.ne);
             }
             response_len = MIN(response_len, (uint32_t)MAX_APDU_DATA);
-            if (file_read_at(ef, offset, res_APDU, response_len) != PICOKEYS_OK) {
+            if (file_read_at(ef, offset, BYTE_ARRAY(res_APDU, response_len)) != PICOKEYS_OK) {
                 return SW_EXEC_ERROR();
             }
             res_APDU_size = (uint16_t)response_len;

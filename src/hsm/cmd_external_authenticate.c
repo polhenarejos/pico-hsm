@@ -47,8 +47,8 @@ int cmd_external_authenticate(void) {
     uint8_t *input = (uint8_t *) calloc(dev_name_len + challenge_len, sizeof(uint8_t)), hash[32];
     memcpy(input, dev_name, dev_name_len);
     memcpy(input + dev_name_len, challenge, challenge_len);
-    hash256(input, dev_name_len + challenge_len, hash);
-    int r = puk_verify(apdu.data, (uint16_t)apdu.nc, hash, 32, file_get_data(ef_puk_aut), file_get_size(ef_puk_aut));
+    hash256(CONST_BYTE_ARRAY(input, dev_name_len + challenge_len), hash);
+    int r = puk_verify(CONST_BYTE_ARRAY(apdu.data, (uint16_t)apdu.nc), CONST_BYTE_ARRAY(hash, 32), CONST_BYTE_ARRAY(file_get_data(ef_puk_aut), file_get_size(ef_puk_aut)));
     free(input);
     if (r != 0) {
         return SW_CONDITIONS_NOT_SATISFIED();

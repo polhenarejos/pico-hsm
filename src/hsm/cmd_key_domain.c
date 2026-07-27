@@ -22,13 +22,12 @@
 #include "files.h"
 
 uint8_t get_key_domain(file_t *fkey) {
-    uint16_t tag_len = 0;
     if (!file_has_data(fkey)) {
         return 0xff;
     }
-    const uint8_t *meta_tag = get_meta_tag(fkey, 0x92, &tag_len);
-    if (meta_tag) {
-        return *meta_tag;
+    const_byte_array_t meta_tag = get_meta_tag(fkey, 0x92);
+    if (meta_tag.data) {
+        return meta_tag.data[0];
     }
     return 0x0;
 }
@@ -87,7 +86,7 @@ int cmd_key_domain(void) {
             uint8_t t[MAX_KEY_DOMAINS * 2];
             memcpy(t, kdata, tf_kd_size);
             t[2 * p2 + 1] = current_dkeks;
-            if (file_put_data(tf_kd, t, tf_kd_size) != PICOKEYS_OK) {
+            if (file_put_data(tf_kd, CONST_BYTE_ARRAY(t, tf_kd_size)) != PICOKEYS_OK) {
                 return SW_EXEC_ERROR();
             }
             flash_commit();
@@ -106,9 +105,8 @@ int cmd_key_domain(void) {
         if (p1 == 0x3) { //if key domain is not empty, command is denied
             for (uint16_t i = 0; i < 256; i++) {
                 file_t *fkey = hsm_key_search((uint8_t)i);
-                uint16_t tag_len = 0;
-                const uint8_t *domain = get_meta_tag(fkey, 0x92, &tag_len);
-                if (domain && tag_len == 1 && domain[0] == p2) {
+                const_byte_array_t domain = get_meta_tag(fkey, 0x92);
+                if (domain.data && domain.len == 1 && domain.data[0] == p2) {
                     return SW_FILE_EXISTS();
                 }
             }
@@ -132,7 +130,7 @@ int cmd_key_domain(void) {
         else if (p1 == 0x4) {
             t[2 * p2 + 1] = current_dkeks = 0;
         }
-        if (file_put_data(tf_kd, t, tf_kd_size) != PICOKEYS_OK) {
+        if (file_put_data(tf_kd, CONST_BYTE_ARRAY(t, tf_kd_size)) != PICOKEYS_OK) {
             return SW_EXEC_ERROR();
         }
         file_t *tf = NULL;
@@ -175,9 +173,9 @@ int cmd_key_domain(void) {
             uint8_t hash[32], *input = (uint8_t *) calloc(1, (t86_len - 1) / 2 + 1);
             input[0] = 0x54;
             memcpy(input + 1, t86 + 1, (t86_len - 1) / 2);
-            hash256(input, (t86_len - 1) / 2 + 1, hash);
+            hash256(CONST_BYTE_ARRAY(input, (t86_len - 1) / 2 + 1), hash);
             free(input);
-            int r = puk_verify(t54, t54_len, hash, 32, apdu.data, (uint16_t)apdu.nc);
+            int r = puk_verify(CONST_BYTE_ARRAY(t54, t54_len), CONST_BYTE_ARRAY(hash, 32), CONST_BYTE_ARRAY(apdu.data, (uint16_t)apdu.nc));
             if (r != 0) {
                 return SW_CONDITIONS_NOT_SATISFIED();
             }
@@ -192,7 +190,7 @@ int cmd_key_domain(void) {
                 t86_len = 0;
                 t86 = cvc_get_field(pub, pub_len, &t86_len, 0x86);
                 if (t86) {
-                    file_put_data(tf, t86 + 1, (uint16_t)t86_len - 1);
+                    file_put_data(tf, CONST_BYTE_ARRAY(t86 + 1, (uint16_t)t86_len - 1));
                     flash_commit();
                 }
             }

@@ -33,14 +33,14 @@ extern void init_mkek(void);
 extern void release_mkek(uint8_t *);
 extern int import_dkek_share(uint8_t, const uint8_t *share);
 extern int dkek_kcv(uint8_t, uint8_t *kcv);
-extern int mkek_encrypt(uint8_t *data, uint16_t len);
-extern int mkek_decrypt(uint8_t *data, uint16_t len);
-extern int mkek_store_file(file_t *file, const uint8_t *data, uint16_t len);
-extern int mkek_load_file(file_t *file, uint8_t *data, uint16_t *len);
-extern int mkek_load_key_file(file_t *file, uint8_t *data, uint16_t *len, uint16_t operation, bool internal_firmware);
-extern int dkek_encode_key(uint8_t, void *key_ctx, int key_type, uint8_t *out, uint16_t *out_len, const uint8_t *, uint16_t);
-extern int dkek_type_key(const uint8_t *in);
-extern int dkek_decode_key(uint8_t, void *key_ctx, const uint8_t *in, uint16_t in_len, int *key_size_out, uint8_t **, uint16_t *);
+extern int mkek_encrypt(byte_array_t data);
+extern int mkek_decrypt(byte_array_t data);
+extern int mkek_store_file(file_t *file, const_byte_array_t data);
+extern int mkek_load_file(file_t *file, byte_buffer_t data, uint16_t *len);
+extern int mkek_load_key_file(file_t *file, byte_buffer_t data, uint16_t *len, uint16_t operation, bool internal_firmware);
+extern int dkek_encode_key(uint8_t, void *key_ctx, int key_type, byte_buffer_t out, const_byte_array_t allowed, uint16_t *out_len);
+extern int dkek_type_key(const_byte_array_t in);
+extern int dkek_decode_key(uint8_t, void *key_ctx, const_byte_array_t in, int *key_size_out, byte_array_t *allowed);
 
 #define MAX_DKEK_ENCODE_KEY_BUFFER (8 + 1 + 12 + 6 + (8 + 2 * 4 + 2 * 4096 / 8 + 3 + 13) + 16)
 
@@ -71,7 +71,7 @@ typedef struct mse {
 } mse_t;
 extern mse_t mse;
 
-extern int mse_decrypt_ct(uint8_t *, size_t);
+extern int mse_decrypt_ct(byte_array_t data);
 
 extern uint8_t pending_save_dkek;
 

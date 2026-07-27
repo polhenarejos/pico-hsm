@@ -41,7 +41,7 @@ int cmd_change_pin(void) {
                 return SW_WRONG_LENGTH();
             }
             uint16_t new_pin_len = (uint16_t)apdu.nc - pin_len;
-            int r = check_pin(file_pin, apdu.data, pin_len);
+            int r = check_pin(file_pin, CONST_BYTE_ARRAY(apdu.data, pin_len));
             if (r != 0x9000) {
                 return r;
             }
@@ -53,11 +53,11 @@ int cmd_change_pin(void) {
             //encrypt MKEK with new pin
 
             if (P2(apdu) == 0x81) {
-                pin_derive_session(apdu.data + pin_len, new_pin_len, session_pin);
+                pin_derive_session(CONST_BYTE_ARRAY(apdu.data + pin_len, new_pin_len), session_pin);
                 has_session_pin = true;
             }
             else if (P2(apdu) == 0x88) {
-                pin_derive_session(apdu.data + pin_len, new_pin_len, session_sopin);
+                pin_derive_session(CONST_BYTE_ARRAY(apdu.data + pin_len, new_pin_len), session_sopin);
                 has_session_sopin = true;
             }
             r = store_mkek(mkek);
@@ -68,8 +68,8 @@ int cmd_change_pin(void) {
             uint8_t dhash[34];
             dhash[0] = (uint8_t)new_pin_len;
             dhash[1] = 1; // Format
-            pin_derive_verifier(apdu.data + pin_len, new_pin_len, dhash + 2);
-            file_put_data(file_pin, dhash, sizeof(dhash));
+            pin_derive_verifier(CONST_BYTE_ARRAY(apdu.data + pin_len, new_pin_len), dhash + 2);
+            file_put_data(file_pin, CONST_BYTE_ARRAY(dhash, sizeof(dhash)));
             flash_commit();
             return SW_OK();
         }

@@ -23,7 +23,7 @@
 int cmd_update_ef(void) {
     uint8_t p1 = P1(apdu), p2 = P2(apdu);
     uint16_t fid = (p1 << 8) | p2;
-    uint8_t *data = NULL;
+    const uint8_t *data = NULL;
     uint32_t offset = 0;
     uint32_t data_len = 0;
     file_t *ef = NULL;
@@ -62,23 +62,22 @@ int cmd_update_ef(void) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
 
-    uint16_t tag = 0x0;
-    uint8_t *tag_data = NULL, *p = NULL;
-    uint16_t tag_len = 0;
+    uint8_t *p = NULL;
+    tlv_item_t item;
     tlv_ctx_t ctxi;
-    tlv_ctx_init(apdu.data, (uint16_t)apdu.nc, &ctxi);
-    while (tlv_walk(&ctxi, &p, &tag, &tag_len, &tag_data)) {
-        if (tag == 0x54) { // Offset data object.
-            if (tag_len > sizeof(offset)) {
+    tlv_ctx_init(BYTE_ARRAY(apdu.data, (uint16_t)apdu.nc), &ctxi);
+    while (tlv_walk(&ctxi, &p, &item)) {
+        if (item.tag == 0x54) { // Offset data object.
+            if (item.value.len > sizeof(offset)) {
                 return SW_WRONG_DATA();
             }
-            for (size_t i = 0; i < tag_len; i++) {
-                offset = (offset << 8) | *tag_data++;
+            for (size_t i = 0; i < item.value.len; i++) {
+                offset = (offset << 8) | item.value.data[i];
             }
         }
-        else if (tag == 0x53) { // Data object.
-            data_len = tag_len;
-            data = tag_data;
+        else if (item.tag == 0x53) { // Data object.
+            data_len = (uint16_t)item.value.len;
+            data = item.value.data;
         }
     }
     if (container_object) {
@@ -104,7 +103,7 @@ int cmd_update_ef(void) {
         }
         if (offset > 0 && old_size > 0) {
             size_t written = 0;
-            r = hsm_key_container_read((uint8_t)target_fid, object_type, FILE_OBJECT_OPERATION_READ, true, object_data, old_size, &written);
+            r = hsm_key_container_read((uint8_t)target_fid, object_type, FILE_OBJECT_OPERATION_READ, true, BYTE_BUFFER(object_data, old_size), &written);
             if (r != PICOKEYS_OK || written != old_size) {
                 free(object_data);
                 return SW_EXEC_ERROR();
@@ -113,7 +112,7 @@ int cmd_update_ef(void) {
         if (data_len > 0) {
             memcpy(object_data + offset, data, data_len);
         }
-        r = hsm_key_container_store_object((uint8_t)target_fid, object_type, object_data, new_size);
+        r = hsm_key_container_store_object((uint8_t)target_fid, object_type, CONST_BYTE_ARRAY(object_data, new_size));
         free(object_data);
         return r == PICOKEYS_OK ? SW_OK() : SW_MEMORY_FAILURE();
     }
@@ -132,7 +131,7 @@ int cmd_update_ef(void) {
             ef = file_new(fid);
         }
         if (offset == 0) {
-            int r = file_put_data(ef, data, data_len);
+            int r = file_put_data(ef, CONST_BYTE_ARRAY(data, data_len));
             if (r != PICOKEYS_OK) {
                 return SW_MEMORY_FAILURE();
             }
@@ -144,7 +143,7 @@ int cmd_update_ef(void) {
             if (offset > UINT32_MAX - data_len) {
                 return SW_WRONG_LENGTH();
             }
-            int r = file_put_data_offset(ef, data, data_len, offset);
+            int r = file_put_data_offset(ef, CONST_BYTE_ARRAY(data, data_len), offset);
             if (r != PICOKEYS_OK) {
                 return SW_MEMORY_FAILURE();
             }
