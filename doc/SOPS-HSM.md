@@ -142,3 +142,30 @@ API tokens, database credentials. That makes the HSM the root of an envelope-enc
 covering arbitrary secrets, rather than only the algorithms it implements. It is the honest
 version of "poor-man's KMS": strong for storage, weaker in use than a real KMS that never
 releases key material at all.
+
+## CONSTRAINT: multiple certificates break the GPG binding
+
+Discovered by adding a second key/cert to a card whose GPG identity already worked.
+
+PKCS#11 handles multiple keys fine — secp256k1, RSA-2048 and P-256 coexisted and all signed
+correctly via `pkcs11-tool` throughout. **`gnupg-pkcs11-scd` does not.** After a second
+certificate was written to the card, `sops --decrypt` HUNG, with the bridge looping on:
+
+```
+KEYINFO 3DDB240D13542FCBC558A2D8C510D5CF7BC5F683  ->  ERR 41 Wrong public key algorithm
+```
+
+The card was never at fault: raw PKCS#11 signatures with both the wallet key and the RSA key
+kept working the whole time. The bridge simply cannot resolve which key a keygrip refers to once
+several certificates are present, and it fails by hanging rather than erroring out.
+
+This matters for the "one card, many purposes" idea. Options, none free:
+
+- keep the GPG-bearing card to a SINGLE certificate, and put other key types on another token
+- constrain the bridge's view via its provider/cert filtering options (untested here)
+- avoid the bridge for multi-purpose cards and use PKCS#11 directly where the tooling allows it
+  (ssh -I, openssl engine, pkcs11-tool all worked with all three keys present)
+
+Note the asymmetry: everything that speaks PKCS#11 NATIVELY was unaffected. Only the GnuPG
+bridge broke. So a multi-purpose card is fine for SSH, TLS, CA and wallet work; it is GPG
+specifically that wants a card to itself.
