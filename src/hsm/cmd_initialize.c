@@ -320,12 +320,18 @@ int cmd_initialize(void) {
          * The delay lets core 0 finish transmitting the APDU response before the reset lands,
          * so the host sees this command SUCCEED rather than "Card removed".
          *
-         * MEASURED RELIABILITY: 7/7 on a warm device, all recovering in ~3s. The single observed
-         * failure was the FIRST initialize after a firmware flash, which hung and needed a
-         * physical replug. One data point is a hypothesis, not a pattern — hsm-cycle-test.sh
-         * exists to settle it. Until it is settled, provisioning should reboot the device (via
-         * the rescue app: SELECT AID then 80 1F 00 00) after flashing and BEFORE the first
-         * initialize, which avoids the cold path entirely. */
+         * MEASURED RELIABILITY: 9/9 recovering in 1-2s (hsm-cycle-test.sh), INCLUDING the first
+         * initialize after a firmware flash.
+         *
+         * An earlier round measured 7/7 warm but 1/1 HUNG on that first-after-flash case, and it
+         * was very nearly written up as a real cold-boot defect. It was not. The firmware had
+         * been built with -DPICO_BOARD=pico2, i.e. for RP2350A with a 4MB flash map, on a board
+         * that is RP2350B with 16MB (see waveshare_rp2350_pizero.h). Rebuilding against the
+         * correct board definition made the cold path pass first try and every try after.
+         *
+         * BUILD FOR THE ACTUAL BOARD. A generic -DPICO_BOARD target that merely boots is not
+         * evidence it is correct: everything worked well enough to mask the mismatch until one
+         * flash-heavy path failed intermittently. */
         printf("INIT: arming watchdog reset in %d ms\n", (int) INITIALIZE_REBOOT_DELAY_MS);
         watchdog_reboot(0, 0, INITIALIZE_REBOOT_DELAY_MS);
         /* If the UART shows this line and the device never comes back, the watchdog was armed
