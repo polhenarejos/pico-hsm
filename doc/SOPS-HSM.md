@@ -143,29 +143,48 @@ covering arbitrary secrets, rather than only the algorithms it implements. It is
 version of "poor-man's KMS": strong for storage, weaker in use than a real KMS that never
 releases key material at all.
 
-## CONSTRAINT: multiple certificates break the GPG binding
+## CONSTRAINT: an EC certificate wedges gnupg-pkcs11-scd 0.11.0
 
-Discovered by adding a second key/cert to a card whose GPG identity already worked.
+Not "multiple certificates", and not "GPG needs its own token" — both of which were claimed here
+before the cause was actually found. The real fault is a missing guard in ONE function of the
+released daemon, and it is already fixed upstream.
 
-PKCS#11 handles multiple keys fine — secp256k1, RSA-2048 and P-256 coexisted and all signed
-correctly via `pkcs11-tool` throughout. **`gnupg-pkcs11-scd` does not.** After a second
-certificate was written to the card, `sops --decrypt` HUNG, with the bridge looping on:
+**Symptom.** With a P-256 certificate on the card, `sops --decrypt` HANGS. The daemon loops on:
 
 ```
-KEYINFO 3DDB240D13542FCBC558A2D8C510D5CF7BC5F683  ->  ERR 41 Wrong public key algorithm
+KEYINFO <keygrip>  ->  ERR 41 Wrong public key algorithm
 ```
 
-The card was never at fault: raw PKCS#11 signatures with both the wallet key and the RSA key
-kept working the whole time. The bridge simply cannot resolve which key a keygrip refers to once
-several certificates are present, and it fails by hanging rather than erroring out.
+**Cause, verified against the source.** `gnupg-pkcs11-scd` is designed to iterate certificates and
+skip any whose key algorithm it cannot parse. That guard is
 
-This matters for the "one card, many purposes" idea. Options, none free:
+```c
+if (error == GPG_ERR_WRONG_PUBKEY_ALGO) {
+    /* skip unsupported keys */
+    error = GPG_ERR_NO_ERROR;
+}
+```
 
-- keep the GPG-bearing card to a SINGLE certificate, and put other key types on another token
-- constrain the bridge's view via its provider/cert filtering options (untested here)
-- avoid the bridge for multi-purpose cards and use PKCS#11 directly where the tooling allows it
-  (ssh -I, openssl engine, pkcs11-tool all worked with all three keys present)
+and in **0.11.0** it is present in `send_certificate_list()` but **ABSENT from `cmd_keyinfo()`**.
+On master it is present in both. That maps exactly onto the observed behaviour:
 
-Note the asymmetry: everything that speaks PKCS#11 NATIVELY was unaffected. Only the GnuPG
-bridge broke. So a multi-purpose card is fine for SSH, TLS, CA and wallet work; it is GPG
-specifically that wants a card to itself.
+| call | uses | 0.11.0 result |
+|---|---|---|
+| `SCD LEARN` | `send_certificate_list()` | works — EC cert skipped |
+| `KEYINFO <keygrip>` | `cmd_keyinfo()` | **ERR 41**, propagated, daemon wedges |
+
+The card is never at fault. Throughout, raw PKCS#11 kept working for every key — secp256k1, RSA
+and P-256 all signed correctly while GPG was wedged.
+
+**Fix: build gnupg-pkcs11-scd from master.** Brew ships 0.11.0, which predates the `cmd_keyinfo`
+guard.
+
+**Workaround if you must stay on 0.11.0:** keep EC *certificates* off the card used for GPG. EC
+*keys* are fine — only certificate parsing trips it. But note the cost, measured here: on this
+card, `pkcs11-tool --delete-object --type cert` ALSO removes the public key object, so the EC key
+keeps signing but `ssh-keygen -D` can no longer enumerate it as an SSH identity. So on 0.11.0 a
+single card cannot serve both GPG and SSH-with-an-EC-key. On master it can.
+
+**Failure mode worth noting separately:** it HANGS rather than erroring. A wedged `sops --decrypt`
+in a deploy pipeline is far worse than a clean failure, and it is the reason this daemon deserves
+the "small dependency in a critical path" caution above rather than a passing mention.
