@@ -143,20 +143,13 @@ covering arbitrary secrets, rather than only the algorithms it implements. It is
 version of "poor-man's KMS": strong for storage, weaker in use than a real KMS that never
 releases key material at all.
 
-## CONSTRAINT: an EC certificate wedges gnupg-pkcs11-scd 0.11.0
+## REQUIREMENT: build gnupg-pkcs11-scd from master, do not use 0.11.0
 
-Not "multiple certificates", and not "GPG needs its own token" — both of which were claimed here
-before the cause was actually found. The real fault is a missing guard in ONE function of the
-released daemon, and it is already fixed upstream.
+Homebrew ships **0.11.0, which is broken for multi-key cards.** Build from master instead.
 
-**Symptom.** With a P-256 certificate on the card, `sops --decrypt` HANGS. The daemon loops on:
+### The bug
 
-```
-KEYINFO <keygrip>  ->  ERR 41 Wrong public key algorithm
-```
-
-**Cause, verified against the source.** `gnupg-pkcs11-scd` is designed to iterate certificates and
-skip any whose key algorithm it cannot parse. That guard is
+`gnupg-pkcs11-scd` iterates certificates and skips any whose algorithm it cannot parse:
 
 ```c
 if (error == GPG_ERR_WRONG_PUBKEY_ALGO) {
@@ -165,26 +158,53 @@ if (error == GPG_ERR_WRONG_PUBKEY_ALGO) {
 }
 ```
 
-and in **0.11.0** it is present in `send_certificate_list()` but **ABSENT from `cmd_keyinfo()`**.
-On master it is present in both. That maps exactly onto the observed behaviour:
+In 0.11.0 that guard is in `send_certificate_list()` but **ABSENT from `cmd_keyinfo()`**. On
+master it is in both. With an EC certificate on the card, 0.11.0 therefore:
 
-| call | uses | 0.11.0 result |
+- answers `SCD LEARN` fine (that path skips the cert), but
+- returns `ERR 41 Wrong public key algorithm` to `KEYINFO`, and **HANGS**
+
+A hung `sops --decrypt` in a deploy pipeline is far worse than a clean failure, which is why
+this is a build requirement rather than a footnote.
+
+### Measured, same card and same certificate
+
+| daemon | `KEYINFO` | SOPS |
 |---|---|---|
-| `SCD LEARN` | `send_certificate_list()` | works — EC cert skipped |
-| `KEYINFO <keygrip>` | `cmd_keyinfo()` | **ERR 41**, propagated, daemon wedges |
+| 0.11.0 (brew) | `ERR 41` | hangs |
+| 0.11.1_master (built) | `OK` | **decrypt rc=0, ERR 41 count: 0** |
 
-The card is never at fault. Throughout, raw PKCS#11 kept working for every key — secp256k1, RSA
-and P-256 all signed correctly while GPG was wedged.
+### Build it
 
-**Fix: build gnupg-pkcs11-scd from master.** Brew ships 0.11.0, which predates the `cmd_keyinfo`
-guard.
+```sh
+brew install autoconf automake pkg-config libgcrypt libassuan pkcs11-helper
+git clone https://github.com/alonbl/gnupg-pkcs11-scd.git
+cd gnupg-pkcs11-scd && autoreconf -ivf
+./configure --prefix=$HOME/tools/gnupg-pkcs11-scd-master && make && make install
+```
 
-**Workaround if you must stay on 0.11.0:** keep EC *certificates* off the card used for GPG. EC
-*keys* are fine — only certificate parsing trips it. But note the cost, measured here: on this
-card, `pkcs11-tool --delete-object --type cert` ALSO removes the public key object, so the EC key
-keeps signing but `ssh-keygen -D` can no longer enumerate it as an SSH identity. So on 0.11.0 a
-single card cannot serve both GPG and SSH-with-an-EC-key. On master it can.
+Then point `gpg-agent.conf` at that binary rather than the brew one.
 
-**Failure mode worth noting separately:** it HANGS rather than erroring. A wedged `sops --decrypt`
-in a deploy pipeline is far worse than a clean failure, and it is the reason this daemon deserves
-the "small dependency in a critical path" caution above rather than a passing mention.
+## One card really does serve many purposes
+
+With master, a single card was verified holding **RSA (GPG/SOPS/CA) + P-256 (SSH) + secp256k1
+(wallet)**, each with its certificate, all working together in one session:
+
+- SSH authentication to a live sshd — real login, remote command executed
+- `sops --decrypt` immediately afterwards on the same card — `rc=0`
+- X.509 CA signing, and wallet signatures, from the same token
+
+Earlier revisions of this document claimed the opposite — first that multiple certificates broke
+the binding, then that GPG needed a card to itself. **Both were wrong.** They were written from a
+symptom without finding the cause. The cause was one missing `if` in a released dependency.
+
+## Two incidental findings worth keeping
+
+**Object storage can be exhausted.** After repeated certificate write/delete cycles,
+`C_CreateObject` began returning `CKR_GENERAL_ERROR` and the card refused *any* certificate. A
+wipe cleared it completely. For a token that is re-provisioned often, that is a real operational
+limit.
+
+**Deleting a certificate also removes the public key object.** The private key keeps signing, but
+`ssh-keygen -D` can no longer enumerate it. Certificates are not decoration on this card — they
+are what makes a key discoverable to public-key tooling.
