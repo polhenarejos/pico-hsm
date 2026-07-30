@@ -105,3 +105,40 @@ cut over at once, and losing the HSM does not lock anyone out.
 - Automating the PIN via a scripted `pinentry-program` is fine for a STAGING token with a
   documented dev PIN. Never do it for a token holding real secrets: it defeats the point of
   requiring physical presence.
+
+## Also proven: GPG proper, and the envelope pattern
+
+**The card-backed PGP key is a fully functional GPG key**, not just a SOPS decryptor:
+
+- detached signatures — `Good signature`, and a tampered artifact correctly gives `BAD signature`
+- `--encrypt` / `--decrypt` round-trip
+- **real git commit signing** — `git commit -S` verified `Good signature` via `git log --show-signature`
+
+That covers release-artifact signing, code signing and commit signing off the same key.
+
+## Envelope encryption: protecting secrets the card CANNOT operate on
+
+The card has no X25519, so it can never *be* an age identity. It can still *protect* one:
+
+```sh
+age-keygen -o age-key.txt
+gpg --encrypt --recipient $FPR --output age-key.txt.gpg age-key.txt
+rm age-key.txt                       # plaintext gone; only the wrapped copy remains
+
+# use it without the key ever touching disk:
+gpg --decrypt age-key.txt.gpg | age -d -i /dev/stdin payload.age
+```
+
+Verified working, with `PKDECRYPT` in the scdaemon log confirming the card performed the unwrap.
+
+**Know what this does and does not buy.** The age key is protected AT REST and never written to
+disk in plaintext — but it exists IN RAM while in use, and the card does not perform the age
+operation itself. Compare with using PGP directly for SOPS, where no age key exists at all and
+the card does the real work. For SOPS, direct PGP is STRICTLY BETTER; the envelope is for tools
+that require age specifically.
+
+The pattern generalises to any secret the card cannot natively operate on — Ed25519 SSH keys,
+API tokens, database credentials. That makes the HSM the root of an envelope-encryption scheme
+covering arbitrary secrets, rather than only the algorithms it implements. It is the honest
+version of "poor-man's KMS": strong for storage, weaker in use than a real KMS that never
+releases key material at all.
