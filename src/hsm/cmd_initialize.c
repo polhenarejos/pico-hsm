@@ -32,10 +32,18 @@
 #endif
 
 /* Upper bound on waiting for the re-personalisation write to become durable before the reset
- * below. Generous on purpose: a full-region erase is many sectors, and overshooting merely
- * costs a few idle milliseconds, whereas undershooting falls back to the async commit and
- * reintroduces the race the synchronous wait exists to remove. */
-#define FLASH_COMMIT_SYNC_TIMEOUT_MS 10000
+ * below.
+ *
+ * SIZE THIS FROM THE HARDWARE, NOT FROM INTUITION. The data region is FLASH_SIZE/2, so on a 16MB
+ * board that is 8MB = ~2048 sectors of 4KB, and a sector erase costs roughly 30-45ms on RP2350.
+ * A large wipe can therefore run 60-90 SECONDS. The first version of this used 10s, which is not
+ * a tight bound — it is far below the worst case, so the sync routinely "timed out" on a wipe
+ * that was proceeding perfectly normally.
+ *
+ * Overshooting costs nothing: the wait returns as soon as the queue drains, so the timeout is
+ * only ever reached when something is genuinely wrong. Undershooting caused the reset to fire
+ * into an in-flight erase and hang the device. Asymmetric consequences, so be generous. */
+#define FLASH_COMMIT_SYNC_TIMEOUT_MS 180000
 
 /* Grace period between arming the reset and it firing, so core 0 can transmit the APDU response
  * first. Without it the host reports "Card removed" for a command that actually succeeded. */
@@ -275,26 +283,39 @@ int cmd_initialize(void) {
         if (ret != PICOKEYS_OK) {
             return SW_EXEC_ERROR();
         }
-        /* Persist SYNCHRONOUSLY. flash_commit() only queues the write for low_flash_task() on
-         * core 0; resetting straight after it would race the write and could leave a
-         * half-written file system. APDU handlers run on core 1, which is exactly where
-         * flash_commit_sync() is usable (it refuses on core 0, since core 0 owns the task it
-         * would be waiting for). Fall back to the async commit if it reports failure so a
-         * timeout can never leave the commit unqueued. */
-        /* These printf()s go to the UART (PICO_STDIO_UART is on by default; PICO_STDIO_USB is
-         * not), which is the ONLY channel that survives the failure being chased here: when the
-         * reset below hangs, the device leaves the USB bus, so anything logging over USB goes
-         * dark at exactly the moment it is needed. A serial adapter on GPIO0/GND at 115200
-         * turns "it hung, unclear where" into a line number. */
+        /* Persist SYNCHRONOUSLY. flash_commit() only QUEUES the write for low_flash_task() on
+         * core 0; resetting straight after it would race the write. APDU handlers run on core 1,
+         * which is exactly where flash_commit_sync() is usable (it refuses on core 0, since core
+         * 0 owns the task it would be waiting for).
+         *
+         * These printf()s go to the UART (PICO_STDIO_UART is on by default, PICO_STDIO_USB is
+         * not), the only channel that survives this failure: when the reset below hangs the
+         * device leaves the USB bus, so USB-side logging goes dark exactly when it is needed. */
         printf("INIT: wipe done, committing flash synchronously\n");
         bool committed = flash_commit_sync(FLASH_COMMIT_SYNC_TIMEOUT_MS);
-        if (!committed) {
-            printf("INIT: WARN sync commit reported failure, falling back to async\n");
-            flash_commit();
-        }
-        printf("INIT: flash committed (sync=%d)\n", (int) committed);
+        printf("INIT: flash commit sync=%d\n", (int) committed);
         reset_puk_store();
         printf("INIT: puk store reset\n");
+
+        /* DO NOT RESET ON AN UNCONFIRMED COMMIT.
+         *
+         * The earlier version fell back to an ASYNC flash_commit() here and then reset anyway,
+         * which is the worst possible ordering: an unconfirmed commit means the erase is very
+         * likely still in flight, and the reset then lands mid-erase. Measured: cycles that wipe
+         * a nearly-empty card pass 9/9, while cycles that wipe a card holding an imported key
+         * plus a populated DKEK domain — far more flash to erase — hung 1 in 3. More to erase
+         * means a longer erase, means a greater chance the sync times out and the reset fires
+         * into it. The device then leaves the USB bus and needs a PHYSICAL REPLUG.
+         *
+         * So: report the failure and stay alive instead. An operator who gets an error and can
+         * retry is in a strictly better position than one holding a device that needs someone to
+         * walk into the datacenter. The wipe itself has already succeeded at this point, so the
+         * retry is cheap; only the reset is being declined. */
+        if (!committed) {
+            printf("INIT: commit UNCONFIRMED — refusing to reset (would land mid-erase)\n");
+            flash_commit();
+            return SW_EXEC_ERROR();
+        }
 #if defined(PICO_PLATFORM)
         /* Re-personalising wipes the file system, and the card does NOT come back on its own
          * afterwards: the reader keeps reporting a card, but the card returns no ATR and

@@ -28,6 +28,9 @@ SO_PIN="${HSM_SO_PIN:-3537363231383830}"
 USER_PIN="${HSM_USER_PIN:-648219}"
 STAGING="${HSM_STAGING_DIR:-$HOME/.local/share/akash-hsm-staging}"
 VIDPID="2e8a:10fd"
+AUTO_IMPORT="${HSM_AUTO_IMPORT:-$HOME/code/Akash-Console-hsmfix/infra/ceremony/qubes/scripts/hsm-auto-import.sh}"
+VERIFY="${HSM_VERIFY:-$HOME/code/Akash-Console-hsmfix/infra/ceremony/qubes/scripts/verify-hsm-control.py}"
+P11MOD="${HSM_PKCS11_MODULE:-/opt/homebrew/lib/opensc-pkcs11.so}"
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -93,7 +96,7 @@ if [ -z "$(device_id)" ]; then
     exit 1
 fi
 
-pass=0; fail=0; times=""
+pass=0; fail=0; declined=0; times=""; chain_pass=0; chain_fail=0
 for n in $(seq 1 "$CYCLES"); do
     printf 'cycle %s/%s: ' "$n" "$CYCLES"
     start_uart_capture "$n"
@@ -119,31 +122,94 @@ for n in $(seq 1 "$CYCLES"); do
             echo "REBOOTED but card never answered — partial failure"
         fi
     else
-        fail=$((fail + 1))
-        echo "HUNG — no re-enumeration in ${SECS}s. NEEDS A PHYSICAL REPLUG; stopping."
+        # "No re-enumeration" has TWO causes and they are opposites. The firmware declines to
+        # reset when the flash commit is unconfirmed (returning SW_EXEC_ERROR and staying alive
+        # on purpose, since an operator who can retry beats a device needing a datacenter visit).
+        # That also produces no new identity — but the device is FINE. Calling it a hang would
+        # report the safety mechanism working as a failure, so distinguish them by whether the
+        # device is still on the bus.
         stop_uart_capture
-        [ -n "$UART" ] && echo "  firmware log: $LOGDIR/uart-cycle-$n.log"
+        if [ -n "$(device_id)" ]; then
+            echo "DECLINED to reset but device is ALIVE (init rc=$init_rc) — commit was"
+            echo "         unconfirmed and the firmware correctly refused to reset. Retryable."
+            declined=$((declined + 1))
+        else
+            fail=$((fail + 1))
+            echo "HUNG — gone from the bus after ${SECS}s. NEEDS A PHYSICAL REPLUG; stopping."
+            [ -n "$UART" ] && echo "  firmware log: $LOGDIR/uart-cycle-$n.log"
+        fi
         break
     fi
     stop_uart_capture
 
     if [ "$FULL" = 1 ]; then
-        if [ -f "$STAGING/dkek.pbe" ] && [ -f "$STAGING/dkek.pw" ]; then
+        # The whole point of --full: assert CRYPTO CORRECTNESS every cycle, not just that the
+        # device came back. Re-provisioning that reliably produces the WRONG key would pass a
+        # reset-only test forever, and would lose funds in production. So each cycle re-imports
+        # the seed-derived key and proves the card signs for the seed's public key — plus a
+        # negative control, so a verifier that trivially returns success cannot fake a pass.
+        chain_ok=1
+        if [ ! -f "$STAGING/dkek.pbe" ] || [ ! -f "$STAGING/dkek.pw" ]; then
+            echo "  ! no DKEK share in $STAGING — cannot run the chain"; chain_ok=0
+        elif [ ! -x "$AUTO_IMPORT" ]; then
+            echo "  ! auto-import script not found at $AUTO_IMPORT (set HSM_AUTO_IMPORT)"; chain_ok=0
+        fi
+
+        if [ "$chain_ok" = 1 ]; then
             DKEK_PW="$(cat "$STAGING/dkek.pw")" perl -e 'alarm 120; exec @ARGV' -- \
                 sc-hsm-tool --import-dkek-share "$STAGING/dkek.pbe" \
                 --password env:DKEK_PW --so-pin "$SO_PIN" < /dev/null \
-                > "$LOGDIR/dkek-$n.log" 2>&1
-            echo "  dkek import rc=$?"
+                > "$LOGDIR/dkek-$n.log" 2>&1 || chain_ok=0
+            [ "$chain_ok" = 1 ] || echo "  CHAIN FAIL: dkek import"
+        fi
+
+        if [ "$chain_ok" = 1 ]; then
+            HSM_AUTO_DIR="$STAGING/auto-import" SCSH_HOME="${SCSH_HOME:-$HOME/tools/scsh-3.18.77}" \
+            HSM_USER_PIN="$USER_PIN" HSM_DKEK_SHARE_IN="$STAGING/dkek.pbe" \
+            HSM_DKEK_PW_IN="$STAGING/dkek.pw" \
+                perl -e 'alarm 300; exec @ARGV' -- "$AUTO_IMPORT" --run \
+                > "$LOGDIR/import-$n.log" 2>&1 || chain_ok=0
+            [ "$chain_ok" = 1 ] || echo "  CHAIN FAIL: key import (see $LOGDIR/import-$n.log)"
+        fi
+
+        if [ "$chain_ok" = 1 ]; then
+            head -c 32 /dev/urandom > "$LOGDIR/d-$n.bin"
+            pkcs11-tool --module "$P11MOD" --login --pin "$USER_PIN" --sign --mechanism ECDSA \
+                --id 31 --input-file "$LOGDIR/d-$n.bin" --output-file "$LOGDIR/s-$n.bin" \
+                > "$LOGDIR/sign-$n.log" 2>&1 || chain_ok=0
+            if [ "$chain_ok" = 1 ]; then
+                python3 "$VERIFY" --der "$STAGING/expected-pub.der" \
+                    --digest "$LOGDIR/d-$n.bin" --sig "$LOGDIR/s-$n.bin" >/dev/null 2>&1
+                if [ $? -ne 0 ]; then
+                    chain_ok=0; echo "  CHAIN FAIL: card signature does NOT match the seed's pubkey"
+                else
+                    # Negative control: the same signature against a DIFFERENT digest must FAIL.
+                    # Without this, a verifier stuck returning 0 would make every cycle "pass".
+                    head -c 32 /dev/urandom > "$LOGDIR/dbad-$n.bin"
+                    python3 "$VERIFY" --der "$STAGING/expected-pub.der" \
+                        --digest "$LOGDIR/dbad-$n.bin" --sig "$LOGDIR/s-$n.bin" >/dev/null 2>&1
+                    if [ $? -eq 0 ]; then
+                        chain_ok=0; echo "  CHAIN FAIL: negative control PASSED — verifier is not discriminating"
+                    fi
+                fi
+            else
+                echo "  CHAIN FAIL: on-card signing"
+            fi
+        fi
+
+        if [ "$chain_ok" = 1 ]; then
+            chain_pass=$((chain_pass + 1)); echo "  chain OK (key imported, signed, verified, negative control held)"
         else
-            echo "  ! no DKEK share in $STAGING — skipping full chain"
+            chain_fail=$((chain_fail + 1))
         fi
     fi
 done
 
 echo
 echo "==================================================="
-echo " passed: $pass    hung: $fail    of $((pass + fail)) attempted"
+echo " passed: $pass    hung: $fail    declined-safely: $declined    of $((pass + fail + declined)) attempted"
 [ -n "$times" ] && echo " recovery times:$times (seconds)"
+[ "$FULL" = 1 ] && echo " full chain: $chain_pass verified, $chain_fail failed"
 echo " logs: $LOGDIR"
 echo "==================================================="
-[ "$fail" -eq 0 ] || exit 1
+[ "$fail" -eq 0 ] && [ "${chain_fail:-0}" -eq 0 ] || exit 1
