@@ -1,130 +1,93 @@
 #!/usr/bin/env python3
-"""Reset a Pico HSM over USB, without touching the hardware.
+"""Reboot a Pico HSM remotely, over the normal smartcard channel.
 
-This is the host side of the PICOKEYS_REMOTE_RESET build option. Firmware built WITHOUT that
-option ignores these requests, which is the intended default — see the CMake option for why.
+    pico-hsm-reset.py          # reboot into firmware (recovery)
 
-    pico-hsm-reset.py                # reboot into firmware (recovery)
-    pico-hsm-reset.py --bootsel      # reboot into the bootloader (remote firmware update)
+This needs NO firmware modification. The rescue app is compiled into stock pico-keys-sdk and
+already exposes a reboot command; this just sends it and confirms it took effect.
 
-Why not picotool: picotool looks for the Pico SDK's dedicated reset interface, identified as
-class 0xFF / subclass 0x00 / protocol 0x01. The Pico HSM's CCID interface is vendor-class but
-protocol 0x00, so picotool does not recognise it. The control request itself is identical; only
-the discovery differs, so a direct control transfer works where picotool does not.
+    SELECT rescue app   00 A4 04 00 08 A0 58 3F C1 9B 7E 4F 21
+    reboot normal mode  80 1F 00 00        (CLA is 0x80, not 0x00 — rescue rejects 0x00 with 6E00)
 
-Uses libusb through ctypes on purpose: no pyusb, no pip install, nothing to provision on a
-machine whose only job is to recover a wedged token.
+WHY APDUs AND NOT A USB CONTROL REQUEST. ccid.c has a (commented-out) vendor control handler for
+RESET_REQUEST_FLASH, and enabling it looks like the obvious route. It is a dead end on macOS: the
+handler binds to itf_num, which is the CCID interface, and the OS's own CCID class driver owns
+that interface — libusb gets LIBUSB_ERROR_ACCESS and cannot claim it, while requests aimed at any
+other interface are stalled by the device. APDUs travel the PCSC path that already works for
+every other command, on every platform, without disturbing the smartcard stack.
+
+BOOTSEL is deliberately NOT offered here. The rescue app gates P1=0x01 behind
+rescue_require_user_presence() — a physical button press — so remote firmware replacement is
+blocked by design. That gate is correct and worth keeping; do not route around it.
 """
-import ctypes
-import ctypes.util
+import re
+import shutil
+import subprocess
 import sys
 import time
 
-VID, PID = 0x2E8A, 0x10FD
-
-# From pico/usb_reset_interface.h. Kept in sync with the firmware, which links the SDK header.
-RESET_REQUEST_BOOTSEL = 0x01
-RESET_REQUEST_FLASH = 0x02
-
-# host->device (0) | vendor (2<<5) | recipient=interface (1)
-BMREQUEST_VENDOR_INTERFACE_OUT = 0x41
+RESCUE_AID = "A0:58:3F:C1:9B:7E:4F:21"
+SELECT_RESCUE = f"00:A4:04:00:08:{RESCUE_AID}"
+REBOOT_NORMAL = "80:1F:00:00"
 
 
-def _load_libusb():
-    for cand in ("/opt/homebrew/lib/libusb-1.0.dylib", "/usr/local/lib/libusb-1.0.dylib"):
-        try:
-            return ctypes.CDLL(cand)
-        except OSError:
-            pass
-    found = ctypes.util.find_library("usb-1.0")
-    if not found:
-        sys.exit("libusb not found. brew install libusb")
-    return ctypes.CDLL(found)
+def reader_present() -> bool:
+    try:
+        out = subprocess.run(
+            ["opensc-tool", "--list-readers"], capture_output=True, text=True, timeout=20
+        ).stdout
+    except (subprocess.TimeoutExpired, OSError):
+        return False
+    return "Pico" in out
 
 
 def main() -> int:
-    bootsel = "--bootsel" in sys.argv
-    request = RESET_REQUEST_BOOTSEL if bootsel else RESET_REQUEST_FLASH
-    what = "BOOTSEL (bootloader)" if bootsel else "flash (firmware)"
+    if not shutil.which("opensc-tool"):
+        sys.exit("opensc-tool not found (brew install opensc / apt install opensc)")
 
-    lib = _load_libusb()
-    # EVERY signature must be declared. ctypes defaults undeclared integer arguments to C int,
-    # which truncates a 64-bit device handle to 32 bits and segfaults on the next call — it does
-    # not fail cleanly, it crashes. Omitting these is the single easiest way to get this wrong.
-    lib.libusb_init.argtypes = [ctypes.c_void_p]
-    lib.libusb_exit.argtypes = [ctypes.c_void_p]
-    lib.libusb_open_device_with_vid_pid.argtypes = [ctypes.c_void_p, ctypes.c_uint16, ctypes.c_uint16]
-    lib.libusb_open_device_with_vid_pid.restype = ctypes.c_void_p
-    lib.libusb_close.argtypes = [ctypes.c_void_p]
-    lib.libusb_control_transfer.argtypes = [
-        ctypes.c_void_p, ctypes.c_uint8, ctypes.c_uint8, ctypes.c_uint16,
-        ctypes.c_uint16, ctypes.c_void_p, ctypes.c_uint16, ctypes.c_uint,
-    ]
-    lib.libusb_control_transfer.restype = ctypes.c_int
+    if not reader_present():
+        sys.exit("no Pico HSM reader found — is it plugged in?")
 
-    if lib.libusb_init(None) < 0:
-        sys.exit("libusb_init failed")
-
-    handle = lib.libusb_open_device_with_vid_pid(None, VID, PID)
-    if not handle:
-        lib.libusb_exit(None)
-        sys.exit(f"no Pico HSM found at {VID:04x}:{PID:04x} (is it plugged in?)")
-
-    # The firmware only acts when wIndex matches ITS interface number, and that number shifts
-    # with the build (HID/CCID/WCID/LWIP interfaces are conditional). Rather than hardcode it,
-    # try each: the wrong index is a no-op the device simply ignores, so sweeping is harmless.
-    #
-    # NOTE: a successful control transfer proves NOTHING on its own. ccid_control_xfer_cb()
-    # returns true for ANY vendor request aimed at its interface, so firmware built without
-    # PICOKEYS_REMOTE_RESET acknowledges these requests and silently does nothing. The ACK is
-    # not the result; the device going away and coming back is. So send, then verify.
-    for itf in range(4):
-        lib.libusb_control_transfer(
-            handle, BMREQUEST_VENDOR_INTERFACE_OUT, request, 0, itf, None, 0, 1000
+    print("sending reboot APDU to the rescue app...")
+    try:
+        res = subprocess.run(
+            ["opensc-tool", "-s", SELECT_RESCUE, "-s", REBOOT_NORMAL],
+            capture_output=True, text=True, timeout=60,
         )
-    lib.libusb_close(handle)
-    print(f"reset request {request:#04x} sent; verifying the device actually resets...")
+    except subprocess.TimeoutExpired:
+        sys.exit("opensc-tool timed out talking to the card")
 
-    # A reset makes the device drop off the bus. Watch for the disappearance — that, and not the
-    # transfer status, is the evidence the firmware acted on the request.
-    went_away = False
-    for _ in range(30):
-        time.sleep(0.5)
-        h = lib.libusb_open_device_with_vid_pid(None, VID, PID)
-        if not h:
-            went_away = True
-            break
-        lib.libusb_close(h)
+    # Two status words come back, one per APDU. The device may reboot before the second reply is
+    # transmitted, so a MISSING second SW is normal and not an error — the bus check below is
+    # what decides. Only an explicit non-9000 is worth failing on early.
+    sws = re.findall(r"SW1=0x([0-9A-Fa-f]{2}), SW2=0x([0-9A-Fa-f]{2})", res.stdout)
+    if sws and sws[0] != ("90", "00"):
+        sys.exit(f"SELECT of the rescue app failed (SW={sws[0][0]}{sws[0][1]}) — is this pico-hsm?")
+    if len(sws) > 1 and sws[1] != ("90", "00"):
+        sw = f"{sws[1][0]}{sws[1][1]}".upper()
+        hint = "  (6E00 = wrong CLA; 6D00 = INS unsupported, rescue app may be absent)"
+        sys.exit(f"reboot command rejected (SW={sw}){hint}")
 
-    if not went_away:
-        lib.libusb_exit(None)
-        print(
-            "device never left the bus, so it did NOT reset. Most likely this firmware was built\n"
-            "WITHOUT -DPICOKEYS_REMOTE_RESET=ON, in which case the handler is compiled out by\n"
-            "design and the request was acknowledged but ignored.",
-            file=sys.stderr,
-        )
-        return 1
+    # SW=9000 IS meaningful here, unlike the USB control-request route. rescue_process_apdu()
+    # answers 6E00 for a wrong CLA and 6D00 for an unknown INS, so 9000 can only be produced by
+    # cmd_reboot_bootsel() having run and armed the watchdog. (Contrast ccid_control_xfer_cb(),
+    # which returns true for ANY vendor request on its interface — there the status word proves
+    # nothing, which is why this tool used to verify against the bus instead.)
+    print("reboot armed (SW=9000). Confirming the device comes back...")
 
-    if bootsel:
-        lib.libusb_exit(None)
-        print("device left the bus -> now in BOOTSEL. Copy a .uf2 to the mounted drive.")
-        return 0
-
-    # A firmware reset should re-enumerate on its own. Anything that leaves the bus and stays
-    # gone is a hang, not a reset, and is the failure this tool most needs to surface.
-    for _ in range(60):
-        time.sleep(0.5)
-        h = lib.libusb_open_device_with_vid_pid(None, VID, PID)
-        if h:
-            lib.libusb_close(h)
-            lib.libusb_exit(None)
-            print(f"device re-enumerated -> reset to {what} CONFIRMED")
+    # Observing the device LEAVE the bus is unreliable and deliberately not required: the reboot
+    # completes in roughly a second, and a presence check costs about that much, so the gap is
+    # routinely missed. Racing it produced false "did not reboot" reports. What matters
+    # operationally is the device being usable again, so wait for that instead.
+    deadline = time.time() + 30
+    time.sleep(2)
+    while time.time() < deadline:
+        if reader_present():
+            print("device is responding — reboot complete")
             return 0
+        time.sleep(0.5)
 
-    lib.libusb_exit(None)
-    print("device left the bus and did NOT come back within 30s — that is a hang, not a reset.",
-          file=sys.stderr)
+    print("device did not come back within 30s — that is a hang, not a reboot.", file=sys.stderr)
     return 1
 
 

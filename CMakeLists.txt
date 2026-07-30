@@ -41,28 +41,7 @@ else()
         add_compile_definitions(__FOR_CI)
     endif()
 
-    # Remote reset / BOOTSEL over USB. OFF by default and it must stay that way for any token
-    # holding real key material: RESET_REQUEST_BOOTSEL allows REMOTE FIRMWARE REPLACEMENT by
-    # anything that can reach the USB device, and neither request is authenticated (a wedged
-    # device cannot verify a PIN, which is the whole point of a recovery path). Enable it only
-    # for development or staging tokens, where remote recovery and firmware updates are worth
-    # more than the exposure.
-    option(PICOKEYS_REMOTE_RESET "Allow reset/BOOTSEL over USB — DEV/STAGING TOKENS ONLY" OFF)
-    if(PICOKEYS_REMOTE_RESET)
-        add_compile_definitions(PICOKEYS_REMOTE_RESET)
-        message(WARNING "PICOKEYS_REMOTE_RESET is ON: this firmware accepts UNAUTHENTICATED reset and BOOTSEL requests over USB, which permits remote firmware replacement. Do NOT ship this build on a token holding real keys.")
-    endif()
-
     add_executable(pico_hsm)
-
-    if(PICOKEYS_REMOTE_RESET)
-        # Must follow add_executable(): the target has to exist before it can be linked against.
-        # RESET_REQUEST_BOOTSEL / RESET_REQUEST_FLASH live in pico/usb_reset_interface.h, which
-        # ships in its own header-only SDK library rather than on the default include path.
-        # Linking it keeps the request codes coming from the SDK instead of being re-declared
-        # here and silently drifting from it.
-        target_link_libraries(pico_hsm PUBLIC pico_usb_reset_interface_headers)
-    endif()
 endif()
 set(USB_ITF_CCID 1)
 set(USB_ITF_WCID 1)
