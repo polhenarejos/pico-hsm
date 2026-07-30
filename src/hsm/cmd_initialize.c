@@ -26,6 +26,7 @@
 #include "otp.h"
 #include "object_authorization.h"
 #include "usb.h"
+#include <stdio.h>
 #ifdef PICO_PLATFORM
 #include "hardware/watchdog.h"
 #endif
@@ -280,10 +281,20 @@ int cmd_initialize(void) {
          * flash_commit_sync() is usable (it refuses on core 0, since core 0 owns the task it
          * would be waiting for). Fall back to the async commit if it reports failure so a
          * timeout can never leave the commit unqueued. */
-        if (!flash_commit_sync(FLASH_COMMIT_SYNC_TIMEOUT_MS)) {
+        /* These printf()s go to the UART (PICO_STDIO_UART is on by default; PICO_STDIO_USB is
+         * not), which is the ONLY channel that survives the failure being chased here: when the
+         * reset below hangs, the device leaves the USB bus, so anything logging over USB goes
+         * dark at exactly the moment it is needed. A serial adapter on GPIO0/GND at 115200
+         * turns "it hung, unclear where" into a line number. */
+        printf("INIT: wipe done, committing flash synchronously\n");
+        bool committed = flash_commit_sync(FLASH_COMMIT_SYNC_TIMEOUT_MS);
+        if (!committed) {
+            printf("INIT: WARN sync commit reported failure, falling back to async\n");
             flash_commit();
         }
+        printf("INIT: flash committed (sync=%d)\n", (int) committed);
         reset_puk_store();
+        printf("INIT: puk store reset\n");
 #if defined(PICO_PLATFORM)
         /* Re-personalising wipes the file system, and the card does NOT come back on its own
          * afterwards: the reader keeps reporting a card, but the card returns no ATR and
@@ -307,8 +318,21 @@ int cmd_initialize(void) {
          * physical access to the device, and the alternative here does not reboot at all.
          *
          * The delay lets core 0 finish transmitting the APDU response before the reset lands,
-         * so the host sees this command SUCCEED rather than "Card removed". */
+         * so the host sees this command SUCCEED rather than "Card removed".
+         *
+         * MEASURED RELIABILITY: 7/7 on a warm device, all recovering in ~3s. The single observed
+         * failure was the FIRST initialize after a firmware flash, which hung and needed a
+         * physical replug. One data point is a hypothesis, not a pattern — hsm-cycle-test.sh
+         * exists to settle it. Until it is settled, provisioning should reboot the device (via
+         * the rescue app: SELECT AID then 80 1F 00 00) after flashing and BEFORE the first
+         * initialize, which avoids the cold path entirely. */
+        printf("INIT: arming watchdog reset in %d ms\n", (int) INITIALIZE_REBOOT_DELAY_MS);
         watchdog_reboot(0, 0, INITIALIZE_REBOOT_DELAY_MS);
+        /* If the UART shows this line and the device never comes back, the watchdog was armed
+         * and the fault is in the reset/re-enumeration itself. If it never appears, the hang is
+         * EARLIER — in the commit or the wipe — and the lines above localise it. That
+         * distinction is the whole reason these logs exist. */
+        printf("INIT: watchdog armed, returning SW_OK\n");
 #endif
     }
     else {   //free memory bytes request
