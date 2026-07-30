@@ -25,6 +25,20 @@
 #include "cvc.h"
 #include "otp.h"
 #include "object_authorization.h"
+#include "usb.h"
+#ifdef PICO_PLATFORM
+#include "hardware/watchdog.h"
+#endif
+
+/* Upper bound on waiting for the re-personalisation write to become durable before the reset
+ * below. Generous on purpose: a full-region erase is many sectors, and overshooting merely
+ * costs a few idle milliseconds, whereas undershooting falls back to the async commit and
+ * reintroduces the race the synchronous wait exists to remove. */
+#define FLASH_COMMIT_SYNC_TIMEOUT_MS 10000
+
+/* Grace period between arming the reset and it firing, so core 0 can transmit the APDU response
+ * first. Without it the host reports "Card removed" for a command that actually succeeded. */
+#define INITIALIZE_REBOOT_DELAY_MS 500
 
 extern char __StackLimit;
 static int heapLeft(void) {
@@ -260,8 +274,42 @@ int cmd_initialize(void) {
         if (ret != PICOKEYS_OK) {
             return SW_EXEC_ERROR();
         }
-        flash_commit();
+        /* Persist SYNCHRONOUSLY. flash_commit() only queues the write for low_flash_task() on
+         * core 0; resetting straight after it would race the write and could leave a
+         * half-written file system. APDU handlers run on core 1, which is exactly where
+         * flash_commit_sync() is usable (it refuses on core 0, since core 0 owns the task it
+         * would be waiting for). Fall back to the async commit if it reports failure so a
+         * timeout can never leave the commit unqueued. */
+        if (!flash_commit_sync(FLASH_COMMIT_SYNC_TIMEOUT_MS)) {
+            flash_commit();
+        }
         reset_puk_store();
+#if defined(PICO_PLATFORM)
+        /* Re-personalising wipes the file system, and the card does NOT come back on its own
+         * afterwards: the reader keeps reporting a card, but the card returns no ATR and
+         * PKCS#11 sees no token, until the firmware rebuilds its state at boot. Before this
+         * reset the only recovery was PHYSICALLY REPLUGGING the device, which is impossible in
+         * a remote or datacenter deployment.
+         *
+         * Resetting after re-personalisation is also what a real smartcard does, so this makes
+         * the Pico behave more like the SmartCard-HSM it stands in for, not less.
+         *
+         * Use watchdog_reboot() and NOT the EV_RESET path. EV_RESET routes to
+         * usb_secure_reboot_now(), which zeroes heap and stack before resetting; that was tried
+         * here first and MEASURED to hang the device outright on RP2350 — it left the bus and
+         * never re-enumerated, recoverable only by physically replugging, i.e. strictly worse
+         * than the bug being fixed. The flash and the wipe were both fine (the card came back
+         * correctly re-personalised after a replug), so the fault is in that reboot path, not
+         * in the commit above. rescue.c:490 already reboots with a plain watchdog_reset for
+         * "reboot to normal mode", which is the proven path in this codebase.
+         *
+         * Not scrubbing RAM first is acceptable: a reset exposes memory to nobody without
+         * physical access to the device, and the alternative here does not reboot at all.
+         *
+         * The delay lets core 0 finish transmitting the APDU response before the reset lands,
+         * so the host sees this command SUCCEED rather than "Card removed". */
+        watchdog_reboot(0, 0, INITIALIZE_REBOOT_DELAY_MS);
+#endif
     }
     else {   //free memory bytes request
         int heap_left = heapLeft();
