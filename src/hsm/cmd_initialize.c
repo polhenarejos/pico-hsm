@@ -29,6 +29,8 @@
 #include <stdio.h>
 #ifdef PICO_PLATFORM
 #include "hardware/watchdog.h"
+#include "hardware/structs/scb.h"
+#include "pico/time.h"
 #endif
 
 /* Upper bound on waiting for the re-personalisation write to become durable before the reset
@@ -326,40 +328,49 @@ int cmd_initialize(void) {
          * Resetting after re-personalisation is also what a real smartcard does, so this makes
          * the Pico behave more like the SmartCard-HSM it stands in for, not less.
          *
-         * Use watchdog_reboot() and NOT the EV_RESET path. EV_RESET routes to
-         * usb_secure_reboot_now(), which zeroes heap and stack before resetting; that was tried
-         * here first and MEASURED to hang the device outright on RP2350 — it left the bus and
-         * never re-enumerated, recoverable only by physically replugging, i.e. strictly worse
-         * than the bug being fixed. The flash and the wipe were both fine (the card came back
-         * correctly re-personalised after a replug), so the fault is in that reboot path, not
-         * in the commit above. rescue.c:490 already reboots with a plain watchdog_reset for
-         * "reboot to normal mode", which is the proven path in this codebase.
+         * Do NOT use the EV_RESET path: it routes to usb_secure_reboot_now(), which zeroes
+         * heap and stack before resetting; that was tried here first and MEASURED to hang the
+         * device outright on RP2350 — it left the bus and never re-enumerated, recoverable only
+         * by physically replugging, i.e. strictly worse than the bug being fixed.
+         *
+         * THE MEASURED HISTORY OF THIS RESET (2026-08-02, Debug Probe on SWD, xPack OpenOCD
+         * rp2350 target, hsm-cycle-test.sh, all on a populated card):
+         *   - watchdog_reboot(): ~7% of cycles HUNG — device left the USB bus, never
+         *     re-enumerated. SWD forensics on the live hang: watchdog REASON.TIMER set (the
+         *     watchdog DID fire), both cores reading all-zero, XIP SSI all-zero, bootram
+         *     diagnostics untouched — the post-reset boot never got as far as XIP setup.
+         *   - AIRCR.SYSRESETREQS alone: 13 clean cycles, then the SAME hang. NOTE: this round
+         *     is unattributable — a watchdog fallback fired if the AIRCR write didn't take, and
+         *     OpenOCD flashing pollutes REASON, so which reset actually ran is unknown.
+         *   - Flash quiesce (mtx_flash held) + SYSRESETREQS: 10 clean cycles, SAME hang.
+         * Whatever wedges the warm boot, it is NOT cleanly the reset type and NOT cleanly
+         * flash-busy-at-reset. The quiesce is kept (it is cheap and removes one variable); the
+         * watchdog fallback is REMOVED so an AIRCR failure reads as "declined but alive"
+         * instead of another wedge; and scratch[0] carries an attribution marker so the next
+         * hang can be tied to the exact code path that preceded it.
          *
          * Not scrubbing RAM first is acceptable: a reset exposes memory to nobody without
-         * physical access to the device, and the alternative here does not reboot at all.
-         *
-         * The delay lets core 0 finish transmitting the APDU response before the reset lands,
-         * so the host sees this command SUCCEED rather than "Card removed".
-         *
-         * MEASURED RELIABILITY: 9/9 recovering in 1-2s (hsm-cycle-test.sh), INCLUDING the first
-         * initialize after a firmware flash.
-         *
-         * An earlier round measured 7/7 warm but 1/1 HUNG on that first-after-flash case, and it
-         * was very nearly written up as a real cold-boot defect. It was not. The firmware had
-         * been built with -DPICO_BOARD=pico2, i.e. for RP2350A with a 4MB flash map, on a board
-         * that is RP2350B with 16MB (see waveshare_rp2350_pizero.h). Rebuilding against the
-         * correct board definition made the cold path pass first try and every try after.
-         *
-         * BUILD FOR THE ACTUAL BOARD. A generic -DPICO_BOARD target that merely boots is not
-         * evidence it is correct: everything worked well enough to mask the mismatch until one
-         * flash-heavy path failed intermittently. */
-        printf("INIT: arming watchdog reset in %d ms\n", (int) INITIALIZE_REBOOT_DELAY_MS);
-        watchdog_reboot(0, 0, INITIALIZE_REBOOT_DELAY_MS);
-        /* If the UART shows this line and the device never comes back, the watchdog was armed
-         * and the fault is in the reset/re-enumeration itself. If it never appears, the hang is
-         * EARLIER — in the commit or the wipe — and the lines above localise it. That
-         * distinction is the whole reason these logs exist. */
-        printf("INIT: watchdog armed, returning SW_OK\n");
+         * physical access to the device. */
+        /* Attribution marker for SWD forensics: scratch registers survive warm resets, so a
+         * hang found with this marker present means THIS build reset and wedged afterwards;
+         * absent means the wedge predates the current firmware. */
+        watchdog_hw->scratch[0] = 0x1A17C0DEu;
+        printf("INIT: resetting in %d ms (SYSRESETREQ, flash quiesced)\n", (int) INITIALIZE_REBOOT_DELAY_MS);
+        busy_wait_ms(INITIALIZE_REBOOT_DELAY_MS);
+        low_flash_quiesce();
+        printf("INIT: flash quiesced, SYSRESETREQ now\n");
+        __asm volatile("dsb sy" ::: "memory");
+        scb_hw->aircr = (0x05FAu << M33_AIRCR_VECTKEY_LSB)
+                        | M33_AIRCR_SYSRESETREQ_BITS | M33_AIRCR_SYSRESETREQS_BITS;
+        __asm volatile("dsb sy" ::: "memory");
+        /* If the reset took this is unreachable. Give it 2 s, then STAY ALIVE: the watchdog
+         * fallback was considered and rejected — it is a measured wedge vector, and an alive
+         * card that reports an error beats a card that needs a datacenter visit. Release the
+         * flash mutex so the card keeps working. */
+        busy_wait_ms(2000);
+        low_flash_unquiesce();
+        printf("INIT: ERROR SYSRESETREQ did not reset — staying alive\n");
+        return SW_EXEC_ERROR();
 #endif
     }
     else {   //free memory bytes request
