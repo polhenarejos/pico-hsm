@@ -355,22 +355,15 @@ int cmd_initialize(void) {
          * hang found with this marker present means THIS build reset and wedged afterwards;
          * absent means the wedge predates the current firmware. */
         watchdog_hw->scratch[0] = 0x1A17C0DEu;
-        printf("INIT: resetting in %d ms (SYSRESETREQ, flash quiesced)\n", (int) INITIALIZE_REBOOT_DELAY_MS);
-        busy_wait_ms(INITIALIZE_REBOOT_DELAY_MS);
-        low_flash_quiesce();
-        printf("INIT: flash quiesced, SYSRESETREQ now\n");
-        __asm volatile("dsb sy" ::: "memory");
-        scb_hw->aircr = (0x05FAu << M33_AIRCR_VECTKEY_LSB)
-                        | M33_AIRCR_SYSRESETREQ_BITS | M33_AIRCR_SYSRESETREQS_BITS;
-        __asm volatile("dsb sy" ::: "memory");
-        /* If the reset took this is unreachable. Give it 2 s, then STAY ALIVE: the watchdog
-         * fallback was considered and rejected — it is a measured wedge vector, and an alive
-         * card that reports an error beats a card that needs a datacenter visit. Release the
-         * flash mutex so the card keeps working. */
-        busy_wait_ms(2000);
-        low_flash_unquiesce();
-        printf("INIT: ERROR SYSRESETREQ did not reset — staying alive\n");
-        return SW_EXEC_ERROR();
+        /* The reset must NOT fire from inside this handler: the APDU response is only
+         * transmitted after cmd_initialize() returns (apdu_finish on core0), so a reset
+         * executed here lands BEFORE the response — the host watches the card vanish
+         * mid-command and reports Transmit failed (measured 2026-08-02; the old
+         * watchdog_reboot(0,0,500) masked this by being asynchronous). Schedule the
+         * reset instead: return now, the response goes out, and card_watchdog_task()
+         * fires it from core0's loop INITIALIZE_REBOOT_DELAY_MS later. */
+        printf("INIT: scheduling SYSRESETREQ in %d ms\n", (int) INITIALIZE_REBOOT_DELAY_MS);
+        schedule_chip_reset(INITIALIZE_REBOOT_DELAY_MS);
 #endif
     }
     else {   //free memory bytes request
