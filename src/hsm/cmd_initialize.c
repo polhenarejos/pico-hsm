@@ -25,6 +25,31 @@
 #include "cvc.h"
 #include "otp.h"
 #include "object_authorization.h"
+#include "usb.h"
+#include <stdio.h>
+#ifdef PICO_PLATFORM
+#include "hardware/watchdog.h"
+#include "hardware/structs/scb.h"
+#include "pico/time.h"
+#endif
+
+/* Upper bound on waiting for the re-personalisation write to become durable before the reset
+ * below.
+ *
+ * SIZE THIS FROM THE HARDWARE, NOT FROM INTUITION. The data region is FLASH_SIZE/2, so on a 16MB
+ * board that is 8MB = ~2048 sectors of 4KB, and a sector erase costs roughly 30-45ms on RP2350.
+ * A large wipe can therefore run 60-90 SECONDS. The first version of this used 10s, which is not
+ * a tight bound — it is far below the worst case, so the sync routinely "timed out" on a wipe
+ * that was proceeding perfectly normally.
+ *
+ * Overshooting costs nothing: the wait returns as soon as the queue drains, so the timeout is
+ * only ever reached when something is genuinely wrong. Undershooting caused the reset to fire
+ * into an in-flight erase and hang the device. Asymmetric consequences, so be generous. */
+#define FLASH_COMMIT_SYNC_TIMEOUT_MS 180000
+
+/* Grace period between arming the reset and it firing, so core 0 can transmit the APDU response
+ * first. Without it the host reports "Card removed" for a command that actually succeeded. */
+#define INITIALIZE_REBOOT_DELAY_MS 500
 
 extern char __StackLimit;
 static int heapLeft(void) {
@@ -260,8 +285,86 @@ int cmd_initialize(void) {
         if (ret != PICOKEYS_OK) {
             return SW_EXEC_ERROR();
         }
-        flash_commit();
+        /* Persist SYNCHRONOUSLY. flash_commit() only QUEUES the write for low_flash_task() on
+         * core 0; resetting straight after it would race the write. APDU handlers run on core 1,
+         * which is exactly where flash_commit_sync() is usable (it refuses on core 0, since core
+         * 0 owns the task it would be waiting for).
+         *
+         * These printf()s go to the UART (PICO_STDIO_UART is on by default, PICO_STDIO_USB is
+         * not), the only channel that survives this failure: when the reset below hangs the
+         * device leaves the USB bus, so USB-side logging goes dark exactly when it is needed. */
+        printf("INIT: wipe done, committing flash synchronously\n");
+        bool committed = flash_commit_sync(FLASH_COMMIT_SYNC_TIMEOUT_MS);
+        printf("INIT: flash commit sync=%d\n", (int) committed);
         reset_puk_store();
+        printf("INIT: puk store reset\n");
+
+        /* DO NOT RESET ON AN UNCONFIRMED COMMIT.
+         *
+         * The earlier version fell back to an ASYNC flash_commit() here and then reset anyway,
+         * which is the worst possible ordering: an unconfirmed commit means the erase is very
+         * likely still in flight, and the reset then lands mid-erase. Measured: cycles that wipe
+         * a nearly-empty card pass 9/9, while cycles that wipe a card holding an imported key
+         * plus a populated DKEK domain — far more flash to erase — hung 1 in 3. More to erase
+         * means a longer erase, means a greater chance the sync times out and the reset fires
+         * into it. The device then leaves the USB bus and needs a PHYSICAL REPLUG.
+         *
+         * So: report the failure and stay alive instead. An operator who gets an error and can
+         * retry is in a strictly better position than one holding a device that needs someone to
+         * walk into the datacenter. The wipe itself has already succeeded at this point, so the
+         * retry is cheap; only the reset is being declined. */
+        if (!committed) {
+            printf("INIT: commit UNCONFIRMED — refusing to reset (would land mid-erase)\n");
+            flash_commit();
+            return SW_EXEC_ERROR();
+        }
+#if defined(PICO_PLATFORM)
+        /* Re-personalising wipes the file system, and the card does NOT come back on its own
+         * afterwards: the reader keeps reporting a card, but the card returns no ATR and
+         * PKCS#11 sees no token, until the firmware rebuilds its state at boot. Before this
+         * reset the only recovery was PHYSICALLY REPLUGGING the device, which is impossible in
+         * a remote or datacenter deployment.
+         *
+         * Resetting after re-personalisation is also what a real smartcard does, so this makes
+         * the Pico behave more like the SmartCard-HSM it stands in for, not less.
+         *
+         * Do NOT use the EV_RESET path: it routes to usb_secure_reboot_now(), which zeroes
+         * heap and stack before resetting; that was tried here first and MEASURED to hang the
+         * device outright on RP2350 — it left the bus and never re-enumerated, recoverable only
+         * by physically replugging, i.e. strictly worse than the bug being fixed.
+         *
+         * THE MEASURED HISTORY OF THIS RESET (2026-08-02, Debug Probe on SWD, xPack OpenOCD
+         * rp2350 target, hsm-cycle-test.sh, all on a populated card):
+         *   - watchdog_reboot(): ~7% of cycles HUNG — device left the USB bus, never
+         *     re-enumerated. SWD forensics on the live hang: watchdog REASON.TIMER set (the
+         *     watchdog DID fire), both cores reading all-zero, XIP SSI all-zero, bootram
+         *     diagnostics untouched — the post-reset boot never got as far as XIP setup.
+         *   - AIRCR.SYSRESETREQS alone: 13 clean cycles, then the SAME hang. NOTE: this round
+         *     is unattributable — a watchdog fallback fired if the AIRCR write didn't take, and
+         *     OpenOCD flashing pollutes REASON, so which reset actually ran is unknown.
+         *   - Flash quiesce (mtx_flash held) + SYSRESETREQS: 10 clean cycles, SAME hang.
+         * Whatever wedges the warm boot, it is NOT cleanly the reset type and NOT cleanly
+         * flash-busy-at-reset. The quiesce is kept (it is cheap and removes one variable); the
+         * watchdog fallback is REMOVED so an AIRCR failure reads as "declined but alive"
+         * instead of another wedge; and scratch[0] carries an attribution marker so the next
+         * hang can be tied to the exact code path that preceded it.
+         *
+         * Not scrubbing RAM first is acceptable: a reset exposes memory to nobody without
+         * physical access to the device. */
+        /* Attribution marker for SWD forensics: scratch registers survive warm resets, so a
+         * hang found with this marker present means THIS build reset and wedged afterwards;
+         * absent means the wedge predates the current firmware. */
+        watchdog_hw->scratch[0] = 0x1A17C0DEu;
+        /* The reset must NOT fire from inside this handler: the APDU response is only
+         * transmitted after cmd_initialize() returns (apdu_finish on core0), so a reset
+         * executed here lands BEFORE the response — the host watches the card vanish
+         * mid-command and reports Transmit failed (measured 2026-08-02; the old
+         * watchdog_reboot(0,0,500) masked this by being asynchronous). Schedule the
+         * reset instead: return now, the response goes out, and card_watchdog_task()
+         * fires it from core0's loop INITIALIZE_REBOOT_DELAY_MS later. */
+        printf("INIT: scheduling SYSRESETREQ in %d ms\n", (int) INITIALIZE_REBOOT_DELAY_MS);
+        schedule_chip_reset(INITIALIZE_REBOOT_DELAY_MS);
+#endif
     }
     else {   //free memory bytes request
         int heap_left = heapLeft();
