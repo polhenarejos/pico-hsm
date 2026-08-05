@@ -121,6 +121,9 @@ extern uint16_t check_pin(const file_t *pin, const_byte_array_t data);
 extern bool pka_enabled(void);
 extern const uint8_t *dev_name;
 extern uint16_t dev_name_len;
+/* Deterministic, device-unique device name used when EF.C_DevAut does not exist yet.
+ * See hsm_bootstrap_dev_name() in sc_hsm.c. */
+extern const uint8_t *hsm_bootstrap_dev_name(uint16_t *len);
 extern uint8_t puk_status[MAX_PUK];
 extern int puk_store_select_chr(const uint8_t *chr);
 extern const_byte_array_t get_meta_tag(file_t *ef, uint16_t meta_tag);

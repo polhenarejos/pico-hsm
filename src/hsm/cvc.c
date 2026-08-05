@@ -40,8 +40,16 @@ static int cvc_configure_cert(cvc_write_cert *ctx, const mbedtls_pk_context *sub
     }
     car = cvc_get_field(apdu.data, (uint16_t)apdu.nc, &car_len, 0x42);
     if (!car || !car_len) {
-        car = dev_name ? dev_name : (const uint8_t *)"ESPICOHSMTR00001";
-        car_len = dev_name ? dev_name_len : (uint16_t)strlen((const char *)car);
+        if (dev_name && dev_name_len) {
+            car = dev_name;
+            car_len = dev_name_len;
+        }
+        else {
+            /* Never emit a shared constant here: OpenSC derives the PKCS#11 token serial
+             * from this CHR, so a fixed value would make every device report the same
+             * serial. */
+            car = hsm_bootstrap_dev_name(&car_len);
+        }
     }
     chr = cvc_get_field(apdu.data, (uint16_t)apdu.nc, &chr_len, 0x5F20);
     if (!chr || !chr_len) {
