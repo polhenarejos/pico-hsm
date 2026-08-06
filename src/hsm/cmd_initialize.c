@@ -239,6 +239,14 @@ int cmd_initialize(void) {
                 return SW_EXEC_ERROR();
             }
 
+            /* Reset the output buffer before building the device certificate. asn1_cvc_*
+             * APPEND (output->len += out_len), so without this EF_TERMCA is written with
+             * the CUMULATIVE length and ends up holding the EE authenticated request
+             * (tag 0x67) followed by the certificate (tag 7F21) — 940 bytes instead of
+             * 443. OpenSC then decodes the request as the device certificate. The EE
+             * request has already been copied into the flash page cache by file_put_data
+             * above, so reusing the buffer here is safe. */
+            certificates.len = 0;
             if (asn1_cvc_cert(&subject_pk, &certificates, CONST_BYTE_ARRAY(NULL, 0), true) == 0) {
                 mbedtls_ecdsa_free(&ecdsa);
                 return SW_EXEC_ERROR();
