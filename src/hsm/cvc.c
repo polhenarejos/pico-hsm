@@ -137,7 +137,14 @@ uint16_t asn1_cvc_aut(const mbedtls_pk_context *subject, byte_buffer_t *output, 
     uint16_t cert_len, request_len, out_len = 0;
     size_t outer_sig_len;
     uint8_t placeholder = 0;
-    if (!output || output->len > output->capacity || output->capacity - output->len > UINT16_MAX || extension.len > UINT16_MAX || !subject || !fkey || !dev_name || !dev_name_len) {
+    static const uint8_t default_chr[] = "ESPICOHSMTR00001";
+    const uint8_t *outer_car = dev_name;
+    uint16_t outer_car_len = dev_name_len;
+    if (!outer_car || !outer_car_len) {
+        outer_car = default_chr;
+        outer_car_len = (uint16_t)(sizeof(default_chr) - 1);
+    }
+    if (!output || output->len > output->capacity || output->capacity - output->len > UINT16_MAX || extension.len > UINT16_MAX || !subject || !fkey) {
         return 0;
     }
     uint8_t *buf = output->data ? output->data + output->len : NULL;
@@ -152,11 +159,11 @@ uint16_t asn1_cvc_aut(const mbedtls_pk_context *subject, byte_buffer_t *output, 
         return 0;
     }
     cvc_write_req_init(&ctx);
-    if (cvc_configure_cert(&ctx.cert, subject, false, extension) != 0 || dev_name_len > sizeof(ctx.outer_car_buf)) {
+    if (cvc_configure_cert(&ctx.cert, subject, false, extension) != 0 || outer_car_len > sizeof(ctx.outer_car_buf)) {
         mbedtls_ecp_keypair_free(&device_key);
         return 0;
     }
-    if (cvc_req_set_outer_signing_key(&ctx, &outer) != LIBCVC_OK || cvc_req_set_outer_car(&ctx, dev_name, dev_name_len) != LIBCVC_OK) {
+    if (cvc_req_set_outer_signing_key(&ctx, &outer) != LIBCVC_OK || cvc_req_set_outer_car(&ctx, outer_car, outer_car_len) != LIBCVC_OK) {
         mbedtls_ecp_keypair_free(&device_key);
         return 0;
     }
