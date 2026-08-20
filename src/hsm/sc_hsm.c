@@ -233,7 +233,13 @@ void reset_puk_store(void) {
             add_cert_puk_store(CONST_BYTE_ARRAY(file_get_data(ef), file_get_size(ef)), false);
         }
     }
-    dev_name = cvc_get_chr(file_get_data(fterm), file_get_size(fterm), &dev_name_len);
+    if (fterm && file_has_data(fterm)) {
+        dev_name = cvc_get_chr(file_get_data(fterm), file_get_size(fterm), &dev_name_len);
+    }
+    if (!dev_name) {
+        dev_name = (const uint8_t *) "ESPICOHSMTR00001";
+        dev_name_len = (uint16_t)(strlen((const char *)dev_name));
+    }
     memset(puk_status, 0, sizeof(puk_status));
 }
 

@@ -187,7 +187,7 @@ int cmd_initialize(void) {
             return SW_EXEC_ERROR();
         }
         int ret = 0;
-        bool recreate_dev_key = ret_mkek != PICOKEYS_OK || !file_has_data(fdkey);
+        bool recreate_dev_key = ret_mkek != PICOKEYS_OK || !file_has_data(fdkey) || !file_has_data(file_search(EF_TERMCA));
         if (!recreate_dev_key) {
             mbedtls_ecp_keypair existing_key;
             mbedtls_ecp_keypair_init(&existing_key);
