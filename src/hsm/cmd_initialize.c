@@ -239,6 +239,7 @@ int cmd_initialize(void) {
                 return SW_EXEC_ERROR();
             }
 
+            certificates.len = 0; // Reset output buffer
             if (asn1_cvc_cert(&subject_pk, &certificates, CONST_BYTE_ARRAY(NULL, 0), true) == 0) {
                 mbedtls_ecdsa_free(&ecdsa);
                 return SW_EXEC_ERROR();
