@@ -55,6 +55,9 @@ int cmd_delete_file(void) {
     if (!ef) {
         return SW_FILE_NOT_FOUND();
     }
+    if ((file_get_type(ef) & FILE_DATA_FUNC) != 0) {
+        return SW_COMMAND_NOT_ALLOWED();
+    }
     logical_fid = hsm_key_logical_fid(ef);
     if (!file_authenticate_action(ef, ACL_OP_DELETE_SELF)) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
