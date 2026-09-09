@@ -20,7 +20,6 @@
 #include "key_container.h"
 #include "version.h"
 
-extern const file_t *file_openpgp;
 extern const file_t *file_sc_hsm;
 
 static file_t logical_object_file;
@@ -37,7 +36,7 @@ void select_file(file_t *pe) {
     else {
         currentDF = pe;
     }
-    if (currentEF == file_openpgp || currentEF == file_sc_hsm) {
+    if (currentEF == file_sc_hsm) {
         selected_applet = currentEF;
         //sc_hsm_unload(); //reset auth status
     }
