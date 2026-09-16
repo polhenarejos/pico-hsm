@@ -188,6 +188,21 @@ if(NOT ESP_PLATFORM)
         endif()
         target_link_libraries(hsm_key_container_test PRIVATE mbedtls)
         add_test(NAME hsm_key_container_test COMMAND hsm_key_container_test)
+
+        add_executable(hsm_cvc_test
+            ${CMAKE_CURRENT_LIST_DIR}/pico-keys-sdk/src/crypto_utils.c
+            ${CMAKE_CURRENT_LIST_DIR}/pico-keys-sdk/src/tlv.c
+            ${CMAKE_CURRENT_LIST_DIR}/src/hsm/cvc.c
+            ${CMAKE_CURRENT_LIST_DIR}/tests/hsm_cvc_test.c
+        )
+        target_include_directories(hsm_cvc_test PRIVATE ${INCLUDES})
+        if(MSVC)
+            target_compile_options(hsm_cvc_test PRIVATE /W4 /WX)
+        else()
+            target_compile_options(hsm_cvc_test PRIVATE -Wall -Wextra -Werror)
+        endif()
+        target_link_libraries(hsm_cvc_test PRIVATE mbedtls libcvc)
+        add_test(NAME hsm_cvc_test COMMAND hsm_cvc_test)
     else()
         pico_add_extra_outputs(${CMAKE_PROJECT_NAME})
     endif()
