@@ -367,6 +367,28 @@ mbedtls_ecp_group_id cvc_inherite_ec_group(const_byte_array_t ca) {
     uint16_t chr_len = 0, car_len = 0;
     const uint8_t *chr = NULL, *car = NULL;
     int eq = -1;
+
+    /* Prefer the certificate's own EC domain parameters when it carries them.
+     * Walking up to a self-signed ancestor is only needed when the parameters
+     * are absent and have to be inherited from the CA. Doing that walk
+     * unconditionally fails whenever the CA named in the CAR has no
+     * certificate in the puk store, which is the case for every key CVC
+     * generated through OpenSC: pkcs15init stamps a fixed placeholder CAR
+     * ("UTCA00001") that no certificate ever matches. The walk then leaves
+     * ca_data NULL, the curve resolves to DP_NONE, and EXTERNAL AUTHENTICATE
+     * rejects every signature with 6985. */
+    {
+        uint16_t own_puk_len = 0;
+        const uint8_t *own_puk = cvc_get_pub(ca_data, ca_len, &own_puk_len);
+        if (own_puk) {
+            uint16_t own_t81_len = 0;
+            const uint8_t *own_t81 = cvc_get_field(own_puk, own_puk_len, &own_t81_len, 0x81);
+            if (own_t81) {
+                return ec_get_curve_from_prime(CONST_BYTE_ARRAY(own_t81, own_t81_len));
+            }
+        }
+    }
+
     do {
         chr = cvc_get_chr(ca_data, ca_len, &chr_len);
         car = cvc_get_car(ca_data, ca_len, &car_len);
