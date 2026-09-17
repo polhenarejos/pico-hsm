@@ -119,6 +119,7 @@ extern bool has_session_pin, has_session_sopin;
 extern uint8_t session_pin[32], session_sopin[32];
 extern uint16_t check_pin(const file_t *pin, const_byte_array_t data);
 extern bool pka_enabled(void);
+extern void hsm_update_user_auth(void);
 extern const uint8_t *dev_name;
 extern uint16_t dev_name_len;
 extern uint8_t puk_status[MAX_PUK];

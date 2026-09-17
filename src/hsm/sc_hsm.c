@@ -396,6 +396,47 @@ bool pka_enabled(void) {
     return file_has_data(ef_puk) && file_read_uint8(ef_puk) > 0;
 }
 
+static bool pka_quorum_met(void) {
+    file_t *ef_puk = file_search(EF_PUKAUT);
+    if (!file_has_data(ef_puk)) {
+        return false;
+    }
+    const uint8_t *puk_data = file_get_data(ef_puk);
+    uint8_t auts = 0;
+    for (uint8_t i = 0; i < puk_data[0] && i < MAX_PUK; i++) {
+        auts += puk_status[i];
+    }
+    return auts >= puk_data[2];
+}
+
+/* Grant or revoke user access under public key authentication.
+ *
+ * Either half of the pair can complete last -- the quorum may be reached
+ * before the PIN is verified, or after it -- so both EXTERNAL AUTHENTICATE
+ * and check_pin() call this rather than setting the flag themselves.
+ *
+ * HSM_OPT_COMBINED_AUTH (bit 0x10, what OpenSC sets for
+ * --require-pka-and-pin) makes a verified user PIN necessary in addition to
+ * the quorum. Without honouring it the option is stored and reported back as
+ * "Public Key Authentication and PIN verification enforced" while access is
+ * granted on the quorum alone.
+ */
+void hsm_update_user_auth(void) {
+    bool granted;
+
+    if (!pka_enabled()) {
+        return;                 /* the PIN alone governs access */
+    }
+    granted = pka_quorum_met();
+    if (granted && (get_device_options() & HSM_OPT_COMBINED_AUTH)) {
+        granted = has_session_pin;
+    }
+    if (granted && !isUserAuthenticated) {
+        hsm_object_authorization_session_invalidate();
+    }
+    isUserAuthenticated = granted;
+}
+
 uint16_t check_pin(const file_t *pin, const_byte_array_t data) {
     if (!file_has_data((file_t *) pin)) {
         return SW_REFERENCE_NOT_FOUND();
@@ -480,6 +521,7 @@ uint16_t check_pin(const file_t *pin, const_byte_array_t data) {
         pin_derive_session(data, session_sopin);
         has_session_sopin = true;
     }
+    hsm_update_user_auth();
     if (pending_save_dkek != 0xff) {
         save_dkek_key(pending_save_dkek, NULL);
         pending_save_dkek = 0xff;

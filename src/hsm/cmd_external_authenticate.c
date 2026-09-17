@@ -59,11 +59,8 @@ int cmd_external_authenticate(void) {
         auts += puk_status[i];
     }
     if (auts >= puk_data[2]) {
-        if (!isUserAuthenticated) {
-            hsm_object_authorization_session_invalidate();
-        }
-        isUserAuthenticated = true;
         clear_pka_challenge();
     }
+    hsm_update_user_auth();
     return SW_OK();
 }
