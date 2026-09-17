@@ -206,6 +206,30 @@ int puk_store_select_chr(const uint8_t *chr) {
     return PICOKEYS_ERR_FILE_NOT_FOUND;
 }
 
+/* Device name used when the card has no usable EF.C_DevAut yet.
+ *
+ * Layout is the conventional CVC holder reference: an 11-character holder id followed by a
+ * 5-digit sequence number, 16 total. OpenSC derives the PKCS#11 token serial from this CHR by
+ * stripping the last five characters unconditionally (pkcs15-sc-hsm.c, "Strip last 5 digit
+ * sequence number from CHR"), so all of the uniqueness has to live in the leading 11 — hence
+ * "ESP" plus 32 bits of the board serial. That keeps the established "ESP..." prefix
+ * recognisable to operators while making the derived token serial distinct per device.
+ *
+ * pico_serial is filled by serial_init() on every supported platform, including ESP32, and
+ * PICO_UNIQUE_BOARD_ID_SIZE_BYTES is 8 or 16 there, so the last four bytes always exist. */
+#define BOOTSTRAP_DEV_NAME_LEN 16
+static uint8_t bootstrap_dev_name[BOOTSTRAP_DEV_NAME_LEN + 1];
+
+const uint8_t *hsm_bootstrap_dev_name(uint16_t *len) {
+    const uint8_t *sn = pico_serial.id + (PICO_UNIQUE_BOARD_ID_SIZE_BYTES - 4);
+    snprintf((char *) bootstrap_dev_name, sizeof(bootstrap_dev_name),
+             "ESP%02X%02X%02X%02X00001", sn[0], sn[1], sn[2], sn[3]);
+    if (len) {
+        *len = BOOTSTRAP_DEV_NAME_LEN;
+    }
+    return bootstrap_dev_name;
+}
+
 void reset_puk_store(void) {
     if (puk_store_entries > 0) { /* From previous session */
         for (int i = 0; i < puk_store_entries; i++) {
@@ -238,8 +262,7 @@ void reset_puk_store(void) {
         dev_name = cvc_get_chr(file_get_data(fterm), file_get_size(fterm), &dev_name_len);
     }
     if (!dev_name) {
-        dev_name = (const uint8_t *) "ESPICOHSMTR00001";
-        dev_name_len = (uint16_t)(strlen((const char *)dev_name));
+        dev_name = hsm_bootstrap_dev_name(&dev_name_len);
     }
     memset(puk_status, 0, sizeof(puk_status));
 }

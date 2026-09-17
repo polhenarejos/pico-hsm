@@ -122,6 +122,9 @@ extern bool pka_enabled(void);
 extern void hsm_update_user_auth(void);
 extern const uint8_t *dev_name;
 extern uint16_t dev_name_len;
+/* Deterministic, device-unique device name used when the card has no usable EF.C_DevAut.
+ * See hsm_bootstrap_dev_name() in sc_hsm.c. */
+extern const uint8_t *hsm_bootstrap_dev_name(uint16_t *len);
 extern uint8_t puk_status[MAX_PUK];
 extern int puk_store_select_chr(const uint8_t *chr);
 extern const_byte_array_t get_meta_tag(file_t *ef, uint16_t meta_tag);
