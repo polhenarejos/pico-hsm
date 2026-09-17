@@ -67,6 +67,7 @@ static int sc_hsm_select_aid(app_t *a, uint8_t force) {
     (void) force;
     a->process_apdu = sc_hsm_process_apdu;
     a->unload = sc_hsm_unload;
+    a->supports_secure_messaging = true;
     init_sc_hsm();
     return PICOKEYS_OK;
 }
