@@ -172,6 +172,12 @@ def parse_args():
     parser_bip32_sign.add_argument('--file-in', help='File to sign.')
     parser_bip32_sign.add_argument('--file-out', help='File to write the signature.')
 
+    parser_pubkey = subparser.add_parser('pubkey', help='Retrieves the public key of a private key.')
+    parser_pubkey.add_argument('-k', '--key', help='The private key index', metavar='KEY_ID', required=True)
+    parser_pubkey.add_argument('--format', choices=['PEM', 'DER', 'OpenSSH'], default='PEM', help='The output format of the public key')
+    parser_pubkey.add_argument('--file-out', help='File to write the public key.')
+    parser_pubkey.add_argument('--curve',  choices=['secp192r1', 'secp256r1', 'secp384r1', 'secp521r1', 'brainpoolP256r1', 'brainpoolP384r1', 'brainpoolP512r1', 'secp192k1', 'secp256k1'], help='The curve of the public key. [Required for ECDSA keys]')
+
     args = parser.parse_args()
     return args
 
@@ -545,6 +551,19 @@ def parse_derivation_path(path):
             e = e[:-1]
         indices.append(int(e) + off)
     return indices
+def pubkey(picohsm, args):
+    kid = int(args.key)
+    res = picohsm.public_key(kid, args.curve)
+    key_dat = res.public_bytes(
+       encoding=Encoding.PEM if args.format == 'PEM' else Encoding.DER if args.format == 'DER' else Encoding.OpenSSH,
+       format=PublicFormat.SubjectPublicKeyInfo if args.format in ['PEM', 'DER'] else PublicFormat.OpenSSH)
+    if (args.file_out):
+        fout = open(args.file_out, 'wb')
+    else:
+        fout = sys.stdout.buffer
+    fout.write(key_dat if args.format == 'PEM' or args.format == 'OpenSSH' else bytes(key_dat))
+    if (args.file_out):
+        fout.close()
 
 def main(args):
     sys.stderr.buffer.write(b'Pico HSM Tool v2.4\n')
@@ -582,6 +601,8 @@ def main(args):
         memory(picohsm, args)
     elif (args.command == 'bip32'):
         bip32(picohsm, args)
+    elif (args.command == 'pubkey'):
+        pubkey(picohsm, args)
 
 def run():
     args = parse_args()
