@@ -271,7 +271,6 @@ static int hsm_key_layout_retire(void *ctx, uint32_t container_id, const file_ob
 static const file_object_container_layout_t hsm_key_container_layout = {
     .namespace_id = HSM_OBJECT_NAMESPACE,
     .container_kind = HSM_KEY_CONTAINER_KIND,
-    .commit_timeout_ms = HSM_KEY_CONTAINER_COMMIT_TIMEOUT_MS,
     .manifest_fid = hsm_key_layout_manifest_fid,
     .record_fid = hsm_key_layout_record_fid,
     .record_allocate = hsm_key_layout_record_allocate,
