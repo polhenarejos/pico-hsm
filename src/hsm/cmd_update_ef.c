@@ -61,6 +61,9 @@ int cmd_update_ef(void) {
     if (ef && !file_authenticate_action(ef, ACL_OP_UPDATE_ERASE)) {
         return SW_SECURITY_STATUS_NOT_SATISFIED();
     }
+    if (ef && (file_get_type(ef) & FILE_DATA_FUNC) != 0) {
+        return SW_COMMAND_NOT_ALLOWED();
+    }
 
     uint8_t *p = NULL;
     tlv_item_t item;

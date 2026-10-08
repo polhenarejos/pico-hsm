@@ -123,6 +123,21 @@ def test_07_read_binary_odd_rejects_missing_offset(device):
     assert e.value.sw == SWCodes.SW_WRONG_DATA
 
 
+@pytest.mark.parametrize("fid", [0x2F00, 0x2F03])
+def test_08_generated_files_are_not_writable(device, fid):
+    device.initialize()
+    device.login(DEFAULT_PIN)
+    data = [0x54, 0x02, 0x00, 0x00, 0x53, 0x04, 0xDE, 0xAD, 0xBE, 0xEF]
+
+    with pytest.raises(APDUResponse) as e:
+        raw_send(device, command=0xD7, p1=(fid >> 8) & 0xFF, p2=fid & 0xFF, data=data)
+    assert e.value.sw == SWCodes.SW_COMMAND_NOT_ALLOWED
+
+    response, sw = read_binary_raw(device, fid)
+    assert sw == 0x9000
+    assert bytes(response)[:1] in (b"\x30", b"\x61")
+
+
 def test_general_authenticate_rejects_truncated_envelope(device):
     with pytest.raises(APDUResponse) as e:
         raw_send(device, command=0x86, data=[0x7C])
