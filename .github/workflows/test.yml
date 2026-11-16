@@ -71,7 +71,19 @@ jobs:
       run: |
         cd artifacts
         docker load -q -i docker-image.tar
+    - name: Generate temporary PR memory passphrase
+      if: github.event_name == 'pull_request'
+      id: pr-memory
+      run: |
+        passphrase="$(openssl rand -hex 32)"
+        echo "::add-mask::${passphrase}"
+        echo "passphrase=${passphrase}" >> "$GITHUB_OUTPUT"
+    - name: Prepare fresh memory archive for PR tests
+      if: github.event_name == 'pull_request'
+      env:
+        PICO_HSM_MEMORY_PASSPHRASE: ${{ steps.pr-memory.outputs.passphrase }}
+      run: ./tests/prepare-memory-in-docker.sh
     - name: Test ${{ matrix.suite }}
       env:
-        PICO_HSM_MEMORY_PASSPHRASE: ${{ secrets.PICO_HSM_MEMORY_PASSPHRASE }}
+        PICO_HSM_MEMORY_PASSPHRASE: ${{ github.event_name == 'pull_request' && steps.pr-memory.outputs.passphrase || secrets.PICO_HSM_MEMORY_PASSPHRASE }}
       run: ./tests/run-test-in-docker.sh ${{ matrix.suite }}
