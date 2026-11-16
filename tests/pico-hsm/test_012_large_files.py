@@ -120,7 +120,7 @@ def test_02_file_larger_than_six_page_cache(data_file) -> None:
     assert read_file(device, fid, size) == expected
 
     replacement = make_payload(DEVICE_FLASH_SECTOR_SIZE - 1, seed=0x5A)
-    update_binary(device, fid, 0, replacement)
+    write_file(device, fid, replacement)
 
     assert read_file(device, fid, len(replacement)) == replacement
     assert read_binary(device, fid, len(replacement), 1) == b""
