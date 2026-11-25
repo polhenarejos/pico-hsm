@@ -143,7 +143,7 @@ uint16_t asn1_cvc_aut(const mbedtls_pk_context *subject, byte_buffer_t *output, 
     uint8_t *buf = output->data ? output->data + output->len : NULL;
     uint16_t buf_len = (uint16_t)(output->capacity - output->len);
     mbedtls_ecp_keypair_init(&device_key);
-    if (load_private_key_ec(&device_key, fkey, FILE_OBJECT_OPERATION_SIGN, true) != PICOKEYS_OK) {
+    if (load_private_key_ec(&device_key, fkey, FILE_OBJECT_OPERATION_SIGN, true, true) != PICOKEYS_OK) {
         mbedtls_ecp_keypair_free(&device_key);
         return 0;
     }

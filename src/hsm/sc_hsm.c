@@ -891,8 +891,8 @@ int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey, uint16_t operat
     return PICOKEYS_OK;
 }
 
-int load_private_key_ec(mbedtls_ecp_keypair *ctx, file_t *fkey, uint16_t operation, bool internal_firmware) {
-    if (wait_button_pressed() == true) { // timeout
+int load_private_key_ec(mbedtls_ecp_keypair *ctx, file_t *fkey, uint16_t operation, bool internal_firmware, bool require_user_presence) {
+    if (require_user_presence && wait_button_pressed() == true) { // timeout
         return PICOKEYS_VERIFICATION_FAILED;
     }
 
@@ -918,7 +918,7 @@ int load_private_key_ec(mbedtls_ecp_keypair *ctx, file_t *fkey, uint16_t operati
     return PICOKEYS_OK;
 }
 int load_private_key_ecdh(mbedtls_ecp_keypair *ctx, file_t *fkey, uint16_t operation, bool internal_firmware) {
-    return load_private_key_ec(ctx, fkey, operation, internal_firmware);
+    return load_private_key_ec(ctx, fkey, operation, internal_firmware, true);
 }
 
 #define INS_VERIFY                  0x20

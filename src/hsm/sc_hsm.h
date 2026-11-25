@@ -128,7 +128,7 @@ extern const_byte_array_t get_meta_tag(file_t *ef, uint16_t meta_tag);
 extern void hsm_key_append_fci_metadata(uint8_t key_id);
 extern bool key_has_purpose(file_t *ef, uint8_t purpose);
 extern int load_private_key_rsa(mbedtls_rsa_context *ctx, file_t *fkey, uint16_t operation, bool internal_firmware);
-extern int load_private_key_ec(mbedtls_ecp_keypair *ctx, file_t *fkey, uint16_t operation, bool internal_firmware);
+extern int load_private_key_ec(mbedtls_ecp_keypair *ctx, file_t *fkey, uint16_t operation, bool internal_firmware, bool require_user_presence);
 extern int load_private_key_ecdh(mbedtls_ecp_keypair *ctx, file_t *fkey, uint16_t operation, bool internal_firmware);
 extern bool wait_button_pressed(void);
 extern int store_keys(void *key_ctx, int type, uint8_t key_id);

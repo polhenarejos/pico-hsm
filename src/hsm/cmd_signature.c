@@ -267,7 +267,7 @@ int cmd_signature(void) {
         else if (p2 == ALGO_EC_SHA512) {
             md = MBEDTLS_MD_SHA512;
         }
-        int r = load_private_key_ec(&ctx, fkey, FILE_OBJECT_OPERATION_SIGN, false);
+        int r = load_private_key_ec(&ctx, fkey, FILE_OBJECT_OPERATION_SIGN, false, true);
         if (r != PICOKEYS_OK) {
             mbedtls_ecp_keypair_free(&ctx);
             if (r == PICOKEYS_VERIFICATION_FAILED) {
@@ -304,6 +304,9 @@ int cmd_signature(void) {
         if (hd_keytype != 0x1 && hd_keytype != 0x2) {
             mbedtls_ecp_keypair_free(&hd_context);
             return SW_INCORRECT_PARAMS();
+        }
+        if (wait_button_pressed() == true) {
+            return SW_SECURE_MESSAGE_EXEC_ERROR();
         }
         md = MBEDTLS_MD_SHA256;
         if (mbedtls_ecdsa_write_signature(&hd_context, md, apdu.data, apdu.nc, buf, MBEDTLS_ECDSA_MAX_LEN, &olen, random_fill_iterator, NULL) != 0) {

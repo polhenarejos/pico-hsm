@@ -45,6 +45,10 @@ int cmd_initialize(void) {
         if (opts & HSM_OPT_SECURE_LOCK && !has_mkek_mask) {
             return SW_SECURITY_STATUS_NOT_SATISFIED();
         }
+        // Check before flash reset so a timeout cannot make key validation regenerate the key.
+        if (file_has_data(hsm_key_search(0)) && file_has_data(file_search(EF_TERMCA)) && wait_button_pressed() == true) {
+            return SW_SECURE_MESSAGE_EXEC_ERROR();
+        }
         int ret_mkek = load_mkek(mkek); //Try loading MKEK with previous session
         file_initialize_flash(true);
         scan_all();
@@ -191,7 +195,7 @@ int cmd_initialize(void) {
         if (!recreate_dev_key) {
             mbedtls_ecp_keypair existing_key;
             mbedtls_ecp_keypair_init(&existing_key);
-            recreate_dev_key = load_private_key_ec(&existing_key, fdkey, FILE_OBJECT_OPERATION_USE, true) != PICOKEYS_OK;
+            recreate_dev_key = load_private_key_ec(&existing_key, fdkey, FILE_OBJECT_OPERATION_USE, true, false) != PICOKEYS_OK;
             mbedtls_ecp_keypair_free(&existing_key);
         }
         if (recreate_dev_key) {

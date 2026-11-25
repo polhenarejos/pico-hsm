@@ -83,7 +83,7 @@ int cmd_key_wrap(void) {
     else if (*dprkd == P15_KEYTYPE_ECC) {
         mbedtls_ecp_keypair ctx;
         mbedtls_ecp_keypair_init(&ctx);
-        r = load_private_key_ec(&ctx, ef, FILE_OBJECT_OPERATION_EXPORT, false);
+        r = load_private_key_ec(&ctx, ef, FILE_OBJECT_OPERATION_EXPORT, false, true);
         if (r != PICOKEYS_OK) {
             mbedtls_ecp_keypair_free(&ctx);
             if (r == PICOKEYS_VERIFICATION_FAILED) {
