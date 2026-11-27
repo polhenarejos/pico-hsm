@@ -29,6 +29,7 @@ sudo apt install -y git wget flex bison gperf python3 python3-pip python3-venv c
 git clone --recursive https://github.com/espressif/esp-idf.git
 cd esp-idf
 git checkout tags/v5.5
+git submodule update --init --recursive
 ./install.sh esp32s3
 . ./export.sh
 cd ..
